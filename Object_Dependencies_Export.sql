@@ -1,0 +1,209 @@
+/*
+Copyright 2019 Dirk Strack, Strack Software Development
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+CREATE OR REPLACE VIEW APP_OBJECT_DEPENDENCIES_V
+AS
+WITH PARAM AS ( 
+    SELECT  'FUNCTION:INDEX:MATERIALIZED VIEW:PACKAGE:PACKAGE BODY:PROCEDURE:SEQUENCE:SYNONYM:TABLE:TRIGGER:TYPE:TYPE BODY:VIEW'
+        Object_Types, -- CONSTRAINT:FUNCTION:INDEX:MATERIALIZED VIEW:PACKAGE:PACKAGE BODY:PROCEDURE:SEQUENCE:SYNONYM:TABLE:TRIGGER:TYPE:TYPE BODY:VIEW
+        'SYS_%,DUAL,STANDARD,MVDATA%,CUSTOM\_%' 			Exclude_Pattern, 
+        'NO' 						Include_Sys,	-- YES/NO
+        'NO' 						Include_External,	-- YES/NO
+        SYS_CONTEXT ('USERENV', 'CURRENT_SCHEMA') Current_Schema
+    FROM DUAL 
+), OBJECT_DEPENDENCIES AS (
+    SELECT TO_CHAR(SO.OBJECT_ID) NODE_NAME,
+        SO.OBJECT_TYPE,
+        SO.OBJECT_NAME,
+        SO.OWNER OBJECT_OWNER,
+        SO.STATUS,
+        TO_CHAR(TA.OBJECT_ID) TARGET_NODE_NAME,
+        TA.OBJECT_TYPE TARGET_OBJECT_TYPE,
+        TA.OBJECT_NAME TARGET_OBJECT_NAME,
+        TA.OWNER 	  TARGET_OBJECT_OWNER,
+        TA.STATUS 	  TARGET_STATUS,
+        INITCAP(TA.OBJECT_TYPE) LABEL,
+        case when SO.OBJECT_TYPE = 'TABLE' then SO.OBJECT_NAME end TABLE_NAME,
+        case when TA.OBJECT_TYPE = 'TABLE' then TA.OBJECT_NAME end TARGET_TABLE_NAME
+FROM SYS.ALL_OBJECTS TA
+LEFT OUTER JOIN ALL_DEPENDENCIES D ON D.REFERENCED_OWNER = TA.OWNER
+    AND D.REFERENCED_NAME = TA.OBJECT_NAME
+    AND D.REFERENCED_TYPE = TA.OBJECT_TYPE
+LEFT OUTER JOIN SYS.ALL_OBJECTS SO ON D.OWNER = SO.OWNER
+    AND D.NAME = SO.OBJECT_NAME
+    AND D.TYPE = SO.OBJECT_TYPE
+WHERE SYS_CONTEXT ('USERENV', 'CURRENT_SCHEMA') IN (TA.OWNER, SO.OWNER) 
+AND (TA.OWNER IS NULL OR NOT(TA.OWNER = 'SYS' AND TA.OBJECT_NAME = 'STANDARD'))
+    UNION ALL -- All Indexes -- 
+    SELECT TO_CHAR(SO.OBJECT_ID) NODE_NAME,
+        SO.OBJECT_TYPE,
+        SO.OBJECT_NAME,
+        SO.OWNER OBJECT_OWNER,
+        SO.STATUS,
+        TO_CHAR(TA.OBJECT_ID) TARGET_NODE_NAME,
+        TA.OBJECT_TYPE TARGET_OBJECT_TYPE,
+        TA.OBJECT_NAME TARGET_OBJECT_NAME,
+        TA.OWNER 	  TARGET_OBJECT_OWNER,
+        TA.STATUS 	  TARGET_STATUS,
+        INITCAP(TA.OBJECT_TYPE) LABEL,
+        case when SO.OBJECT_TYPE = 'TABLE' then SO.OBJECT_NAME end TABLE_NAME,
+        case when TA.OBJECT_TYPE = 'TABLE' then TA.OBJECT_NAME end TARGET_TABLE_NAME
+    FROM SYS.ALL_OBJECTS TA, SYS.ALL_INDEXES D, SYS.ALL_OBJECTS SO
+    WHERE D.TABLE_OWNER = TA.OWNER
+    AND D.TABLE_NAME = TA.OBJECT_NAME
+    AND D.TABLE_TYPE = TA.OBJECT_TYPE
+    AND D.OWNER = SO.OWNER
+    AND D.INDEX_NAME = SO.OBJECT_NAME
+    AND SO.OBJECT_TYPE = 'INDEX'
+    AND SYS_CONTEXT ('USERENV', 'CURRENT_SCHEMA') IN (TA.OWNER, SO.OWNER) 
+    UNION ALL -- All FK Constraints --
+    SELECT SO.CONSTRAINT_NAME NODE_NAME,
+        'CONSTRAINT' OBJECT_TYPE,
+        SO.CONSTRAINT_NAME OBJECT_NAME,
+        SO.OWNER OBJECT_OWNER,
+        SO.STATUS,
+        TA.CONSTRAINT_NAME TARGET_NODE_NAME,
+        'CONSTRAINT' TARGET_OBJECT_TYPE,
+        TA.CONSTRAINT_NAME TARGET_OBJECT_NAME,
+        TA.OWNER 	  TARGET_OBJECT_OWNER,
+        TA.STATUS 	  TARGET_STATUS,
+	case SO.CONSTRAINT_TYPE when 'C' then 'Check' when 'P' then 'Primary' when 'R' then 'Reference' when 'U' then 'Unique' else SO.CONSTRAINT_TYPE end LABEL,
+	case when SO.VIEW_RELATED IS NULL then SO.TABLE_NAME end TABLE_NAME,
+	case when TA.VIEW_RELATED IS NULL then TA.TABLE_NAME end TARGET_TABLE_NAME
+    FROM SYS.ALL_CONSTRAINTS SO, SYS.ALL_CONSTRAINTS TA
+    WHERE SO.R_OWNER = TA.OWNER
+    AND SO.R_CONSTRAINT_NAME = TA.CONSTRAINT_NAME
+    AND SYS_CONTEXT ('USERENV', 'CURRENT_SCHEMA') IN (TA.OWNER, SO.OWNER) 
+    UNION ALL -- All_Object Constrants --
+    SELECT SO.CONSTRAINT_NAME NODE_NAME,
+        'CONSTRAINT' OBJECT_TYPE,
+        SO.CONSTRAINT_NAME OBJECT_NAME,
+        SO.OWNER OBJECT_OWNER,
+        SO.STATUS,
+        TO_CHAR(TA.OBJECT_ID) TARGET_NODE_NAME,
+        TA.OBJECT_TYPE TARGET_OBJECT_TYPE,
+        TA.OBJECT_NAME TARGET_OBJECT_NAME,
+        TA.OWNER 	  TARGET_OBJECT_OWNER,
+        TA.STATUS 	  TARGET_STATUS,
+	case SO.CONSTRAINT_TYPE when 'C' then 'Check' when 'P' then 'Primary' when 'R' then 'Reference' when 'U' then 'Unique' else SO.CONSTRAINT_TYPE end LABEL,
+	case when SO.VIEW_RELATED IS NULL then SO.TABLE_NAME end TABLE_NAME,
+        case when TA.OBJECT_TYPE = 'TABLE' then TA.OBJECT_NAME end TARGET_TABLE_NAME
+    FROM SYS.ALL_CONSTRAINTS SO, SYS.ALL_OBJECTS TA
+    WHERE SO.OWNER = TA.OWNER
+    AND SO.TABLE_NAME = TA.OBJECT_NAME
+    AND TA.OBJECT_TYPE = case when SO.VIEW_RELATED = 'DEPEND ON VIEW' then 'VIEW' else 'TABLE' end
+    AND SYS_CONTEXT ('USERENV', 'CURRENT_SCHEMA') IN (TA.OWNER, SO.OWNER) 
+)
+SELECT A.*, P.Current_Schema
+FROM OBJECT_DEPENDENCIES A, PARAM P 
+WHERE ((TARGET_OBJECT_OWNER NOT IN ('PUBLIC', 'SYS') and TARGET_OBJECT_OWNER NOT LIKE 'APEX%') or Include_Sys = 'YES')
+AND (OBJECT_OWNER IS NULL or (OBJECT_OWNER NOT IN ('PUBLIC', 'SYS') and OBJECT_OWNER NOT LIKE 'APEX%') or Include_Sys = 'YES')
+AND (TARGET_OBJECT_OWNER = Current_Schema or Include_External = 'YES')
+AND (OBJECT_OWNER IS NULL or OBJECT_OWNER = Current_Schema or Include_External = 'YES')
+AND (OBJECT_OWNER IS NOT NULL or p_Exclude_Singles = 'NO')
+AND (OBJECT_TYPE IS NULL or OBJECT_TYPE IN (SELECT COLUMN_VALUE FROM table(apex_string.split(Object_Types,':'))))
+AND TARGET_OBJECT_TYPE IN (SELECT COLUMN_VALUE FROM table(apex_string.split(Object_Types,':')))
+AND (case when TABLE_NAME IS NULL then 'VIEW' else 'TABLE' end IN (SELECT COLUMN_VALUE FROM table(apex_string.split(Object_Types,':'))) 
+  or OBJECT_TYPE IS NULL or OBJECT_TYPE != 'CONSTRAINT')
+AND (case when TARGET_TABLE_NAME IS NULL then 'VIEW' else 'TABLE' end IN (SELECT COLUMN_VALUE FROM table(apex_string.split(Object_Types,':')))
+  or TARGET_OBJECT_TYPE IS NULL or TARGET_OBJECT_TYPE != 'CONSTRAINT')
+AND NOT EXISTS (SELECT --+ NO_UNNEST
+    1 FROM table(apex_string.split(Exclude_Pattern,','))
+    WHERE (OBJECT_NAME LIKE COLUMN_VALUE ESCAPE '\'
+    OR TABLE_NAME LIKE COLUMN_VALUE ESCAPE '\'
+	OR TARGET_OBJECT_NAME LIKE COLUMN_VALUE ESCAPE '\'
+    OR TARGET_TABLE_NAME LIKE COLUMN_VALUE ESCAPE '\')
+);
+
+
+-----------------------------------------------
+-- Diagram Nodes -- 
+CREATE OR REPLACE VIEW APP_OBJECT_DIAGRAM_NODES_V (DIAGRAM, NODE, SHAPE, COLOR)
+AS
+WITH DIAGRAM_EDGES AS (
+    SELECT * FROM APP_OBJECT_EDGES_V
+), NODES AS (
+	SELECT INITCAP(CURRENT_SCHEMA) DIAGRAM,
+		case when OBJECT_OWNER != CURRENT_SCHEMA then 
+			INITCAP(OBJECT_OWNER) || '.' end 
+		|| INITCAP(OBJECT_NAME)
+		|| case when OBJECT_TYPE IN ('TYPE BODY', 'PACKAGE BODY', 'MATERIALIZED VIEW', 'INDEX') then '_' end -- make names unique
+		NODE,
+		case OBJECT_TYPE when 'FUNCTION' then 'ellipse'
+			when 'TYPE' 				then 'house'
+			when 'TYPE BODY' 			then 'invhouse'
+			when 'PACKAGE' 				then 'house'
+			when 'PACKAGE BODY' 		then 'invhouse'
+			when 'PROCEDURE' 			then 'trapezium'
+			when 'TABLE' 				then 'doubleoctagon'
+			when 'VIEW' 				then 'octagon'
+			when 'TRIGGER' 				then 'box'
+			when 'MATERIALIZED VIEW' 	then 'octagon'
+			else 'box'  
+		end SHAPE,
+		case when OBJECT_OWNER != Current_Schema then 'Orchid'
+			when STATUS = 'INVALID' then 'Red' 
+		else  case OBJECT_TYPE 
+				when 'FUNCTION' 			then 'Aqua'
+				when 'TYPE' 				then 'LightSkyBlue'
+				when 'TYPE BODY' 			then 'LightSkyBlue'
+				when 'PACKAGE' 				then 'LightSeaGreen'
+				when 'PACKAGE BODY' 		then 'LightSeaGreen'
+				when 'PROCEDURE' 			then 'DarkTurquoise'
+				when 'TABLE' 				then 'Khaki'
+				when 'VIEW' 				then 'PowderBlue'
+				when 'TRIGGER' 				then 'LightSalmon'
+				when 'MATERIALIZED VIEW' 	then 'Goldenrod'
+				else 'YellowGreen'
+			end
+		end COLOR
+	FROM (
+		SELECT  NODE_NAME, OBJECT_TYPE, OBJECT_NAME, OBJECT_OWNER, STATUS, TABLE_NAME, CURRENT_SCHEMA
+		FROM OBJECT_EDGES
+		WHERE OBJECT_OWNER IS NOT NULL
+		UNION
+		SELECT  TARGET_NODE_NAME, TARGET_OBJECT_TYPE, TARGET_OBJECT_NAME, TARGET_OBJECT_OWNER, TARGET_STATUS, TARGET_TABLE_NAME, CURRENT_SCHEMA
+		FROM OBJECT_EDGES
+	) 
+)
+SELECT DIAGRAM, NODE, SHAPE, COLOR
+    -- , DENSE_RANK() OVER (PARTITION BY DIAGRAM, NODE ORDER BY NODE) RK
+FROM NODES A;
+
+-- Diagram Edges --
+CREATE OR REPLACE VIEW APP_OBJECT_DIAGRAM_EDGES_V (DIAGRAM, SOURCE_NODE, TARGET_NODE, DESCRIPTION, COLOR)
+AS
+SELECT 
+    INITCAP(Current_Schema) DIAGRAM,
+    case when OBJECT_OWNER != Current_Schema then 
+        INITCAP(OBJECT_OWNER) || '.' end 
+    || INITCAP(OBJECT_NAME) 
+		|| case when OBJECT_TYPE IN ('TYPE BODY', 'PACKAGE BODY', 'MATERIALIZED VIEW', 'INDEX') then '_' end -- make names unique
+    SOURCE_NODE,
+    case when TARGET_OBJECT_OWNER != Current_Schema then 
+        INITCAP(TARGET_OBJECT_OWNER) || '.' end 
+    || INITCAP(TARGET_OBJECT_NAME) 
+		|| case when TARGET_OBJECT_TYPE IN ('TYPE BODY', 'PACKAGE BODY', 'MATERIALIZED VIEW', 'INDEX') then '_' end -- make names unique
+    TARGET_NODE,
+    LABEL DESCRIPTION, 'DarkGrey' COLOR
+FROM APP_OBJECT_EDGES_V Diagram_Edges;
+
+/*
+select * from APP_OBJECT_DIAGRAM_EDGES_V;
+
+
+select * from APP_OBJECT_DIAGRAM_NODES_V;
+
+*/
