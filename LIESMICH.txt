@@ -1,4 +1,12 @@
-# README for the Schema Data Browser Application 
+# LIESMICH für den Schema Data Browser  
+Anwendung zur Analyse Ihrer DB- und APEX-Anwendungen
+
+## Demo
+	Demo mit einem benutzerdefinierten Konto
+	https://strack-software.oracleapexservices.com/apex/f?p=2000:1
+
+	Demo mit einem APEX-Konto
+	https://apex.oracle.com/pls/apex/f?p=48950:1
 
 ## Kompatibilität:
 	mindestens Application Express 19.1 
