@@ -46,7 +46,8 @@ IS
 		SPACE_USED_BYTES NUMBER,
 		USER_ACCESS_LEVEL NUMBER,
 		SCHEMA_ICON VARCHAR2(2000),
-		DESCRIPTION VARCHAR2(2000)
+		DESCRIPTION VARCHAR2(2000),
+		CONFIGURATION_NAME VARCHAR2(128)
 	);
 	TYPE DATA_BROWSER_SCHEMA_INFOS_TAB IS TABLE OF DATA_BROWSER_SCHEMA_INFOS_TYPE;
 	
@@ -614,18 +615,33 @@ $END
 	IS
 		s_cur  SYS_REFCURSOR;
 		v_row DATA_BROWSER_SCHEMA_INFOS_TYPE; -- output row
+    	v_stat VARCHAR2(32767);
 	BEGIN
-		open s_cur for
-			select DISTINCT S.SCHEMA SCHEMA_NAME, 
-				data_browser_schema.Data_Browser_Version_Number(p_Schema_Name => S.SCHEMA) APP_VERSION_NUMBER,
-				data_browser_schema.Schema_Space_Used(p_Schema_Name => S.SCHEMA) SPACE_USED_BYTES,
-				data_browser_schema.Get_User_Access_Level(p_Schema_Name => S.SCHEMA, p_User_Name => p_User_Name) USER_ACCESS_LEVEL,
-				data_browser_schema.Data_Browser_Schema_Icon(p_Schema_Name => S.SCHEMA) SCHEMA_ICON,
-				data_browser_schema.Data_Browser_Schema_Desc(p_Schema_Name => S.SCHEMA) DESCRIPTION
-			from APEX_WORKSPACE_SCHEMAS S
-			join APEX_APPLICATIONS A on S.WORKSPACE_NAME = A.WORKSPACE
-			join DBA_TABLES T on S.SCHEMA = T.OWNER and T.table_name = 'DATA_BROWSER_CONFIG'
-			where A.APPLICATION_ID = p_application_id;
+    for c_cur in (
+        select /*+ RESULT_CACHE */ 
+            A.owner,               
+            sum(A.bytes) used_bytes
+        from APEX_WORKSPACE_SCHEMAS S
+		join APEX_APPLICATIONS APP on S.WORKSPACE_NAME = APP.WORKSPACE
+        join sys.DBA_SEGMENTS A on S.SCHEMA = A.OWNER
+        join sys.dba_tables B on A.owner = B.owner
+        where B.table_name = 'MVBASE_UNIQUE_KEYS'
+        and APP.APPLICATION_ID = p_application_id
+        group by A.owner
+    ) loop 
+        v_stat := v_stat 
+        || case when v_stat IS NOT NULL then 
+            chr(10)||'union all ' 
+        end         
+        || 'select ' || dbms_assert.enquote_literal(c_cur.owner) || ' SCHEMA_NAME, A.APP_VERSION_NUMBER, '
+        ||  dbms_assert.enquote_literal(c_cur.used_bytes) || ' SPACE_USED_BYTES, B.USER_LEVEL,'
+        || 'A.Schema_Icon, A.DESCRIPTION, A.Configuration_Name' || chr(10)
+        || 'from ' || c_cur.owner || '.DATA_BROWSER_CONFIG A, ' || c_cur.owner || '.APP_USERS B, param P'|| chr(10)
+        || 'where A.ID = 1 and B.UPPER_LOGIN_NAME = P.LOGIN_NAME';
+    end loop;
+    v_stat := 'with param as (select :a LOGIN_NAME from dual) select * from (' || chr(10) || v_stat || chr(10) || ')';
+    dbms_output.put_line(v_stat);
+		open s_cur for v_stat using IN p_User_Name;
 		loop
 			FETCH s_cur INTO v_row;
 			EXIT WHEN s_cur%NOTFOUND;
@@ -637,7 +653,6 @@ $END
 		return;
 	END List_Schema;
 	-- usage : SELECT S.Schema_Name, S.Space_Used_Bytes, S.App_Version_Number, S.Description FROM TABLE( sys.data_browser_schema.List_Schema(p_user_name => 'DIRK', p_application_id => 2000, p_App_Version_Number => '1.5.4') ) S;
-	
 	
 	PROCEDURE Copy_Schema (
 	  p_source_user		 IN VARCHAR2 DEFAULT SYS_CONTEXT('USERENV', 'CURRENT_SCHEMA'),
