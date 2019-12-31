@@ -206,8 +206,8 @@ $END
 		end if;
 		v_workspace_id := apex_util.find_security_group_id (p_workspace => v_Workspace_Name);
 		apex_util.set_security_group_id (p_security_group_id => v_workspace_id);
-
-		APEX_INSTANCE_ADMIN.ADD_SCHEMA(v_Workspace_Name, p_Schema_Name);
+		APEX_INSTANCE_ADMIN.UNRESTRICT_SCHEMA(p_schema => p_Schema_Name);
+		APEX_INSTANCE_ADMIN.ADD_SCHEMA(p_workspace => v_Workspace_Name, p_schema => p_Schema_Name);
 		COMMIT;
 	EXCEPTION
 	WHEN OTHERS THEN
@@ -618,16 +618,29 @@ $END
     	v_stat VARCHAR2(32767);
 	BEGIN
     for c_cur in (
-        select /*+ RESULT_CACHE */ 
-            A.owner,               
-            sum(A.bytes) used_bytes
-        from APEX_WORKSPACE_SCHEMAS S
-		join APEX_APPLICATIONS APP on S.WORKSPACE_NAME = APP.WORKSPACE
-        join sys.DBA_SEGMENTS A on S.SCHEMA = A.OWNER
-        join sys.dba_tables B on A.owner = B.owner
-        where B.table_name = 'MVBASE_UNIQUE_KEYS'
-        and APP.APPLICATION_ID = p_application_id
-        group by A.owner
+    	select /*+ RESULT_CACHE */ 
+    		A.owner, A.used_bytes,
+    		B.has_DESCRIPTION,
+    		B.has_SCHEMA_ICON
+    	from (
+			select
+				A.owner,               
+				sum(A.bytes) used_bytes
+			from APEX_WORKSPACE_SCHEMAS S
+			join APEX_APPLICATIONS APP on S.WORKSPACE_NAME = APP.WORKSPACE
+			join sys.DBA_SEGMENTS A on S.SCHEMA = A.OWNER
+			join sys.DBA_TABLES B on A.owner = B.owner
+			where B.table_name = 'DATA_BROWSER_CONFIG'
+			and APP.APPLICATION_ID = p_application_id
+			group by A.owner
+		) A join 
+		(select B.owner, 
+			count(case when B.COLUMN_NAME = 'DESCRIPTION' then 1 end) has_DESCRIPTION,
+			count(case when B.COLUMN_NAME = 'SCHEMA_ICON' then 1 end) has_SCHEMA_ICON
+		from sys.DBA_TAB_COLUMNS B 
+		where B.table_name = 'DATA_BROWSER_CONFIG'
+		group by B.owner
+		) B on A.owner = B.owner
     ) loop 
         v_stat := v_stat 
         || case when v_stat IS NOT NULL then 
@@ -635,7 +648,9 @@ $END
         end         
         || 'select ' || dbms_assert.enquote_literal(c_cur.owner) || ' SCHEMA_NAME, A.APP_VERSION_NUMBER, '
         ||  dbms_assert.enquote_literal(c_cur.used_bytes) || ' SPACE_USED_BYTES, B.USER_LEVEL,'
-        || 'A.Schema_Icon, A.DESCRIPTION, A.Configuration_Name' || chr(10)
+        || case when c_cur.has_SCHEMA_ICON > 0 then 'A.' else 'null ' end || 'SCHEMA_ICON, '
+        || case when c_cur.has_DESCRIPTION > 0 then 'A.' else 'null ' end || 'DESCRIPTION, '
+        || 'A.CONFIGURATION_NAME' || chr(10)
         || 'from ' || c_cur.owner || '.DATA_BROWSER_CONFIG A, ' || c_cur.owner || '.APP_USERS B, param P'|| chr(10)
         || 'where A.ID = 1 and B.UPPER_LOGIN_NAME = P.LOGIN_NAME';
     end loop;
