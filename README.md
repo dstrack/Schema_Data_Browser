@@ -10,7 +10,7 @@ Application to analyse your DB and APEX Applications
 
 ## Compatibility:
 	at least Application Express 19.1
-	at least Oracle Database Version 18.2
+	at least Oracle Database Express Edition 18c
 
 	The use of the web browser Firefox and Chrome is recommended.
 	Safari is a bit slower when displaying the dynamic diagrams.
