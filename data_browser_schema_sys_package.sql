@@ -23,7 +23,7 @@ begin
 	WHERE GRANTEE = v_Schema_Name
 	AND GRANTED_ROLE = 'DBA';
 
-	v_stat := '
+	v_stat := q'[
 CREATE OR REPLACE PACKAGE data_browser_schema 
 AUTHID DEFINER
 IS
@@ -77,8 +77,8 @@ IS
 	) RETURN NUMBER;
 
 	FUNCTION List_Schema (
-		p_User_Name IN VARCHAR2 DEFAULT V(''APP_USER''),
-		p_application_id IN NUMBER DEFAULT NV(''APP_ID''),
+		p_User_Name IN VARCHAR2 DEFAULT SYS_CONTEXT('APEX$SESSION','APP_USER'),
+		p_application_id IN NUMBER DEFAULT NV('APP_ID'),
 		p_App_Version_Number IN VARCHAR2 DEFAULT NULL
 	) RETURN DATA_BROWSER_SCHEMA_INFOS_TAB PIPELINED;
 
@@ -94,22 +94,16 @@ IS
 	PROCEDURE Add_Apex_Workspace_Schema (
 		p_Schema_Name	VARCHAR2,
 		p_Apex_Workspace_Name VARCHAR2 DEFAULT NULL,
-        p_Application_ID VARCHAR2 DEFAULT V(''APP_ID'')
+        p_Application_ID VARCHAR2 DEFAULT V('APP_ID')
 	);
 
 	PROCEDURE Copy_Schema (
-	  p_source_user		 IN VARCHAR2 DEFAULT SYS_CONTEXT(''USERENV'', ''CURRENT_SCHEMA''),
+	  p_source_user		 IN VARCHAR2 DEFAULT SYS_CONTEXT('USERENV', 'CURRENT_SCHEMA'),
 	  p_dest_user		 IN VARCHAR2,
 	  p_dest_user_pwd	 IN VARCHAR2 DEFAULT NULL,
 	  p_paral_lvl		 IN NUMBER	 DEFAULT 2,
 	  p_database_link	 IN VARCHAR2 DEFAULT NULL, 
 	  p_include_rows	 IN NUMBER	 DEFAULT 1 
-	);
-
-	PROCEDURE Drop_Schema (
-		p_Schema_Name VARCHAR2,
-		p_Apex_Workspace_Name VARCHAR2 DEFAULT NULL,
-		p_User_Name IN VARCHAR2 DEFAULT V(''APP_USER'')
 	);
 
 	PROCEDURE Install_Data_Browser_App (
@@ -136,7 +130,7 @@ IS
 		p_Dest_Schema VARCHAR2
 	);
 
-	g_Use_Special_Features	   CONSTANT BOOLEAN := '
+	g_Use_Special_Features	   CONSTANT BOOLEAN := ]'
 	|| v_Use_Special_Features || ';' || chr(10) 
 	|| 'END;' || chr(10) ;
 	EXECUTE IMMEDIATE v_Stat;
@@ -478,9 +472,10 @@ $END
 		Run_Stat('REVOKE EXECUTE ON SYS.UTL_TCP FROM ' || l_app_owner);
 		Run_Stat('REVOKE EXECUTE ON SYS.UTL_SMTP FROM ' || l_app_owner);
 		Run_Stat('REVOKE EXECUTE ON CUSTOM_KEYS.SCHEMA_KEYCHAIN FROM ' || l_app_owner);
+		-- Can not be executed by deinstaller - causes hanging session :
+		--Run_Stat('REVOKE EXECUTE ON ' || l_apex_schema || '.WWV_FLOW_INSTALL_WIZARD FROM ' || l_app_owner);
+		--RUN_STAT('DROP SYNONYM ' || l_app_owner || '.WWV_FLOW_INSTALL_WIZARD');
 		
-		Run_Stat('REVOKE EXECUTE ON ' || l_apex_schema || '.WWV_FLOW_INSTALL_WIZARD FROM ' || l_app_owner);
-		RUN_STAT('DROP SYNONYM ' || l_app_owner || '.WWV_FLOW_INSTALL_WIZARD');
 		-- access smtp parameter, add_schema 
 		-- deadlock: Run_Stat('REVOKE EXECUTE ON DATA_BROWSER_SCHEMA FROM ' || l_app_owner);
 		-- revoke for DBMS_NETWORK_ACL_ADMIN is missing
@@ -608,7 +603,7 @@ $END
 	END Get_User_Access_Level;
 
 	FUNCTION List_Schema (
-		p_User_Name IN VARCHAR2 DEFAULT V('APP_USER'),
+		p_User_Name IN VARCHAR2 DEFAULT SYS_CONTEXT('APEX$SESSION','APP_USER'),
 		p_application_id IN NUMBER DEFAULT NV('APP_ID'),
 		p_App_Version_Number IN VARCHAR2 DEFAULT NULL
 	) RETURN DATA_BROWSER_SCHEMA_INFOS_TAB PIPELINED
@@ -617,54 +612,56 @@ $END
 		v_row DATA_BROWSER_SCHEMA_INFOS_TYPE; -- output row
     	v_stat VARCHAR2(32767);
 	BEGIN
-    for c_cur in (
-    	select /*+ RESULT_CACHE */ 
-    		A.owner, A.used_bytes,
-    		B.has_DESCRIPTION,
-    		B.has_SCHEMA_ICON
-    	from (
-			select
-				A.owner,               
-				sum(A.bytes) used_bytes
-			from APEX_WORKSPACE_SCHEMAS S
-			join APEX_APPLICATIONS APP on S.WORKSPACE_NAME = APP.WORKSPACE
-			join sys.DBA_SEGMENTS A on S.SCHEMA = A.OWNER
-			join sys.DBA_TABLES B on A.owner = B.owner
+		for c_cur in (
+			select /*+ RESULT_CACHE */ 
+				A.owner, A.used_bytes,
+				B.has_DESCRIPTION,
+				B.has_SCHEMA_ICON
+			from (
+				select
+					A.owner,               
+					sum(A.bytes) used_bytes
+				from APEX_WORKSPACE_SCHEMAS S
+				join APEX_APPLICATIONS APP on S.WORKSPACE_NAME = APP.WORKSPACE
+				join sys.DBA_SEGMENTS A on S.SCHEMA = A.OWNER
+				join sys.DBA_TABLES B on A.owner = B.owner and B.table_name = 'DATA_BROWSER_CONFIG'
+				join sys.DBA_TABLES C on A.owner = C.owner and C.table_name = 'APP_USERS'
+				where APP.APPLICATION_ID = p_application_id
+				group by A.owner
+			) A join 
+			(select B.owner, 
+				count(case when B.COLUMN_NAME = 'DESCRIPTION' then 1 end) has_DESCRIPTION,
+				count(case when B.COLUMN_NAME = 'SCHEMA_ICON' then 1 end) has_SCHEMA_ICON
+			from sys.DBA_TAB_COLUMNS B 
 			where B.table_name = 'DATA_BROWSER_CONFIG'
-			and APP.APPLICATION_ID = p_application_id
-			group by A.owner
-		) A join 
-		(select B.owner, 
-			count(case when B.COLUMN_NAME = 'DESCRIPTION' then 1 end) has_DESCRIPTION,
-			count(case when B.COLUMN_NAME = 'SCHEMA_ICON' then 1 end) has_SCHEMA_ICON
-		from sys.DBA_TAB_COLUMNS B 
-		where B.table_name = 'DATA_BROWSER_CONFIG'
-		group by B.owner
-		) B on A.owner = B.owner
-    ) loop 
-        v_stat := v_stat 
-        || case when v_stat IS NOT NULL then 
-            chr(10)||'union all ' 
-        end         
-        || 'select ' || dbms_assert.enquote_literal(c_cur.owner) || ' SCHEMA_NAME, A.APP_VERSION_NUMBER, '
-        ||  dbms_assert.enquote_literal(c_cur.used_bytes) || ' SPACE_USED_BYTES, B.USER_LEVEL,'
-        || case when c_cur.has_SCHEMA_ICON > 0 then 'A.' else 'null ' end || 'SCHEMA_ICON, '
-        || case when c_cur.has_DESCRIPTION > 0 then 'A.' else 'null ' end || 'DESCRIPTION, '
-        || 'A.CONFIGURATION_NAME' || chr(10)
-        || 'from ' || c_cur.owner || '.DATA_BROWSER_CONFIG A, ' || c_cur.owner || '.APP_USERS B, param P'|| chr(10)
-        || 'where A.ID = 1 and B.UPPER_LOGIN_NAME = P.LOGIN_NAME';
-    end loop;
-    v_stat := 'with param as (select :a LOGIN_NAME from dual) select * from (' || chr(10) || v_stat || chr(10) || ')';
-    dbms_output.put_line(v_stat);
-		open s_cur for v_stat using IN p_User_Name;
-		loop
-			FETCH s_cur INTO v_row;
-			EXIT WHEN s_cur%NOTFOUND;
-			if v_row.User_Access_Level <= 6
-			and v_row.App_Version_Number >= NVL(p_App_Version_Number, v_row.App_Version_Number) then
-				pipe row ( v_row );
-			end if;
+			group by B.owner
+			) B on A.owner = B.owner
+		) loop 
+			v_stat := v_stat 
+			|| case when v_stat IS NOT NULL then 
+				chr(10)||'union all ' 
+			end         
+			|| 'select ' || dbms_assert.enquote_literal(c_cur.owner) || ' SCHEMA_NAME, A.APP_VERSION_NUMBER, '
+			||  dbms_assert.enquote_literal(c_cur.used_bytes) || ' SPACE_USED_BYTES, B.USER_LEVEL,'
+			|| case when c_cur.has_SCHEMA_ICON > 0 then 'A.' else 'null ' end || 'SCHEMA_ICON, '
+			|| case when c_cur.has_DESCRIPTION > 0 then 'A.' else 'null ' end || 'DESCRIPTION, '
+			|| 'A.CONFIGURATION_NAME' || chr(10)
+			|| 'from ' || c_cur.owner || '.DATA_BROWSER_CONFIG A, ' || c_cur.owner || '.APP_USERS B, param P'|| chr(10)
+			|| 'where A.ID = 1 and B.UPPER_LOGIN_NAME = P.LOGIN_NAME';
 		end loop;
+		if v_stat IS NOT NULL then 
+		v_stat := 'with param as (select :a LOGIN_NAME from dual) select * from (' || chr(10) || v_stat || chr(10) || ')';
+		dbms_output.put_line(v_stat);
+			open s_cur for v_stat using IN p_User_Name;
+			loop
+				FETCH s_cur INTO v_row;
+				EXIT WHEN s_cur%NOTFOUND;
+				if v_row.User_Access_Level <= 6
+				and v_row.App_Version_Number >= NVL(p_App_Version_Number, v_row.App_Version_Number) then
+					pipe row ( v_row );
+				end if;
+			end loop;
+		end if;
 		return;
 	END List_Schema;
 	-- usage : SELECT S.Schema_Name, S.Space_Used_Bytes, S.App_Version_Number, S.Description FROM TABLE( sys.data_browser_schema.List_Schema(p_user_name => 'DIRK', p_application_id => 2000, p_App_Version_Number => '1.5.4') ) S;
@@ -713,34 +710,6 @@ $END
 		end if;
 	end Copy_Schema;	
 	
-	PROCEDURE Drop_Schema (
-		p_Schema_Name VARCHAR2,
-		p_Apex_Workspace_Name VARCHAR2 DEFAULT NULL,
-		p_User_Name IN VARCHAR2 DEFAULT V('APP_USER')
-	)
-	IS 
-		v_workspace_id		NUMBER;
-		v_Workspace_Name	APEX_APPLICATIONS.WORKSPACE%TYPE;
-	BEGIN 
-		if p_Apex_Workspace_Name IS NULL then
-			select workspace
-			into v_Workspace_Name
-			from apex_applications
-			where application_id = V('APP_ID');
-		else 
-			v_Workspace_Name := p_Apex_Workspace_Name;
-		end if;
-		if data_browser_schema.Get_User_Access_Level(p_Schema_Name => p_Schema_Name, p_User_Name => p_User_Name) <= 1 then
-			v_workspace_id := apex_util.find_security_group_id (p_workspace => v_Workspace_Name);
-			apex_util.set_security_group_id (p_security_group_id => v_workspace_id);
-
-			APEX_INSTANCE_ADMIN.REMOVE_SCHEMA(v_Workspace_Name, p_Schema_Name);
-			COMMIT;
-			EXECUTE IMMEDIATE 'DROP USER ' || DBMS_ASSERT.ENQUOTE_NAME(p_Schema_Name) || ' CASCADE ' ;
-			DBMS_OUTPUT.PUT_LINE('-- dropped Schema ' || p_Schema_Name || ' from Workspace ' || v_Workspace_Name);
-		end if;
-	END Drop_Schema;
-
 	PROCEDURE Install_Data_Browser_App (
 		p_workspace VARCHAR2,
 		p_schema VARCHAR2,
@@ -763,10 +732,7 @@ $END
 		v_workspace_name	:= UPPER(p_workspace);
 		v_app_schema		:= UPPER(p_schema);
 		v_app_id			:= TO_NUMBER(p_app_id);
-		/*v_workspace_id		:= apex_util.find_security_group_id (p_workspace => v_workspace_name);
-		if v_workspace_id IS NULL then 
-			RAISE_APPLICATION_ERROR(-20001, 'Validation Error - workspace name : ' || v_workspace_name || ' does not exist.');
-		end if;*/
+
 		begin 
 			select username into v_username 
 			from ALL_USERS
@@ -801,8 +767,6 @@ $END
 		v_app_alias :=	NVL(p_app_alias, 'DATA_BROWSER_' || v_app_schema);
 		dbms_output.put_line('Installing Apex Application : ' || v_app_id || ' - ' || v_app_name);
 
-		/*apex_util.set_security_group_id (p_security_group_id => v_workspace_id);
-		apex_application_install.set_workspace_id( v_workspace_id );*/
 		apex_application_install.set_workspace( v_workspace_name );
 		apex_application_install.set_application_id( v_app_id );
 		apex_application_install.generate_offset;

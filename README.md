@@ -63,7 +63,7 @@ Application to analyse your DB and APEX Applications
 	The installer checks during installation whether the additionally required authorizations 
 	have been granted, which were set up in step 3.	
 	
-1.1. Upload file **Schema_Data_Browser_Custom_App.sql**.
+1.1. Upload file **Data_Browser_Custom_App.sql**.
 	Supporting Objects : Yes 
 	
 	The installation takes about 2 minutes locally, Oracle Cloud about 7 minutes.
@@ -78,7 +78,7 @@ Application to analyse your DB and APEX Applications
 	In shared server environments where no additional permissions are available,
 	this functional reduced version must be used.
 
-2.1. Upload file **Schema_Data_Browser_Apex_App.sql**.
+2.1. Upload file **Data_Browser_Apex_App.sql**.
 	Supporting Objects : Yes 
 	
 	The installation takes about 2 minutes locally, Oracle Cloud about 7 minutes.

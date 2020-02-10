@@ -63,7 +63,7 @@ Anwendung zur Analyse Ihrer DB- und APEX-Anwendungen
 	Der Installer prüft bei der Installation, ob die zusätzlich benötigten Berechtigungen erteilt wurden,
 	die im Schritt 3 eingerichtet wurden.
 	
-1.2. Datei Schema_Data_Browser_Custom_App.sql hochladen.
+1.2. Datei **Data_Browser_Custom_App.sql** hochladen.
 	Supporting Objects : Yes 
 	
 	Die Installation dauert lokal ca. 2 Minuten, Oracle Cloud ca. 7 Minuten. 
@@ -78,7 +78,7 @@ Anwendung zur Analyse Ihrer DB- und APEX-Anwendungen
 	In shared Server Umgebungen in denen keine zusätzlichen Berechtigungen verfügbar sind,
 	muss diese im Funktionsumfang etwas reduzierte Version eingesetzt werden.
 
-2.1. Datei **Schema_Data_Browser_Apex_App.sql** hochladen.
+2.1. Datei **Data_Browser_Apex_App.sql** hochladen.
 	Supporting Objects : Yes 
 	
 	Die Installation dauert lokal ca. 2 Minuten, Oracle Cloud ca. 7 Minuten. 
