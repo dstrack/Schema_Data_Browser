@@ -106,6 +106,12 @@ IS
 	  p_include_rows	 IN NUMBER	 DEFAULT 1 
 	);
 
+	PROCEDURE Drop_Schema (
+		p_Schema_Name VARCHAR2,
+		p_Apex_Workspace_Name VARCHAR2 DEFAULT NULL,
+		p_User_Name IN VARCHAR2 DEFAULT SYS_CONTEXT('APEX$SESSION','APP_USER')
+	);
+
 	PROCEDURE Install_Data_Browser_App (
 		p_workspace VARCHAR2,
 		p_schema VARCHAR2,
@@ -710,6 +716,34 @@ $END
 		end if;
 	end Copy_Schema;	
 	
+	PROCEDURE Drop_Schema (
+		p_Schema_Name VARCHAR2,
+		p_Apex_Workspace_Name VARCHAR2 DEFAULT NULL,
+		p_User_Name IN VARCHAR2 DEFAULT SYS_CONTEXT('APEX$SESSION','APP_USER')
+	)
+	IS 
+		v_workspace_id		NUMBER;
+		v_Workspace_Name	APEX_APPLICATIONS.WORKSPACE%TYPE;
+	BEGIN 
+		if p_Apex_Workspace_Name IS NULL then
+			select workspace
+			into v_Workspace_Name
+			from apex_applications
+			where application_id = V('APP_ID');
+		else 
+			v_Workspace_Name := p_Apex_Workspace_Name;
+		end if;
+		if data_browser_schema.Get_User_Access_Level(p_Schema_Name => p_Schema_Name, p_User_Name => p_User_Name) <= 1 then
+			v_workspace_id := apex_util.find_security_group_id (p_workspace => v_Workspace_Name);
+			apex_util.set_security_group_id (p_security_group_id => v_workspace_id);
+
+			APEX_INSTANCE_ADMIN.REMOVE_SCHEMA(v_Workspace_Name, p_Schema_Name);
+			COMMIT;
+			EXECUTE IMMEDIATE 'DROP USER ' || DBMS_ASSERT.ENQUOTE_NAME(p_Schema_Name) || ' CASCADE ' ;
+			DBMS_OUTPUT.PUT_LINE('-- dropped Schema ' || p_Schema_Name || ' from Workspace ' || v_Workspace_Name);
+		end if;
+	END Drop_Schema;
+
 	PROCEDURE Install_Data_Browser_App (
 		p_workspace VARCHAR2,
 		p_schema VARCHAR2,
