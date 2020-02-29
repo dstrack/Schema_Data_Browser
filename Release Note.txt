@@ -1,0 +1,152 @@
+Schema & Data Browser V 1.8.64 Release Note
+
+The diagram renderer:
+- Beside the diagrams there is now a control panel for all diagram parameters that can be adjusted with immediate visual feedback.
+    - Zoom: lets you fluently zoom the canvas viewport in a factor range from 1 to 12 X.
+    - Font size: lets you adjust the size of the nodes relative to the canvas and edges.
+        An initial font size is calculated for new diagrams depending on the square root of the count of nodes.
+        You can adjust the font size, to either put the focus on the nodes or on the edges.
+        With very small font size, the automatic layout is performed at the highest frame rate.
+    min. Energy: defines a threshold level where the program stops the calculation of updates for node positions.
+        Set 'min. Energy' to 0 or greater, when you want to stop the processing intensive calculations.
+    max. Speed: defines the maximal speed of the moving nodes during automatic layout.
+    Stiffness: defines the force that pulls two nodes together when they are connected via an edge – Rubber band effect.
+    Repulsion: defines the force that is repelling other nodes nearby.
+    Damping: defines a factor that is reducing the applied forces, to slow down the movements.
+- The performance of the algorithms to calculate the forces are improved by a factor of 10, so that you can now render diagram of up to 2000 nodes and edges fluently.
+- In order to avoid shaking nodes when the stiffness is cranked up, a counterweight algorithm has been added. The algorithm automatically adjusts the nodes weight dependent on the degree of connections.
+	
+The diagram editor
+- On the Page 'Springy Diagram' you can alter individual node properties (Shape, Text, Color, Active) with immediate visual feedback.
+- Node colors can be chosen from a popup dialog window of HTML color names.
+- There are now buttons to control the zoom factor and font size when no mouse wheel is available.
+- There is now an auto-focus button to give you an optimal view on a selected node.
+- Resizing of the diagram canvas and multiple canvas are now supported. The legends of the database diagrams are now active springy diagrams.
+- Many graphical and processing errors have been fixed.
+- Support for touch pad:    select node, move node, move canvas, zoom canvas, zoom font size
+- A smart selection method enables you, to logically select related node via their directed graph's edges using one of the methods:
+    - 'Selected' highlights just the clicked node and its edges.
+    - 'Downstream' highlights all nodes that a connected via edges in arrow direction; useful for following a signal in an APEX Dynamic Actions diagram and to select dependent objects (children) in a dependencies diagram.
+    - 'Upstream' highlights all nodes that a connected via edges in the reverse arrow direction; useful to select depends on objects (parents) in a dependencies diagram.
+    - 'Connected' highlights all nodes that a connected via edges in both arrow directions; useful to select independent modules in the pool of objects in a database schema. You can crank up the stiffness parameter to make the module separation more obvious.
+    - 'Pin' Button – a flip state button
+    - active: sets a heavyweight in touched nodes, with the effect that the nodes stick where they are. (weight=10000)
+    - inactive: sets a lightweight in touched nodes, with the effect that the nodes float to their optimal position. (weight=10)
+
+- The Actions Menu has now function to
+    - Save as:, for schema diagrams this action enables you the save the current diagram as a named springy diagram for later use.
+    - Exempt Selected: hide all nodes that are not selected. (active=N)
+    - Hide Selected: hide all nodes that are selected. (active=N)
+    - Show All: sets all nodes to visible (active=Y)
+    - Freeze / Lock All: sets a heavy weight in all nodes, with the effect that the nodes stick where they are. (weight=10000)
+    - Melt / Unlock All: sets a light weight in all nodes, with the effect that the nodes float to their optimal position. (weight=10)
+    - Edit Diagram properties: lets you edit the numerical diagram parameter and lets you delete a diagram.
+
+Data Browser – Import View  
+- Importing Database Object Dependencies
+    the software package includes the file Object_Dependencies_Export.sql
+    - Install the views on an oracle instance via the SQL developer application and then execute the following statements:
+        select * from APP_OBJECT_DIAGRAM_EDGES_V;
+        select * from APP_OBJECT_DIAGRAM_NODES_V;
+    - Save the output of the query results as two CSV files on your desktop.
+    - Navigate in this app to the data browser (page 30),
+        select the table name 'Diagram Nodes' or 'Diagram Edges' below the table 'Springy Diagrams',
+        select the import view in the report-modes navigation bar and then begin the import by clicking on the Import button.
+
+- The import processing has been improved. When the importer displays data validation errors,
+    You can now rearrange the columns in the proper order.
+    That will trigger a re-validation and you can continue the import of nodes and edges then no validation errors when found.
+- A Navigation bar with view modes simplifies the Navigation to the Springy Diagram – editor page.
+
+Entity Relations Diagram:
+The kind of foreign key to Primary key relation is displayed by different edge colors and labels.
+- The Actions Menu has now function to
+    - Edit Table Data (link to the Data Browser)
+    - Alter Schema Object (Add table, column, reference; Alter Rules & Constraints, Comments)
+    - Edit Schema Object (in SQL Workshop)
+- A double click on an object node opens the data browser for that table.
+
+Object Dependencies Diagram:
+- The object types checklist contains separate check marks for Key Constraint, Ref Constraint, Check Constraint, Not Null Constraint
+- A single click or touch on an object node, updates the object info side panel and popup LOV fields for the current object type and name.
+- A link to display the SQL Text of the selected object is displayed on the right side panel.
+    A click on that link will open a popup dialog to display the SQL text. (Be patient, because that can take a while).
+- when you want to find an individual node by type and name, you can use the LOV fields to enter a search term and choose a name from the list.
+    After choosing a name, the diagram is auto-focused on the selected node with that name.
+- A double click on an object node opens the SQL Workshop page with that object, when you have access privileges the APEX workspace.
+- The legend is now a springy diagram with interactive functionality for zooming the canvas or font size.
+
+Dynamic Actions Diagram
+- The diagram renders nodes for all:
+    - Dynamic actions: with nodes for event source, action name, true and false branches,
+        code steps, request name, affected items, regions, buttons.
+    - Menus: (shown on the diagrams on pages 0 and 1),
+    - Lists: with nodes for request names and Link target page.
+    - Processing points: with nodes for request name, page process names, page branch names and target page #no.
+    - Buttons: with nodes for request names and links to target page.
+    - Classic Report links: with nodes for request names and link to target page.
+    - Interactive Report links: with nodes for request names and Link to target page.
+- A single click or touch on an object node, updates the DA info side panel and a popup LOV field for the current DA name.
+- For selected links or branches, a link to load the diagram of the target page is displayed on the right side panel.
+    A click on that link will save the current diagram and then open the diagram of the link target page.
+- when you want to find an individual dynamic action by name, you can use the LOV field to choose a name from the list.
+    After choosing a name, the diagram is auto-focused on the selected node with that name.
+- A double click on a dynamic action node opens the APEX page designer with that object, when you have access privileges the APEX workspace.
+- The legend is now a springy diagram with interactive functionality for zooming the canvas or font size.
+- When the downstream selection method is active, nodes for buttons, regions stop the propagation of the signal, because they are passive objects.
+
+Data Browser
+- improved page load performance
+- improved rendering of nested reports with pagination.
+- improved formatting and processing for numbers and boolean fields.
+- new functions for import views: copy to the collection, paste from the collection
+
+home page
+- new functions to: Add a Schema, Remove Schema, Duplicate Schema, Upgrade supporting Objects
+
+manage schema
+- new wizards to: Add Serial Primary Keys, Add Natural Keys, Set Mandatory Key Columns
+
+print pages as HTML
+- A new top menu icon allows you to produce a printable version of the current page than can produce the whole report without empty pages and store the output as a PDF document.
+
+
+------------------------------------------------------------------------------------------------------
+------------------------------------------------------------------------------------------------------
+
+A-lot has happened since I release the first demo of the Schema & Data Browser App.
+
+When I installed the app on the free oracle cloud, I was not fully aware of the rules in this arena.
+
+After some days the database was shut down and I struggled to find the reason.
+
+After reading the rules I realized that the app was shut down, because more than 20 parallel active sessions were opened by the executing app.
+
+The second time it was shut down, because I seemingly was not using the database.
+
+
+On that day, circa 20 visitors had visited the site, but it was a while ago that I had logged in the free cloud apex workspace.
+
+Switching to a paid modes starting at 175 bucks was not what I wanted to pay,
+
+since I am a happy customer of oracleapexservices.com for many years.
+
+
+My postmortem analyze of the shutdown revealed what caused the termination by the robot overlords.
+
+In my development environment I opened the Instance Settings in the APEX Workspace Administration and set a limit of maximal 18 open connections/session per workspace and per user to be warned then that limit is reached!
+
+
+Beside the 'Database Dependencies' diagram I had information regions that were refreshed by dynamic actions whenever the user clicked on a node in the graphics.
+
+For some database objects it takes up to 20 seconds before the DBMS_METADATA.GET_DDL finally reveals the SQL Text.
+
+
+When a user clicked object in a fast sequence, all the refresh requests where pilling up to be processed.
+
+Where you have a dashboard-page with many refresh able regions and you refresh them via a dynamic action, or when you have reports with images that are loaded with AJAX calls from the database,
+
+then this will cause many parallel active sessions for your application.
+
+
+
