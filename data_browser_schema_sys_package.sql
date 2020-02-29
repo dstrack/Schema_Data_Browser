@@ -206,7 +206,9 @@ $END
 		end if;
 		v_workspace_id := apex_util.find_security_group_id (p_workspace => v_Workspace_Name);
 		apex_util.set_security_group_id (p_security_group_id => v_workspace_id);
+$IF data_browser_schema.g_Use_Special_Features $THEN 
 		APEX_INSTANCE_ADMIN.UNRESTRICT_SCHEMA(p_schema => p_Schema_Name);
+$END
 		APEX_INSTANCE_ADMIN.ADD_SCHEMA(p_workspace => v_Workspace_Name, p_schema => p_Schema_Name);
 		COMMIT;
 	EXCEPTION
