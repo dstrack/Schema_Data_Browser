@@ -38,10 +38,14 @@ Anwendung zur Analyse Ihrer DB- und APEX-Anwendungen
 
 	@custom_keys.sql					-- Geschützter Speicher für Crypto-Schlüssel und Hash-Salz
 	@custom_ctx.sql						-- Custom Context für spezielle Session Parameter.
+	
 	@data_browser_schema_sys_package.sql
-	@data_browser_sys_add_schema.sql	-- Das Script kann wiederholt ausgeführt werden, um weitere Schemas 
-										-- für die Verwendung vorzubereiten. Die Installation der Supporting Objects 
-										-- muss dann manuell im Apex Workspace für diese Schemas vorgenommen werden.
+	exec data_browser_schema.Add_Apex_Workspace_Schema(p_Schema_Name=>'&WORKSPACE.', p_Apex_Workspace_Name=>'&WORKSPACE.');
+	-- Verwende den Oracle ATP Cloud Workspace Name.
+
+	-- Die Prozedur data_browser_schema.Add_Apex_Workspace_Schema kann wiederholt ausgeführt werden, 
+	-- um weitere Schemas für die Verwendung vorzubereiten. Die Installation der Supporting Objects 
+	-- muss dann manuell im Apex Workspace für diese Schemas vorgenommen werden.
 	exit
 	
 -- in einer on Premise DB 
@@ -53,8 +57,9 @@ Anwendung zur Analyse Ihrer DB- und APEX-Anwendungen
 	@custom_keys.sql
 	@custom_ctx.sql
 	@data_browser_schema_sys_package.sql
-	@data_browser_sys_add_schema.sql -- Der erste Schema_Name entspricht in der Oracle ATP Cloud dem Workspace_Name. 
-										Später können weitere per Button auf der Home page hinzufügt werden.
+	@data_browser_sys_add_schema.sql -- Beim ersten Aufruf entspricht der Schema_Name oft dem Workspace_Name. 
+									 -- Das Passwort wird nur verwendet wenn das Schema noch nicht vorhanden ist.
+									 -- Später können weitere per Button auf der Home page hinzufügt werden.
 	exit
 
 ## APEX Application importieren und installieren.
