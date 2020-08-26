@@ -1,0 +1,5 @@
+## pico ~/.zshrc
+
+export SQLPATH=~/dirk/Oracle/instantclient_12_2/scripts
+export TNS_ADMIN=~/Oracle/instantclient_12_2/network/admin/
+export PATH=/usr/local/bin:$PATH:/bin:~/Oracle/instantclient_12_2

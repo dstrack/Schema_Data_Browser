@@ -1,4 +1,4 @@
-Schema & Data Browser V 1.8.73 Release Note
+Schema & Data Browser V 1.8.74 Release Note
 
 Bugfix: The generated PL/SQL code for processing the form will call APEX_ESCAPE.HTML for character columns to prevent Cross-Site Scripting.
 The bug was discovered by Ved Prabhu from Bangalore, India and then reported by Joel R. Kallman from Oracle.
@@ -8,6 +8,7 @@ UI-Appearance Option: Added a global control to show or hide Breadcrumbs below t
 Data Browser: The style of the View Mode Navigation List has been changed to Navigation Tabs to improve the highlighting of the current View Mode.
 The entries for 'Entity Relationship Diagram' and 'Springy Diagram' have been removed from the View Mode Navigation List and have been added to the 'Actions' menu.
 
+Improved descriptions and help text and improved german translation of the App UI.
 
 
 Schema & Data Browser V 1.8.64 Release Note

@@ -207,7 +207,7 @@ CREATE OR REPLACE PACKAGE BODY custom_keys.set_custom_ctx IS
 		FETCH cv INTO v_Workspace_Id;
 		IF cv%NOTFOUND THEN
 			if v_Workspace_Name = v_Schema_Name then
-				v_App_User := NVL(V('APP_USER'), USER);
+				v_App_User := NVL(SYS_CONTEXT('APEX$SESSION','APP_USER'), USER);
 				EXECUTE IMMEDIATE g_Insert_WS_Stat
 				USING IN v_Workspace_Name, v_App_User, OUT v_Workspace_Id;
 			else 
@@ -246,7 +246,7 @@ CREATE OR REPLACE PACKAGE BODY custom_keys.set_custom_ctx IS
 		OPEN cv FOR g_Find_WSID_Query USING v_Workspace_Name;
 		FETCH cv INTO v_Workspace_Id;
 		IF cv%NOTFOUND THEN
-			v_App_User := NVL(V('APP_USER'), USER);
+			v_App_User := NVL(SYS_CONTEXT('APEX$SESSION','APP_USER'), USER);
 			EXECUTE IMMEDIATE g_Insert_WS_Stat
 			USING IN v_Workspace_Name, v_App_User, OUT v_Workspace_Id;
 		END IF;
@@ -390,7 +390,7 @@ CREATE OR REPLACE PACKAGE BODY custom_keys.set_custom_ctx IS
 	PROCEDURE Post_Apex_Logon
 	IS
 		v_Workspace_Name	VARCHAR2(50) := V(g_Workspace_Item);
-		v_User_Name		VARCHAR2(50) := V('APP_USER');
+		v_User_Name		VARCHAR2(50) := SYS_CONTEXT('APEX$SESSION','APP_USER');
 		v_Client_Id 	VARCHAR2(200) := SYS_CONTEXT('USERENV','CLIENT_IDENTIFIER');
 	BEGIN
 		v_Client_Id := REPLACE(v_Client_Id, 'nobody', v_User_Name);

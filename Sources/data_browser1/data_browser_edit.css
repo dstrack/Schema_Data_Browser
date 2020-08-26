@@ -1,0 +1,95 @@
+div#report_TABLE_DATA_VIEW th {
+    vertical-align: top;
+    padding: 8px 8px;
+    min-width: 16ex;
+}
+div#report_TABLE_DATA_VIEW th[id*="LINK_ID\$"] {
+	min-width: 56px !important;
+	width: 56px;
+}
+div#report_TABLE_DATA_VIEW td.apex_report_break {
+	font-weight: bolder;
+	text-indent: 16px;
+	padding-top: 16px;
+}
+div#report_TABLE_DATA_VIEW td.t-Report-cell select {
+    min-width: 16ex;
+    max-width: 150px;
+    padding-right: 1.5rem;
+    padding-left: 0px; 
+}
+div#report_TABLE_DATA_VIEW td.t-Report-cell input.apex-item-text {
+    min-width: 16ex;
+    width: 100%;
+}
+div#report_TABLE_DATA_VIEW td.t-Report-cell textarea {
+    min-width: 20ex;
+    min-height: 3.2rem !important;
+}
+div#report_TABLE_DATA_VIEW td.t-Report-cell a.a-Button--popupLOV {
+	padding-left: 2px !important;
+	padding-right: 2px !important;
+	margin-left: -8px;
+}
+div#report_TABLE_DATA_VIEW td.t-Report-cell button.ui-datepicker-trigger {
+	padding-left: 2px !important;
+	padding-right: 2px !important;
+}
+div#report_TABLE_DATA_VIEW div.text_tool_body {
+	min-width: 150px;
+	max-width: 400px;
+	min-height: 24px;
+	max-height: 80px;
+	margin-left: -6px;
+    margin-right: -8px;
+	overflow: auto; 
+}
+div#report_TABLE_DATA_VIEW div.text_tool_body.clickable {
+	border-color: lightgray;
+	border-style: solid;
+	border-width: 0.1rem;
+}
+div#report_TABLE_DATA_VIEW a.text_tool_link {
+    float: right;
+}
+
+div#report_TABLE_DATA_VIEW div.navigation_links {
+	min-width: 200px;
+	max-width: 400px;
+	max-height: 300px;
+	overflow: auto; 
+}
+
+div#report_RECORD_VIEW td.t-Report-cell {
+    padding: 2px !important;
+}
+div#report_RECORD_VIEW td.t-Report-cell select {
+    min-width: 30ex;
+    padding-right: 1.5rem;
+    padding-left: 0px; 
+}
+
+div#report_RECORD_VIEW div.text_tool_body {
+	min-width: 150px;
+	width: 92%;
+	min-height: 48px;
+	max-height: 80px;
+	overflow: auto; 
+}
+div#report_RECORD_VIEW div.text_tool_body.clickable {
+	border-color: lightgray;
+	border-style: solid;
+	border-width: 0.1rem;
+}
+div#report_RECORD_VIEW a.text_tool_link img {
+    float: right;
+}
+div.fc-scroller {
+	height: inherit !important;
+}
+div#report_FILTER_CONDITIONS td {
+    padding-left: 2px;
+    padding-right: 8px;
+    padding-top: 2px;
+    padding-bottom: 2px;
+}
