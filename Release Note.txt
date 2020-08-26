@@ -1,7 +1,7 @@
 Schema & Data Browser V 1.8.74 Release Note
 
-Bugfix: The generated PL/SQL code for processing the form will call APEX_ESCAPE.HTML for character columns to prevent Cross-Site Scripting.
-The bug was discovered by Ved Prabhu from Bangalore, India and then reported by Joel R. Kallman from Oracle.
+Bugfix: The generated query SQL code for rendering the form will call APEX_ESCAPE.HTML for character columns to prevent Cross-Site Scripting.
+The bug was discovered by Ved Prabhu from Bangalore, India, and then reported by Joel R. Kallman from Oracle.
 
 UI-Appearance Option: Added a global control to show or hide Breadcrumbs below the page title. The control can be set by the online user via the Navigation Bar menu.
 
@@ -9,6 +9,221 @@ Data Browser: The style of the View Mode Navigation List has been changed to Nav
 The entries for 'Entity Relationship Diagram' and 'Springy Diagram' have been removed from the View Mode Navigation List and have been added to the 'Actions' menu.
 
 Improved descriptions and help text and improved german translation of the App UI.
+
+
+Features of the application: Data Browser  
+
+The key functionality of the SQL query and PL/SQL generators
+1. Produce a description of any record 
+	Candidate keys are detected and serve as the unique display column set to describe any table record in LOVs, References, Record Labels, Link Labels.
+2. Identify any record
+	Primary keys are detected and serve as internal identifiers that are hidden from the users. Functions to produce new identities(from sequence or sys_guid), references (columns Link_ID$, Row_Selector$),  and access methods (by column name or ROWID) are automatically applied.(Weak constraint definitions like unique index definition are also detected and considered)
+
+2. Produce formatted descriptions
+	Any Number and Date field will be formatted with predefined or calculated format masks.
+
+3. Produce recursive description
+	Any foreign key in the display column set is replaced by the reference target description.
+		
+4. Perform reverse key lookups
+	 This functionality is used to process imported data without any programming.
+
+	Any data that is entered or loaded in unique description fields from joined tables can be reduced to new or existing primary key values. This is possible when the tables have primary keys and candidate keys defined and the referenced rows exist or can be inserted because no constraint is violated.
+Rows can be inserted when the table definition has default value or functions for all required columns that are not included in the view or that are empty in the import dataset. Required columns must have default values or can be initialized from the context (container references).
+
+5. Produce a description of any relation 
+	For any foreign key constraint, a description of the reference source and target is composed to produce Report Labels, LOV queries, master-details reports. The relationship of tables is used to produce a navigation tree there tables are shows as childs of parent tables when they have foreign key references to that parent table.
+
+6. Produce a description of any reference 
+	Any foreign key column can be replaced by a description of the reference target. The replacement can produce multiple formatted columns. Unique columns headers are produced by combining source column names and target table names.
+
+7. Produce composed description 
+	The columns of a tables display column set can be concatenated with predefined delimiters to produce a composed description. The composed description is used to produce the display values required in 'Select List' und 'Popup List of Values' form items and in for link labels.
+
+8. Produce human-readable and updatable views on any sufficiently defined table.
+	All available information from the data dictionary is aggregated in snapshot views for fast access. Functional programming is applied to enable spontaneous query and code generation. A query generator is invoked to produce new functions that render reports and forms. Code generators are invoked to produce new functions that perform controlled and correct data manipulations.
+
+9. The system catalog is the single source for table and column names and there attributes.
+	With name pattern matching, functional properties are applied to matching columns. Any changes in the system catalog are reflected immediately in the rendered reports and forms. Spontaneous changes to the running applications are supported. Projects with an agile workflow and DevOp projects are possible. But projects with more conservative demands are also supported. It is possible to model forms and reports and then extract and copy the generated SQL Queries and PL/SQL Code. You can use it as UI Defaults, in static Apex pages, in the Data Reporter App, and PL/SQL libraries. The report queries can be extracted as updatable views that can be utilized in Apex Interactive Grids.
+
+Forms 
+	Dynamically produced tabular and single record forms in Readonly or Edit Mode for any table. 
+	Changes in the schema definition are reflected immediately in the rendered forms.
+		
+Produce Field labels
+	Detect and removes common column prefixes and postfixes.
+	Compose unique field names for columns of joined tables.
+		
+Column Infos 
+	Help Text with column comments, format mask, description of constraints, functional meaning, statistics: Min, Max, Count, Density.
+Developers have options to alter the comments and constraints (range of permitted values).
+		
+Produce a diverse variety of input fields 
+	Including formatted numbers, date, date-time, timestamp, text, multiline textbox, office documents, images, boolean (Yes/No switch), 
+Popup links and modal dialogs for 'Rich Text Editor', PDF preview, Office document preview, Image Preview, 'Select Lists' and 'Popup List of Values' (LOVs). LOVs are produced for foreign key columns and check constraints that define value lists. (Example constraints: col_x references table_y; check (col_x in (1, 2, 3)); check (col_y = 1 or col_y = 3) ).
+	Boolean fields are detected by analysing constraints, default, datatype, length, nullable, cardinality, contradictions and column name pattern.
+		
+	Functional fields for row selection, link to single record views, ordering rows in a set, hashed passwords, encrypted passwords, file metadata, audit information.
+		
+	Logical enclosed references are suppressed in the default display column sets. This is done to avoid the display of redundant information. These hidden columns are automatically initialized in key lookup and DML operations.
+
+Automatic validations
+	When an input field is changed, validations are performed immediately. Any simple check, size limit, reference, or unique constraint defined in the data dictionary is evaluated. On submit of the form any complex check constraint and required constraint defined in the data dictionary is evaluated.
+
+Navigation links
+	Produce links to parent, childrens, and sister records.		
+	
+Report Variants 
+	In 'Form View' reports all normal columns of the selected table are displayed. Serial primary key column and audit columns are hidden by default. In read-only mode, foreign key columns display the labels of the referenced rows. In edit mode, foreign key columns are LOV popup or select list fields with automatically composed labels. When available, additional functional columns can be displayed via the actions/columns menu option. In 'Form View', 'Navigation Counter' and 'Navigation Links' reports the height and width of large text blocks and images is constrained to keep the reports readable. When you click on images or document icon, a document preview modal dialog window is opened. In edit mode you can click on text cells with a pen icon to edit large text fields in an HTML-Editor modal dialog window. Column Limits:View up to 100 columns, Edit up to 60 columns.) 
+
+	'Navigation Counter' reports by default only display the natural key columns (labels), counters of references and totals of the active table. For each foreign key that references the current table, a column with count of references to a row is displayed. Depending on the setting of the 'Nested View' option, a click on a counter opens the references in a nested table view or on a separate report page. When available, additional functional columns can be displayed via the Actions/Columns menu option. When a number column of a child table is marked a 'Summand' via the Action/Alter Column Rules Dialog, totals for that columns will be displayed.
+
+	'Navigation Links' reports by default only display the natural key columns (labels) and totals for the current table. For each foreign key that references the current table, a column with a list of Links to child rows is displayed. A click on a Link opens the reference in a dialog page. When available, additional functional columns can be displayed via the actions/columns menu option. When a number column of a child table is marked a 'Summand' via the Action/Alter Column Rules Dialog, totals for that columns will be displayed.
+
+	'Raw Record' reports by default display all data columns of the selected table. Serial primary key column are hidden by default. Foreign key columns display the internal numeric values as stored in the database. 
+
+	In 'Import View' reports all normal data columns of the selected table are displayed. Serial primary key column and audit columns are hidden by default. In read-only form, foreign key columns display the labels of the referenced rows, while in edit forms, foreign key columns are LOV popup or select list fields of individual label columns. In case of composite labels each component column is displayed as a separate column. The default report column list is suitable for data export and imports. The data import process can validate a convert CSV data files with columns that match the report columns layout. Then the lookup of foreign key references is automatically performed. Depending on the import setting, new lookup values for foreign keys are inserted in the referenced tables or error messages are produced when that is not permitted. When the natural key values (or chosen display columns values) of the imported data matches with existing rows in the current table, then the data is merged for that rows and the data is inserted in new rows when that keys don't match. 
+
+	In 'Export View' reports by default all normal data columns of the current and the parent table are displayed by default. The serial primary key column and audit columns are hidden by default. Foreign key columns display the natural keys (labels) of the referenced rows. In the case of composite natural keys (labels) each component column is displayed as a separate column. In the modal dialog for Action/Columns Join Options are displayed. You can set the join options to systematically add columns of the referenced tables for each foreign key reference of the current table. After setting the 'All columns' Join option for a table, you can include further columns of the referenced table recursively up to the root of the keys. Independent of your settings, the report will produce one output row for each row in the current report table.
+
+	In 'History View' reports old versions of the table data can be displayed. The normal data columns and audit information is displayed by default. For foreign key columns, the composed label values are displayed. When the historic data differs from the current row values, that values are highlighted with different table cell background colors. Row changes have to be recorded in a change log to support the History Views. You have to enable the option 'Enable Change Log Support' in the Settings/Edit History Settings dialog page to enable this recording. 
+
+	In 'Calendar' views data from the current table is displayed in Calendar regions. The natural keys (labels) are displayed in calendar sheets when a calendar start-date and optional end-date column has been registered for the current table. 
+In 'Tree View' views data from the current table is displayed in a Tree.The natural keys (labels) are displayed as tree nodes when a parent reference column has been registered for the current table. A parent reference is a foreign key reference to the same table with empty parent references for the root nodes. 
+
+Tabular form 
+	You can add multiple new rows with default values. At least one empty row will be displayed. Show protected rows as display-only in edit forms. The program supports ordering, text search, pagination
+ 
+
+Single record view
+	The form can be rendered with 1,2 or 3 column layout.
+
+
+Publish Reports
+	A connection to the Data Reporter App enables the publication of reports to other users. Application users and whitelisted tables are automatically synchronized into the Data Reporter App. Any report view can be exported as a data source for the Data Reporter App.
+
+Export formats - Form, HTML, CSV, Native
+	Data can be rendered in 
+	HTML read-only - with formatted data, scroll boxes for large text, and highlighted search matches.
+	HTML input - with input fields for data entry
+	Native - unformatted for Interactive Reports, 
+	CSV - Unicode text files with comma-separated values for downloads.
+			
+Export / Import Cycle
+	Data from the Import Views can be exported in CSV files to the user's desktop. The columns template of the import view specifies a logical column set that contains all data columns and no serial primary or foreign keys and	only display key columns of the referenced tables. The columns template can be downloaded and used as a specification for successful data transfer. On the desktop, the users can alter rows, or append new rows with other applications like MS Excel on Mac Numbers and produce a CSV file.
+
+	The user can import CSV files into an APEX collection. After the Import of the file, the data will be automatically validated and a first key lookup is performed. The data is loaded into a temporary collection and ais displayed in an edit form. Validation messages are shown at grid cells with bad data. The user can manually fix the errors by entering new data. 
+
+	After the inspection of the imported file, the user can perform the import by pressing the 'process import' button. The program will perform the processing to update and insert rows in the database.
+
+	Import control parameter provides some flexibility to influence the key lookup processing:
+	Compare Case Insensitive: Allow the keys lookup process to the match text column values case insensitive.
+
+	Search keys unique: Require unique constraints for the imported lookup column sets.
+
+	Insert new foreign keys: Allow the process to insert new rows in lookup tables. When empty key columns are looked up, the program matches rows with empty columns in the lookup table. When other columns but the key columns are imported, then the table schema should be in the third normal form.  There should be no columns that are dependent on other columns but the primary or candidate keys.
+
+Simple data manipulations 
+	Perform validations, lookups, and DML processing for any table. 
+
+	Sequences that related to a table are detected and then used to produce new identities.
+
+	Change checks are produced to process only relevant rows and to verify that updated rows have not been changed by other users.
+
+	The processing of the insert, update or delete operations produces confirmation messages.
+		Success messages inform you about the number of affected rows.
+		Error messages will report any validation or processing error.
+		Validation errors will appear near the corresponding fields in the form.
+
+Advanced data manipulations 
+	Function to duplicate selected rows.
+
+	In the context of a container reference, there are functions to copy, move, and merge sets of data.
+	
+Convenience 
+	The application stores and remembers your settings for the last accessed table, view mode, column layout, and order between sessions. 
+
+	Sessions can last up to 10 hours before a new login is required.
+
+	When buttons and menus are invoked by the user, ca. 300 dynamic actions perform the processing and (partial screen updates). This enables fast processing and improved user experience.
+
+	Field validation is performed when you leave a field.
+
+	Required-checks are postponed until you submit the form, to avoid needless complaints.
+
+	Light and Dark Display Themes. 
+
+	German and English versions of the interface. 
+		
+Security 
+	Custom Authorisation - Only registered users can access the Application.
+
+	all generated links in the application are protected with APEX checksums.
+
+	Manage User Accounts with access levels, hashed passwords, e-mail validation, request a new password, invite users via e-mail.
+
+	Control visibility of tables with table name pattern for inclusion, exclusion, admin only.
+	
+	Control write access with table name pattern for edit, read-only.
+
+	Control (default) visibility of columns with column name pattern for display labels (always), data deduction, hidden, ignored.
+
+	Deny write access to rows with column name pattern for read-only access.
+		
+Developer tools 
+
+	Query source code: Use a smart switchboard, to display the SQL query that renders the current report. The options are: 
+		Data Source (Table, Memory, Collection)
+		Data Format (Form, HTML, Native, CSV)
+		Data Operations (Select, Insert/Update, Update, Delete, Duplicate, Move, Copy, Merge, Import View Definition, Download Files)
+		Columns Limit, Show at least one row, Compact Queries, Parent Key Visible
+		View and copy the SQL source queries of the current view. 
+		Queries are rendered according to your currently displayed report 
+			relation (master and detail table) 
+			selected columns
+			column ordering and control break
+			the current Report View Mode (Form View, Import View, ...)
+			the chosen Options and Settings for functional columns and other setting rules.
+		View and copy the PL/SQL code for validations, key lookups, and DML processing. Learn, all necessary step to:
+			detect changed rows
+			validate all size limits and imposed constraints and produce human readable error messages
+			lookup foreign keys for the given situation.
+			perform complicated data manipulations
+			
+	UI Defaults 
+	Optimize the column descriptions and export them as UI Defaults. UI Defaults will boost productivity when new forms and reports are produced with APEX. A complete set of column attributes is prepared. included attributes are: column label, datatype, input field length, max field length, required/mandatory,  format masks, static default value, static LOV definitions, dynamic LOV definitions, help text (with column comments, format mask, check constraints).
+
+	Diagrams
+	Entity Relationship Diagrams
+	Database Object Dependencies
+	Dynamic Actions of Apex Pages
+
+	The diagrams are rendered using a dynamic springy layout method that is self-optimized and interactive. The user, can zoom, resize, drag and pane to inspect complex relationships and find missing links.
+
+	DDL tools
+	The application derives all attributes of the tables and columns from the schema definitions and the configuration settings of ca. 50 name patterns. For most patterns, common default values exist. The tables that are designed with this application will match the pattern defaults. All data definition statements are written into the app_protocol table.	
+
+	Definition of new tables 
+	Choose from templates to add functional columns:
+		Parent Tables
+		Referenced tables (Container, Optional Container, Required, Optional)
+		Natural Unique key description 
+		File (Text Editor, HTML-Editor, File, Folder, None)
+		Ordering, Active, Locked, Audit Infos.
+
+	Add columns
+	Define Column Name, datatype, Char length, Default, Required, Unique (Composed, Simple, Non)
+	Alter column comments
+
+	Alter column rules (constraints)
+	Change the setting for Required, Unique, Values List / Range, Default Value / Default Reference.
+
+	Drop tables.
+	Remove table definition and data.
+	Drop Column
+	Remove a column from a table.
+
+
 
 
 Schema & Data Browser V 1.8.64 Release Note
