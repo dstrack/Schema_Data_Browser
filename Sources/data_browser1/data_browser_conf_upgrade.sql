@@ -36,6 +36,11 @@ DECLARE -- remove packages from previous installation
         END IF;
     END;
 BEGIN
+    RUN_STAT('DROP VIEW VUSER_TABLES_IMP');
+    RUN_STAT('DROP VIEW VUSER_TABLES_IMP_JOINS');
+    RUN_STAT('DROP VIEW VUSER_TABLES_IMP_TRIGGER');	-- old name
+    RUN_STAT('DROP VIEW VUSER_TABLES_IMP_COLUMNS');	-- old name
+    RUN_STAT('DROP VIEW VUSER_TABLES_IMP_LINK'); -- old name
 	-- Drop packages that define record types
     RUN_STAT('DROP PACKAGE WECO_AUTH_MGR');
     RUN_STAT('DROP PACKAGE CUSTOM_CHANGELOG_GEN');

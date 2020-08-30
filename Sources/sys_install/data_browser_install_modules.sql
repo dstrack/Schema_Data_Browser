@@ -44,7 +44,6 @@ prompt ============================================================
 @@data_browser2/data_browser_checks_table.sql
 @@data_browser2/data_browser_check.sql
 
-@@data_browser3/cloud_visitors_utl.sql
 @@data_browser3/app_users_tables.sql
 @@data_browser3/app_preferences_table.sql
 @@data_browser3/weco_auth_upgrade.sql

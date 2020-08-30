@@ -65,6 +65,25 @@ IS
 	);
 	TYPE tab_table_cols_prefix IS TABLE OF rec_table_cols_prefix;
 
+	TYPE rec_table_columns IS RECORD (
+		TABLE_NAME              	VARCHAR2(128), 
+		TABLE_OWNER                 VARCHAR2(128), 
+		COLUMN_ID					NUMBER,
+		COLUMN_NAME               	VARCHAR2(128), 
+		DATA_TYPE					VARCHAR2(128), 
+		DATA_TYPE_OWNER				VARCHAR2(128), 
+		NULLABLE					VARCHAR2(1), 
+		NUM_DISTINCT				NUMBER,
+		DEFAULT_LENGTH				NUMBER,
+		DATA_DEFAULT				VARCHAR2(1000), 
+		DATA_PRECISION			  	NUMBER,
+		DATA_SCALE					NUMBER,
+		CHAR_LENGTH					NUMBER,
+		HIDDEN_COLUMN				VARCHAR2(3),
+		VIRTUAL_COLUMN				VARCHAR2(3)
+	);
+	TYPE tab_table_columns IS TABLE OF rec_table_columns;
+
 	TYPE rec_sys_objects IS RECORD (
 		OBJECT_ID                     NUMBER, 
 		OBJECT_TYPE                   VARCHAR2(30), 
@@ -80,6 +99,13 @@ IS
 		NUM_ROWS                      NUMBER
 	);
 	TYPE tab_table_numrows IS TABLE OF rec_table_numrows;
+
+	TYPE rec_references_count IS RECORD (
+		R_CONSTRAINT_NAME             VARCHAR2(128),
+		R_OWNER                   	  VARCHAR2(128), 
+		CNT		                      NUMBER
+	);
+	TYPE tab_references_count IS TABLE OF rec_references_count;
 
 	TYPE rec_special_columns IS RECORD (
 		TABLE_NAME							VARCHAR2(128),
@@ -123,11 +149,17 @@ IS
 	FUNCTION FN_Pipe_Table_Cols_Prefix
 	RETURN data_browser_pipes.tab_table_cols_prefix PIPELINED;
 
+	FUNCTION FN_Pipe_Table_Columns
+	RETURN data_browser_pipes.tab_table_columns PIPELINED;
+
 	FUNCTION FN_Pipe_Sys_Objects(p_Include_External_Objects VARCHAR2 DEFAULT 'NO')
 	RETURN data_browser_pipes.tab_sys_objects PIPELINED;
 
 	FUNCTION FN_Pipe_Table_Numrows
 	RETURN data_browser_pipes.tab_table_numrows PIPELINED;
+
+	FUNCTION FN_Pipe_References_Count
+	RETURN data_browser_pipes.tab_references_count PIPELINED;
 
 	FUNCTION FN_Pipe_Special_Columns
 	RETURN data_browser_pipes.tab_special_columns PIPELINED;
@@ -141,13 +173,6 @@ IS
 	IS
         CURSOR keys_cur
         IS
-			WITH REFERENCES_Q AS (
-				SELECT COUNT(*) CNT,
-					A.R_CONSTRAINT_NAME, A.R_OWNER
-				FROM SYS.ALL_CONSTRAINTS A 
-				WHERE A.CONSTRAINT_TYPE = 'R' 
-				GROUP BY A.R_CONSTRAINT_NAME, A.R_OWNER
-			)
         	SELECT T.TABLE_NAME, T.TABLE_OWNER, T.TABLESPACE_NAME, T.CONSTRAINT_NAME, T.CONSTRAINT_TYPE,
         		T.HAS_NULLABLE, T.UNIQUE_KEY_COLS, T.KEY_COLS_COUNT, T.DEFERRABLE, T.DEFERRED, T.STATUS, T.VALIDATED,
         		T.IOT_TYPE, T.AVG_ROW_LEN, T.NUM_ROWS, T.BASE_NAME, T.RUN_NO, T.KEY_HAS_NEXTVAL, T.KEY_HAS_SYS_GUID,
@@ -244,7 +269,8 @@ IS
 						A.IOT_TYPE, A.AVG_ROW_LEN, A.NUM_ROWS,	A.READ_ONLY, G.GRANTOR
 				) A, MVBASE_UNIQUE_KEYS B
 				WHERE A.TABLE_NAME = B.TABLE_NAME (+) AND A.TABLE_OWNER = B.TABLE_OWNER (+)
-			) T, SYS.ALL_EXTERNAL_TABLES E, REFERENCES_Q R 
+			) T, SYS.ALL_EXTERNAL_TABLES E, 
+			TABLE (data_browser_pipes.FN_Pipe_References_Count) R 
 			WHERE T.TABLE_NAME = E.TABLE_NAME (+) AND T.TABLE_OWNER = E.OWNER (+)
 			AND T.CONSTRAINT_NAME = R.R_CONSTRAINT_NAME (+) AND T.TABLE_OWNER = R.R_OWNER (+)
 			AND NOT EXISTS (    -- this table is not part of materialized view log 
@@ -257,14 +283,6 @@ IS
 			
         CURSOR user_keys_cur
         IS
-			WITH REFERENCES_Q AS (
-				SELECT COUNT(*) CNT, -- key is referenced in a foreign key clause
-					A.R_CONSTRAINT_NAME, A.R_OWNER
-				FROM SYS.USER_CONSTRAINTS A 
-				WHERE A.CONSTRAINT_TYPE = 'R' 
-				AND A.R_OWNER = SYS_CONTEXT('USERENV', 'CURRENT_SCHEMA') 
-				GROUP BY A.R_CONSTRAINT_NAME, A.R_OWNER
-			)
         	SELECT T.TABLE_NAME, T.TABLE_OWNER, T.TABLESPACE_NAME, T.CONSTRAINT_NAME, T.CONSTRAINT_TYPE,
         		T.HAS_NULLABLE, T.UNIQUE_KEY_COLS, T.KEY_COLS_COUNT, T.DEFERRABLE, T.DEFERRED, T.STATUS, T.VALIDATED,
         		T.IOT_TYPE, T.AVG_ROW_LEN, T.NUM_ROWS, T.BASE_NAME, T.RUN_NO, T.KEY_HAS_NEXTVAL, T.KEY_HAS_SYS_GUID,
@@ -309,7 +327,8 @@ IS
 				AND A.TEMPORARY = 'N'	-- skip temporary tables
 				AND A.SECONDARY = 'N'
 				AND A.NESTED = 'NO'
-			) T, SYS.USER_EXTERNAL_TABLES E, REFERENCES_Q R 
+			) T, SYS.USER_EXTERNAL_TABLES E, 
+			TABLE (data_browser_pipes.FN_Pipe_References_Count) R 
 			WHERE T.TABLE_NAME = E.TABLE_NAME (+) 
 			AND T.CONSTRAINT_NAME = R.R_CONSTRAINT_NAME (+) AND T.TABLE_OWNER = R.R_OWNER (+)
 			AND NOT EXISTS (    -- this table is not part of materialized view log 
@@ -502,6 +521,87 @@ IS
 		END LOOP;
 	END FN_Pipe_Table_Cols_Prefix;
 
+	FUNCTION FN_Pipe_Table_Columns
+	RETURN data_browser_pipes.tab_table_columns PIPELINED
+	IS
+	$IF DBMS_DB_VERSION.VERSION >= 12 $THEN
+		PRAGMA UDF;
+	$END
+        CURSOR all_cols_cur
+        IS
+		SELECT TABLE_NAME, OWNER TABLE_OWNER, 
+			COLUMN_ID, COLUMN_NAME, DATA_TYPE, DATA_TYPE_OWNER, NULLABLE, NUM_DISTINCT, DEFAULT_LENGTH, 
+			DATA_DEFAULT, DATA_PRECISION, DATA_SCALE, CHAR_LENGTH, HIDDEN_COLUMN, VIRTUAL_COLUMN
+		FROM SYS.ALL_TAB_COLS
+		WHERE OWNER NOT IN ('SYS', 'SYSTEM', 'SYSAUX', 'CTXSYS', 'MDSYS');
+
+        CURSOR user_cols_cur
+        IS
+		SELECT TABLE_NAME, 
+			SYS_CONTEXT('USERENV', 'CURRENT_SCHEMA') TABLE_OWNER, 
+			COLUMN_ID, COLUMN_NAME, DATA_TYPE, DATA_TYPE_OWNER, NULLABLE, NUM_DISTINCT, DEFAULT_LENGTH, 
+			DATA_DEFAULT, DATA_PRECISION, DATA_SCALE, CHAR_LENGTH, HIDDEN_COLUMN, VIRTUAL_COLUMN
+		FROM SYS.USER_TAB_COLS;
+
+        TYPE stat_tbl IS TABLE OF user_cols_cur%ROWTYPE;
+        v_in_rows stat_tbl;
+        v_row rec_table_columns;
+	BEGIN
+		if changelog_conf.Get_Include_External_Objects = 'YES' then 
+			OPEN all_cols_cur;
+			LOOP
+				FETCH all_cols_cur
+				BULK COLLECT INTO v_in_rows LIMIT g_fetch_limit;
+				EXIT WHEN v_in_rows.COUNT = 0;
+				FOR ind IN 1 .. v_in_rows.COUNT LOOP
+					v_row.TABLE_NAME 			:= v_in_rows(ind).TABLE_NAME;
+					v_row.TABLE_OWNER			:= v_in_rows(ind).TABLE_OWNER;
+					v_row.COLUMN_ID 			:= v_in_rows(ind).COLUMN_ID;
+					v_row.COLUMN_NAME 			:= v_in_rows(ind).COLUMN_NAME;
+					v_row.DATA_TYPE 			:= v_in_rows(ind).DATA_TYPE;
+					v_row.DATA_TYPE_OWNER 		:= v_in_rows(ind).DATA_TYPE_OWNER;
+					v_row.NULLABLE 				:= v_in_rows(ind).NULLABLE;
+					v_row.NUM_DISTINCT 			:= v_in_rows(ind).NUM_DISTINCT;
+					v_row.DEFAULT_LENGTH 		:= v_in_rows(ind).DEFAULT_LENGTH;
+					v_row.DATA_DEFAULT 			:= SUBSTR(TO_CLOB(v_in_rows(ind).DATA_DEFAULT), 1, 800); -- special conversion of LONG type; give a margin of 200 bytes for char expansion
+					v_row.DATA_PRECISION 		:= v_in_rows(ind).DATA_PRECISION;
+					v_row.DATA_SCALE 			:= v_in_rows(ind).DATA_SCALE;
+					v_row.CHAR_LENGTH 			:= v_in_rows(ind).CHAR_LENGTH;
+					v_row.HIDDEN_COLUMN			:= v_in_rows(ind).HIDDEN_COLUMN;
+					v_row.VIRTUAL_COLUMN		:= v_in_rows(ind).VIRTUAL_COLUMN;
+					pipe row (v_row);
+				END LOOP;
+			END LOOP;
+			CLOSE all_cols_cur;  
+		else
+			OPEN user_cols_cur;
+			LOOP
+				FETCH user_cols_cur
+				BULK COLLECT INTO v_in_rows LIMIT g_fetch_limit;
+				EXIT WHEN v_in_rows.COUNT = 0;
+				FOR ind IN 1 .. v_in_rows.COUNT LOOP
+					v_row.TABLE_NAME 			:= v_in_rows(ind).TABLE_NAME;
+					v_row.TABLE_OWNER			:= v_in_rows(ind).TABLE_OWNER;
+					v_row.COLUMN_ID 			:= v_in_rows(ind).COLUMN_ID;
+					v_row.COLUMN_NAME 			:= v_in_rows(ind).COLUMN_NAME;
+					v_row.DATA_TYPE 			:= v_in_rows(ind).DATA_TYPE;
+					v_row.DATA_TYPE_OWNER 		:= v_in_rows(ind).DATA_TYPE_OWNER;
+					v_row.NULLABLE 				:= v_in_rows(ind).NULLABLE;
+					v_row.NUM_DISTINCT 			:= v_in_rows(ind).NUM_DISTINCT;
+					v_row.DEFAULT_LENGTH 		:= v_in_rows(ind).DEFAULT_LENGTH;
+					v_row.DATA_DEFAULT 			:= SUBSTR(TO_CLOB(v_in_rows(ind).DATA_DEFAULT), 1, 800); -- special conversion of LONG type; give a margin of 200 bytes for char expansion
+					v_row.DATA_PRECISION 		:= v_in_rows(ind).DATA_PRECISION;
+					v_row.DATA_SCALE 			:= v_in_rows(ind).DATA_SCALE;
+					v_row.CHAR_LENGTH 			:= v_in_rows(ind).CHAR_LENGTH;			
+					v_row.HIDDEN_COLUMN			:= v_in_rows(ind).HIDDEN_COLUMN;
+					v_row.VIRTUAL_COLUMN		:= v_in_rows(ind).VIRTUAL_COLUMN;
+					pipe row (v_row);
+				END LOOP;
+			END LOOP;
+			CLOSE user_cols_cur;  
+		end if;
+	END FN_Pipe_Table_Columns;
+
 	FUNCTION FN_Pipe_Sys_Objects(p_Include_External_Objects VARCHAR2 DEFAULT 'NO')
 	RETURN data_browser_pipes.tab_sys_objects PIPELINED
 	IS
@@ -590,6 +690,58 @@ IS
 		end if;
 	END FN_Pipe_Table_Numrows;
 
+	FUNCTION FN_Pipe_References_Count
+	RETURN data_browser_pipes.tab_references_count PIPELINED
+	IS
+		PRAGMA UDF;
+		CURSOR all_refs_cur
+		IS 	
+			SELECT /*+ RESULT_CACHE */
+				A.R_CONSTRAINT_NAME, 
+				A.R_OWNER,
+				COUNT(*) CNT
+			FROM SYS.ALL_CONSTRAINTS A 
+			WHERE A.CONSTRAINT_TYPE = 'R' 
+			GROUP BY A.R_CONSTRAINT_NAME, A.R_OWNER;
+
+		CURSOR user_refs_cur
+		IS 	
+			SELECT /*+ RESULT_CACHE */
+				A.R_CONSTRAINT_NAME, 
+				A.R_OWNER,
+				COUNT(*) CNT -- key is referenced in a foreign key clause
+			FROM SYS.USER_CONSTRAINTS A 
+			WHERE A.CONSTRAINT_TYPE = 'R' 
+			AND A.R_OWNER = SYS_CONTEXT('USERENV', 'CURRENT_SCHEMA') 
+			GROUP BY A.R_CONSTRAINT_NAME, A.R_OWNER;
+
+		v_in_rows tab_references_count;
+	BEGIN
+		if changelog_conf.Get_Include_External_Objects = 'YES' then 
+			OPEN all_refs_cur;
+			LOOP
+				FETCH all_refs_cur
+				BULK COLLECT INTO v_in_rows LIMIT g_fetch_limit;
+				EXIT WHEN v_in_rows.COUNT = 0;
+				FOR ind IN 1 .. v_in_rows.COUNT LOOP
+					pipe row (v_in_rows(ind));
+				END LOOP;
+			END LOOP;
+			CLOSE all_refs_cur;  
+		else
+			OPEN user_refs_cur;
+			LOOP
+				FETCH user_refs_cur
+				BULK COLLECT INTO v_in_rows LIMIT g_fetch_limit;
+				EXIT WHEN v_in_rows.COUNT = 0;
+				FOR ind IN 1 .. v_in_rows.COUNT LOOP
+					pipe row (v_in_rows(ind));
+				END LOOP;
+			END LOOP;
+			CLOSE user_refs_cur;  
+		end if;
+	END FN_Pipe_References_Count;
+
 	FUNCTION FN_Pipe_Special_Columns
 	RETURN data_browser_pipes.tab_special_columns PIPELINED
 	IS
@@ -650,7 +802,7 @@ IS
 				FIRST_VALUE(MINUEND_COLUMN_NAME IGNORE NULLS) OVER (PARTITION BY TABLE_NAME, TABLE_OWNER ORDER BY COLUMN_ID) MINUEND_COLUMN_NAME,
 				FIRST_VALUE(FACTORS_COLUMN_NAME IGNORE NULLS) OVER (PARTITION BY TABLE_NAME, TABLE_OWNER ORDER BY COLUMN_ID) FACTORS_COLUMN_NAME
 			FROM (
-				SELECT C.TABLE_NAME, C.OWNER TABLE_OWNER, C.COLUMN_ID,
+				SELECT C.TABLE_NAME, C.TABLE_OWNER, C.COLUMN_ID,
 					case when C.DATA_TYPE = 'NUMBER' 
 							and data_browser_pattern.Match_Row_Version_Columns(C.COLUMN_NAME) = 'YES'
 						then C.COLUMN_NAME
@@ -733,7 +885,8 @@ IS
 							and data_browser_pattern.Match_Factors_Field_Columns(C.COLUMN_NAME) = 'YES'
 						then C.COLUMN_NAME
 					end FACTORS_COLUMN_NAME
-				FROM  table ( changelog_conf.FN_Pipe_table_cols ) C
+				FROM  TABLE ( data_browser_pipes.FN_Pipe_Table_Columns ) C
+				WHERE HIDDEN_COLUMN = 'NO'
 			)
 		) GROUP BY TABLE_NAME, TABLE_OWNER;
 

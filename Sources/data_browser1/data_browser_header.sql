@@ -58,6 +58,90 @@ AUTHID CURRENT_USER
 IS
     g_Export_Job_ID          		NUMBER;
 
+	TYPE rec_data_browser_qc_refs IS RECORD (
+		VIEW_NAME			VARCHAR2(128),
+		TABLE_NAME			VARCHAR2(128),
+		COLUMN_NAME			VARCHAR2(128),
+		COLUMN_ID			NUMBER,
+		NULLABLE			VARCHAR2(1),
+		POSITION			NUMBER,
+		R_VIEW_NAME			VARCHAR2(128),
+		R_TABLE_NAME		VARCHAR2(128),
+		R_COLUMN_NAME		VARCHAR2(128),
+		R_COLUMN_ID			NUMBER,
+		IMP_COLUMN_NAME		VARCHAR2(72),
+		COLUMN_PREFIX		VARCHAR2(128),
+		IS_UPPER_NAME		CHAR(1),
+		COLUMN_HEADER		VARCHAR2(128),
+		COLUMN_EXPR			VARCHAR2(4000),
+		R_DATA_TYPE			VARCHAR2(128),
+		R_DATA_PRECISION	NUMBER,
+		R_DATA_SCALE		NUMBER,
+		R_CHAR_LENGTH		NUMBER,
+		COLUMN_ALIGN		VARCHAR2(6),
+		R_NULLABLE			CHAR(1),
+		R_IS_READONLY		CHAR(1),
+		TABLE_ALIAS			VARCHAR2(10),
+		R_TABLE_ALIAS		VARCHAR2(10),
+		HAS_HELP_TEXT		CHAR(1),
+		HAS_DEFAULT			CHAR(1),
+		IS_BLOB				CHAR(1),
+		IS_PASSWORD			CHAR(1),
+		IS_AUDIT_COLUMN		CHAR(1),
+		DISPLAY_IN_REPORT	CHAR(1),
+		IS_DISPLAYED_KEY_COLUMN	CHAR(1),
+		COMMENTS			VARCHAR2(4000)
+	);
+	TYPE tab_data_browser_qc_refs IS TABLE OF rec_data_browser_qc_refs;
+
+	FUNCTION FN_Pipe_browser_qc_refs (p_View_Name VARCHAR2)
+	RETURN data_browser_select.tab_data_browser_qc_refs PIPELINED;
+
+	TYPE rec_data_browser_fc_refs IS RECORD (
+		VIEW_NAME			VARCHAR2(128),
+		TABLE_NAME			VARCHAR2(128),
+		COLUMN_NAME			VARCHAR2(128),
+		COLUMN_ID			NUMBER,
+		NULLABLE			VARCHAR2(1),
+		R_COLUMN_ID			NUMBER,
+		POSITION			NUMBER,
+		FOREIGN_KEY_COLS	VARCHAR2(128),
+		R_PRIMARY_KEY_COLS	VARCHAR2(512),
+		R_CONSTRAINT_TYPE	VARCHAR2(1),
+		R_VIEW_NAME			VARCHAR2(128),
+		R_TABLE_NAME		VARCHAR2(128),
+		R_COLUMN_NAME		VARCHAR2(128),
+		IMP_COLUMN_NAME		VARCHAR2(72),
+		COLUMN_PREFIX		VARCHAR2(128),
+		IS_UPPER_NAME		CHAR(1),
+		COLUMN_HEADER		VARCHAR2(128),
+		COLUMN_ALIGN		VARCHAR2(6),
+		FIELD_LENGTH		NUMBER,
+		HAS_HELP_TEXT		CHAR(1),
+		HAS_DEFAULT			CHAR(1),
+		IS_BLOB				CHAR(1),
+		IS_PASSWORD			CHAR(1),
+		IS_AUDIT_COLUMN		CHAR(1),
+		IS_NUMBER_YES_NO_COLUMN	CHAR(1),
+		IS_CHAR_YES_NO_COLUMN	CHAR(1),
+		DISPLAY_IN_REPORT	CHAR(1),
+		IS_DISPLAYED_KEY_COLUMN	CHAR(1),
+		R_DATA_TYPE			VARCHAR2(128),
+		DATA_TYPE_OWNER		VARCHAR2(128),
+		R_DATA_PRECISION	NUMBER,
+		R_DATA_SCALE		NUMBER,
+		R_CHAR_LENGTH		NUMBER,
+		R_NULLABLE			VARCHAR2(1),
+		COMMENTS			VARCHAR2(4000),
+		R_CHECK_UNIQUE		CHAR(1),
+		R_IS_READONLY		CHAR(1),
+		TABLE_ALIAS			VARCHAR2(10)
+	);
+	TYPE tab_data_browser_fc_refs IS TABLE OF rec_data_browser_fc_refs;
+
+	FUNCTION FN_Pipe_browser_fc_refs (p_View_Name VARCHAR2)
+	RETURN data_browser_select.tab_data_browser_fc_refs PIPELINED;
+
     FUNCTION Field_Has_HCInput_ID (	-- function returns 1, when the field is an character input field.
     	p_Column_Expr_Type IN VARCHAR2,
         p_Data_Type VARCHAR2,
@@ -109,7 +193,7 @@ IS
     ) RETURN VARCHAR2;
 
 	FUNCTION Navigation_Counter_HTML(
-		p_Data_Format VARCHAR2,	-- FORM, CSV, NATIVE. Format of the final projection columns.
+		p_Data_Format VARCHAR2,	-- FORM, HTML, CSV, NATIVE. Format of the final projection columns.
 		p_CounterQuery VARCHAR2,
 		p_Target VARCHAR2,
 		p_Link_Page_ID PLS_INTEGER,
@@ -118,7 +202,7 @@ IS
 	) RETURN VARCHAR2;
 
 	FUNCTION Nested_Link_HTML(
-		p_Data_Format VARCHAR2,	-- FORM, CSV, NATIVE. Format of the final projection columns.
+		p_Data_Format VARCHAR2,	-- FORM, HTML, CSV, NATIVE. Format of the final projection columns.
 		p_CounterQuery VARCHAR2, -- SQL Expression
 		p_Attributes VARCHAR2,	-- SQL Expression
 		p_Is_Total VARCHAR2 DEFAULT NULL,
@@ -126,7 +210,7 @@ IS
 	) RETURN VARCHAR2;
 
 	FUNCTION Detail_Link_Html (
-		p_Data_Format VARCHAR2,	-- FORM, CSV, NATIVE. Format of the final projection columns.
+		p_Data_Format VARCHAR2,	-- FORM, HTML, CSV, NATIVE. Format of the final projection columns.
 		p_Table_name VARCHAR2,
 		p_Parent_Table VARCHAR2 DEFAULT NULL,			-- Parent View or Table name.
 		p_Link_Page_ID NUMBER,	-- Page ID of target links
@@ -160,7 +244,7 @@ IS
 	FUNCTION FN_Current_Data_Format RETURN VARCHAR2;
 
 	FUNCTION Get_Row_Selector_Expr (
-		p_Data_Format VARCHAR2,	-- FORM, CSV, NATIVE. Format of the final projection columns.
+		p_Data_Format VARCHAR2,	-- FORM, HTML, CSV, NATIVE. Format of the final projection columns.
 		p_Column_Expr VARCHAR2,
 		p_Column_Name VARCHAR2
 	) RETURN VARCHAR2;
@@ -268,7 +352,7 @@ IS
         p_Search_Key_Col IN VARCHAR2,		-- return column (usually the primary key of p_Table_Name)
         p_Search_Value  IN VARCHAR2 DEFAULT NULL, -- used to produce only a single output row for known value or reference
         p_View_Mode IN VARCHAR2,
-    	p_Data_Format VARCHAR2 DEFAULT FN_Current_Data_Format,	-- FORM, CSV, NATIVE. Format of the final projection columns.
+    	p_Data_Format VARCHAR2 DEFAULT FN_Current_Data_Format,	-- FORM, HTML, CSV, NATIVE. Format of the final projection columns.
         p_Key_Column IN VARCHAR2 DEFAULT NULL,
         p_Target1 IN VARCHAR2,
         p_Target2 IN VARCHAR2,
@@ -333,7 +417,7 @@ IS
 		p_View_Mode IN VARCHAR2 DEFAULT 'EXPORT_VIEW',
 		p_Edit_Mode VARCHAR2 DEFAULT 'NO', 					-- YES, NO
     	p_Data_Source VARCHAR2 DEFAULT 'TABLE', 			-- TABLE, NEW_ROWS, COLLECTION, QUERY
-    	p_Data_Format VARCHAR2 DEFAULT FN_Current_Data_Format,	-- FORM, CSV, NATIVE. Format of the final projection columns.
+    	p_Data_Format VARCHAR2 DEFAULT FN_Current_Data_Format,	-- FORM, HTML, CSV, NATIVE. Format of the final projection columns.
 		p_Report_Mode VARCHAR2 DEFAULT 'NO', 				-- YES, NO
     	p_Form_Page_ID NUMBER DEFAULT 32,					-- Page ID of target links 
 		p_Form_Parameter VARCHAR2 DEFAULT NULL,				-- Parameter of target links 
@@ -356,7 +440,7 @@ IS
     	p_Control_Break  VARCHAR2 DEFAULT NULL,
 		p_View_Mode IN VARCHAR2 DEFAULT 'FORM_VIEW', 		-- FORM_VIEW, RECORD_VIEW, NAVIGATION_VIEW, NESTED_VIEW, HISTORY
 		p_Edit_Mode VARCHAR2 DEFAULT 'NO', 					-- YES, NO
-    	p_Data_Format VARCHAR2 DEFAULT FN_Current_Data_Format,	-- FORM, CSV, NATIVE. Format of the final projection columns.
+    	p_Data_Format VARCHAR2 DEFAULT FN_Current_Data_Format,	-- FORM, HTML, CSV, NATIVE. Format of the final projection columns.
     	p_Data_Source VARCHAR2 DEFAULT 'TABLE', 			-- TABLE, QUERY
 		p_Empty_Row VARCHAR2  DEFAULT 'NO', 				-- YES, NO
 		p_Report_Mode VARCHAR2 DEFAULT 'NO', 				-- YES, NO
@@ -424,7 +508,7 @@ IS
     	p_Join_Options VARCHAR2 DEFAULT NULL,
 		p_View_Mode IN VARCHAR2 DEFAULT 'FORM_VIEW', 		-- FORM_VIEW, RECORD_VIEW, NAVIGATION_VIEW, NESTED_VIEW, IMPORT_VIEW, EXPORT_VIEW
 		p_Edit_Mode VARCHAR2 DEFAULT 'NO', 					-- YES, NO
-    	p_Data_Format VARCHAR2 DEFAULT FN_Current_Data_Format,	-- FORM, CSV, NATIVE. Format of the final projection columns.
+    	p_Data_Format VARCHAR2 DEFAULT FN_Current_Data_Format,	-- FORM, HTML, CSV, NATIVE. Format of the final projection columns.
 		p_Report_Mode VARCHAR2 DEFAULT 'NO', 				-- YES, NO, ALL, If YES, none standard columns are excluded from the generated column list
     	p_Parent_Name VARCHAR2 DEFAULT NULL,                -- Parent View or Table name. In View_Mode NAVIGATION_VIEW if set columns from the view are included in the Column list
     	p_Parent_Key_Column VARCHAR2 DEFAULT NULL,			-- Column Name with foreign key to Parent Table
@@ -751,7 +835,7 @@ IS
 		p_Report_Mode VARCHAR2 DEFAULT 'NO', 				-- YES, NO
 		p_Edit_Mode VARCHAR2 DEFAULT 'NO',					-- YES, NO - include ROW_SELECTOR
     	p_Data_Source VARCHAR2 DEFAULT 'TABLE', 			-- TABLE, NEW_ROWS, COLLECTION, QUERY
-    	p_Data_Format VARCHAR2 DEFAULT data_browser_select.FN_Current_Data_Format,	-- FORM, CSV, NATIVE. Format of the final projection columns.
+    	p_Data_Format VARCHAR2 DEFAULT data_browser_select.FN_Current_Data_Format,	-- FORM, HTML, CSV, NATIVE. Format of the final projection columns.
     	p_Join_Options VARCHAR2 DEFAULT NULL,
     	p_Parent_Name VARCHAR2 DEFAULT NULL,				-- Parent View or Table name. In View_Mode NAVIGATION_VIEW if set columns from the view are included in the Column list
     	p_Parent_Key_Column VARCHAR2 DEFAULT NULL,			-- Column Name with foreign key to Parent Table
@@ -1109,7 +1193,7 @@ IS
 		p_Report_Mode VARCHAR2 DEFAULT 'NO', 			-- YES, NO
 		p_Edit_Mode VARCHAR2 DEFAULT 'NO',				-- YES, NO
     	p_Data_Source VARCHAR2 DEFAULT 'TABLE', 		-- NEW_ROWS, TABLE, MEMORY, COLLECTION. if NEW_ROWS or MEMORY then SELECT ... FROM DUAL
-    	p_Data_Format VARCHAR2 DEFAULT data_browser_select.FN_Current_Data_Format,	-- FORM, CSV, NATIVE. Format of the final projection columns.
+    	p_Data_Format VARCHAR2 DEFAULT data_browser_select.FN_Current_Data_Format,	-- FORM, HTML, CSV, NATIVE. Format of the final projection columns.
 		p_Empty_Row VARCHAR2 DEFAULT 'YES',				-- YES, NO. Show one empty row when the result set is empty.
     	p_Join_Options VARCHAR2 DEFAULT NULL,
     	p_Parent_Table VARCHAR2 DEFAULT NULL,			-- Parent View or Table name.

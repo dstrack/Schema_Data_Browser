@@ -154,7 +154,8 @@ IS
     PROCEDURE Duplicate_Schema_Job (
 		p_Source_Schema VARCHAR2,
 		p_Dest_Schema VARCHAR2,
-		p_Dest_Password VARCHAR2
+		p_Dest_Password VARCHAR2,
+        p_Application_ID NUMBER DEFAULT NV('APP_ID')
 	);
 
 	PROCEDURE Refresh_Schema_Stats (
@@ -518,7 +519,7 @@ IS
         v_rindex 		binary_integer := dbms_application_info.set_session_longops_nohint;
         v_slno   		binary_integer;
         v_Start_Step  	constant binary_integer := nvl(p_Start_Step, g_Refresh_MViews_Start_Unique);
-        v_Steps  		constant binary_integer := 14;
+        v_Steps  		constant binary_integer := 12;
 		v_LAST_DDL_TIME USER_OBJECTS.LAST_DDL_TIME%TYPE;
     BEGIN
         Set_Process_Infos(v_rindex, v_slno, g_Refresh_MViews_Proc_Name, p_context, v_Steps-v_Start_Step, 0, 'steps');
@@ -563,12 +564,6 @@ IS
 										p_Owner => p_Owner, p_LAST_DDL_TIME => v_LAST_DDL_TIME);
 				when 12 then MView_Refresh(p_MView_Name => 'MVDATA_BROWSER_SIMPLE_COLS', 
 										p_Dependent_MViews => 'MVDATA_BROWSER_VIEWS,MVDATA_BROWSER_DESCRIPTIONS,MVDATA_BROWSER_CHECKS_DEFS', 
-										p_Owner => p_Owner, p_LAST_DDL_TIME => v_LAST_DDL_TIME);
-				when 13 then MView_Refresh(p_MView_Name => 'MVDATA_BROWSER_FC_REFS', 
-										p_Dependent_MViews => 'MVDATA_BROWSER_SIMPLE_COLS,MVDATA_BROWSER_FKEYS', 
-										p_Owner => p_Owner, p_LAST_DDL_TIME => v_LAST_DDL_TIME);
-				when 14 then MView_Refresh(p_MView_Name => 'MVDATA_BROWSER_QC_REFS', 
-										p_Dependent_MViews => 'MVDATA_BROWSER_F_REFS,MVDATA_BROWSER_FC_REFS', 
 										p_Owner => p_Owner, p_LAST_DDL_TIME => v_LAST_DDL_TIME);
 				else null;
 			end case;
@@ -1110,7 +1105,8 @@ $END
     PROCEDURE Duplicate_Schema_Job (
 		p_Source_Schema VARCHAR2,
 		p_Dest_Schema VARCHAR2,
-		p_Dest_Password VARCHAR2
+		p_Dest_Password VARCHAR2,
+        p_Application_ID NUMBER DEFAULT NV('APP_ID')
 	)
 	IS
 		v_sql USER_SCHEDULER_JOBS.JOB_ACTION%TYPE;
@@ -1119,7 +1115,7 @@ $END
 			'begin' || chr(10)
 			|| 'data_browser_schema.Add_Schema ('
 			|| 'p_Schema_Name =>' || dbms_assert.enquote_literal(p_Dest_Schema)
-			|| ',p_Password => p_Dest_Password'
+			|| ',p_Password =>' || dbms_assert.enquote_literal(p_Dest_Password)
 			|| ');' || chr(10)
 			|| 'data_browser_schema.Copy_Schema ('
 			|| 'p_source_user => ' || dbms_assert.enquote_literal(p_Source_Schema)
@@ -1127,6 +1123,7 @@ $END
 			|| ');' || chr(10)
 			|| 'data_browser_schema.Add_Apex_Workspace_Schema ('
 			|| 'p_Schema_Name =>' || dbms_assert.enquote_literal(p_Dest_Schema)
+			|| ',p_Application_ID =>' || dbms_assert.enquote_literal(p_Application_ID)
 			|| ');' || chr(10)
 			|| 'schema_keychain.Duplicate_Keys ('
 			|| 'p_Source_Schema =>' || dbms_assert.enquote_literal(p_Source_Schema)

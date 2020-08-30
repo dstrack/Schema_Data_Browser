@@ -215,9 +215,8 @@ IS
 		p_Table_Name VARCHAR2 DEFAULT NULL
 	) RETURN changelog_conf.tab_insert_triggers PIPELINED;
 
-	FUNCTION FN_Pipe_table_cols (
-		p_Table_Name VARCHAR2 DEFAULT NULL
-	) RETURN changelog_conf.tab_table_cols PIPELINED;
+	FUNCTION FN_Pipe_table_cols 
+	RETURN changelog_conf.tab_table_cols PIPELINED;
 
 	FUNCTION FN_Pipe_unique_keys
 	RETURN changelog_conf.tab_unique_keys PIPELINED;
@@ -793,9 +792,8 @@ IS
 		raise;
 	END FN_Pipe_insert_triggers;
 
-	FUNCTION FN_Pipe_table_cols (
-		p_Table_Name VARCHAR2 DEFAULT NULL
-	) RETURN changelog_conf.tab_table_cols PIPELINED
+	FUNCTION FN_Pipe_table_cols
+	RETURN changelog_conf.tab_table_cols PIPELINED
 	IS
 	$IF DBMS_DB_VERSION.VERSION >= 12 $THEN
 		PRAGMA UDF;

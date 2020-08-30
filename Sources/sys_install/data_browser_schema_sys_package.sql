@@ -839,7 +839,7 @@ $END
 		end if;
 		apex_util.set_security_group_id (p_security_group_id => v_workspace_id);
 		dbms_output.put_line('seed and publish translation for application_id : ' || v_app_id);
-
+		apex_application_install.generate_offset; -- prevent error ORA-20001: Error during execution of wwv_flow_copy: WWV_FLOWS >> ORA-01722: Ungültige Zahl
 		apex_lang.seed_translations(
 			p_application_id => v_app_id,
 			p_language => 'de' 

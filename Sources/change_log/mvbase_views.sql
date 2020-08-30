@@ -155,7 +155,6 @@ WITH SCALAR_KEYS AS (
 					then COLUMN_NAME
 				end INDEX_FORMAT_COLUMN_NAME
 			FROM table (changelog_conf.FN_Pipe_Table_Columns) C
-			-- USER_TAB_COLUMNS C
 		)
 	) C
 	GROUP BY TABLE_NAME
