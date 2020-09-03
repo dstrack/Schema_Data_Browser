@@ -60,6 +60,7 @@ CREATE OR REPLACE PACKAGE BODY import_utl IS
 		-- 1. level foreign keys
 		SELECT S.VIEW_NAME,S.TABLE_NAME, S.PRIMARY_KEY_COLS, S.SHORT_NAME,
 			S.FOREIGN_KEY_COLS COLUMN_NAME,
+			S.R_VIEW_NAME 		S_VIEW_NAME,
 			case when EXISTS (
 				SELECT 1 
 				FROM MVDATA_BROWSER_FKEYS FK
@@ -67,15 +68,18 @@ CREATE OR REPLACE PACKAGE BODY import_utl IS
 				AND FK.FOREIGN_KEY_COLS = S.R_COLUMN_NAME
 			) then 'v_' else ':new.' end 
 			|| S.IMP_COLUMN_NAME S_REF,
+			S.VIEW_NAME         D_VIEW_NAME,					-- lookup ids of imported table + related
 			'v_row.' || S.FOREIGN_KEY_COLS D_REF,
+			S.FOREIGN_KEY_COLS D_COLUMN_NAME,
 			S.R_PRIMARY_KEY_COLS, S.R_CONSTRAINT_TYPE,
 			S.R_VIEW_NAME, S.COLUMN_ID, S.NULLABLE,
 			S.R_COLUMN_ID, S.R_COLUMN_NAME, S.R_NULLABLE, S.R_DATA_TYPE,
 			S.R_DATA_SCALE, S.R_CHAR_LENGTH,
 			S.TABLE_ALIAS, S.IMP_COLUMN_NAME, NULL JOIN_CLAUSE,
-					SUM(case when S.R_NULLABLE = 'Y' then 1 else 0 end) OVER (PARTITION BY S.TABLE_NAME, S.FOREIGN_KEY_COLS) HAS_NULLABLE,
-					SUM(case when U.U_MEMBERS = 1 THEN 1 else 0 end ) OVER (PARTITION BY S.TABLE_NAME, S.FOREIGN_KEY_COLS) HAS_SIMPLE_UNIQUE,
-					U.U_CONSTRAINT_NAME, U.U_MEMBERS, 2 POSITION2
+			SUM(case when S.R_NULLABLE = 'Y' then 1 else 0 end) OVER (PARTITION BY S.TABLE_NAME, S.FOREIGN_KEY_COLS) HAS_NULLABLE,
+			SUM(case when U.U_MEMBERS = 1 THEN 1 else 0 end ) OVER (PARTITION BY S.TABLE_NAME, S.FOREIGN_KEY_COLS) HAS_SIMPLE_UNIQUE,
+			case when S.IS_REFERENCE = 'N' then 0 else 1 end HAS_FOREIGN_KEY,
+			U.U_CONSTRAINT_NAME, U.U_MEMBERS, 2 POSITION2
 		FROM MVDATA_BROWSER_F_REFS S
 		LEFT OUTER JOIN MVDATA_BROWSER_U_REFS U ON U.VIEW_NAME = S.R_VIEW_NAME AND U.COLUMN_NAME = S.R_COLUMN_NAME AND U.RANK = 1  -- unique key columns for each foreign key
 		WHERE S.R_COLUMN_ID IS NOT NULL
@@ -99,19 +103,24 @@ CREATE OR REPLACE PACKAGE BODY import_utl IS
 		-- 2. level foreign keys
 		SELECT Q.VIEW_NAME, Q.TABLE_NAME, Q.PRIMARY_KEY_COLS, Q.SHORT_NAME,
 			Q.FOREIGN_KEY_COLS COLUMN_NAME,
+			Q.R_VIEW_NAME 		S_VIEW_NAME,
 			':new.' || Q.IMP_COLUMN_NAME S_REF,
+			S.R_VIEW_NAME 		D_VIEW_NAME,
 			'v_' || S.IMP_COLUMN_NAME D_REF,
+			S.IMP_COLUMN_NAME D_COLUMN_NAME,
 			Q.R_PRIMARY_KEY_COLS, Q.R_CONSTRAINT_TYPE,
 			Q.R_VIEW_NAME, Q.COLUMN_ID, Q.NULLABLE,
 			Q.R_COLUMN_ID, Q.R_COLUMN_NAME, Q.R_NULLABLE, Q.R_DATA_TYPE,
 			Q.R_DATA_SCALE, Q.R_CHAR_LENGTH,
-			Q.TABLE_ALIAS, Q.IMP_COLUMN_NAME,
+			Q.R_TABLE_ALIAS 	TABLE_ALIAS, 
+			Q.IMP_COLUMN_NAME,
 			case when import_utl.Get_As_Of_Timestamp = 'YES'
 				then REPLACE (Q.JOIN_CLAUSE, Q.JOIN_VIEW_NAME, custom_changelog.Get_ChangeLogViewName(Q.JOIN_VIEW_NAME))
 				else Q.JOIN_CLAUSE
 			end JOIN_CLAUSE,
 			SUM(case when Q.R_NULLABLE = 'Y' then 1 else 0 end) OVER (PARTITION BY Q.TABLE_NAME, Q.FOREIGN_KEY_COLS) HAS_NULLABLE,
 			SUM(case when Q.U_MEMBERS = 1 THEN 1 else 0 end ) OVER (PARTITION BY Q.TABLE_NAME, Q.FOREIGN_KEY_COLS) HAS_SIMPLE_UNIQUE,
+			case when Q.IS_REFERENCE = 'N' then 0 else 1 end HAS_FOREIGN_KEY,
 			Q.U_CONSTRAINT_NAME, Q.U_MEMBERS, 1 POSITION2
 		FROM MVDATA_BROWSER_Q_REFS Q
 		JOIN MVDATA_BROWSER_F_REFS S ON Q.VIEW_NAME = S.VIEW_NAME
@@ -131,6 +140,48 @@ CREATE OR REPLACE PACKAGE BODY import_utl IS
 		CLOSE views_cur;
 	end FN_Pipe_table_imp_fk2;
 
+	FUNCTION FN_Pipe_table_imp_cols (p_Table_Name VARCHAR2)
+	RETURN tab_table_imp_cols PIPELINED
+	IS
+        CURSOR views_cur (v_Table_Name VARCHAR2)
+        IS
+		SELECT S.VIEW_NAME TABLE_NAME, COLUMN_NAME,
+			COLUMN_EXPR,
+			import_utl.Get_CompareFunction(DATA_TYPE) COLUMN_COMPARE,
+			import_utl.Get_MarkupFunction(DATA_TYPE) COLUMN_MARKUP,
+			case when COLUMN_NAME != 'LINK_ID$' then
+				import_utl.Get_ImpColumnCheck (DATA_TYPE, DATA_SCALE, CHAR_LENGTH, NULLABLE, COLUMN_NAME)
+			end COLUMN_CHECK_EXPR,
+			COLUMN_ID, POSITION, COLUMN_NAME IMP_COLUMN_NAME, COLUMN_ALIGN, 
+			COLUMN_EXPR_TYPE,
+			HAS_DEFAULT, IS_VIRTUAL_COLUMN,
+			DATA_TYPE, DATA_SCALE, DATA_PRECISION, CHAR_LENGTH, NULLABLE,
+			E.REF_VIEW_NAME R_VIEW_NAME, REF_COLUMN_NAME, TABLE_ALIAS
+		FROM MVDATA_BROWSER_VIEWS S, TABLE(
+			data_browser_select.Get_View_Column_Cursor(
+				p_Table_Name => S.VIEW_NAME,
+				p_Unique_Key_Column => S.SEARCH_KEY_COLS,
+				p_Data_Columns_Only => 'NO',
+				p_Data_Format => 'NATIVE',
+				p_View_Mode => 'IMPORT_VIEW',
+				p_Edit_Mode => 'YES',
+				p_Report_Mode => 'NO'
+			)
+		) E
+		WHERE S.VIEW_NAME = p_Table_Name
+		-- AND (import_utl.Get_Exclude_Blob_Columns = 'NO' or data_browser_select.FN_Is_Sortable_Column(COLUMN_EXPR_TYPE) = 'YES')
+		;
+        v_in_row rec_table_imp_cols;
+	BEGIN
+		OPEN views_cur(p_Table_Name);
+		LOOP
+			FETCH views_cur INTO v_in_row;
+			EXIT WHEN views_cur%NOTFOUND;
+			pipe row (v_in_row);
+		END LOOP;
+		CLOSE views_cur;
+	end FN_Pipe_table_imp_cols;
+
 	FUNCTION FN_Pipe_table_imp_trigger (
 		p_Table_Name VARCHAR2,
 		p_Data_Format VARCHAR2 DEFAULT 'NATIVE' -- FORM, HTML, CSV, NATIVE. Format of the final projection columns.
@@ -139,6 +190,174 @@ CREATE OR REPLACE PACKAGE BODY import_utl IS
 	IS
         CURSOR views_cur (v_Table_Name VARCHAR2, v_Data_Format VARCHAR2)
         IS
+		WITH REFERENCES_Q AS (
+			SELECT E.*
+			FROM TABLE (import_utl.FN_Pipe_table_imp_cols(v_Table_Name)) E
+			WHERE (E.TABLE_ALIAS != 'A' OR E.COLUMN_EXPR_TYPE = 'HIDDEN')
+		)
+		, PARENT_LOOKUP_Q AS (
+			SELECT /*+ USE_MERGE(S E F) */
+				DISTINCT S.COLUMN_NAME, S.IMP_COLUMN_NAME,
+				F.COLUMN_NAME D_REF,
+				E.COLUMN_NAME S_REF
+			FROM (
+				SELECT --+ INDEX(Q) USE_NL_WITH_INDEX(S)
+					Q.TABLE_NAME, Q.VIEW_NAME, Q.SEARCH_KEY_COLS, Q.SHORT_NAME,
+					Q.FOREIGN_KEY_COLS 	COLUMN_NAME,
+                    Q.VIEW_NAME         S_VIEW_NAME,
+                    Q.PARENT_KEY_COLUMN,
+					Q.TABLE_ALIAS 		TABLE_ALIAS, 
+					S.R_VIEW_NAME 		D_VIEW_NAME,
+					S.IMP_COLUMN_NAME
+				FROM MVDATA_BROWSER_Q_REFS Q
+				JOIN MVDATA_BROWSER_F_REFS S ON Q.VIEW_NAME = S.VIEW_NAME
+					and Q.FOREIGN_KEY_COLS = S.FOREIGN_KEY_COLS
+					and Q.TABLE_ALIAS = S.TABLE_ALIAS
+					and Q.J_VIEW_NAME = S.R_VIEW_NAME
+					and Q.J_COLUMN_NAME = S.R_COLUMN_NAME
+				WHERE Q.VIEW_NAME = v_Table_Name
+			) S
+			JOIN REFERENCES_Q E ON E.R_VIEW_NAME = S.S_VIEW_NAME AND E.COLUMN_NAME = S.PARENT_KEY_COLUMN
+			JOIN REFERENCES_Q F ON F.R_VIEW_NAME = S.D_VIEW_NAME AND F.COLUMN_NAME = S.IMP_COLUMN_NAME
+		)
+		, FOREIGN_KEYS_LOOKUP_Q AS (
+			SELECT T.VIEW_NAME TABLE_NAME, 
+				 ---------------------------
+				case when MAX(T.U_CONSTRAINT_NAME) IS NOT NULL or import_utl.Get_Search_Keys_Unique = 'NO' then
+					RPAD(' ', 4) || 'if '
+					|| LISTAGG(S_REF || ' IS NOT NULL',
+						case when HAS_NULLABLE > 0 OR HAS_SIMPLE_UNIQUE > 0 then ' OR ' else ' AND ' end
+					) WITHIN GROUP (ORDER BY R_COLUMN_ID) -- conditions to trigger the search of foreign keys
+					|| ' then ' || chr(10)
+					|| case when D.DEFAULTS_MISSING = 0  AND import_utl.Get_Insert_Foreign_Keys = 'YES' 
+						then RPAD(' ', 6) || 'begin' || chr(10) end
+					|| RPAD(' ', 8) -- find foreign key values
+					|| 'SELECT ' || T.TABLE_ALIAS || '.' || T.R_PRIMARY_KEY_COLS || ' INTO ' || D_REF || chr(10) || RPAD(' ', 8)
+					|| 'FROM ' || T.R_VIEW_NAME || ' ' || T.TABLE_ALIAS || ' ' || chr(10) || RPAD(' ', 8)
+					|| 'WHERE '
+					|| LISTAGG(
+							case when (HAS_NULLABLE > 0 OR HAS_SIMPLE_UNIQUE > 0) AND T.U_MEMBERS > 1
+							then '('
+								|| import_utl.Get_Compare_Case_Insensitive(T.TABLE_ALIAS || '.' || T.R_COLUMN_NAME, S_REF, T.R_DATA_TYPE)
+								|| ' OR '
+								|| case when T.R_NULLABLE = 'Y' then T.TABLE_ALIAS || '.' || T.R_COLUMN_NAME || ' IS NULL AND ' end
+								|| S_REF || ' IS NULL)'
+							else
+								import_utl.Get_Compare_Case_Insensitive(T.TABLE_ALIAS || '.' || T.R_COLUMN_NAME, S_REF, T.R_DATA_TYPE)
+							end,
+						chr(10) || RPAD(' ', 8) || 'AND ') WITHIN GROUP (ORDER BY R_COLUMN_ID)
+					|| ';' 
+				 ---------------------------
+					|| chr(10) || RPAD(' ', 4)
+					|| case when D.DEFAULTS_MISSING = 0 AND import_utl.Get_Insert_Foreign_Keys = 'YES' then
+						'  exception when NO_DATA_FOUND then' || chr(10) || RPAD(' ', 8)
+						|| 'INSERT INTO ' || T.R_VIEW_NAME || '('
+						|| LISTAGG(T.R_COLUMN_NAME, ', ') WITHIN GROUP (ORDER BY R_COLUMN_ID)
+						|| ') VALUES ('
+						|| LISTAGG(S_REF, ', ') WITHIN GROUP (ORDER BY R_COLUMN_ID)
+						|| ') RETURNING (' || T.R_PRIMARY_KEY_COLS || ') INTO ' || D_REF || ';' || chr(10) || RPAD(' ', 4)
+						|| '  end;' || chr(10) || RPAD(' ', 4)
+
+					end
+					|| (
+						select LISTAGG(
+							RPAD(' ', 4)
+							|| 'v_' || P.D_REF 
+							|| ' := '
+							|| T.D_REF || ';'
+							|| chr(10) || RPAD(' ', 4)
+							, ''
+						) WITHIN GROUP (ORDER BY P.IMP_COLUMN_NAME)
+						from PARENT_LOOKUP_Q P 
+						where P.S_REF = T.D_COLUMN_NAME
+						and P.D_REF IS NOT NULL
+					)
+				 ---------------------------
+					|| 'end if;'
+				end
+				SQL_TEXT,
+				---------------------------
+				T.COLUMN_NAME,
+				DBMS_ASSERT.ENQUOTE_LITERAL(LISTAGG(INITCAP(T.R_COLUMN_NAME), '/') WITHIN GROUP (ORDER BY R_COLUMN_ID)
+				|| ' für ' || INITCAP(T.R_VIEW_NAME) || ' ist nicht vorhanden.')
+				COLUMN_CHECK_EXPR,
+				S.SHORT_NAME || '_IMP' FROM_CHECK_EXPR,
+				' (' || LISTAGG('IMP.' || T.IMP_COLUMN_NAME || ' IS NOT NULL',
+					case when HAS_NULLABLE > 0 OR HAS_SIMPLE_UNIQUE > 0 then ' OR ' else ' AND ' end
+				) WITHIN GROUP (ORDER BY R_COLUMN_ID) -- conditions to trigger the search of foreign keys
+				|| ') ' || chr(10) || RPAD(' ', 8) || ' AND NOT EXISTS ( SELECT 1 FROM ' || T.R_VIEW_NAME || ' ' || T.TABLE_ALIAS || ' '
+				|| chr(10) || RPAD(' ', 12)
+				|| 'WHERE '
+				|| LISTAGG(
+						case when (HAS_NULLABLE > 0 OR HAS_SIMPLE_UNIQUE > 0) AND T.U_MEMBERS > 1
+						then '(' || import_utl.Get_Compare_Case_Insensitive(T.TABLE_ALIAS || '.' || T.R_COLUMN_NAME, 'IMP.' || T.IMP_COLUMN_NAME, T.R_DATA_TYPE)
+							|| ' OR '
+							|| case when T.R_NULLABLE = 'Y' then T.TABLE_ALIAS || '.' || T.R_COLUMN_NAME || ' IS NULL AND ' end
+							|| 'IMP.' || T.IMP_COLUMN_NAME || ' IS NULL)'
+						else
+							import_utl.Get_Compare_Case_Insensitive(T.TABLE_ALIAS || '.' || T.R_COLUMN_NAME, 'IMP.' || T.IMP_COLUMN_NAME, T.R_DATA_TYPE)
+						end,
+					chr(10) || RPAD(' ', 12) || 'AND ') WITHIN GROUP (ORDER BY R_COLUMN_ID)
+				|| chr(10) || RPAD(' ', 8) || ' )'
+				WHERE_CHECK_EXPR,
+				case when T.NULLABLE = 'N' then
+					'''' || LISTAGG(INITCAP(T.R_COLUMN_NAME), '/') WITHIN GROUP (ORDER BY R_COLUMN_ID)
+					|| case when T.U_MEMBERS = 1 then ' ist ' else ' sind ' end || 'leer.'''
+				end COLUMN_CHECK_EXPR2,
+				case when T.NULLABLE = 'N' then
+					LISTAGG('IMP.' || T.IMP_COLUMN_NAME || ' IS NULL', ' AND ') WITHIN GROUP (ORDER BY R_COLUMN_ID)
+				end WHERE_CHECK_EXPR2,
+				'R' CHECK_CONSTRAINT_TYPE,
+				---------------------------
+				D.DEFAULTS_MISSING + case when MAX(T.U_CONSTRAINT_NAME) IS NOT NULL or import_utl.Get_Search_Keys_Unique = 'NO' then 0 else 1 end DEFAULTS_MISSING,
+				T.COLUMN_ID POSITION, POSITION2, T.R_VIEW_NAME,
+				SUM(HAS_FOREIGN_KEY) S_HAS_FOREIGN_KEY
+			FROM
+			(
+				SELECT /*+ USE_MERGE(S E F) */
+					S.* 
+				FROM (
+					-- 2. level foreign keys
+					SELECT *
+					FROM TABLE(import_utl.FN_Pipe_table_imp_fk2 (v_Table_Name))
+					UNION ALL
+					-- 1. level foreign keys
+					SELECT *
+					FROM TABLE(import_utl.FN_Pipe_table_imp_fk1 (v_Table_Name))
+				) S
+				JOIN REFERENCES_Q E ON E.R_VIEW_NAME = S.S_VIEW_NAME AND E.REF_COLUMN_NAME = S.R_COLUMN_NAME AND E.TABLE_ALIAS = S.TABLE_ALIAS
+				JOIN REFERENCES_Q F ON F.R_VIEW_NAME = S.D_VIEW_NAME AND F.COLUMN_NAME = S.D_COLUMN_NAME
+			) T
+			JOIN MVDATA_BROWSER_VIEWS S ON S.VIEW_NAME = T.VIEW_NAME
+			JOIN ( -- count of missing defaults for foreign key table
+				SELECT S.VIEW_NAME, COUNT(DISTINCT C.COLUMN_ID) DEFAULTS_MISSING
+				FROM MVDATA_BROWSER_VIEWS S -- foreign key table
+				LEFT OUTER JOIN SYS.USER_TAB_COLUMNS C ON S.TABLE_NAME = C.TABLE_NAME
+				AND C.NULLABLE = 'N' AND C.DEFAULT_LENGTH IS NULL
+				AND C.COLUMN_NAME != S.PRIMARY_KEY_COLS
+				AND NOT EXISTS (
+					SELECT 1
+					FROM MVDATA_BROWSER_D_REFS R
+					WHERE R.TABLE_NAME = S.VIEW_NAME
+					AND R.COLUMN_NAME = C.COLUMN_NAME
+					UNION ALL
+					SELECT 1
+					FROM MVDATA_BROWSER_U_REFS R
+					WHERE R.VIEW_NAME = S.VIEW_NAME
+					AND R.COLUMN_NAME = C.COLUMN_NAME
+					AND R.RANK = 1
+				)
+				GROUP BY S.VIEW_NAME
+			) D ON D.VIEW_NAME = T.R_VIEW_NAME
+			WHERE R_COLUMN_ID IS NOT NULL
+			GROUP BY T.TABLE_NAME, T.VIEW_NAME, 
+				D.DEFAULTS_MISSING, T.TABLE_ALIAS, T.R_PRIMARY_KEY_COLS, T.COLUMN_NAME,
+				T.R_VIEW_NAME, T.COLUMN_ID, S.SHORT_NAME,
+				T.HAS_NULLABLE, T.HAS_SIMPLE_UNIQUE, T.U_MEMBERS, 
+				T.NULLABLE, T.D_REF, T.D_COLUMN_NAME, T.POSITION2
+			HAVING (MAX(T.U_CONSTRAINT_NAME) IS NOT NULL or import_utl.Get_Search_Keys_Unique = 'NO')
+			ORDER BY SUM(HAS_FOREIGN_KEY), T.U_MEMBERS, T.COLUMN_ID, T.POSITION2, T.D_REF
+		) 
 		SELECT SQL_TEXT,
 			case when B.COLUMN_CHECK_EXPR IS NOT NULL then
 				'SELECT IMP.IMPORTJOB_ID$, IMP.LINK_ID$, IMP.LINE_NO$, '
@@ -219,13 +438,12 @@ CREATE OR REPLACE PACKAGE BODY import_utl IS
 				'T' CHECK_CONSTRAINT_TYPE,
 				---------------------------
 				0 DEFAULTS_MISSING, T.COLUMN_ID POSITION, 1 POSITION2, NULL R_VIEW_NAME
-			FROM SYS.USER_TAB_COLS T
+			FROM TABLE (import_utl.FN_Pipe_table_imp_cols(v_Table_Name)) T
 			JOIN MVDATA_BROWSER_VIEWS S ON S.TABLE_NAME = T.TABLE_NAME
-			JOIN SYS.USER_TAB_COLUMNS C ON S.VIEW_NAME = C.TABLE_NAME AND C.COLUMN_NAME = T.COLUMN_NAME  -- only columns that appear in the view
 			WHERE import_utl.Get_ImpColumnCheck (T.DATA_TYPE, T.DATA_SCALE, T.CHAR_LENGTH, T.NULLABLE, T.COLUMN_NAME) IS NOT NULL
-			AND data_browser_pattern.Match_Ignored_Columns(T.COLUMN_NAME) = 'NO'
-			AND data_browser_pattern.Match_Hidden_Columns(T.COLUMN_NAME) = 'NO'
-			AND T.VIRTUAL_COLUMN = 'NO'
+			AND T.IS_VIRTUAL_COLUMN = 'N'
+			AND T.TABLE_ALIAS = 'A'
+			AND T.COLUMN_EXPR_TYPE != 'LINK_ID'
 			AND NOT EXISTS (-- no foreign key columns
 				SELECT 1 
 				FROM MVDATA_BROWSER_FKEYS FK
@@ -234,116 +452,18 @@ CREATE OR REPLACE PACKAGE BODY import_utl IS
 			)
 			AND S.TABLE_NAME = v_Table_Name
 			UNION ALL -- process foreign_keys of target table
-			SELECT T.VIEW_NAME TABLE_NAME, 
-				 ---------------------------
-				case when MAX(T.U_CONSTRAINT_NAME) IS NOT NULL or import_utl.Get_Search_Keys_Unique = 'NO' then
-					RPAD(' ', 4) || 'if '
-					|| LISTAGG(S_REF || ' IS NOT NULL',
-						case when HAS_NULLABLE > 0 OR HAS_SIMPLE_UNIQUE > 0 then ' OR ' else ' AND ' end
-					) WITHIN GROUP (ORDER BY R_COLUMN_ID) -- conditions to trigger the search of foreign keys
-					|| ' then ' || chr(10)
-					|| case when D.DEFAULTS_MISSING = 0  AND import_utl.Get_Insert_Foreign_Keys = 'YES' then RPAD(' ', 6) || 'begin ' || chr(10) end
-					|| RPAD(' ', 8) -- find foreign key values
-					|| 'SELECT ' || T.TABLE_ALIAS || '.' || T.R_PRIMARY_KEY_COLS || ' INTO ' || D_REF || chr(10) || RPAD(' ', 8)
-					|| 'FROM ' || T.R_VIEW_NAME || ' ' || T.TABLE_ALIAS || ' '
-					|| chr(10) || RPAD(' ', 8)
-					|| 'WHERE '
-					|| LISTAGG(
-							case when (HAS_NULLABLE > 0 OR HAS_SIMPLE_UNIQUE > 0) AND T.U_MEMBERS > 1
-							then '('
-								|| import_utl.Get_Compare_Case_Insensitive(T.TABLE_ALIAS || '.' || T.R_COLUMN_NAME, S_REF, T.R_DATA_TYPE)
-								|| ' OR '
-								|| case when T.R_NULLABLE = 'Y' then T.TABLE_ALIAS || '.' || T.R_COLUMN_NAME || ' IS NULL AND ' end
-								|| S_REF || ' IS NULL)'
-							else
-								import_utl.Get_Compare_Case_Insensitive(T.TABLE_ALIAS || '.' || T.R_COLUMN_NAME, S_REF, T.R_DATA_TYPE)
-							end,
-						chr(10) || RPAD(' ', 8) || 'AND ') WITHIN GROUP (ORDER BY R_COLUMN_ID)
-					|| ';' || chr(10) || RPAD(' ', 4)
-					|| case when D.DEFAULTS_MISSING = 0 AND import_utl.Get_Insert_Foreign_Keys = 'YES' then
-						'  exception when NO_DATA_FOUND then' || chr(10) || RPAD(' ', 8)
-						|| 'INSERT INTO ' || T.R_VIEW_NAME || '('
-						|| LISTAGG(T.R_COLUMN_NAME, ', ') WITHIN GROUP (ORDER BY R_COLUMN_ID)
-						|| ') VALUES ('
-						|| LISTAGG(S_REF, ', ') WITHIN GROUP (ORDER BY R_COLUMN_ID)
-						|| ') RETURNING (' || T.R_PRIMARY_KEY_COLS || ') INTO ' || D_REF || ';' || chr(10) || RPAD(' ', 6)
-						|| 'end;' || chr(10) || RPAD(' ', 4)
-					end
-					|| 'end if;'
-				end
-				SQL_TEXT,
-				---------------------------
-				T.COLUMN_NAME,
-				DBMS_ASSERT.ENQUOTE_LITERAL(LISTAGG(INITCAP(T.R_COLUMN_NAME), '/') WITHIN GROUP (ORDER BY R_COLUMN_ID)
-				|| ' für ' || INITCAP(T.R_VIEW_NAME) || ' ist nicht vorhanden.')
-				COLUMN_CHECK_EXPR,
-				S.SHORT_NAME || '_IMP' FROM_CHECK_EXPR,
-				' (' || LISTAGG('IMP.' || T.IMP_COLUMN_NAME || ' IS NOT NULL',
-					case when HAS_NULLABLE > 0 OR HAS_SIMPLE_UNIQUE > 0 then ' OR ' else ' AND ' end
-				) WITHIN GROUP (ORDER BY R_COLUMN_ID) -- conditions to trigger the search of foreign keys
-				|| ') ' || chr(10) || RPAD(' ', 8) || ' AND NOT EXISTS ( SELECT 1 FROM ' || T.R_VIEW_NAME || ' ' || T.TABLE_ALIAS || ' '
-				|| chr(10) || RPAD(' ', 12)
-				|| 'WHERE '
-				|| LISTAGG(
-						case when (HAS_NULLABLE > 0 OR HAS_SIMPLE_UNIQUE > 0) AND T.U_MEMBERS > 1
-						then '(' || import_utl.Get_Compare_Case_Insensitive(T.TABLE_ALIAS || '.' || T.R_COLUMN_NAME, 'IMP.' || T.IMP_COLUMN_NAME, T.R_DATA_TYPE)
-							|| ' OR '
-							|| case when T.R_NULLABLE = 'Y' then T.TABLE_ALIAS || '.' || T.R_COLUMN_NAME || ' IS NULL AND ' end
-							|| 'IMP.' || T.IMP_COLUMN_NAME || ' IS NULL)'
-						else
-							import_utl.Get_Compare_Case_Insensitive(T.TABLE_ALIAS || '.' || T.R_COLUMN_NAME, 'IMP.' || T.IMP_COLUMN_NAME, T.R_DATA_TYPE)
-						end,
-					chr(10) || RPAD(' ', 12) || 'AND ') WITHIN GROUP (ORDER BY R_COLUMN_ID)
-				|| chr(10) || RPAD(' ', 8) || ' )'
-				WHERE_CHECK_EXPR,
-				case when T.NULLABLE = 'N' then
-					'''' || LISTAGG(INITCAP(T.R_COLUMN_NAME), '/') WITHIN GROUP (ORDER BY R_COLUMN_ID)
-					|| case when T.U_MEMBERS = 1 then ' ist ' else ' sind ' end || 'leer.'''
-				end COLUMN_CHECK_EXPR2,
-				case when T.NULLABLE = 'N' then
-					LISTAGG('IMP.' || T.IMP_COLUMN_NAME || ' IS NULL', ' AND ') WITHIN GROUP (ORDER BY R_COLUMN_ID)
-				end WHERE_CHECK_EXPR2,
-				'R' CHECK_CONSTRAINT_TYPE,
-				---------------------------
-				D.DEFAULTS_MISSING + case when MAX(T.U_CONSTRAINT_NAME) IS NOT NULL or import_utl.Get_Search_Keys_Unique = 'NO' then 0 else 1 end DEFAULTS_MISSING,
-				T.COLUMN_ID POSITION, POSITION2, T.R_VIEW_NAME
-			FROM
-			(
-				-- 2. level foreign keys
-				SELECT *
-				FROM TABLE(import_utl.FN_Pipe_table_imp_fk2 (v_Table_Name))
-				UNION ALL
-				-- 1. level foreign keys
-				SELECT *
-				FROM TABLE(import_utl.FN_Pipe_table_imp_fk1 (v_Table_Name))
-			) T
-			JOIN MVDATA_BROWSER_VIEWS S ON S.VIEW_NAME = T.VIEW_NAME
-			JOIN ( -- count of missing defaults for foreign key table
-				SELECT S.VIEW_NAME, COUNT(DISTINCT C.COLUMN_ID) DEFAULTS_MISSING
-				FROM MVDATA_BROWSER_VIEWS S -- foreign key table
-				LEFT OUTER JOIN SYS.USER_TAB_COLUMNS C ON S.TABLE_NAME = C.TABLE_NAME
-				AND C.NULLABLE = 'N' AND C.DEFAULT_LENGTH IS NULL
-				AND C.COLUMN_NAME != S.PRIMARY_KEY_COLS
-				AND NOT EXISTS (
-					SELECT 1
-					FROM MVDATA_BROWSER_D_REFS R
-					WHERE R.TABLE_NAME = S.VIEW_NAME
-					AND R.COLUMN_NAME = C.COLUMN_NAME
-					UNION ALL
-					SELECT 1
-					FROM MVDATA_BROWSER_U_REFS R
-					WHERE R.VIEW_NAME = S.VIEW_NAME
-					AND R.COLUMN_NAME = C.COLUMN_NAME
-					AND R.RANK = 1
-				)
-				GROUP BY S.VIEW_NAME
-			) D ON D.VIEW_NAME = T.R_VIEW_NAME
-			WHERE R_COLUMN_ID IS NOT NULL
-			GROUP BY T.TABLE_NAME, T.VIEW_NAME, 
-				D.DEFAULTS_MISSING, T.TABLE_ALIAS, T.R_PRIMARY_KEY_COLS, T.COLUMN_NAME,
-				T.R_VIEW_NAME, T.COLUMN_ID, S.SHORT_NAME,
-				T.HAS_NULLABLE, T.HAS_SIMPLE_UNIQUE, T.U_MEMBERS, 
-				T.NULLABLE, T.D_REF, T.POSITION2
+			SELECT TABLE_NAME, SQL_TEXT, COLUMN_NAME, COLUMN_CHECK_EXPR, FROM_CHECK_EXPR, 
+				WHERE_CHECK_EXPR, COLUMN_CHECK_EXPR2, WHERE_CHECK_EXPR2, 
+				CHECK_CONSTRAINT_TYPE, DEFAULTS_MISSING, POSITION, POSITION2, R_VIEW_NAME
+			FROM FOREIGN_KEYS_LOOKUP_Q 
+			WHERE S_HAS_FOREIGN_KEY = 0 
+			UNION ALL -- process foreign_keys of target table
+			SELECT TABLE_NAME, SQL_TEXT, COLUMN_NAME, COLUMN_CHECK_EXPR, FROM_CHECK_EXPR, 
+				WHERE_CHECK_EXPR, COLUMN_CHECK_EXPR2, WHERE_CHECK_EXPR2, 
+				CHECK_CONSTRAINT_TYPE, DEFAULTS_MISSING, POSITION, POSITION2, R_VIEW_NAME
+			FROM FOREIGN_KEYS_LOOKUP_Q 
+			WHERE S_HAS_FOREIGN_KEY > 0 
+			
 			UNION ALL -- process check constraints
 			SELECT S.VIEW_NAME TABLE_NAME, 
 				NULL SQL_TEXT,
@@ -423,10 +543,11 @@ CREATE OR REPLACE PACKAGE BODY import_utl IS
 			U.U_CONSTRAINT_NAME,
 			'UPDATE ' || S.SHORT_NAME || '_IMP IMP ' || chr(10) || RPAD(' ', 4)
 			|| 'SET LINK_ID$ = ( SELECT '
-			|| case when INSTR(S.SEARCH_KEY_COLS, ',') = 0
-				then 'A.' || S.SEARCH_KEY_COLS
-				else 'CAST(data_browser_select.Hex_Hash( A.' || REPLACE(S.SEARCH_KEY_COLS, ', ', ', A.') || ') AS VARCHAR2(120))'
-				end
+			|| data_browser_conf.Get_Unique_Key_Expression (
+				p_Unique_Key_Column => S.SEARCH_KEY_COLS,
+				p_Table_Alias => 'A',
+				p_View_Mode => 'IMPORT_VIEW'
+			)
 			|| chr(10) || RPAD(' ', 8) || 'FROM ' || S.VIEW_NAME || ' A '
 			|| LISTAGG (
 					case when F.FOREIGN_KEY_COLS IS NOT NULL then
@@ -436,7 +557,6 @@ CREATE OR REPLACE PACKAGE BODY import_utl IS
 						|| data_browser_conf.Get_Join_Expression(
 							p_Left_Columns=>F.R_PRIMARY_KEY_COLS, p_Left_Alias=> F.TABLE_ALIAS,
 							p_Right_Columns=>F.FOREIGN_KEY_COLS, p_Right_Alias=> 'A')
-						-- || F.TABLE_ALIAS || '.' || F.R_PRIMARY_KEY_COLS || ' = A.' || F.FOREIGN_KEY_COLS
 					end
 				, chr(10) || RPAD(' ', 8)) WITHIN GROUP (ORDER BY F.R_COLUMN_ID)
 			|| chr(10) || RPAD(' ', 8) || 'WHERE '
@@ -471,43 +591,6 @@ CREATE OR REPLACE PACKAGE BODY import_utl IS
 		END LOOP;
 		CLOSE views_cur;
 	end FN_Pipe_table_imp_link;
-
-	FUNCTION FN_Pipe_table_imp_cols (p_Table_Name VARCHAR2)
-	RETURN tab_table_imp_cols PIPELINED
-	IS
-        CURSOR views_cur (v_Table_Name VARCHAR2)
-        IS
-		SELECT S.VIEW_NAME TABLE_NAME, COLUMN_NAME,
-			COLUMN_EXPR,
-			import_utl.Get_CompareFunction(DATA_TYPE) COLUMN_COMPARE,
-			import_utl.Get_MarkupFunction(DATA_TYPE) COLUMN_MARKUP,
-			case when COLUMN_NAME != 'LINK_ID$' then
-				import_utl.Get_ImpColumnCheck (DATA_TYPE, DATA_SCALE, CHAR_LENGTH, NULLABLE, COLUMN_NAME)
-			end COLUMN_CHECK_EXPR,
-			COLUMN_ID, POSITION, COLUMN_NAME IMP_COLUMN_NAME, COLUMN_ALIGN
-		FROM MVDATA_BROWSER_VIEWS S, TABLE(
-			data_browser_select.Get_View_Column_Cursor(
-				p_Table_Name => S.VIEW_NAME,
-				p_Unique_Key_Column => S.PRIMARY_KEY_COLS,
-				p_Data_Columns_Only => 'YES',
-				p_Select_Columns => NULL,
-				p_View_Mode => 'EXPORT_VIEW',
-				p_Report_Mode => 'YES'
-			)
-		) 
-		WHERE (import_utl.Get_Exclude_Blob_Columns = 'NO' or data_browser_select.FN_Is_Sortable_Column(COLUMN_EXPR_TYPE) = 'YES')
-		AND S.VIEW_NAME = p_Table_Name
-		;
-        v_in_row rec_table_imp_cols;
-	BEGIN
-		OPEN views_cur(p_Table_Name);
-		LOOP
-			FETCH views_cur INTO v_in_row;
-			EXIT WHEN views_cur%NOTFOUND;
-			pipe row (v_in_row);
-		END LOOP;
-		CLOSE views_cur;
-	end FN_Pipe_table_imp_cols;
 
 
     PROCEDURE Set_Imp_Formats (
@@ -1103,7 +1186,7 @@ CREATE OR REPLACE PACKAGE BODY import_utl IS
                 'import_utl.is_Char_Limited(' || v_COLUMN_NAME || ', ' || p_CHAR_LENGTH || ')'
             end
         end;
-    END;
+    END Get_ImpColumnCheck;
 
     PROCEDURE Run_DDL_Stat (
         p_Statement     IN CLOB,
@@ -1124,7 +1207,7 @@ CREATE OR REPLACE PACKAGE BODY import_utl IS
         if SQLCODE NOT IN (p_Allowed_Code, p_Allowed_Code2, p_Allowed_Code3) then
             RAISE;
         end if;
-    END;
+    END Run_DDL_Stat;
 
     FUNCTION Get_Table_Column_List (
     	p_Table_Name VARCHAR2,
@@ -1158,21 +1241,21 @@ CREATE OR REPLACE PACKAGE BODY import_utl IS
 			exit when v_Count >= p_Columns_Limit;
         end loop;
 		RETURN v_Stat;
-    END;
+    END Get_Table_Column_List;
 
     FUNCTION Get_Imp_Table_View (
     	p_Table_Name VARCHAR2,
-    	p_Data_Format VARCHAR2 DEFAULT 'FORM',	-- FORM, CSV, NATIVE. Format of the final projection columns.
-    	p_As_Of_Timestamp VARCHAR2 DEFAULT 'NO'
+    	p_As_Of_Timestamp VARCHAR2 DEFAULT 'NO',
+    	p_Data_Format VARCHAR2 DEFAULT 'FORM'	-- FORM, CSV, NATIVE. Format of the final projection columns.
     ) RETURN CLOB
     IS
         v_Table_Name 				VARCHAR2(50) := UPPER(p_Table_Name);
         v_Import_Table_Name 		VARCHAR2(50);
-        v_Primary_Key_Cols 			VUSER_TABLES_IMP.PRIMARY_KEY_COLS%TYPE;
+        v_Primary_Key_Cols 			VUSER_TABLES_IMP.SEARCH_KEY_COLS%TYPE;
         v_Import_View_Name 			VARCHAR2(50);
         v_History_View_Name			VARCHAR2(50);
    BEGIN
-        SELECT PRIMARY_KEY_COLS, IMPORT_VIEW_NAME, HISTORY_VIEW_NAME
+        SELECT SEARCH_KEY_COLS, IMPORT_VIEW_NAME, HISTORY_VIEW_NAME
         INTO v_Primary_Key_Cols, v_Import_View_Name, v_History_View_Name
         FROM VUSER_TABLES_IMP
         WHERE VIEW_NAME = v_Table_Name;
@@ -1183,7 +1266,6 @@ CREATE OR REPLACE PACKAGE BODY import_utl IS
 					p_Table_Name => v_Table_Name,
 					p_Unique_Key_Column => v_Primary_Key_Cols,
 					p_Data_Columns_Only => 'NO',
-					p_Columns_Limit => 1000,
 					p_View_Mode => 'IMPORT_VIEW'
 				)
 			|| ' ) '
@@ -1192,13 +1274,13 @@ CREATE OR REPLACE PACKAGE BODY import_utl IS
 				p_Table_Name => v_Table_Name,
 				p_Unique_Key_Column => v_Primary_Key_Cols,
 				p_Data_Columns_Only => 'NO',
-				p_Columns_Limit => 1000,
 				p_As_Of_Timestamp => p_As_Of_Timestamp,
 				-- p_Exclude_Blob_Columns => import_utl.Get_Exclude_Blob_Columns,
 				p_View_Mode => 'IMPORT_VIEW',
-				p_Data_Format => p_Data_Format
+				p_Data_Format => p_Data_Format,
+				p_Report_Mode => 'NO'
 			);
-    END;
+    END Get_Imp_Table_View;
 
     FUNCTION Get_Imp_Table_View_trigger (
     	p_Table_Name VARCHAR2,
@@ -1209,7 +1291,7 @@ CREATE OR REPLACE PACKAGE BODY import_utl IS
         v_Import_Table_Name 		VARCHAR2(50);
         v_Import_View_Name 			VARCHAR2(50);
         v_Import_Trigger_Name 		VARCHAR2(50);
-        v_Primary_Key_Cols 			VUSER_TABLES_IMP.PRIMARY_KEY_COLS%TYPE;
+        v_Primary_Key_Cols 			VUSER_TABLES_IMP.SEARCH_KEY_COLS%TYPE;
         v_Has_Scalar_Primary_Key 	VARCHAR2(50);
         v_Stat CLOB;
         v_Default_Stat CLOB;
@@ -1218,7 +1300,7 @@ CREATE OR REPLACE PACKAGE BODY import_utl IS
     	dbms_lob.createtemporary(v_Stat, true, dbms_lob.call);
     	dbms_lob.createtemporary(v_Default_Stat, true, dbms_lob.call);
 
-        SELECT PRIMARY_KEY_COLS, IMPORT_TABLE_NAME, IMPORT_VIEW_NAME, IMPORT_TRIGGER_NAME, HAS_SCALAR_PRIMARY_KEY
+        SELECT SEARCH_KEY_COLS, IMPORT_TABLE_NAME, IMPORT_VIEW_NAME, IMPORT_TRIGGER_NAME, HAS_SCALAR_PRIMARY_KEY
         INTO v_Primary_Key_Cols, v_Import_Table_Name, v_Import_View_Name, v_Import_Trigger_Name, v_Has_Scalar_Primary_Key
         FROM VUSER_TABLES_IMP
         WHERE VIEW_NAME = v_Table_Name;
@@ -1236,14 +1318,13 @@ CREATE OR REPLACE PACKAGE BODY import_utl IS
 			dbms_lob.writeappend(v_Stat, length(v_Str), v_Str);
         end loop;
 
-        v_Str := 'BEGIN -- data conversion for normal columns and lookup for foreign key columns' || chr(10);
+        v_Str := 'BEGIN' || chr(10);
         dbms_lob.writeappend(v_Stat, length(v_Str), v_Str);
         
         for c_cur in (
             SELECT SQL_TEXT, POSITION
             FROM TABLE (import_utl.FN_Pipe_table_imp_trigger(v_Table_Name, p_Data_Format))
             WHERE SQL_TEXT IS NOT NULL
-            ORDER BY POSITION, POSITION2, CHECK_CONSTRAINT_TYPE DESC
         ) loop
             v_Str := c_cur.SQL_TEXT || chr(10);
 			dbms_lob.writeappend(v_Stat, length(v_Str), v_Str);
@@ -1255,17 +1336,13 @@ CREATE OR REPLACE PACKAGE BODY import_utl IS
 				|| ' := NVL(v_row.' || T.COLUMN_NAME
 				|| ', ' || changelog_conf.Get_ColumnDefaultText(T.TABLE_NAME, T.COLUMN_NAME) || ');'
 				 SQL_TEXT
-			FROM SYS.USER_TAB_COLS T
+			FROM TABLE (import_utl.FN_Pipe_table_imp_cols(v_Table_Name)) T
 			JOIN MVDATA_BROWSER_VIEWS S ON S.TABLE_NAME = T.TABLE_NAME
-			WHERE EXISTS (
-                SELECT 1  -- only columns that appear in the view
-                FROM SYS.USER_TAB_COLUMNS C
-                WHERE C.TABLE_NAME = S.VIEW_NAME
-                AND C.COLUMN_NAME = T.COLUMN_NAME
-            )
             AND data_browser_pattern.Match_Ignored_Columns(T.COLUMN_NAME) = 'NO'
-            AND T.VIRTUAL_COLUMN = 'NO'
-			AND T.DEFAULT_LENGTH > 0
+            AND T.TABLE_ALIAS = 'A'
+            AND T.IS_VIRTUAL_COLUMN = 'N'
+            AND T.COLUMN_NAME != S.SEARCH_KEY_COLS
+			AND T.HAS_DEFAULT = 'Y'
 			AND S.VIEW_NAME = v_Table_Name
 			ORDER BY T.COLUMN_ID
         ) loop
@@ -1291,14 +1368,64 @@ CREATE OR REPLACE PACKAGE BODY import_utl IS
 			|| '        INSERT INTO ' || v_Table_Name|| ' VALUES v_row;' || chr(10)
 			|| '    else ' || chr(10)
 			|| '        UPDATE ' || v_Table_Name || ' SET ROW = v_row' || chr(10)
-			|| '        WHERE ' || 'data_browser_select.Hex_Hash(' || v_Primary_Key_Cols || ') = :new.LINK_ID$'
+			|| '        WHERE ' 
+			|| data_browser_conf.Get_Unique_Key_Expression (
+				p_Unique_Key_Column => v_Primary_Key_Cols,
+				p_Table_Alias => NULL,
+				p_View_Mode => 'IMPORT_VIEW'
+			)
+			|| ' = :new.LINK_ID$'
 			|| ';' || chr(10)
 			|| '    end if;' || chr(10)
 			|| 'END ' || v_Import_Trigger_Name  || ';' || chr(10);
         end if;
 		dbms_lob.writeappend(v_Stat, length(v_Str), v_Str);
 		RETURN v_Stat;
-    END;
+    END Get_Imp_Table_View_trigger;
+
+	PROCEDURE Download_imp_views (
+		p_Schema_Name VARCHAR2 DEFAULT SYS_CONTEXT('USERENV', 'CURRENT_SCHEMA'),
+    	p_Data_Format VARCHAR2 DEFAULT 'NATIVE'	-- FORM, CSV, NATIVE. Format of the final projection columns.
+	) 
+	IS
+        v_Stat 			CLOB;
+        v_Result		CLOB;
+        v_File_Name		VARCHAR2(128);
+        v_Footer		VARCHAR2(100);
+	BEGIN
+		v_File_Name := LOWER(p_Schema_Name) || '_imp_views.sql';
+    	dbms_lob.createtemporary(v_Stat, true, dbms_lob.call);
+     	dbms_lob.createtemporary(v_Result, true, dbms_lob.call);
+
+		for c_cur IN (
+			SELECT TABLE_NAME, VIEW_NAME
+			FROM MVDATA_BROWSER_VIEWS
+			ORDER BY TABLE_NAME
+		) loop
+			v_Stat := import_utl.Get_Imp_Table_View (
+				p_Table_name => c_cur.VIEW_NAME,
+				p_Data_Format => p_Data_Format
+			);
+			dbms_lob.append(v_Result, v_Stat);
+			v_Footer := ';' || chr(10) || chr(10);
+			dbms_lob.writeappend(v_Result, length(v_Footer), v_Footer);
+			v_Stat := import_utl.Get_Imp_Table_View_trigger (
+				p_Table_name => c_cur.VIEW_NAME,
+				p_Data_Format => p_Data_Format
+			);
+			dbms_lob.append(v_Result, v_Stat);
+			v_Footer := chr(10) || '/' || chr(10) || chr(10);
+			dbms_lob.writeappend(v_Result, length(v_Footer), v_Footer);
+		end loop;
+
+		data_browser_blobs.Download_Clob (
+			p_clob		=> v_Result,
+			p_File_Name => v_File_Name
+		);
+		apex_application.stop_apex_engine;
+	END Download_imp_views;
+
+
 
     FUNCTION Get_Imp_Table_View_Check ( p_Table_Name VARCHAR2 ) RETURN CLOB
     IS
@@ -1346,15 +1473,20 @@ CREATE OR REPLACE PACKAGE BODY import_utl IS
     BEGIN
     	dbms_lob.createtemporary(v_Stat, true, dbms_lob.call);
 
-        SELECT PRIMARY_KEY_COLS, IMPORT_TABLE_NAME, IMPORT_VIEW_MSG_NAME
+        SELECT SEARCH_KEY_COLS, IMPORT_TABLE_NAME, IMPORT_VIEW_MSG_NAME
         INTO v_Primary_Key_Cols, v_Import_Table_Name, v_Import_View_Msg_Name
         FROM VUSER_TABLES_IMP
         WHERE VIEW_NAME = v_Table_Name;
-		v_Column_List := data_browser_select.Get_Imp_Table_Column_List ( p_Table_name => v_Table_Name, p_Unique_Key_Column => v_Primary_Key_Cols, p_Data_Columns_Only => 'YES' );
+		v_Column_List := data_browser_select.Get_Imp_Table_Column_List ( 
+			p_Table_name => v_Table_Name, p_Unique_Key_Column => v_Primary_Key_Cols, p_Data_Columns_Only => 'YES' );
         v_Stat := 'CREATE OR REPLACE VIEW ' || v_Import_View_Msg_Name
-			|| chr(10) || '    ( ' || data_browser_select.Get_Imp_Table_Column_List ( p_Table_name => v_Table_Name, p_Unique_Key_Column => v_Primary_Key_Cols, p_Data_Columns_Only => 'YES' ) || ', FIRST_CHECK_MSG$ ) '
+			|| chr(10) || '    ( ' 
+			|| data_browser_select.Get_Imp_Table_Column_List ( 
+				p_Table_name => v_Table_Name, p_Unique_Key_Column => v_Primary_Key_Cols, p_Data_Columns_Only => 'YES' ) || ', FIRST_CHECK_MSG$ ) '
 			|| chr(10) || 'AS ' || chr(10)
-			|| 'SELECT ' || data_browser_select.Get_Imp_Table_Column_List ( p_Table_name => v_Table_Name, p_Unique_Key_Column => v_Primary_Key_Cols, p_Data_Columns_Only => 'YES' ) || ', ' || chr(10)
+			|| 'SELECT ' 
+			|| data_browser_select.Get_Imp_Table_Column_List ( 
+				p_Table_name => v_Table_Name, p_Unique_Key_Column => v_Primary_Key_Cols, p_Data_Columns_Only => 'YES' ) || ', ' || chr(10)
 			|| case when INSTR(v_Column_List, ',') > 0 then
 					'    COALESCE ( ' || v_Column_List || chr(10)
 					|| '    ) FIRST_CHECK_MSG$'
@@ -1412,7 +1544,7 @@ CREATE OR REPLACE PACKAGE BODY import_utl IS
     BEGIN
     	dbms_lob.createtemporary(v_Stat, true, dbms_lob.call);
 
-        SELECT PRIMARY_KEY_COLS, IMPORT_TABLE_NAME, IMPORT_VIEW_NAME, IMPORT_VIEW_MSG_NAME, IMPORT_VIEW_DIF_NAME, HAS_SCALAR_PRIMARY_KEY
+        SELECT SEARCH_KEY_COLS, IMPORT_TABLE_NAME, IMPORT_VIEW_NAME, IMPORT_VIEW_MSG_NAME, IMPORT_VIEW_DIF_NAME, HAS_SCALAR_PRIMARY_KEY
         INTO v_Primary_Key_Cols, v_Import_Table_Name, v_Import_View_Name, v_Import_View_Msg_Name, v_Import_View_Dif_Name, v_Has_Scalar_Primary_Key
         FROM VUSER_TABLES_IMP
         WHERE VIEW_NAME = v_Table_Name;
@@ -1458,7 +1590,7 @@ CREATE OR REPLACE PACKAGE BODY import_utl IS
         v_Table_Name 				VARCHAR2(50) := UPPER(p_Table_Name);
         v_Primary_Key_Cols 			VARCHAR2(4000);
 	BEGIN
-		SELECT PRIMARY_KEY_COLS
+		SELECT SEARCH_KEY_COLS
 		INTO v_Primary_Key_Cols
         FROM VUSER_TABLES_IMP
         WHERE VIEW_NAME = v_Table_Name;
@@ -1500,7 +1632,7 @@ CREATE OR REPLACE PACKAGE BODY import_utl IS
     BEGIN
     	dbms_lob.createtemporary(v_Stat, true, dbms_lob.call);
 
-        SELECT PRIMARY_KEY_COLS, IMPORT_TABLE_NAME, IMPORT_VIEW_NAME, IMPORT_VIEW_MSG_NAME, IMPORT_VIEW_DIF_NAME, HAS_SCALAR_PRIMARY_KEY
+        SELECT SEARCH_KEY_COLS, IMPORT_TABLE_NAME, IMPORT_VIEW_NAME, IMPORT_VIEW_MSG_NAME, IMPORT_VIEW_DIF_NAME, HAS_SCALAR_PRIMARY_KEY
         INTO v_Primary_Key_Cols, v_Import_Table_Name, v_Import_View_Name, v_Import_View_Msg_Name, v_Import_View_Dif_Name, v_Has_Scalar_Primary_Key
         FROM VUSER_TABLES_IMP
         WHERE VIEW_NAME = v_Table_Name;
@@ -1594,7 +1726,7 @@ CREATE OR REPLACE PACKAGE BODY import_utl IS
         v_Primary_Key_Cols 			VARCHAR2(4000);
         v_Import_View_Dif_Name 		VARCHAR2(50);
     BEGIN
-    	SELECT PRIMARY_KEY_COLS, IMPORT_VIEW_DIF_NAME
+    	SELECT SEARCH_KEY_COLS, IMPORT_VIEW_DIF_NAME
     	INTO v_Primary_Key_Cols, v_Import_View_Dif_Name
     	FROM VUSER_TABLES_IMP
         WHERE VIEW_NAME = v_Table_Name;
@@ -1649,7 +1781,7 @@ CREATE OR REPLACE PACKAGE BODY import_utl IS
     BEGIN
     	dbms_lob.createtemporary(v_Stat, true, dbms_lob.call);
 
-        SELECT PRIMARY_KEY_COLS, IMPORT_TABLE_NAME, IMPORT_VIEW_NAME, IMPORT_VIEW_MSG_NAME, IMPORT_VIEW_DIF_NAME, HAS_SCALAR_PRIMARY_KEY
+        SELECT SEARCH_KEY_COLS, IMPORT_TABLE_NAME, IMPORT_VIEW_NAME, IMPORT_VIEW_MSG_NAME, IMPORT_VIEW_DIF_NAME, HAS_SCALAR_PRIMARY_KEY
         INTO v_Primary_Key_Cols, v_Import_Table_Name, v_Import_View_Name, v_Import_View_Msg_Name, v_Import_View_Dif_Name, v_Has_Scalar_Primary_Key
         FROM VUSER_TABLES_IMP
         WHERE VIEW_NAME = v_Table_Name;
@@ -1743,7 +1875,7 @@ CREATE OR REPLACE PACKAGE BODY import_utl IS
     BEGIN
     	dbms_lob.createtemporary(v_Stat, true, dbms_lob.call);
 
-        SELECT PRIMARY_KEY_COLS, IMPORT_VIEW_NAME, HISTORY_VIEW_NAME
+        SELECT SEARCH_KEY_COLS, IMPORT_VIEW_NAME, HISTORY_VIEW_NAME
         INTO v_Primary_Key_Cols, v_Import_View_Name, v_History_View_Name
         FROM VUSER_TABLES_IMP
         WHERE VIEW_NAME = v_Table_Name;
@@ -1834,7 +1966,7 @@ CREATE OR REPLACE PACKAGE BODY import_utl IS
         v_Stat CLOB;
         v_Link_Stat CLOB;
 	BEGIN
-        SELECT PRIMARY_KEY_COLS, IMPORT_TABLE_NAME, IMPORT_VIEW_NAME, IMPORT_VIEW_CHECK_NAME
+        SELECT SEARCH_KEY_COLS, IMPORT_TABLE_NAME, IMPORT_VIEW_NAME, IMPORT_VIEW_CHECK_NAME
         INTO v_Primary_Key_Cols, v_Import_Table_Name, v_Import_View_Name, v_Import_View_Check_Name
         FROM VUSER_TABLES_IMP
         WHERE VIEW_NAME = v_Table_Name;
@@ -1936,15 +2068,15 @@ CREATE OR REPLACE PACKAGE BODY import_utl IS
         v_Primary_Key_Cols 			VARCHAR2(4000);
         v_Has_Scalar_Primary_Key 	VARCHAR2(50);
     BEGIN
-        SELECT PRIMARY_KEY_COLS, IMPORT_TABLE_NAME, IMPORT_VIEW_NAME, IMPORT_VIEW_CHECK_NAME, HAS_SCALAR_PRIMARY_KEY
+        SELECT SEARCH_KEY_COLS, IMPORT_TABLE_NAME, IMPORT_VIEW_NAME, IMPORT_VIEW_CHECK_NAME, HAS_SCALAR_PRIMARY_KEY
         INTO v_Primary_Key_Cols, v_Import_Table_Name, v_Import_View_Name, v_Import_View_Check_Name, v_Has_Scalar_Primary_Key
         FROM VUSER_TABLES_IMP
         WHERE VIEW_NAME = v_Table_Name;
 
-        v_Stat := import_utl.Get_Imp_Table_View ( v_Table_Name, 'NO' );
+        v_Stat := import_utl.Get_Imp_Table_View ( p_Table_Name => v_Table_Name, p_As_Of_Timestamp => 'NO' );
         Run_DDL_Stat (v_Stat); -- create import view
         if changelog_conf.Get_Add_ChangeLog_Views = 'YES' then
-			v_Stat := import_utl.Get_Imp_Table_View ( v_Table_Name, 'YES' );
+			v_Stat := import_utl.Get_Imp_Table_View ( p_Table_Name => v_Table_Name, p_As_Of_Timestamp => 'YES' );
 			Run_DDL_Stat (v_Stat); -- create history view
         end if;
 		v_Stat := import_utl.Get_Imp_Table_View_trigger ( v_Table_Name );
@@ -1993,15 +2125,15 @@ CREATE OR REPLACE PACKAGE BODY import_utl IS
         v_Primary_Key_Cols 			VARCHAR2(4000);
         v_Has_Scalar_Primary_Key 	VARCHAR2(50);
     BEGIN
-        SELECT PRIMARY_KEY_COLS, IMPORT_TABLE_NAME, IMPORT_VIEW_NAME, IMPORT_VIEW_CHECK_NAME, HAS_SCALAR_PRIMARY_KEY
+        SELECT SEARCH_KEY_COLS, IMPORT_TABLE_NAME, IMPORT_VIEW_NAME, IMPORT_VIEW_CHECK_NAME, HAS_SCALAR_PRIMARY_KEY
         INTO v_Primary_Key_Cols, v_Import_Table_Name, v_Import_View_Name, v_Import_View_Check_Name, v_Has_Scalar_Primary_Key
         FROM VUSER_TABLES_IMP
         WHERE VIEW_NAME = v_Table_Name;
 
-        v_Stat := import_utl.Get_Imp_Table_View ( v_Table_Name, 'NO' );
+        v_Stat := import_utl.Get_Imp_Table_View ( p_Table_Name => v_Table_Name, p_As_Of_Timestamp => 'NO' );
         Run_DDL_Stat (v_Stat); -- create import view
         if changelog_conf.Get_Add_ChangeLog_Views = 'YES' then
-	        v_Stat := import_utl.Get_Imp_Table_View ( v_Table_Name, 'YES' );
+	        v_Stat := import_utl.Get_Imp_Table_View ( p_Table_Name => v_Table_Name, p_As_Of_Timestamp => 'YES' );
     	    Run_DDL_Stat (v_Stat); -- create history view
     	end if;
 		v_Stat := import_utl.Get_Imp_Table_View_trigger ( v_Table_Name );
@@ -2034,7 +2166,7 @@ CREATE OR REPLACE PACKAGE BODY import_utl IS
         v_Import_View_Name 			VARCHAR2(50);
         v_Primary_Key_Cols 			VARCHAR2(4000);
     BEGIN
-        SELECT PRIMARY_KEY_COLS, IMPORT_TABLE_NAME
+        SELECT SEARCH_KEY_COLS, IMPORT_TABLE_NAME
         INTO v_Primary_Key_Cols, v_Import_Table_Name
         FROM VUSER_TABLES_IMP
         WHERE VIEW_NAME = v_Table_Name;
@@ -2074,7 +2206,7 @@ CREATE OR REPLACE PACKAGE BODY import_utl IS
         v_Primary_Key_Cols 			VARCHAR2(4000);
         v_Has_Scalar_Primary_Key 	VARCHAR2(50);
     BEGIN
-        SELECT PRIMARY_KEY_COLS, IMPORT_TABLE_NAME, IMPORT_VIEW_NAME, IMPORT_VIEW_CHECK_NAME, HAS_SCALAR_PRIMARY_KEY
+        SELECT SEARCH_KEY_COLS, IMPORT_TABLE_NAME, IMPORT_VIEW_NAME, IMPORT_VIEW_CHECK_NAME, HAS_SCALAR_PRIMARY_KEY
         INTO v_Primary_Key_Cols, v_Import_Table_Name, v_Import_View_Name, v_Import_View_Check_Name, v_Has_Scalar_Primary_Key
         FROM VUSER_TABLES_IMP
         WHERE VIEW_NAME = v_Table_Name;

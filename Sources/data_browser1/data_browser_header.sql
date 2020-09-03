@@ -732,6 +732,11 @@ IS
 		p_Search_Value 		VARCHAR2
 	);
 
+	PROCEDURE  Download_Clob (
+		p_clob				NCLOB,
+		p_File_Name 		VARCHAR2
+	);
+
 end data_browser_blobs;
 /
 show errors
@@ -1355,17 +1360,33 @@ AUTHID CURRENT_USER
 IS
 	PROCEDURE UI_Defaults_update_table (
 		p_Table_name IN VARCHAR2,
-		p_Workspace_Name VARCHAR2
+		p_Workspace_Name VARCHAR2,
+		p_Schema_Name VARCHAR2 DEFAULT SYS_CONTEXT('USERENV', 'CURRENT_SCHEMA')
 	);
 
 	PROCEDURE UI_Defaults_update_all_tables (
-		p_Workspace_Name VARCHAR2
+		p_Workspace_Name VARCHAR2,
+		p_Schema_Name VARCHAR2 DEFAULT SYS_CONTEXT('USERENV', 'CURRENT_SCHEMA')
 	);
 
 	PROCEDURE UI_Defaults_delete_all_tables (
 		p_Schema_Name VARCHAR2 DEFAULT SYS_CONTEXT('USERENV', 'CURRENT_SCHEMA')
 	);
 	
+	FUNCTION UI_Defaults_export_table (
+		p_Table_name IN VARCHAR2
+	) RETURN CLOB;
+
+	FUNCTION UI_Defaults_export_all_tables (
+		p_Workspace_Name VARCHAR2,
+		p_Schema_Name VARCHAR2 DEFAULT SYS_CONTEXT('USERENV', 'CURRENT_SCHEMA')
+	) RETURN CLOB;
+
+	PROCEDURE UI_Defaults_download_all_tables (
+		p_Workspace_Name VARCHAR2,
+		p_Schema_Name VARCHAR2 DEFAULT SYS_CONTEXT('USERENV', 'CURRENT_SCHEMA')
+	);
+
 end data_browser_UI_Defaults;
 /
 show errors

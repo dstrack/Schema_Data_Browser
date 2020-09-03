@@ -444,19 +444,14 @@ CREATE OR REPLACE PACKAGE BODY data_browser_ddl IS
 		p_Constraint_Name VARCHAR2 DEFAULT NULL
 	) RETURN VARCHAR2
 	is
-		v_Unique_Desc_Column VARCHAR2(1024);
 		v_Constraint_Name VARCHAR2(128);
 		v_Count NUMBER;
 		v_RunNo NUMBER;
 	begin
 		if p_Constraint_Name IS NULL then 
-			v_Unique_Desc_Column := REPLACE(p_Unique_Desc_Column, ', ', '_');
 			v_Constraint_Name := 
 				data_browser_conf.Compose_Column_Name (
-					data_browser_conf.Compose_Column_Name (
-						p_Table_Name, 
-						data_browser_conf.Normalize_Column_Name(v_Unique_Desc_Column)
-					), 'UN'
+					p_Table_Name, 'UN'
 				);
 			for v_RunNo in 1..9 loop
 				SELECT COUNT(*) INTO v_Count

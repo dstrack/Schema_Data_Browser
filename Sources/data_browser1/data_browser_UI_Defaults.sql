@@ -157,75 +157,81 @@ end;
 
 CREATE OR REPLACE PACKAGE BODY data_browser_UI_Defaults
 IS
+	CURSOR form_view_cur (v_Table_Name VARCHAR2)
+	IS
+		SELECT DISTINCT
+			T.TABLE_OWNER,
+			T.TABLE_NAME,
+			R_COLUMN_NAME COLUMN_NAME,
+			COLUMN_HEADER LABEL,
+			data_browser_edit.Get_Form_Field_Help_Text(
+				p_Table_name => T.VIEW_NAME,
+				p_Column_Name => REF_COLUMN_NAME,
+				p_View_Mode => 'FORM_VIEW',
+				p_Show_Statistics => 'NO'
+			) HELP_TEXT,
+			case when IS_AUDIT_COLUMN = 'Y'
+				then 'AUDIT_INFO' else 'FORM_FIELDS'
+			end GROUP_NAME,
+			FORMAT_MASK,
+			case when SUBSTR(DATA_DEFAULT, 1, 1) = ''''
+				then SUBSTR(DATA_DEFAULT, 2, LENGTH(DATA_DEFAULT)-2)
+			when SUBSTR(DATA_DEFAULT, 1, 1) BETWEEN '0' and '9'
+				then DATA_DEFAULT
+			when COLUMN_EXPR_TYPE = 'NUMBER' AND FORMAT_MASK IS NOT NULL
+				then LTRIM(TO_CHAR(0, FORMAT_MASK))
+			when COLUMN_EXPR_TYPE = 'NUMBER'
+				then '0'
+			end DEFAULT_VALUE,
+			case when COLUMN_EXPR_TYPE = 'NUMBER'
+				then 'NUMBER'
+				when COLUMN_EXPR_TYPE = 'DATE_POPUP'
+				then 'DATE'
+				else 'TEXT'
+			end FORM_DATA_TYPE,
+			FIELD_LENGTH MAX_WIDTH,
+			LEAST(GREATEST(FIELD_LENGTH, data_browser_conf.Get_Minimum_Field_Width),
+					data_browser_conf.Get_Maximum_Field_Width) FORM_DISPLAY_WIDTH,
+			case when COLUMN_EXPR_TYPE = 'TEXTAREA'
+				then 3 else 1
+			end FORM_DISPLAY_HEIGHT,
+			UPPER(COLUMN_ALIGN) REPORT_COL_ALIGNMENT,
+			case when COLUMN_EXPR_TYPE = 'HIDDEN'
+				then 'N' else 'Y'
+			end DISPLAY_IN_FORM,
+			COLUMN_ID DISPLAY_SEQ_FORM,
+			REQUIRED,
+			DISPLAY_IN_REPORT,
+			IS_PRIMARY_KEY,
+			CHECK_UNIQUE, LOV_QUERY, CHECK_CONDITION, COLUMN_EXPR_TYPE,
+			IS_CHAR_YES_NO_COLUMN, IS_NUMBER_YES_NO_COLUMN, 
+			case when IS_CHAR_YES_NO_COLUMN = 'Y' then 'CHAR'
+				when IS_NUMBER_YES_NO_COLUMN = 'Y' then 'NUMBER' 
+			end YES_NO_TYPE,
+			IS_REFERENCE,
+			FILE_NAME_COLUMN_NAME,
+			MIME_TYPE_COLUMN_NAME,
+			FILE_DATE_COLUMN_NAME
+		FROM MVDATA_BROWSER_VIEWS T, TABLE ( data_browser_edit.Get_Form_Edit_Cursor (
+			p_Table_name => T.VIEW_NAME,
+			p_Unique_Key_Column => T.SEARCH_KEY_COLS,
+			p_View_Mode => 'FORM_VIEW',
+			p_Report_Mode => 'ALL',
+			p_Data_Columns_Only => 'YES'
+		))
+		WHERE T.VIEW_NAME = v_Table_Name
+		AND R_COLUMN_NAME IS NOT NULL
+		AND TABLE_ALIAS = 'A';
+	TYPE form_view_Tab IS TABLE OF form_view_cur%ROWTYPE;
 
 	PROCEDURE UI_Defaults_update_table (
 		p_Table_name IN VARCHAR2,
-		p_Workspace_Name VARCHAR2
+		p_Workspace_Name VARCHAR2,
+		p_Schema_Name VARCHAR2 DEFAULT SYS_CONTEXT('USERENV', 'CURRENT_SCHEMA')
 	)
 	IS
         v_Table_Name 	MVDATA_BROWSER_VIEWS.VIEW_NAME%TYPE := UPPER(p_Table_Name);
-
-        CURSOR form_view_cur
-        IS
-			SELECT DISTINCT
-				T.TABLE_OWNER,
-				T.TABLE_NAME,
-				R_COLUMN_NAME COLUMN_NAME,
-				COLUMN_HEADER LABEL,
-				case when HAS_HELP_TEXT = 'Y' then
-					data_browser_edit.Get_Form_Field_Help_Text(
-						p_Table_name => T.VIEW_NAME,
-						p_Column_Name => REF_COLUMN_NAME,
-						p_View_Mode => 'FORM_VIEW',
-						p_Show_Statistics => 'NO'
-					)
-				end HELP_TEXT,
-				case when IS_AUDIT_COLUMN = 'Y'
-					then 'AUDIT_INFO' else 'FORM_FIELDS'
-				end GROUP_NAME,
-				FORMAT_MASK,
-				case when SUBSTR(DATA_DEFAULT, 1, 1) = ''''
-                    then SUBSTR(DATA_DEFAULT, 2, LENGTH(DATA_DEFAULT)-2)
-                when SUBSTR(DATA_DEFAULT, 1, 1) BETWEEN '0' and '9'
-                    then DATA_DEFAULT
-				when COLUMN_EXPR_TYPE = 'NUMBER' AND FORMAT_MASK IS NOT NULL
-                    then LTRIM(TO_CHAR(0, FORMAT_MASK))
-				when COLUMN_EXPR_TYPE = 'NUMBER'
-                    then '0'
-				end DEFAULT_VALUE,
-				case when COLUMN_EXPR_TYPE = 'NUMBER'
-					then 'NUMBER'
-					when COLUMN_EXPR_TYPE = 'DATE_POPUP'
-					then 'DATE'
-					else 'TEXT'
-				end FORM_DATA_TYPE,
-				FIELD_LENGTH MAX_WIDTH,
-				LEAST(GREATEST(FIELD_LENGTH, data_browser_conf.Get_Minimum_Field_Width),
-						data_browser_conf.Get_Maximum_Field_Width) FORM_DISPLAY_WIDTH,
-				case when COLUMN_EXPR_TYPE = 'TEXTAREA'
-					then 3 else 1
-				end FORM_DISPLAY_HEIGHT,
-				UPPER(COLUMN_ALIGN) REPORT_COL_ALIGNMENT,
-				case when COLUMN_EXPR_TYPE = 'HIDDEN'
-					then 'N' else 'Y'
-				end DISPLAY_IN_FORM,
-				COLUMN_ID DISPLAY_SEQ_FORM,
-				REQUIRED,
-				DISPLAY_IN_REPORT,
-				IS_PRIMARY_KEY,
-				CHECK_UNIQUE, LOV_QUERY, CHECK_CONDITION, COLUMN_EXPR_TYPE,
-				IS_CHAR_YES_NO_COLUMN, IS_NUMBER_YES_NO_COLUMN, IS_REFERENCE
-			FROM MVDATA_BROWSER_VIEWS T, TABLE ( data_browser_edit.Get_Form_Edit_Cursor (
-				p_Table_name => T.VIEW_NAME,
-				p_View_Mode => 'FORM_VIEW',
-                p_Report_Mode => 'ALL',
-				p_Data_Columns_Only => 'YES'
-			))
-			WHERE T.VIEW_NAME = v_Table_Name
-			AND R_COLUMN_NAME IS NOT NULL
-			AND TABLE_ALIAS = 'A';
-		TYPE form_view_Tab IS TABLE OF form_view_cur%ROWTYPE;
-		v_out_tab 	form_view_Tab;
+		v_out_tab 		form_view_Tab;
 		v_workspace_id 	NUMBER;
 	BEGIN
 		v_workspace_id := apex_util.find_security_group_id (p_workspace => p_Workspace_Name);
@@ -233,8 +239,8 @@ IS
 		$IF data_browser_conf.g_debug $THEN
 			apex_debug.info(
 				p_message => 'data_browser_UI_Defaults.UI_Defaults_update_table (p_Workspace_Name => %s, p_Table_name => %s)',
-				p0 => DBMS_ASSERT.ENQUOTE_LITERAL(p_Workspace_Name),
-				p1 => DBMS_ASSERT.ENQUOTE_LITERAL(v_Table_name)
+				p0 => dbms_assert.enquote_literal(p_Workspace_Name),
+				p1 => dbms_assert.enquote_literal(v_Table_name)
 			);
 		$END
 
@@ -247,20 +253,22 @@ $IF data_browser_specs.g_update_apex_tables $THEN
 			AND S.COLUMN_NAME = D.COLUMN_NAME
 		)
 		AND D.TABLE_NAME = v_Table_Name
-		AND D.SCHEMA = SYS_CONTEXT('USERENV', 'CURRENT_SCHEMA') ;
+		AND D.SCHEMA = p_Schema_Name ;
 $END
-		OPEN form_view_cur;
+		OPEN form_view_cur(v_Table_Name);
 		FETCH form_view_cur BULK COLLECT INTO v_out_tab;
 		CLOSE form_view_cur;
 		FOR ind IN 1 .. v_out_tab.COUNT
 		LOOP
-			DBMS_OUTPUT.PUT_LINE(ind || '.: ' || v_Table_Name || '.' ||  v_out_tab(ind).COLUMN_NAME);
+			$IF data_browser_conf.g_debug $THEN
+				DBMS_OUTPUT.PUT_LINE(ind || '.: ' || v_Table_Name || '.' ||  v_out_tab(ind).COLUMN_NAME);
+			$END
 			
 			if ind = 1 then 
 				$IF data_browser_conf.g_debug $THEN
 					apex_debug.info(
 						p_message => 'apex_ui_default_update.synch_table (p_table_name => %s)',
-						p0 => DBMS_ASSERT.ENQUOTE_LITERAL(v_Table_name)
+						p0 => dbms_assert.enquote_literal(v_Table_name)
 					);
 				$END
 				apex_ui_default_update.synch_table (
@@ -276,7 +284,7 @@ $END
 			$IF data_browser_conf.g_debug $THEN
 				apex_debug.info(
 					p_message => 'apex_ui_default_update.upd_column (Column_Name => %s) – Column %s',
-					p0 => DBMS_ASSERT.ENQUOTE_LITERAL(v_out_tab(ind).COLUMN_NAME)
+					p0 => dbms_assert.enquote_literal(v_out_tab(ind).COLUMN_NAME)
 				);
 			$END
 			apex_ui_default_update.upd_column (
@@ -321,7 +329,7 @@ $IF data_browser_specs.g_update_apex_tables $THEN
 					form_attribute_03 = NULL
 				where table_name = v_Table_Name
 				and column_name = v_out_tab(ind).COLUMN_NAME;
-  			elsif v_out_tab(ind).COLUMN_EXPR_TYPE = 'SELECT_LIST'  then
+  			elsif v_out_tab(ind).COLUMN_EXPR_TYPE IN ('SELECT_LIST', 'SWITCH_CHAR', 'SWITCH_NUMBER')  then
 				update USER_UI_DEFAULTS_COLUMNS
 				set lov_query = NULL,
 					display_as_form = 'NATIVE_SELECT_LIST',
@@ -333,10 +341,9 @@ $IF data_browser_specs.g_update_apex_tables $THEN
 				where table_name = v_Table_Name
 				and column_name = v_out_tab(ind).COLUMN_NAME;
 				-- special handling for Yes/No columns
-				if (v_out_tab(ind).IS_CHAR_YES_NO_COLUMN = 'Y'
-				or v_out_tab(ind).IS_NUMBER_YES_NO_COLUMN = 'Y') then
+				if v_out_tab(ind).YES_NO_TYPE IS NOT NULL then
 					INSERT INTO USER_UI_DEFAULTS_LOV_DATA (SCHEMA, TABLE_NAME, COLUMN_NAME, LOV_DISP_SEQUENCE, LOV_DISP_VALUE, LOV_RETURN_VALUE)
-					select SYS_CONTEXT('USERENV', 'CURRENT_SCHEMA') SCHEMA_NAME,
+					select p_Schema_Name SCHEMA_NAME,
 						v_Table_Name TABLE_NAME,
 						v_out_tab(ind).COLUMN_NAME COLUMN_NAME,
 						DISP_SEQUENCE,
@@ -344,12 +351,12 @@ $IF data_browser_specs.g_update_apex_tables $THEN
 						SUBSTR(P.COLUMN_VALUE, OFFSET+1) COLUMN_VALUE
 					from (
 						SELECT P.COLUMN_VALUE, INSTR(P.COLUMN_VALUE, ';') OFFSET, ROWNUM DISP_SEQUENCE
-						FROM TABLE( data_browser_conf.in_list(data_browser_conf.Get_Yes_No_Type_LOV(
-							case when v_out_tab(ind).IS_NUMBER_YES_NO_COLUMN = 'Y' then 'NUMBER' else 'CHAR' end), ',') ) P
+						FROM TABLE( data_browser_conf.in_list(
+							data_browser_conf.Get_Yes_No_Type_LOV(v_out_tab(ind).YES_NO_TYPE), ',') ) P
 					) P;
 				else
 					INSERT INTO USER_UI_DEFAULTS_LOV_DATA (SCHEMA, TABLE_NAME, COLUMN_NAME, LOV_DISP_SEQUENCE, LOV_DISP_VALUE, LOV_RETURN_VALUE)
-					SELECT  SYS_CONTEXT('USERENV', 'CURRENT_SCHEMA') SCHEMA_NAME,
+					SELECT  p_Schema_Name SCHEMA_NAME,
 						TABLE_NAME, COLUMN_NAME, DISP_SEQUENCE, DISPLAY_VALUE, COLUMN_VALUE
 					FROM VUSER_TABLES_CHECK_IN_LIST
 					WHERE TABLE_NAME = v_Table_Name
@@ -381,7 +388,8 @@ $END
 	END UI_Defaults_update_table;
 
 	PROCEDURE UI_Defaults_update_all_tables (
-		p_Workspace_Name VARCHAR2
+		p_Workspace_Name VARCHAR2,
+		p_Schema_Name VARCHAR2 DEFAULT SYS_CONTEXT('USERENV', 'CURRENT_SCHEMA')
 	)
 	IS
 	BEGIN
@@ -391,8 +399,9 @@ $END
 			ORDER BY TABLE_NAME
 		) loop
 			data_browser_UI_Defaults.UI_Defaults_update_table (
-				p_Table_name => c_cur.TABLE_NAME,
-				p_Workspace_Name => p_Workspace_Name
+				p_Table_name => c_cur.VIEW_NAME,
+				p_Workspace_Name => p_Workspace_Name,
+				p_Schema_Name => p_Schema_Name
 			);
 		end loop;
 	END UI_Defaults_update_all_tables;
@@ -410,6 +419,486 @@ $END
 			apex_ui_default_update.del_table (t_cur.TABLE_NAME);
 		 end loop;
 	END UI_Defaults_delete_all_tables;
+
+
+	FUNCTION UI_Defaults_export_header (
+		p_Workspace_Name VARCHAR2,
+		p_Schema_Name VARCHAR2 DEFAULT SYS_CONTEXT('USERENV', 'CURRENT_SCHEMA')
+	) RETURN CLOB
+	is
+        v_Stat 			CLOB;
+		v_workspace_id 	NUMBER;
+	begin
+		v_workspace_id := apex_util.find_security_group_id (p_workspace => p_Workspace_Name);
+		apex_util.set_security_group_id (p_security_group_id => v_workspace_id);
+    	dbms_lob.createtemporary(v_Stat, true, dbms_lob.call);
+		v_Stat := apex_string.format (p_message => 
+		q'!set define '^'
+		  !set verify off
+		  !set serveroutput on size 1000000
+		  !set feedback off
+		  !WHENEVER SQLERROR EXIT SQL.SQLCODE ROLLBACK
+		  ! 
+		  !prompt  Set Credentials...
+		  ! 
+		  !begin
+		  ! 
+		  !  -- Assumes you are running the script connected to sqlplus as the schema associated with the UI defaults or as the product schema.
+		  !  wwv_flow_api.set_security_group_id(p_security_group_id=>%s);
+		  ! 
+		  !end;
+		  !/
+		  !
+		  !begin wwv_flow.g_import_in_progress := true; end;
+		  !/
+		  !begin 
+		  !
+		  !select value into wwv_flow_api.g_nls_numeric_chars from nls_session_parameters where parameter='NLS_NUMERIC_CHARACTERS';
+		  !
+		  !end;
+		  !
+		  !/
+		  !begin execute immediate 'alter session set nls_numeric_characters=''.,''';
+		  !
+		  !end;
+		  !
+		  !/
+		  !begin wwv_flow.g_browser_language := 'en'; end;
+		  !/
+		  !prompt  Check Compatibility...
+		  ! 
+		  !begin
+		  ! 
+		  !-- This date identifies the minimum version required to install this file.
+		  !wwv_flow_api.set_version(p_version_yyyy_mm_dd=>'2019.03.31');
+		  ! 
+		  !end;
+		  !/
+		  !
+		  !-- SET SCHEMA
+		  ! 
+		  !begin
+		  ! 
+		  !   wwv_flow_api.g_id_offset := 0;
+		  !   wwv_flow_hint.g_schema   := '%s';
+		  !   wwv_flow_hint.check_schema_privs;
+		  ! 
+		  !end;
+		  !/
+		  !
+		  ! 
+		  !--------------------------------------------------------------------
+		  !prompt  SCHEMA STRACK_DEV - User Interface Defaults, Table Defaults
+		  !--
+		  !-- Import using sqlplus as the Oracle user: APEX_190100
+		  !-- Exported 14:18 Monday August 31, 2020 by: DIRK
+		  !--!' || chr(10),
+		  	p0 => v_workspace_id,
+			p1 => p_Schema_Name,
+			p_max_length => 30000,
+			p_prefix => '!'
+		);
+		return v_Stat;
+	end UI_Defaults_export_header;
+
+	FUNCTION UI_Defaults_export_footer 
+	RETURN CLOB
+	is
+        v_Stat 			CLOB;
+	begin
+    	dbms_lob.createtemporary(v_Stat, true, dbms_lob.call);
+		v_Stat := apex_string.format (p_message => 
+		q'!commit;
+		  !begin 
+		  !execute immediate 'alter session set nls_numeric_characters='''||wwv_flow_api.g_nls_numeric_chars||'''';
+		  !end;
+		  !/
+		  !set verify on
+		  !set feedback on
+		  !prompt  ...done!' || chr(10),
+			p_max_length => 30000,
+			p_prefix => '!'
+		);
+		return v_Stat;
+	end UI_Defaults_export_footer;
+
+	FUNCTION UI_Defaults_export_table (
+		p_Table_name IN VARCHAR2
+	) RETURN CLOB
+	is
+        v_Table_Name 	MVDATA_BROWSER_VIEWS.VIEW_NAME%TYPE := UPPER(p_Table_Name);
+		v_workspace_id 	NUMBER;
+		v_out_tab 		form_view_Tab;
+        v_Str 			VARCHAR2(32767);
+        v_Stat 			CLOB;
+        v_table_id 		NUMBER;
+        v_column_id 	NUMBER;
+        v_lov_data_id	NUMBER;
+	begin
+    	dbms_lob.createtemporary(v_Stat, true, dbms_lob.call);
+
+		OPEN form_view_cur(v_Table_Name);
+		FETCH form_view_cur BULK COLLECT INTO v_out_tab;
+		CLOSE form_view_cur;
+		if v_out_tab.COUNT > 0 then 
+			v_table_id := wwv_flow_id.next_val;
+			v_Str := apex_string.format (
+				p_message => 
+				'begin' || chr(10) || chr(10) 
+				|| 'wwv_flow_hint.remove_hint_priv(wwv_flow_hint.g_schema,%s);' || chr(10) 
+				|| 'wwv_flow_hint.create_table_hint_priv(' || chr(10) 
+				|| '  p_table_id => %s + wwv_flow_api.g_id_offset,' || chr(10) 
+				|| '  p_schema => wwv_flow_hint.g_schema,' || chr(10) 
+				|| '  p_table_name  => %s,' || chr(10) 
+				|| '  p_report_region_title => %s,' || chr(10) 
+				|| '  p_form_region_title => %s);' || chr(10) || chr(10)
+				|| 'end;' || chr(10) || '/' || chr(10),
+				p0 => dbms_assert.enquote_literal(v_Table_Name),
+				p1 => v_table_id,
+				p2 => data_browser_conf.Enquote_Literal(v_Table_Name),
+				p3 => data_browser_conf.Enquote_Literal('Edit ' || data_browser_conf.Table_Name_To_Header(p_Table_name)),
+				p4 => data_browser_conf.Enquote_Literal(data_browser_conf.Table_Name_To_Header(p_Table_name)),
+				p_max_length => 30000
+			);
+			dbms_lob.writeappend(v_Stat, length(v_Str), v_Str);
+		end if;
+		FOR ind IN 1 .. v_out_tab.COUNT LOOP
+			v_column_id := wwv_flow_id.next_val;
+			$IF data_browser_conf.g_debug $THEN
+				DBMS_OUTPUT.PUT_LINE(ind || '.: ' || v_Table_Name || '.' ||  v_out_tab(ind).COLUMN_NAME || ', id:' || v_column_id);
+			$END
+			
+			v_Str := apex_string.format (
+				p_message => 
+				'begin' || chr(10) || chr(10) 
+				|| 'wwv_flow_hint.create_column_hint_priv(' || chr(10) 
+				|| '  p_label => %s,' || chr(10),
+				p0 => data_browser_conf.Enquote_Literal(v_out_tab(ind).LABEL)
+			);
+			if v_out_tab(ind).FORMAT_MASK IS NOT NULL then 
+				v_Str := v_Str || apex_string.format (
+					p_message => '  p_mask_form => %s,' || chr(10),
+					p0 => dbms_assert.enquote_literal(v_out_tab(ind).FORMAT_MASK)
+				);
+			end if;
+			v_Str := v_Str || apex_string.format (
+				p_message => 
+				   '  p_display_seq_form => %s,' || chr(10) 
+				|| '  p_display_in_form => %s,' || chr(10),
+				p0 => v_out_tab(ind).DISPLAY_SEQ_FORM,
+				p1 => dbms_assert.enquote_literal(v_out_tab(ind).DISPLAY_IN_FORM)
+			);
+  			if v_out_tab(ind).COLUMN_EXPR_TYPE = 'POPUPKEY_FROM_LOV' then
+				v_Str := v_Str || apex_string.format (
+					p_message => 
+					   '  p_display_as_form => %s,' || chr(10)
+					|| '  p_form_attribute_01 => %s,' || chr(10) 
+					|| '  p_form_attribute_02 => %s,' || chr(10) 
+					|| '  p_display_as_tab_form => %s,' || chr(10),
+					p0 => dbms_assert.enquote_literal('NATIVE_POPUP_LOV'),
+					p1 => dbms_assert.enquote_literal('NOT_ENTERABLE'),
+					p2 => dbms_assert.enquote_literal('FIRST_ROWSET'),
+					p3 => dbms_assert.enquote_literal('POPUP'),
+					p_max_length => 30000
+				);
+  			elsif v_out_tab(ind).COLUMN_EXPR_TYPE IN ('SELECT_LIST_FROM_QUERY', 'SELECT_LIST', 'SWITCH_CHAR', 'SWITCH_NUMBER' )  then
+				v_Str := v_Str || apex_string.format (
+					p_message => 
+					   '  p_display_as_form => %s,' || chr(10)
+					|| '  p_form_attribute_01 => %s,' || chr(10) 
+					|| '  p_form_attribute_02 => %s,' || chr(10) 
+					|| '  p_form_attribute_04 => %s,' || chr(10) 
+					|| '  p_form_attribute_05 => %s,' || chr(10) 
+					|| '  p_display_as_tab_form => %s,' || chr(10),
+					p0 => dbms_assert.enquote_literal('NATIVE_SELECT_LIST'),
+					p1 => dbms_assert.enquote_literal('NONE'),
+					p2 => dbms_assert.enquote_literal('N'),
+					p3 => dbms_assert.enquote_literal('TEXT'),
+					p4 => dbms_assert.enquote_literal('BOTH'),
+					p5 => dbms_assert.enquote_literal('SELECT_LIST_FROM_LOV'),
+					p_max_length => 30000
+				);
+ 			elsif v_out_tab(ind).COLUMN_EXPR_TYPE = 'TEXTAREA'  then
+				v_Str := v_Str || apex_string.format (
+					p_message => 
+					   '  p_display_as_form => %s,' || chr(10)
+					|| '  p_form_attribute_01 => %s,' || chr(10) 
+					|| '  p_form_attribute_02 => %s,' || chr(10) 
+					|| '  p_form_attribute_03 => %s,' || chr(10) 
+					|| '  p_form_attribute_04 => %s,' || chr(10) 
+					|| '  p_display_as_tab_form => %s,' || chr(10),
+					p0 => dbms_assert.enquote_literal('NATIVE_TEXTAREA'),
+					p1 => dbms_assert.enquote_literal('Y'),
+					p2 => dbms_assert.enquote_literal('N'),
+					p3 => dbms_assert.enquote_literal('TEXT'),
+					p4 => dbms_assert.enquote_literal('BOTH'),
+					p5 => dbms_assert.enquote_literal('TEXTAREA'),
+					p_max_length => 30000
+				);
+ 			elsif v_out_tab(ind).COLUMN_EXPR_TYPE = 'NUMBER'  then
+				v_Str := v_Str || apex_string.format (
+					p_message => 
+					   '  p_display_as_form => %s,' || chr(10)
+					|| '  p_form_attribute_03 => %s,' || chr(10) 
+					|| '  p_display_as_tab_form => %s,' || chr(10),
+					p0 => dbms_assert.enquote_literal('NATIVE_NUMBER_FIELD'),
+					p1 => dbms_assert.enquote_literal('right'),
+					p2 => dbms_assert.enquote_literal('TEXT'),
+					p_max_length => 30000
+				);
+ 			elsif v_out_tab(ind).COLUMN_EXPR_TYPE = 'DATE_POPUP'  then
+				v_Str := v_Str || apex_string.format (
+					p_message => 
+					   '  p_display_as_form => %s,' || chr(10)
+					|| '  p_form_attribute_04 => %s,' || chr(10) 
+					|| '  p_form_attribute_05 => %s,' || chr(10) 
+					|| '  p_form_attribute_07 => %s,' || chr(10) 
+					|| '  p_display_as_tab_form => %s,' || chr(10),
+					p0 => dbms_assert.enquote_literal('NATIVE_DATE_PICKER'),
+					p1 => dbms_assert.enquote_literal('button'),
+					p2 => dbms_assert.enquote_literal('N'),
+					p3 => dbms_assert.enquote_literal('NONE'),
+					p4 => dbms_assert.enquote_literal('DATE_PICKER'),
+					p_max_length => 30000
+				);
+			elsif v_out_tab(ind).COLUMN_EXPR_TYPE = 'DISPLAY_ONLY' then
+				v_Str := v_Str || apex_string.format (
+					p_message => 
+					   '  p_display_as_form => %s,' || chr(10)
+					|| '  p_form_attribute_01 => %s,' || chr(10) 
+					|| '  p_form_attribute_02 => %s,' || chr(10) 
+					|| '  p_form_attribute_04 => %s,' || chr(10) 
+					|| '  p_form_attribute_05 => %s,' || chr(10) 
+					|| '  p_form_attribute_07 => %s,' || chr(10) 
+					|| '  p_display_as_tab_form => %s,' || chr(10),
+					p0 => dbms_assert.enquote_literal('NATIVE_DISPLAY_ONLY'),
+					p1 => dbms_assert.enquote_literal('Y'),
+					p2 => dbms_assert.enquote_literal('VALUE'),
+					p3 => dbms_assert.enquote_literal('N'),
+					p4 => dbms_assert.enquote_literal('N'),
+					p5 => dbms_assert.enquote_literal('NONE'),
+					p6 => dbms_assert.enquote_literal('ESCAPE_SC'),
+					p_max_length => 30000
+				);
+			elsif v_out_tab(ind).COLUMN_EXPR_TYPE = 'FILE_BROWSER' then
+				v_Str := v_Str || apex_string.format (
+					p_message => 
+					   '  p_display_as_form => %s,' || chr(10)
+					|| '  p_form_attribute_01 => %s,' || chr(10) 
+					|| '  p_form_attribute_02 => %s,' || chr(10) 
+					|| '  p_form_attribute_03 => %s,' || chr(10) 
+					|| '  p_form_attribute_05 => %s,' || chr(10) 
+					|| '  p_form_attribute_06 => %s,' || chr(10) 
+					|| '  p_form_attribute_08 => %s,' || chr(10) 
+					|| '  p_display_as_tab_form => %s,' || chr(10),
+					p0 => dbms_assert.enquote_literal('NATIVE_FILE'),
+					p1 => dbms_assert.enquote_literal('DB_COLUMN'),
+					p2 => dbms_assert.enquote_literal(v_out_tab(ind).MIME_TYPE_COLUMN_NAME),
+					p3 => dbms_assert.enquote_literal(v_out_tab(ind).FILE_NAME_COLUMN_NAME),
+					p4 => dbms_assert.enquote_literal(v_out_tab(ind).FILE_DATE_COLUMN_NAME),
+					p5 => dbms_assert.enquote_literal('Y'),
+					p6 => dbms_assert.enquote_literal('attachment'),
+					p7 => dbms_assert.enquote_literal('TEXT'),
+					p_max_length => 30000
+				);
+			else -- TEXT
+				v_Str := v_Str || apex_string.format (
+					p_message => 
+					   '  p_display_as_form => %s,' || chr(10)
+					|| '  p_form_attribute_01 => %s,' || chr(10) 
+					|| '  p_form_attribute_02 => %s,' || chr(10) 
+					|| '  p_form_attribute_03 => %s,' || chr(10) 
+					|| '  p_form_attribute_04 => %s,' || chr(10) 
+					|| '  p_form_attribute_05 => %s,' || chr(10) 
+					|| '  p_display_as_tab_form => %s,' || chr(10),
+					p0 => dbms_assert.enquote_literal('NATIVE_TEXT_FIELD'),
+					p1 => dbms_assert.enquote_literal('N'),
+					p2 => dbms_assert.enquote_literal('N'),
+					p3 => dbms_assert.enquote_literal('N'),
+					p4 => dbms_assert.enquote_literal('TEXT'),
+					p5 => dbms_assert.enquote_literal('BOTH'),
+					p6 => dbms_assert.enquote_literal('TEXT'),
+					p_max_length => 30000
+				);
+  			end if;
+
+			if v_out_tab(ind).FORMAT_MASK IS NOT NULL then 
+				v_Str := v_Str || apex_string.format (
+					p_message => '  p_mask_report => %s,' || chr(10),
+					p0 => dbms_assert.enquote_literal(v_out_tab(ind).FORMAT_MASK)
+				);
+			end if;
+			v_Str := v_Str || apex_string.format (
+				p_message => 
+				   '  p_display_seq_report => %s,' || chr(10) 
+				|| '  p_display_in_report => %s,' || chr(10) 
+				|| '  p_display_as_report => %s,' || chr(10) 
+				|| '  p_aggregate_by => %s,' || chr(10),
+				p0 => v_out_tab(ind).DISPLAY_SEQ_FORM,
+				p1 => dbms_assert.enquote_literal(v_out_tab(ind).DISPLAY_IN_REPORT),
+				p2 => dbms_assert.enquote_literal('ESCAPE_SC'),
+				p3 => dbms_assert.enquote_literal('N'),
+				p_max_length => 30000
+			);
+			if v_out_tab(ind).COLUMN_EXPR_TYPE IN ('SELECT_LIST_FROM_QUERY', 'POPUPKEY_FROM_LOV')  then
+				v_Str := v_Str || apex_string.format (
+					p_message => 
+					'  p_lov_query => %s,' || chr(10),
+					p0 => REPLACE(data_browser_conf.Enquote_Literal(v_out_tab(ind).LOV_QUERY), RPAD(chr(10), 5, ' '), '''||chr(10)||'||chr(10)||''''),
+					p_max_length => 30000
+				);
+			end if;
+			v_Str := v_Str || apex_string.format (
+				p_message => 
+				   '  p_required => %s,' || chr(10) 
+				|| '  p_alignment => %s,' || chr(10) 
+				|| '  p_display_width => %s,' || chr(10) 
+				|| '  p_max_width => %s,' || chr(10) 
+				|| '  p_height => %s,' || chr(10) 
+				|| '  p_group_by => %s,' || chr(10) 
+				|| '  p_searchable => %s,' || chr(10) 
+				|| '  p_column_id => %s + wwv_flow_api.g_id_offset,' || chr(10) 
+				|| '  p_table_id => %s + wwv_flow_api.g_id_offset,' || chr(10) 
+				|| '  p_column_name => %s);' || chr(10) || chr(10)
+				|| 'end;' || chr(10) || '/' || chr(10),
+				p0 => dbms_assert.enquote_literal(v_out_tab(ind).REQUIRED),
+				p1 => dbms_assert.enquote_literal(SUBSTR(v_out_tab(ind).REPORT_COL_ALIGNMENT, 1, 1)),
+				p2 => v_out_tab(ind).FORM_DISPLAY_WIDTH,
+				p3 => v_out_tab(ind).MAX_WIDTH,
+				p4 => v_out_tab(ind).FORM_DISPLAY_HEIGHT,
+				p5 => dbms_assert.enquote_literal('N'),
+				p6 => dbms_assert.enquote_literal('Y'),
+				p7 => v_column_id,
+				p8 => v_table_id,
+				p9 => data_browser_conf.Enquote_Literal(v_out_tab(ind).COLUMN_NAME),
+				p_max_length => 30000
+			);
+			dbms_lob.writeappend(v_Stat, length(v_Str), v_Str);
+			if v_out_tab(ind).COLUMN_EXPR_TYPE IN ('SELECT_LIST', 'SWITCH_CHAR', 'SWITCH_NUMBER') then
+				if v_out_tab(ind).YES_NO_TYPE IS NOT NULL then
+					for lov_cur in (
+						select DISP_SEQUENCE,
+							SUBSTR(P.COLUMN_VALUE, 1, OFFSET-1) DISPLAY_VALUE,
+							SUBSTR(P.COLUMN_VALUE, OFFSET+1) COLUMN_VALUE
+						from (
+							SELECT P.COLUMN_VALUE, INSTR(P.COLUMN_VALUE, ';') OFFSET, ROWNUM DISP_SEQUENCE
+							FROM TABLE( data_browser_conf.in_list(
+								data_browser_conf.Get_Yes_No_Type_LOV(v_out_tab(ind).YES_NO_TYPE), ',') ) P
+						) P
+					) loop 
+						v_lov_data_id := wwv_flow_id.next_val;
+						v_Str := apex_string.format (
+							p_message => 
+							'begin' || chr(10) || chr(10) 
+							|| 'wwv_flow_hint.create_lov_data_priv(' || chr(10) 
+							|| '  p_id => %s + wwv_flow_api.g_id_offset,' || chr(10) 
+							|| '  p_column_id => %s + wwv_flow_api.g_id_offset,' || chr(10) 
+							|| '  p_lov_disp_sequence  => %s,' || chr(10) 
+							|| '  p_lov_disp_value => %s,' || chr(10) 
+							|| '  p_lov_return_value => %s);' || chr(10) || chr(10)
+							|| 'end;' || chr(10) || '/' || chr(10),
+							p0 => v_lov_data_id,
+							p1 => v_column_id,
+							p2 => lov_cur.DISP_SEQUENCE,
+							p3 => dbms_assert.enquote_literal(lov_cur.DISPLAY_VALUE),
+							p4 => dbms_assert.enquote_literal(lov_cur.COLUMN_VALUE),
+							p_max_length => 30000
+						);
+						dbms_lob.writeappend(v_Stat, length(v_Str), v_Str);
+					end loop;
+				else
+					for lov_cur in (
+						SELECT DISP_SEQUENCE, DISPLAY_VALUE, COLUMN_VALUE
+						FROM VUSER_TABLES_CHECK_IN_LIST
+						WHERE TABLE_NAME = v_Table_Name
+						AND COLUMN_NAME = v_out_tab(ind).COLUMN_NAME
+					) loop 
+						v_lov_data_id := wwv_flow_id.next_val;
+						v_Str := apex_string.format (
+							p_message => 
+							'begin' || chr(10) || chr(10) 
+							|| 'wwv_flow_hint.create_lov_data_priv(' || chr(10) 
+							|| '  p_id => %s + wwv_flow_api.g_id_offset,' || chr(10) 
+							|| '  p_column_id => %s + wwv_flow_api.g_id_offset,' || chr(10) 
+							|| '  p_lov_disp_sequence  => %s,' || chr(10) 
+							|| '  p_lov_disp_value => %s,' || chr(10) 
+							|| '  p_lov_return_value => %s);' || chr(10) || chr(10)
+							|| 'end;' || chr(10) || '/' || chr(10),
+							p0 => v_lov_data_id,
+							p1 => v_column_id,
+							p2 => lov_cur.DISP_SEQUENCE,
+							p3 => dbms_assert.enquote_literal(lov_cur.DISPLAY_VALUE),
+							p4 => dbms_assert.enquote_literal(lov_cur.COLUMN_VALUE),
+							p_max_length => 30000
+						);
+						dbms_lob.writeappend(v_Stat, length(v_Str), v_Str);
+					end loop;
+				end if;				
+			end if;
+		END LOOP;
+		return v_Stat;
+$IF data_browser_conf.g_use_exceptions $THEN
+	exception
+	  when others then
+	    if form_view_cur%ISOPEN then
+			CLOSE form_view_cur;
+		end if;
+		raise;
+$END 
+	end UI_Defaults_export_table;
+
+
+	FUNCTION UI_Defaults_export_all_tables (
+		p_Workspace_Name VARCHAR2,
+		p_Schema_Name VARCHAR2 DEFAULT SYS_CONTEXT('USERENV', 'CURRENT_SCHEMA')
+	) RETURN CLOB
+	IS
+        v_Stat 			CLOB;
+        v_Result		CLOB;
+	BEGIN
+    	dbms_lob.createtemporary(v_Stat, true, dbms_lob.call);
+    	dbms_lob.createtemporary(v_Result, true, dbms_lob.call);
+    	v_Result := data_browser_UI_Defaults.UI_Defaults_export_header (
+			p_Workspace_Name => p_Workspace_Name,
+			p_Schema_Name => p_Schema_Name
+		);
+		for c_cur IN (
+			SELECT TABLE_NAME, VIEW_NAME
+			FROM MVDATA_BROWSER_VIEWS
+			ORDER BY TABLE_NAME
+		) loop
+			v_Stat := data_browser_UI_Defaults.UI_Defaults_export_table (
+				p_Table_name => c_cur.VIEW_NAME
+			);
+			dbms_lob.append(v_Result, v_Stat);
+		end loop;
+		v_Stat := data_browser_UI_Defaults.UI_Defaults_export_footer;
+		dbms_lob.append(v_Result, v_Stat);
+		return v_Result;
+	END UI_Defaults_export_all_tables;
+
+
+	PROCEDURE UI_Defaults_download_all_tables (
+		p_Workspace_Name VARCHAR2,
+		p_Schema_Name VARCHAR2 DEFAULT SYS_CONTEXT('USERENV', 'CURRENT_SCHEMA')
+	) 
+	IS
+        v_Stat 			CLOB;
+        v_File_Name		VARCHAR2(128);
+	BEGIN
+		v_File_Name := LOWER(p_Schema_Name) || '_uidefaults.sql';
+    	dbms_lob.createtemporary(v_Stat, true, dbms_lob.call);
+    	v_Stat := data_browser_UI_Defaults.UI_Defaults_export_all_tables(
+    		p_Workspace_Name => p_Workspace_Name,
+    		p_Schema_Name => p_Schema_Name
+    	);
+		data_browser_blobs.Download_Clob (
+			p_clob		=> v_Stat,
+			p_File_Name => v_File_Name
+		);
+		apex_application.stop_apex_engine;
+	END UI_Defaults_download_all_tables;
+
 
 END data_browser_UI_Defaults;
 /

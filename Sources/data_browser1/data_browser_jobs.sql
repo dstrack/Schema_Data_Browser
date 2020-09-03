@@ -453,12 +453,12 @@ IS
 			WHERE MVIEW_NAME = p_MView_Name
 			AND owner = p_Owner;		
 		end if;
-		if v_COMPILE_STATE IN ('NEEDS_COMPILE', 'COMPILATION_ERROR') then 
+		/*if v_COMPILE_STATE IN ('NEEDS_COMPILE', 'COMPILATION_ERROR') then 
 			v_Statement := 'ALTER MATERIALIZED VIEW ' || DBMS_ASSERT.ENQUOTE_NAME(p_Owner) || '.' || DBMS_ASSERT.ENQUOTE_NAME(p_MView_Name) || ' COMPILE';
 			EXECUTE IMMEDIATE v_Statement;
 			DBMS_OUTPUT.PUT_LINE('-- compiled ' || p_MView_Name || ' Compile State: ' || v_COMPILE_STATE || ' Staleness: ' || v_STALENESS);
 			v_COMPILE_STATE := 'VALID';
-		end if;
+		end if;*/
 		if v_LAST_DDL_TIME > v_LAST_REFRESH_DATE OR v_LAST_REFRESH_DATE IS NULL 
 		or v_STALENESS IN ('NEEDS_COMPILE', 'UNUSABLE') then
 			DBMS_MVIEW.REFRESH(p_Owner || '.' || p_MView_Name);

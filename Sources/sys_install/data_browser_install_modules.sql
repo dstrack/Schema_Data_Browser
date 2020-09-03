@@ -37,8 +37,8 @@ prompt ============================================================
 @@data_browser1/data_browser_select.sql
 @@data_browser1/data_browser_utl_wrap.sql
 @@data_browser1/data_browser_utl_views.sql
-@@data_browser1/data_browser_ui_defaults.sql
 @@data_browser1/data_browser_blobs.sql
+@@data_browser1/data_browser_ui_defaults.sql
 @@data_browser1/data_browser_doc_preview.sql
 @@data_browser2/data_browser_ddl.sql
 @@data_browser2/data_browser_checks_table.sql

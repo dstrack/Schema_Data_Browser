@@ -2011,6 +2011,43 @@ $END
 	  return l_data;
 	end Compute_File_HTML;
 
+	PROCEDURE  Download_Clob (
+		p_clob				NCLOB,
+		p_File_Name 		VARCHAR2
+	)
+	AS
+		v_blob			blob;
+		v_dstoff		pls_integer := 1;
+		v_srcoff		pls_integer := 1;
+		v_langctx 		pls_integer := 0;
+		v_warning 		pls_integer := 1;
+		v_blob_csid 	pls_integer := nls_charset_id('AL32UTF8');
+		v_LimitMB 		INTEGER		:= 10;
+	begin
+		dbms_lob.createtemporary(
+			lob_loc => v_blob,
+			cache	=> true,
+			dur		=> dbms_lob.call
+		);
+		dbms_lob.converttoblob(
+			dest_lob   =>	v_blob,
+			src_clob   =>	p_clob,
+			amount	   =>	dbms_lob.getlength(p_clob),
+			dest_offset =>	v_dstoff,
+			src_offset	=>	v_srcoff,
+			blob_csid	=>	v_blob_csid,
+			lang_context => v_langctx,
+			warning		 => v_warning
+		);
+		htp.init();
+		owa_util.mime_header('text/html', false);
+		htp.p('content-length: '||dbms_lob.getlength(v_blob));
+		htp.p('Content-Disposition: attachment; filename="'|| p_File_Name || '"');
+		owa_util.http_header_close;
+		wpg_docload.download_file(v_blob);
+		dbms_lob.freetemporary(v_blob);
+	end Download_Clob;
+
 	PROCEDURE  FN_File_Preview(
 		p_Table_Name 		VARCHAR2,
     	p_Unique_Key_Column VARCHAR2,
@@ -2026,11 +2063,6 @@ $END
 
 		v_clob			nclob;
 		v_blob			blob;
-		v_dstoff		pls_integer := 1;
-		v_srcoff		pls_integer := 1;
-		v_langctx 		pls_integer := 0;
-		v_warning 		pls_integer := 1;
-		v_blob_csid 	pls_integer := nls_charset_id('AL32UTF8');
 		v_LimitMB 		INTEGER		:= 10;
 	BEGIN
 		FN_File_Data(
@@ -2071,27 +2103,7 @@ $END
 		else
 			begin
 				v_clob := Compute_File_HTML(v_File_Content);
-				dbms_lob.createtemporary(
-					lob_loc => v_blob,
-					cache	=> true,
-					dur		=> dbms_lob.call
-				);
-				dbms_lob.converttoblob(
-					dest_lob   =>	v_blob,
-					src_clob   =>	v_clob,
-					amount	   =>	dbms_lob.getlength(v_clob),
-					dest_offset =>	v_dstoff,
-					src_offset	=>	v_srcoff,
-					blob_csid	=>	v_blob_csid,
-					lang_context => v_langctx,
-					warning		 => v_warning
-				);
-				htp.init();
-				owa_util.mime_header('text/html', false);
-				htp.p('content-length: '||dbms_lob.getlength(v_blob));
-				owa_util.http_header_close;
-				wpg_docload.download_file(v_blob);
-				dbms_lob.freetemporary(v_blob);
+				Download_Clob (v_clob, v_File_Name);
 			exception
 			when others then
 				htp.init();

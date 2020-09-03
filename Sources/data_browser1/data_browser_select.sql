@@ -1685,7 +1685,7 @@ $END
 			or p_Parent_Name IS NULL
 			or NOT(p_Ref_View_Name = p_Parent_Name and p_R_Column_Name = NVL(p_Parent_Key_Column, p_R_Column_Name))
 		) then 'NO' else 'YES' end;
-/*		
+	
 		$IF data_browser_conf.g_debug $THEN
 			apex_debug.message(
 				p_message => 
@@ -1701,7 +1701,7 @@ $END
 				, p_level => apex_debug.c_log_level_app_trace
 			);
 		$END
-*/
+
 		return v_Result;
 	end FN_Filter_Parent_Key;
 
