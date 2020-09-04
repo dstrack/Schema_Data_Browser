@@ -332,8 +332,9 @@ CREATE OR REPLACE PACKAGE BODY import_utl IS
 			JOIN ( -- count of missing defaults for foreign key table
 				SELECT S.VIEW_NAME, COUNT(DISTINCT C.COLUMN_ID) DEFAULTS_MISSING
 				FROM MVDATA_BROWSER_VIEWS S -- foreign key table
-				LEFT OUTER JOIN SYS.USER_TAB_COLUMNS C ON S.TABLE_NAME = C.TABLE_NAME
-				AND C.NULLABLE = 'N' AND C.DEFAULT_LENGTH IS NULL
+				LEFT OUTER JOIN MVDATA_BROWSER_SIMPLE_COLS C 
+				ON S.TABLE_NAME = C.TABLE_NAME AND S.TABLE_OWNER = C.TABLE_OWNER
+				AND C.NULLABLE = 'N' AND C.HAS_DEFAULT = 'N'
 				AND C.COLUMN_NAME != S.PRIMARY_KEY_COLS
 				AND NOT EXISTS (
 					SELECT 1
@@ -1266,10 +1267,15 @@ CREATE OR REPLACE PACKAGE BODY import_utl IS
 					p_Table_Name => v_Table_Name,
 					p_Unique_Key_Column => v_Primary_Key_Cols,
 					p_Data_Columns_Only => 'NO',
-					p_View_Mode => 'IMPORT_VIEW'
+					p_View_Mode => 'IMPORT_VIEW',
+					p_Report_Mode => 'NO'
 				)
-			|| ' ) '
-			|| chr(10) || ' AS ' || chr(10)
+			|| case when p_As_Of_Timestamp = 'NO' then 
+				chr(10) || RPAD(' ', 4)
+				|| ', CONSTRAINT ' || data_browser_conf.Compose_Table_Column_Name(v_Import_View_Name, '_PK')
+				|| ' PRIMARY KEY (LINK_ID$) RELY DISABLE'
+			end
+			|| ' ) ' || chr(10) || ' AS ' || chr(10)
 			|| data_browser_select.Get_Imp_Table_Query (
 				p_Table_Name => v_Table_Name,
 				p_Unique_Key_Column => v_Primary_Key_Cols,
@@ -1306,7 +1312,7 @@ CREATE OR REPLACE PACKAGE BODY import_utl IS
         WHERE VIEW_NAME = v_Table_Name;
 
         v_Stat :=
-        'CREATE OR REPLACE TRIGGER ' || v_Import_Trigger_Name  || ' INSTEAD OF INSERT OR UPDATE ON ' || v_Import_View_Name  || ' FOR EACH ROW  ' || chr(10)
+        'CREATE OR REPLACE TRIGGER ' || v_Import_Trigger_Name  || ' INSTEAD OF INSERT OR UPDATE OR DELETE ON ' || v_Import_View_Name  || ' FOR EACH ROW  ' || chr(10)
         || 'DECLARE ' || chr(10) || RPAD(' ', 4)
         || 'v_row ' || v_Table_Name || '%ROWTYPE;' || chr(10);
         for c_cur in (
@@ -1318,9 +1324,20 @@ CREATE OR REPLACE PACKAGE BODY import_utl IS
 			dbms_lob.writeappend(v_Stat, length(v_Str), v_Str);
         end loop;
 
-        v_Str := 'BEGIN' || chr(10);
+        v_Str := 'BEGIN' || chr(10) || RPAD(' ', 4) 
+		|| 'if DELETING then ' || chr(10) || RPAD(' ', 8)
+		|| 'DELETE FROM ' || v_Table_Name || ' A ' || chr(10) || RPAD(' ', 8)
+		|| 'WHERE ' 
+		|| data_browser_conf.Get_Unique_Key_Expression (
+			p_Unique_Key_Column => v_Primary_Key_Cols,
+			p_Table_Alias => 'A',
+			p_View_Mode => 'IMPORT_VIEW'
+		)
+		|| ' = :new.LINK_ID$;' || chr(10) || RPAD(' ', 8)
+		|| 'return;' || chr(10) || RPAD(' ', 4)
+		|| 'end if;' || chr(10);
         dbms_lob.writeappend(v_Stat, length(v_Str), v_Str);
-        
+       
         for c_cur in (
             SELECT SQL_TEXT, POSITION
             FROM TABLE (import_utl.FN_Pipe_table_imp_trigger(v_Table_Name, p_Data_Format))
@@ -1353,7 +1370,7 @@ CREATE OR REPLACE PACKAGE BODY import_utl IS
 
         if INSTR(v_Primary_Key_Cols, ',') = 0 then
 			v_Str := chr(10)
-			|| '    if v_row.' || v_Primary_Key_Cols || ' IS NULL then ' || chr(10)
+			|| '    if INSERTING OR v_row.' || v_Primary_Key_Cols || ' IS NULL then ' || chr(10)
 			|| v_Default_Stat
 			|| '        INSERT INTO ' || v_Table_Name|| ' VALUES v_row;' || chr(10)
 			|| '    else ' || chr(10)
