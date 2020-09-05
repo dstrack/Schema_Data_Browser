@@ -1,4 +1,19 @@
-Schema & Data Browser V 1.8.74 Release Note
+Schema & Data Browser 
+
+V 1.8.77 Release Note 
+New features:
+on page Manage Schema
+
+1.Export UI Defaults - enables you to download an UI Defaults definition PL/SQL script file for tables of the current schema with addition attributes like optimal width, max length, format masks, and LOVs for references, Yes/No fields and check constraints with IN-Lists.
+You can Import this file with APEX to improve the default appearance of new forms on your tables.
+
+2. Export Updatable Views - download an PL/SQL Script with Create View statements for updatable views.
+The data browser display this kind of views as report variant 'Import View'.
+In the Dialog Window 'Show query' you can choose 'Create View' to see the Script for the currently selected table. The setting for 'Import Controls' (Compare Case Insensitive, Search keys unique, Search keys unique) and UNIQUE CONSTRAINTS for the display values of you LOVs will control the generation of this views.
+The views will have INSTEAD OF INSERT OR UPDATE OR DELETE triggers that will manage the processing of DML statements on that views.
+You can import and execute this file with the APEX "SQL Workshop / Scripts" page to install this views. You may use this views as a data source in Interactive Grid.
+There you will be able to search in the display values based on LOV for references, 
+and you will be able to edit data in each column.
 
 Bugfix: The generated query SQL code for rendering the form will call APEX_ESCAPE.HTML for character columns to prevent Cross-Site Scripting.
 The bug was discovered by Ved Prabhu from Bangalore, India, and then reported by Joel R. Kallman from Oracle.
@@ -10,8 +25,9 @@ The entries for 'Entity Relationship Diagram' and 'Springy Diagram' have been re
 
 Improved descriptions and help text and improved german translation of the App UI.
 
+------------------------------------------------------------------------------------------
 
-Features of the application: Data Browser  
+Features of the Data Browser  
 
 The key functionality of the SQL query and PL/SQL generators
 1. Produce a description of any record 
@@ -218,10 +234,8 @@ Developer tools
 	Alter column rules (constraints)
 	Change the setting for Required, Unique, Values List / Range, Default Value / Default Reference.
 
-	Drop tables.
-	Remove table definition and data.
-	Drop Column
-	Remove a column from a table.
+	Drop Table - Remove table definition and data.
+	Drop Column - Remove a column from a table.
 
 
 
@@ -337,44 +351,5 @@ manage schema
 
 print pages as HTML
 - A new top menu icon allows you to produce a printable version of the current page than can produce the whole report without empty pages and store the output as a PDF document.
-
-
-------------------------------------------------------------------------------------------------------
-------------------------------------------------------------------------------------------------------
-
-A-lot has happened since I release the first demo of the Schema & Data Browser App.
-
-When I installed the app on the free oracle cloud, I was not fully aware of the rules in this arena.
-
-After some days the database was shut down and I struggled to find the reason.
-
-After reading the rules I realized that the app was shut down, because more than 20 parallel active sessions were opened by the executing app.
-
-The second time it was shut down, because I seemingly was not using the database.
-
-
-On that day, circa 20 visitors had visited the site, but it was a while ago that I had logged in the free cloud apex workspace.
-
-Switching to a paid modes starting at 175 bucks was not what I wanted to pay,
-
-since I am a happy customer of oracleapexservices.com for many years.
-
-
-My postmortem analyze of the shutdown revealed what caused the termination by the robot overlords.
-
-In my development environment I opened the Instance Settings in the APEX Workspace Administration and set a limit of maximal 18 open connections/session per workspace and per user to be warned then that limit is reached!
-
-
-Beside the 'Database Dependencies' diagram I had information regions that were refreshed by dynamic actions whenever the user clicked on a node in the graphics.
-
-For some database objects it takes up to 20 seconds before the DBMS_METADATA.GET_DDL finally reveals the SQL Text.
-
-
-When a user clicked object in a fast sequence, all the refresh requests where pilling up to be processed.
-
-Where you have a dashboard-page with many refresh able regions and you refresh them via a dynamic action, or when you have reports with images that are loaded with AJAX calls from the database,
-
-then this will cause many parallel active sessions for your application.
-
 
 
