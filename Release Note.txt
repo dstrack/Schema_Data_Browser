@@ -1,23 +1,21 @@
 Schema & Data Browser 
 
 V 1.8.77 Release Note 
-New features:
+New features 
 on page Manage Schema
-
-1.Export UI Defaults - enables you to download an UI Defaults definition PL/SQL script file for tables of the current schema with addition attributes like optimal width, max length, format masks, and LOVs for references, Yes/No fields and check constraints with IN-Lists.
-You can Import this file with APEX to improve the default appearance of new forms on your tables.
+1. Export UI Defaults 
+Enables you to download a UI Defaults definition PL/SQL script file for tables of the current schema with additional attributes like optimal width, max length, format masks, and LOVs for references, Yes/No fields, and check constraints with IN-Lists.
+You can import this file with APEX to improve the default appearance of new forms on your tables.
 Example: https://github.com/dstrack/Schema_Data_Browser/blob/master/Examples/hr_uidefaults.sql
 
-2. Export Updatable Views - download an PL/SQL Script with Create View statements for updatable views.
-The data browser displays this kind of views as report variant 'Import View'.
-In the Dialog Window 'Show query' you can choose 'Create View' to see the Script for the currently selected table. The setting for 'Import Controls' (Compare Case Insensitive, Search keys unique, Search keys unique) and UNIQUE CONSTRAINTS for the display values of you LOVs will control the generation of this views.
-The views will have INSTEAD OF INSERT OR UPDATE OR DELETE triggers that will manage the processing of DML statements on that views.
-You can import and execute this file with the APEX "SQL Workshop / Scripts" page to install this views. You may use this views as a data source in Interactive Grid.
+2. Export Updatable Views - download a PL/SQL Script with Create View statements for updatable views.
+The data browser displays this kind of view as report variant 'Import View'.
+In the Dialog Window 'Show query' you can choose 'Create View' to see the Script for the currently selected table. The setting for 'Import Controls' (Compare Case Insensitive, Search keys unique, Search keys unique) and UNIQUE CONSTRAINTS for the display values of you LOVs will control the generation of these views.
+The views will have INSTEAD OF INSERT OR UPDATE OR DELETE triggers that will manage the processing of DML statements on those views.
+You can import and execute this file with the APEX "SQL Workshop / Scripts" page to install this views. You may use this view as a data source in Interactive Grid.
 There you will be able to search in the display values based on LOV for references, 
 and you will be able to edit data in each column.
 Example: https://github.com/dstrack/Schema_Data_Browser/blob/master/Examples/hr_imp_views.sql
-
-
 Bugfix: The generated query SQL code for rendering the form will call APEX_ESCAPE.HTML for character columns to prevent Cross-Site Scripting.
 The bug was discovered by Ved Prabhu from Bangalore, India, and then reported by Joel R. Kallman from Oracle.
 
