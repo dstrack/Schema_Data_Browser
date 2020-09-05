@@ -8,7 +8,7 @@ on page Manage Schema
 You can Import this file with APEX to improve the default appearance of new forms on your tables.
 
 2. Export Updatable Views - download an PL/SQL Script with Create View statements for updatable views.
-The data browser display this kind of views as report variant 'Import View'.
+The data browser displays this kind of views as report variant 'Import View'.
 In the Dialog Window 'Show query' you can choose 'Create View' to see the Script for the currently selected table. The setting for 'Import Controls' (Compare Case Insensitive, Search keys unique, Search keys unique) and UNIQUE CONSTRAINTS for the display values of you LOVs will control the generation of this views.
 The views will have INSTEAD OF INSERT OR UPDATE OR DELETE triggers that will manage the processing of DML statements on that views.
 You can import and execute this file with the APEX "SQL Workshop / Scripts" page to install this views. You may use this views as a data source in Interactive Grid.
@@ -17,6 +17,8 @@ and you will be able to edit data in each column.
 
 Bugfix: The generated query SQL code for rendering the form will call APEX_ESCAPE.HTML for character columns to prevent Cross-Site Scripting.
 The bug was discovered by Ved Prabhu from Bangalore, India, and then reported by Joel R. Kallman from Oracle.
+
+Bugfix: The processing for the Button 'Duplicate Schema' on the Home page has been fixed.
 
 UI-Appearance Option: Added a global control to show or hide Breadcrumbs below the page title. The control can be set by the online user via the Navigation Bar menu.
 
