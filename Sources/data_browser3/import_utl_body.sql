@@ -1301,10 +1301,12 @@ CREATE OR REPLACE PACKAGE BODY import_utl IS
         v_Has_Scalar_Primary_Key 	VARCHAR2(50);
         v_Stat CLOB;
         v_Default_Stat CLOB;
+        v_Update_Values_Stat CLOB;
         v_Str VARCHAR2(32000);
     BEGIN
     	dbms_lob.createtemporary(v_Stat, true, dbms_lob.call);
     	dbms_lob.createtemporary(v_Default_Stat, true, dbms_lob.call);
+    	dbms_lob.createtemporary(v_Update_Values_Stat, true, dbms_lob.call);
 
         SELECT SEARCH_KEY_COLS, IMPORT_TABLE_NAME, IMPORT_VIEW_NAME, IMPORT_TRIGGER_NAME, HAS_SCALAR_PRIMARY_KEY
         INTO v_Primary_Key_Cols, v_Import_Table_Name, v_Import_View_Name, v_Import_Trigger_Name, v_Has_Scalar_Primary_Key
@@ -1348,7 +1350,7 @@ CREATE OR REPLACE PACKAGE BODY import_utl IS
         end loop;
 
         for c_cur in ( -- fill empty columns with default values
-			SELECT S.VIEW_NAME TABLE_NAME, T.COLUMN_NAME,
+			SELECT S.VIEW_NAME TABLE_NAME, T.COLUMN_NAME, T.HAS_DEFAULT, 
 				'    v_row.' || RPAD(T.COLUMN_NAME, 32)
 				|| ' := NVL(v_row.' || T.COLUMN_NAME
 				|| ', ' || changelog_conf.Get_ColumnDefaultText(T.TABLE_NAME, T.COLUMN_NAME) || ');'
@@ -1359,43 +1361,38 @@ CREATE OR REPLACE PACKAGE BODY import_utl IS
             AND T.TABLE_ALIAS = 'A'
             AND T.IS_VIRTUAL_COLUMN = 'N'
             AND T.COLUMN_NAME != S.SEARCH_KEY_COLS
-			AND T.HAS_DEFAULT = 'Y'
+            AND T.COLUMN_NAME != 'LINK_ID$'
 			AND S.VIEW_NAME = v_Table_Name
 			ORDER BY T.COLUMN_ID
         ) loop
-            v_Str := RPAD(' ', 4) || c_cur.SQL_TEXT || chr(10);
-			dbms_lob.writeappend(v_Default_Stat, length(v_Str), v_Str);
+        	if c_cur.HAS_DEFAULT = 'Y' then
+				v_Str := RPAD(' ', 4) || c_cur.SQL_TEXT || chr(10);
+				dbms_lob.writeappend(v_Default_Stat, length(v_Str), v_Str);
+			end if;
+			v_Str := 
+			case when dbms_lob.getlength(v_Update_Values_Stat) > 0 then ',' end
+			|| chr(10) || rpad(' ', 12) 
+			|| c_cur.COLUMN_NAME || ' = v_row.' || c_cur.COLUMN_NAME;
+			dbms_lob.writeappend(v_Update_Values_Stat, length(v_Str), v_Str);
         end loop;
 
+		v_Str := chr(10) || rpad(' ', 4)
+		|| 'if INSERTING OR :new.LINK_ID$ IS NULL then ' || chr(10)
+		|| v_Default_Stat || rpad(' ', 8)
+		|| 'INSERT INTO ' || v_Table_Name|| ' VALUES v_row;' || chr(10) || rpad(' ', 4)
+		|| 'else ' || chr(10) || rpad(' ', 8)
+		|| 'UPDATE ' || v_Table_Name || ' SET ' || v_Update_Values_Stat || chr(10) || rpad(' ', 8)
+		|| 'WHERE ' 
+		|| data_browser_conf.Get_Unique_Key_Expression (
+			p_Unique_Key_Column => v_Primary_Key_Cols,
+			p_Table_Alias => NULL,
+			p_View_Mode => 'IMPORT_VIEW'
+		)
+		|| ' = :new.LINK_ID$'
+		|| ';' || chr(10)
+		|| '    end if;' || chr(10)
+		|| 'END ' || v_Import_Trigger_Name  || ';' || chr(10);
 
-        if INSTR(v_Primary_Key_Cols, ',') = 0 then
-			v_Str := chr(10)
-			|| '    if INSERTING OR v_row.' || v_Primary_Key_Cols || ' IS NULL then ' || chr(10)
-			|| v_Default_Stat
-			|| '        INSERT INTO ' || v_Table_Name|| ' VALUES v_row;' || chr(10)
-			|| '    else ' || chr(10)
-			|| '        UPDATE ' || v_Table_Name || ' SET ROW = v_row' || chr(10)
-			|| '        WHERE ' || v_Primary_Key_Cols || ' = v_row.' || v_Primary_Key_Cols || ';' || chr(10)
-			|| '    end if;' || chr(10)
-			|| 'END ' || v_Import_Trigger_Name  || ';' || chr(10);
-        else
-			v_Str := chr(10)
-			|| '    if :new.LINK_ID$ IS NULL then ' || chr(10)
-			|| v_Default_Stat
-			|| '        INSERT INTO ' || v_Table_Name|| ' VALUES v_row;' || chr(10)
-			|| '    else ' || chr(10)
-			|| '        UPDATE ' || v_Table_Name || ' SET ROW = v_row' || chr(10)
-			|| '        WHERE ' 
-			|| data_browser_conf.Get_Unique_Key_Expression (
-				p_Unique_Key_Column => v_Primary_Key_Cols,
-				p_Table_Alias => NULL,
-				p_View_Mode => 'IMPORT_VIEW'
-			)
-			|| ' = :new.LINK_ID$'
-			|| ';' || chr(10)
-			|| '    end if;' || chr(10)
-			|| 'END ' || v_Import_Trigger_Name  || ';' || chr(10);
-        end if;
 		dbms_lob.writeappend(v_Stat, length(v_Str), v_Str);
 		RETURN v_Stat;
     END Get_Imp_Table_View_trigger;

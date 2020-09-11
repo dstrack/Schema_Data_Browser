@@ -16,6 +16,7 @@ You can import and execute this file with the APEX "SQL Workshop / Scripts" page
 There you will be able to search in the display values based on LOV for references, 
 and you will be able to edit data in each column.
 Example: https://github.com/dstrack/Schema_Data_Browser/blob/master/Examples/hr_imp_views.sql
+
 Bugfix: The generated query SQL code for rendering the form will call APEX_ESCAPE.HTML for character columns to prevent Cross-Site Scripting.
 The bug was discovered by Ved Prabhu from Bangalore, India, and then reported by Joel R. Kallman from Oracle.
 

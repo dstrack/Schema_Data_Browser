@@ -32,11 +32,14 @@ BEGIN
       end;
     end if;
 
-    if INSERTING OR v_row.COUNTRIES_ID IS NULL then 
+    if INSERTING OR :new.LINK_ID$ IS NULL then 
         INSERT INTO COUNTRIES VALUES v_row;
     else 
-        UPDATE COUNTRIES SET ROW = v_row
-        WHERE COUNTRIES_ID = v_row.COUNTRIES_ID;
+        UPDATE COUNTRIES SET 
+            COUNTRY_ID = v_row.COUNTRY_ID,
+            COUNTRY_NAME = v_row.COUNTRY_NAME,
+            REGION_ID = v_row.REGION_ID
+        WHERE COUNTRIES_ID = :new.LINK_ID$;
     end if;
 END VCOUNTRIES_IMP_TR;
 
@@ -69,6 +72,11 @@ BEGIN
     end if;
     v_row.DEPARTMENT_ID                    := :new.LINK_ID$;
     v_row.DEPARTMENT_NAME                  := :new.DEPARTMENT_NAME;
+    if :new.MANAGER_EMAIL IS NOT NULL then 
+        SELECT B.EMPLOYEE_ID INTO v_row.MANAGER_ID
+        FROM EMPLOYEES B 
+        WHERE B.EMAIL = :new.MANAGER_EMAIL;
+    end if;
     if :new.LOCATION_STREET_ADDRESS IS NOT NULL OR :new.LOCATION_POSTAL_CODE IS NOT NULL OR :new.LOCATION_CITY IS NOT NULL OR :new.LOCATION_STATE_PROVINCE IS NOT NULL then 
       begin
         SELECT C.LOCATION_ID INTO v_row.LOCATION_ID
@@ -81,17 +89,15 @@ BEGIN
         INSERT INTO LOCATIONS(STREET_ADDRESS, POSTAL_CODE, CITY, STATE_PROVINCE) VALUES (:new.LOCATION_STREET_ADDRESS, :new.LOCATION_POSTAL_CODE, :new.LOCATION_CITY, :new.LOCATION_STATE_PROVINCE) RETURNING (LOCATION_ID) INTO v_row.LOCATION_ID;
       end;
     end if;
-    if :new.MANAGER_EMAIL IS NOT NULL then 
-        SELECT B.EMPLOYEE_ID INTO v_row.MANAGER_ID
-        FROM EMPLOYEES B 
-        WHERE B.EMAIL = :new.MANAGER_EMAIL;
-    end if;
 
-    if INSERTING OR v_row.DEPARTMENT_ID IS NULL then 
+    if INSERTING OR :new.LINK_ID$ IS NULL then 
         INSERT INTO DEPARTMENTS VALUES v_row;
     else 
-        UPDATE DEPARTMENTS SET ROW = v_row
-        WHERE DEPARTMENT_ID = v_row.DEPARTMENT_ID;
+        UPDATE DEPARTMENTS SET 
+            DEPARTMENT_NAME = v_row.DEPARTMENT_NAME,
+            MANAGER_ID = v_row.MANAGER_ID,
+            LOCATION_ID = v_row.LOCATION_ID
+        WHERE DEPARTMENT_ID = :new.LINK_ID$;
     end if;
 END VDEPARTMENTS_IMP_TR;
 
@@ -128,12 +134,18 @@ BEGIN
     v_row.BLUE_RGB                         := :new.BLUE_RGB;
     v_row.ACTIVE                           := :new.ACTIVE;
 
-    if INSERTING OR v_row.ID IS NULL then 
+    if INSERTING OR :new.LINK_ID$ IS NULL then 
         v_row.ACTIVE                           := NVL(v_row.ACTIVE, 'Y');
         INSERT INTO DIAGRAM_COLORS VALUES v_row;
     else 
-        UPDATE DIAGRAM_COLORS SET ROW = v_row
-        WHERE ID = v_row.ID;
+        UPDATE DIAGRAM_COLORS SET 
+            COLOR_NAME = v_row.COLOR_NAME,
+            HEX_RGB = v_row.HEX_RGB,
+            RED_RGB = v_row.RED_RGB,
+            GREEN_RGB = v_row.GREEN_RGB,
+            BLUE_RGB = v_row.BLUE_RGB,
+            ACTIVE = v_row.ACTIVE
+        WHERE ID = :new.LINK_ID$;
     end if;
 END VDIAGRAM_COLORS_IMP_TR;
 
@@ -210,12 +222,19 @@ BEGIN
       end;
     end if;
 
-    if INSERTING OR v_row.ID IS NULL then 
+    if INSERTING OR :new.LINK_ID$ IS NULL then 
         v_row.COLOR                            := NVL(v_row.COLOR, 'DarkGrey');
         INSERT INTO DIAGRAM_EDGES VALUES v_row;
     else 
-        UPDATE DIAGRAM_EDGES SET ROW = v_row
-        WHERE ID = v_row.ID;
+        UPDATE DIAGRAM_EDGES SET 
+            SOURCE_NODE_ID = v_row.SOURCE_NODE_ID,
+            TARGET_NODE_ID = v_row.TARGET_NODE_ID,
+            DESCRIPTION = v_row.DESCRIPTION,
+            COLOR = v_row.COLOR,
+            HEX_RGB = v_row.HEX_RGB,
+            DIAGRAM_COLOR_ID = v_row.DIAGRAM_COLOR_ID,
+            SPRINGY_DIAGRAMS_ID = v_row.SPRINGY_DIAGRAMS_ID
+        WHERE ID = :new.LINK_ID$;
     end if;
 END VDIAGRAM_EDGES_IMP_TR;
 
@@ -283,7 +302,7 @@ BEGIN
         WHERE D.COLOR_NAME = :new.DIAGRAM_COLOR_COLOR_NAME;
     end if;
 
-    if INSERTING OR v_row.ID IS NULL then 
+    if INSERTING OR :new.LINK_ID$ IS NULL then 
         v_row.ACTIVE                           := NVL(v_row.ACTIVE, 'Y');
         v_row.DIAGRAM_SHAPES_ID                := NVL(v_row.DIAGRAM_SHAPES_ID, 7);
         v_row.X_COORDINATE                     := NVL(v_row.X_COORDINATE, 0);
@@ -291,8 +310,18 @@ BEGIN
         v_row.MASS                             := NVL(v_row.MASS, 1);
         INSERT INTO DIAGRAM_NODES VALUES v_row;
     else 
-        UPDATE DIAGRAM_NODES SET ROW = v_row
-        WHERE ID = v_row.ID;
+        UPDATE DIAGRAM_NODES SET 
+            SPRINGY_DIAGRAMS_ID = v_row.SPRINGY_DIAGRAMS_ID,
+            DESCRIPTION = v_row.DESCRIPTION,
+            ACTIVE = v_row.ACTIVE,
+            DIAGRAM_SHAPES_ID = v_row.DIAGRAM_SHAPES_ID,
+            COLOR = v_row.COLOR,
+            X_COORDINATE = v_row.X_COORDINATE,
+            Y_COORDINATE = v_row.Y_COORDINATE,
+            MASS = v_row.MASS,
+            HEX_RGB = v_row.HEX_RGB,
+            DIAGRAM_COLOR_ID = v_row.DIAGRAM_COLOR_ID
+        WHERE ID = :new.LINK_ID$;
     end if;
 END VDIAGRAM_NODES_IMP_TR;
 
@@ -321,12 +350,14 @@ BEGIN
     v_row.DESCRIPTION                      := :new.DESCRIPTION;
     v_row.ACTIVE                           := :new.ACTIVE;
 
-    if INSERTING OR v_row.ID IS NULL then 
+    if INSERTING OR :new.LINK_ID$ IS NULL then 
         v_row.ACTIVE                           := NVL(v_row.ACTIVE, 'Y');
         INSERT INTO DIAGRAM_SHAPES VALUES v_row;
     else 
-        UPDATE DIAGRAM_SHAPES SET ROW = v_row
-        WHERE ID = v_row.ID;
+        UPDATE DIAGRAM_SHAPES SET 
+            DESCRIPTION = v_row.DESCRIPTION,
+            ACTIVE = v_row.ACTIVE
+        WHERE ID = :new.LINK_ID$;
     end if;
 END VDIAGRAM_SHAPES_IMP_TR;
 
@@ -418,11 +449,21 @@ BEGIN
       end;
     end if;
 
-    if INSERTING OR v_row.EMPLOYEE_ID IS NULL then 
+    if INSERTING OR :new.LINK_ID$ IS NULL then 
         INSERT INTO EMPLOYEES VALUES v_row;
     else 
-        UPDATE EMPLOYEES SET ROW = v_row
-        WHERE EMPLOYEE_ID = v_row.EMPLOYEE_ID;
+        UPDATE EMPLOYEES SET 
+            FIRST_NAME = v_row.FIRST_NAME,
+            LAST_NAME = v_row.LAST_NAME,
+            EMAIL = v_row.EMAIL,
+            PHONE_NUMBER = v_row.PHONE_NUMBER,
+            HIRE_DATE = v_row.HIRE_DATE,
+            JOB_ID = v_row.JOB_ID,
+            SALARY = v_row.SALARY,
+            COMMISSION_PCT = v_row.COMMISSION_PCT,
+            MANAGER_ID = v_row.MANAGER_ID,
+            DEPARTMENT_ID = v_row.DEPARTMENT_ID
+        WHERE EMPLOYEE_ID = :new.LINK_ID$;
     end if;
 END VEMPLOYEES_IMP_TR;
 
@@ -455,11 +496,15 @@ BEGIN
     v_row.MAX_SALARY                       := :new.MAX_SALARY;
     v_row.JOBS_ID                          := :new.LINK_ID$;
 
-    if INSERTING OR v_row.JOBS_ID IS NULL then 
+    if INSERTING OR :new.LINK_ID$ IS NULL then 
         INSERT INTO JOBS VALUES v_row;
     else 
-        UPDATE JOBS SET ROW = v_row
-        WHERE JOBS_ID = v_row.JOBS_ID;
+        UPDATE JOBS SET 
+            JOB_ID = v_row.JOB_ID,
+            JOB_TITLE = v_row.JOB_TITLE,
+            MIN_SALARY = v_row.MIN_SALARY,
+            MAX_SALARY = v_row.MAX_SALARY
+        WHERE JOBS_ID = :new.LINK_ID$;
     end if;
 END VJOBS_IMP_TR;
 
@@ -541,11 +586,16 @@ BEGIN
       end;
     end if;
 
-    if INSERTING OR v_row.JOB_HISTORY_ID IS NULL then 
+    if INSERTING OR :new.LINK_ID$ IS NULL then 
         INSERT INTO JOB_HISTORY VALUES v_row;
     else 
-        UPDATE JOB_HISTORY SET ROW = v_row
-        WHERE JOB_HISTORY_ID = v_row.JOB_HISTORY_ID;
+        UPDATE JOB_HISTORY SET 
+            EMPLOYEE_ID = v_row.EMPLOYEE_ID,
+            START_DATE = v_row.START_DATE,
+            END_DATE = v_row.END_DATE,
+            JOB_ID = v_row.JOB_ID,
+            DEPARTMENT_ID = v_row.DEPARTMENT_ID
+        WHERE JOB_HISTORY_ID = :new.LINK_ID$;
     end if;
 END VJOB_HISTORY_IMP_TR;
 
@@ -593,11 +643,16 @@ BEGIN
       end;
     end if;
 
-    if INSERTING OR v_row.LOCATION_ID IS NULL then 
+    if INSERTING OR :new.LINK_ID$ IS NULL then 
         INSERT INTO LOCATIONS VALUES v_row;
     else 
-        UPDATE LOCATIONS SET ROW = v_row
-        WHERE LOCATION_ID = v_row.LOCATION_ID;
+        UPDATE LOCATIONS SET 
+            STREET_ADDRESS = v_row.STREET_ADDRESS,
+            POSTAL_CODE = v_row.POSTAL_CODE,
+            CITY = v_row.CITY,
+            STATE_PROVINCE = v_row.STATE_PROVINCE,
+            COUNTRY_ID = v_row.COUNTRY_ID
+        WHERE LOCATION_ID = :new.LINK_ID$;
     end if;
 END VLOCATIONS_IMP_TR;
 
@@ -624,11 +679,12 @@ BEGIN
     v_row.REGION_ID                        := :new.LINK_ID$;
     v_row.REGION_NAME                      := :new.REGION_NAME;
 
-    if INSERTING OR v_row.REGION_ID IS NULL then 
+    if INSERTING OR :new.LINK_ID$ IS NULL then 
         INSERT INTO REGIONS VALUES v_row;
     else 
-        UPDATE REGIONS SET ROW = v_row
-        WHERE REGION_ID = v_row.REGION_ID;
+        UPDATE REGIONS SET 
+            REGION_NAME = v_row.REGION_NAME
+        WHERE REGION_ID = :new.LINK_ID$;
     end if;
 END VREGIONS_IMP_TR;
 
@@ -685,7 +741,7 @@ BEGIN
     v_row.EXCITE_METHOD                    := :new.EXCITE_METHOD;
     v_row.PINWEIGHT                        := :new.PINWEIGHT;
 
-    if INSERTING OR v_row.ID IS NULL then 
+    if INSERTING OR :new.LINK_ID$ IS NULL then 
         v_row.PROTECTED                        := NVL(v_row.PROTECTED, 'N');
         v_row.FONTSIZE                         := NVL(v_row.FONTSIZE, 4);
         v_row.ZOOM_FACTOR                      := NVL(v_row.ZOOM_FACTOR, 1);
@@ -703,8 +759,24 @@ BEGIN
         v_row.PINWEIGHT                        := NVL(v_row.PINWEIGHT, 10);
         INSERT INTO SPRINGY_DIAGRAMS VALUES v_row;
     else 
-        UPDATE SPRINGY_DIAGRAMS SET ROW = v_row
-        WHERE ID = v_row.ID;
+        UPDATE SPRINGY_DIAGRAMS SET 
+            DESCRIPTION = v_row.DESCRIPTION,
+            PROTECTED = v_row.PROTECTED,
+            FONTSIZE = v_row.FONTSIZE,
+            ZOOM_FACTOR = v_row.ZOOM_FACTOR,
+            X_OFFSET = v_row.X_OFFSET,
+            Y_OFFSET = v_row.Y_OFFSET,
+            CANVAS_WIDTH = v_row.CANVAS_WIDTH,
+            EXCLUDE_SINGLES = v_row.EXCLUDE_SINGLES,
+            EDGE_LABELS = v_row.EDGE_LABELS,
+            STIFFNESS = v_row.STIFFNESS,
+            REPULSION = v_row.REPULSION,
+            DAMPING = v_row.DAMPING,
+            MINENERGYTHRESHOLD = v_row.MINENERGYTHRESHOLD,
+            MAXSPEED = v_row.MAXSPEED,
+            EXCITE_METHOD = v_row.EXCITE_METHOD,
+            PINWEIGHT = v_row.PINWEIGHT
+        WHERE ID = :new.LINK_ID$;
     end if;
 END VSPRINGY_DIAGRAMS_IMP_TR;
 
