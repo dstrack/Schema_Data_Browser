@@ -125,7 +125,7 @@ is
 				SELECT 'DML$_ACTION' COLUMN_NAME, 'A' TABLE_ALIAS, 'Y' IS_AUDIT_COLUMN, 'N' IS_OBFUSCATED, 'N' IS_UPPER_NAME, 'N' IS_NUMBER_YES_NO_COLUMN, 'N' IS_CHAR_YES_NO_COLUMN, 'N' IS_REFERENCE, 'Y' IS_SEARCHABLE_REF, 'N' IS_SUMMAND, 'N' IS_VIRTUAL_COLUMN, 'N' IS_DATETIME,
 					-1 COLUMN_ID, 6 POSITION, 'VARCHAR2' DATA_TYPE, 0 DATA_PRECISION, 0 DATA_SCALE,
 					120 CHAR_LENGTH, 'N' NULLABLE, 'N' IS_PRIMARY_KEY, 'N' IS_SEARCH_KEY, 'N' IS_FOREIGN_KEY, 'N' IS_DISP_KEY_COLUMN, 'N' CHECK_UNIQUE, 'N' HAS_HELP_TEXT, 'N' HAS_DEFAULT, 'N' IS_BLOB, 'N' IS_PASSWORD, '' FORMAT_MASK, '' LOV_QUERY,
-					'LEFT' COLUMN_ALIGN, 'DML Action' COLUMN_HEADER, q'[apex_lang.lang(case A.DML$_ACTION when 'I' then 'Inserted' when 'U' then 'Updated' when 'D' then 'Deleted'  when 'S' then 'Selected' else 'Inserted' end)]' COLUMN_EXPR,
+					'LEFT' COLUMN_ALIGN, 'DML Action' COLUMN_HEADER, q'[apex_lang.lang(case A.DML$_ACTION when 'I' then 'Inserted' when 'U' then 'Updated' when 'D' then 'Deleted' else 'Inserted' end)]' COLUMN_EXPR,
 					'DISPLAY_ONLY' COLUMN_EXPR_TYPE, 120 FIELD_LENGTH, 'Y' DISPLAY_IN_REPORT,
 					TABLE_NAME R_TABLE_NAME, VIEW_NAME R_VIEW_NAME, 'DML$_ACTION' R_COLUMN_NAME
 				FROM BROWSER_VIEW
@@ -443,14 +443,12 @@ is
 						E.R_UNIQUE_KEY_COLS,
 						data_browser_conf.Get_Link_ID_Expression(p_Unique_Key_Column=> E.R_UNIQUE_KEY_COLS, p_Table_Alias=> 'A', p_View_Mode=> v_View_Mode) LINK_EXPR,
 						case when v_Calc_Totals = 'YES' then 'SUM(' end
-						|| '(SELECT COUNT(*) ' || data_browser_conf.NL(4)
-						|| ' FROM ' || data_browser_conf.Enquote_Name_Required(E.VIEW_NAME) 
-						|| ' B ' || data_browser_conf.NL(4)
-						|| ' WHERE '
+						|| '(SELECT COUNT(*) '  || data_browser_conf.NL(8)
+						|| 'FROM ' || data_browser_conf.Enquote_Name_Required(E.VIEW_NAME) -- || ' WHERE ' || E.COLUMN_NAME || ' = A.' || A.COLUMN_NAME 
+						|| ' B WHERE '
 						|| data_browser_conf.Get_Join_Expression(
 							p_Left_Columns=>E.COLUMN_NAME, p_Left_Alias=> 'B',
 							p_Right_Columns=>A.COLUMN_NAME, p_Right_Alias=> 'A')
-						|| data_browser_conf.NL(4)
 						|| ')' 
 						|| case when v_Calc_Totals = 'YES' then ')' end
 						ROW_COUNT_QUERY,
@@ -556,10 +554,10 @@ is
 						S.COLUMN_PREFIX,
 						E.R_UNIQUE_KEY_COLS UNIQUE_KEY_COLS,
 						case when v_Calc_Totals = 'YES' then 'SUM(' end
-                        ||'(SELECT ' 
+                        ||'(SELECT '
 						|| case when A.IS_MINUEND = 'Y' then '-' end
-						|| 'SUM(' || E.TABLE_ALIAS || '.' || A.COLUMN_NAME || ')' || data_browser_conf.NL(4)
-						|| ' FROM ' || SUBSTR(E.JOINS, 7)  || data_browser_conf.NL(4)
+						|| 'SUM(' || E.TABLE_ALIAS || '.' || A.COLUMN_NAME || ')' || data_browser_conf.NL(8)
+						||' FROM ' || SUBSTR(E.JOINS, 7)  || data_browser_conf.NL(8)
 						|| ' WHERE ' 
 						|| data_browser_conf.Get_Join_Expression(
 							p_Left_Columns=>E.R_COLUMN_NAME, p_Left_Alias=> 'B',
@@ -568,7 +566,6 @@ is
 							' AND ' || E.TABLE_ALIAS || '.' || E.ACTIVE_LOV_COLUMN_NAME 
 							|| ' = ' || data_browser_conf.Get_Boolean_Yes_Value(E.ACTIVE_LOV_DATA_TYPE, 'ENQUOTE')
 						end
-						|| data_browser_conf.NL(4)
                         || ')' 
 						|| case when v_Calc_Totals = 'YES' then ')' end
                         TOTAL_QUERY
@@ -1866,14 +1863,13 @@ $END
 	begin
 		return case when p_Data_Format IN ('FORM', 'QUERY') then
 			'FN_Navigation_Counter('
-			|| PA('p_Count=>') || p_CounterQuery || ', '
+			|| PA('p_Count=>') || p_CounterQuery || ', ' || NL(8)
 			|| PA('p_Target=>') || p_Target || ', ' 
 			|| PA('p_Page_ID=>') || p_Link_Page_ID
 			|| case when p_Is_Total IS NOT NULL or p_Is_Subtotal IS NOT NULL then 
 				', ' || PA('p_Is_Total=>') || NVL(p_Is_Total, '0') 
 				|| ', ' || PA('p_Is_Subtotal=>') || NVL(p_Is_Subtotal, '0') 
 			end 
-			|| NL(4)
 			|| ')'
 		when p_Data_Format = 'HTML' then 
 			Bold_Total_Html (
@@ -2184,7 +2180,7 @@ $IF DBMS_DB_VERSION.VERSION >= 12 $THEN
 $END
 		v_Column_Expr VARCHAR2(4000);
 	BEGIN
-		v_Column_Expr := REPLACE(p_Column_Expr, 'A.'||p_Column_Name , 'NVL2(' || p_Key_Column || ', A.' || p_Column_Name || ', B.' || p_Column_Name || ')');
+		v_Column_Expr := REPLACE(' ' || p_Column_Expr, ' A.'||p_Column_Name , ' NVL2(' || p_Key_Column || ', A.' || p_Column_Name || ', B.' || p_Column_Name || ')');
 		RETURN case when p_Data_Format IN ('FORM', 'HTML') then
 			 data_browser_conf.Get_Markup_Function(p_Data_Type => p_Data_Type)
 			 || '(' || v_Column_Expr
@@ -3118,7 +3114,7 @@ $END
 		-- produce and return query for list of values (LOV_QUERY)
 		if v_out_tab.COUNT > 0 then
 			v_Table_Alias := RTRIM(v_out_tab(1).TABLE_ALIAS, '.');
-			v_From_Clause := 'FROM ' || data_browser_select.FN_Table_Prefix 
+			v_From_Clause := ' FROM ' || data_browser_select.FN_Table_Prefix 
 						|| data_browser_conf.Enquote_Name_Required(p_Table_Name) || ' ' || v_Table_Alias;
 			v_Column_Expr := data_browser_conf.Get_Link_ID_Expression(p_Unique_Key_Column=> p_Search_Key_Col, p_Table_Alias=> v_Table_Alias, p_View_Mode=> p_View_Mode);
 			v_Key_Column := data_browser_conf.Get_Link_ID_Expression(p_Unique_Key_Column=> p_Key_Column, p_Table_Alias=> v_Table_Alias, p_View_Mode=> p_View_Mode);
@@ -3145,15 +3141,15 @@ $END
 			end if;
 			if p_Data_Format IN ('NATIVE', 'CSV', 'HTML') then
 				v_Result := q'[(SELECT CLOBAGG(case when ROWNUM <= ]'
-				|| v_Max_Link_Count || q'[ then DESCRIPTION else chr(38)||'hellip;' end) LINK_LIST]' || NL(4)
-				|| ' FROM (' || NL(8)
-				|| 'SELECT ' || v_Key_Column || ', '
-				|| case when v_Column_List IS NOT NULL then v_Column_List else 'TO_CHAR(' || v_Column_Expr || ')' end
-				|| ' DESCRIPTION' || NL(8)
-				|| v_From_Clause || NL(8)
-				|| 'WHERE ' || v_Column_Expr || ' = ' || p_Search_Value
-				|| ' AND ROWNUM <= ' || (v_Max_Link_Count + 1) || NL(8)
-				|| 'ORDER BY FLOOR(ROWNUM/' || (v_Max_Link_Count + 1) || '), DESCRIPTION ) ' || v_Table_Alias || NL(4)
+				|| v_Max_Link_Count || q'[ then DESCRIPTION]' || NL(12)
+				|| q'[else chr(38)||'hellip;']' || NL(12)
+				|| q'[end) LINK_LIST]'|| NL(8)
+				|| 'FROM (SELECT ' || v_Key_Column || ', TO_CHAR(' || NVL(v_Column_List, v_Column_Expr) || ') DESCRIPTION' || NL(12)
+				|| v_From_Clause || NL(12)
+				|| ' WHERE ' || v_Column_Expr || ' = ' || p_Search_Value
+				|| ' AND ROWNUM <= ' || (v_Max_Link_Count + 1) || NL(12)
+				|| ' ORDER BY FLOOR(ROWNUM/' || (v_Max_Link_Count + 1) || q'[), ]' || NVL(v_Column_List, v_Column_Expr) || NL(12)
+				|| ') ' || v_Table_Alias || NL(8)
 				|| ')';
 				return v_Result;
 			else -- In forms, the link to the targets is rendered.
@@ -3184,12 +3180,12 @@ $END
 				end
 				|| ' LINK_LIST'|| NL(8)
 $IF DBMS_DB_VERSION.VERSION >= 12 $THEN
-				|| ' FROM ('  || NL(12)
-				|| 'SELECT ' || v_Key_Column || ' KEY_ID, ' || NVL(v_Column_List, v_Column_Expr) || ' DESCRIPTION' || NL(12)
-				|| v_From_Clause || NL(12)
-				|| 'WHERE ' || v_Column_Expr || ' = ' || p_Search_Value
-				|| ' AND ROWNUM <= ' || (v_Max_Link_Count + 1) || NL(12)
-				|| 'ORDER BY FLOOR(ROWNUM/' || (v_Max_Link_Count + 1) || q'[), ]' || 'DESCRIPTION ) ' || v_Table_Alias || NL(4)
+				|| 'FROM (SELECT ' || v_Key_Column || ' KEY_ID, ' || NVL(v_Column_List, v_Column_Expr) || ' DESCRIPTION' || NL(8)
+				|| v_From_Clause || NL(8)
+				|| ' WHERE ' || v_Column_Expr || ' = ' || p_Search_Value
+				|| ' AND ROWNUM <= ' || (v_Max_Link_Count + 1) || NL(8)
+				|| ' ORDER BY FLOOR(ROWNUM/' || (v_Max_Link_Count + 1) || q'[), ]' || NVL(v_Column_List, v_Column_Expr) || NL(8)
+				|| ') ' || v_Table_Alias || NL(4)
 $ELSE
 				|| v_From_Clause || NL(8)
 				|| ' WHERE ' || v_Column_Expr || ' = ' || p_Search_Value

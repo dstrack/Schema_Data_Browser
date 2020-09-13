@@ -301,6 +301,22 @@ $END
 
     PROCEDURE  Purge_Changelog_Rows;
 
+	FUNCTION FN_TO_NUMBER (
+		p_Number_String VARCHAR2,
+		p_Format_Mask	VARCHAR2 DEFAULT NULL,
+		p_NumChars 		VARCHAR2 DEFAULT NULL
+	) RETURN NUMBER;
+
+	FUNCTION FN_TO_DATE (
+		p_Date_String VARCHAR2,
+		p_Format_Mask	VARCHAR2
+	) RETURN DATE;
+
+	FUNCTION FN_TO_TIMESTAMP (
+		p_Date_String VARCHAR2,
+		p_Format_Mask	VARCHAR2
+	) RETURN TIMESTAMP WITH LOCAL TIME ZONE;
+
 	PROCEDURE Set_Query_Timestamp (
    		p_Timestamp		IN TIMESTAMP
    	);
@@ -1003,7 +1019,7 @@ $END
     )
     IS
     BEGIN
-		Int_AddLogCols(p_Column_ID, LTRIM(TO_CHAR(p_Bevore, g_ChangeLogNumberFormat, g_ChangeLogCurrNumChars)), LTRIM(TO_CHAR(p_After, g_ChangeLogNumberFormat, g_ChangeLogCurrNumChars)));
+        Int_AddLogCols(p_Column_ID, LTRIM(TO_CHAR(p_Bevore, g_ChangeLogNumberFormat)), LTRIM(TO_CHAR(p_After, g_ChangeLogNumberFormat)));
     END AddLogCols;
 
     PROCEDURE AddLogRawCols (
@@ -1342,6 +1358,76 @@ $END
         	DELETE FROM CHANGE_LOG_TABLES WHERE ID = t_cur.ID;
 		end loop;
 	end Purge_Changelog_Rows;
+
+
+	FUNCTION FN_TO_NUMBER (
+		p_Number_String VARCHAR2,
+		p_Format_Mask	VARCHAR2 DEFAULT NULL,
+		p_NumChars 		VARCHAR2 DEFAULT NULL
+	) RETURN NUMBER
+	is
+	$IF DBMS_DB_VERSION.VERSION >= 12 $THEN
+		PRAGMA UDF;
+	$END
+		v_Statement     VARCHAR2(512);
+		v_Result        NUMBER;
+	begin
+		v_Statement := 'begin :b := TO_NUMBER('
+		|| DBMS_ASSERT.ENQUOTE_LITERAL(p_Number_String)
+		|| case when p_Format_Mask IS NOT NULL then ', ' || DBMS_ASSERT.ENQUOTE_LITERAL(p_Format_Mask) end
+		|| case when p_NumChars IS NOT NULL then ', ' || p_NumChars end
+		|| '); end;';
+		EXECUTE IMMEDIATE v_Statement USING OUT v_Result;
+		return v_Result;
+	exception
+	when others then
+		return NULL;
+	end FN_TO_NUMBER;
+
+	FUNCTION FN_TO_DATE (
+		p_Date_String VARCHAR2,
+		p_Format_Mask	VARCHAR2
+	) RETURN DATE
+	is
+	$IF DBMS_DB_VERSION.VERSION >= 12 $THEN
+		PRAGMA UDF;
+	$END
+		v_Statement     VARCHAR2(512);
+		v_Result        DATE;
+	begin
+		v_Statement := 'begin :b := TO_DATE(' || DBMS_ASSERT.ENQUOTE_LITERAL(p_Date_String) || ', ' || DBMS_ASSERT.ENQUOTE_LITERAL(p_Format_Mask) || '); end;';
+		EXECUTE IMMEDIATE v_Statement USING OUT v_Result;
+		return v_Result;
+	exception
+	when others then
+		return NULL;
+	end FN_TO_DATE;
+
+	FUNCTION FN_TO_TIMESTAMP (
+		p_Date_String VARCHAR2,
+		p_Format_Mask	VARCHAR2
+	) RETURN TIMESTAMP WITH LOCAL TIME ZONE
+	is
+	$IF DBMS_DB_VERSION.VERSION >= 12 $THEN
+		PRAGMA UDF;
+	$END
+		v_Date_String   VARCHAR2(512);
+		v_Format_Mask   VARCHAR2(512);
+		v_Statement     VARCHAR2(512);
+		v_Result        DATE;
+	begin
+		v_Date_String := TRANSLATE(p_Date_String, ',', '.'); -- normalize radix character
+		v_Format_Mask := REPLACE(p_Format_Mask, 'SSXFF', 'SS.FF9'); -- normalize radix character
+		v_Statement := 'begin :b := TO_TIMESTAMP('
+		|| DBMS_ASSERT.ENQUOTE_LITERAL(v_Date_String)
+		|| ', ' || DBMS_ASSERT.ENQUOTE_LITERAL(v_Format_Mask)
+		|| '); end;';
+		EXECUTE IMMEDIATE v_Statement USING OUT v_Result;
+		return v_Result;
+	exception
+	when others then
+		return NULL;
+	end FN_TO_TIMESTAMP;
 
 	-- search timestamp used in history views
 	PROCEDURE Set_Query_Timestamp (

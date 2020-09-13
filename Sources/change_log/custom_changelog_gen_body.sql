@@ -35,8 +35,7 @@ CREATE OR REPLACE PACKAGE BODY custom_changelog_gen IS
 			from tab_refs R, MVBASE_VIEWS T, tab_child_fk C
 			where R.TABLE_NAME = T.TABLE_NAME
 			and R.TABLE_NAME = C.TABLE_NAME
-			and T.HAS_SCALAR_PRIMARY_KEY = 'YES'
-			and T.INCLUDE_CHANGELOG = 'YES'
+			and T.include_changelog = 'YES'
 			and T.owner = SYS_CONTEXT('USERENV', 'CURRENT_SCHEMA')
 		)
 		select distinct
@@ -327,28 +326,54 @@ $END
     IS
     BEGIN
         FOR  stat_cur IN (
-			SELECT 'DROP INDEX ' || D.INDEX_NAME INDEX_STAT
+			SELECT A.TABLE_NAME, A.COLUMN_NAME, A.CHANGELOG_REF_NAME, A.RUN_NO,
+				CASE WHEN EXISTS (
+					SELECT 1
+					FROM USER_INDEXES D
+					WHERE D.TABLE_NAME = custom_changelog.Get_ChangeLogTable
+					AND D.INDEX_NAME = A.INDEX_NAME
+				) THEN
+					'DROP INDEX ' || A.INDEX_NAME
+				WHEN EXISTS (
+					SELECT 1
+					FROM USER_IND_COLUMNS D
+					WHERE D.TABLE_NAME = custom_changelog.Get_ChangeLogTable
+					AND D.COLUMN_NAME = A.CHANGELOG_REF_NAME
+				) THEN
+					'DROP INDEX ' ||  (
+						SELECT D.INDEX_NAME
+						FROM USER_IND_COLUMNS D
+						WHERE D.TABLE_NAME = custom_changelog.Get_ChangeLogTable
+						AND D.COLUMN_NAME = A.CHANGELOG_REF_NAME
+					)
+				END INDEX_STAT,
+				CASE WHEN EXISTS (
+					SELECT 1
+					FROM USER_CONSTRAINTS D
+					WHERE D.TABLE_NAME = custom_changelog.Get_ChangeLogTable
+					AND D.CONSTRAINT_NAME = A.CONSTRAINT_NAME
+				) THEN
+					'ALTER TABLE ' || custom_changelog.Get_ChangeLogTable || ' DROP CONSTRAINT ' || CONSTRAINT_NAME
+				END FOREIGN_KEY_STAT
 			FROM (
-				SELECT 'CUSTOM_REF_ID' || LEVEL CHANGELOG_REF_NAME
-				FROM DUAL CONNECT BY LEVEL <= 9
-			) A, USER_IND_COLUMNS D
-			WHERE D.TABLE_NAME = custom_changelog.Get_ChangeLogTable
-			AND D.COLUMN_NAME = A.CHANGELOG_REF_NAME
+				SELECT T.TABLE_NAME, C.COLUMN_NAME, 'CUSTOM_REF_ID' || T.R CHANGELOG_REF_NAME, T.R RUN_NO,
+					HAS_WORKSPACE_ID,
+					'CHANGE_LOG_' || SUBSTR(SHORT_NAME, 1, 15) || '_FKI' INDEX_NAME,
+					'CHANGE_LOG_' || SUBSTR(SHORT_NAME, 1, 15) || '_FK' CONSTRAINT_NAME,
+					SCALAR_KEY_COLUMN
+				FROM (SELECT N.COLUMN_VALUE TABLE_NAME, ROWNUM R FROM TABLE( changelog_conf.in_list(custom_changelog.Get_ChangeLogFKeyTables, ',') ) N) T
+				JOIN (SELECT N.COLUMN_VALUE COLUMN_NAME, ROWNUM R  FROM TABLE( changelog_conf.in_list(custom_changelog.Get_ChangeLogFKeyColumns, ',') ) N) C ON T.R = C.R -- same position in the list
+				JOIN MVBASE_VIEWS B ON B.VIEW_NAME = T.TABLE_NAME
+			) A
+            ORDER BY RUN_NO
         )
         LOOP
-			Run_Stat (stat_cur.INDEX_STAT);
-        END LOOP;
-        FOR  stat_cur IN (
-			SELECT 'ALTER TABLE ' || custom_changelog.Get_ChangeLogTable || ' DROP CONSTRAINT ' || D.CONSTRAINT_NAME FOREIGN_KEY_STAT
-			FROM (
-				SELECT 'CUSTOM_REF_ID' || LEVEL CHANGELOG_REF_NAME
-				FROM DUAL CONNECT BY LEVEL <= 9
-			) A, USER_CONS_COLUMNS D
-			WHERE D.TABLE_NAME = custom_changelog.Get_ChangeLogTable
-			AND D.COLUMN_NAME = A.CHANGELOG_REF_NAME
-        )
-        LOOP
-			Run_Stat (stat_cur.FOREIGN_KEY_STAT);
+        	if stat_cur.INDEX_STAT IS NOT NULL then
+				Run_Stat (stat_cur.INDEX_STAT);
+            end if;
+        	if stat_cur.FOREIGN_KEY_STAT IS NOT NULL then
+				Run_Stat (stat_cur.FOREIGN_KEY_STAT);
+            end if;
         END LOOP;
     END Drop_ChangeLog_Foreign_Keys;
 
@@ -1314,22 +1339,22 @@ $END
 		WHEN p_DATA_TYPE = 'RAW' THEN
             'HEXTORAW(' || v_Expression || ')'
         WHEN p_DATA_TYPE = 'FLOAT' THEN
-            'TO_NUMBER(' || v_Expression || ')'
+            'Custom_Changelog.FN_TO_NUMBER(' || v_Expression || ')'
         WHEN p_DATA_TYPE = 'NUMBER' and p_Data_Scale > 0 THEN
-            'TO_NUMBER(' || v_Expression || ', '
+            'Custom_Changelog.FN_TO_NUMBER(' || v_Expression || ', '
             	|| DBMS_ASSERT.ENQUOTE_LITERAL(Get_Number_Format_Mask(p_Data_Precision, p_Data_Scale))
            	    || ', ' || custom_changelog.Get_ChangeLogCurrNumChars
             	|| ')'
         when p_Data_Type = 'NUMBER' and NULLIF(p_Data_Scale, 0) IS NULL then
-            'TO_NUMBER(' || v_Expression || ')'
+            'Custom_Changelog.FN_TO_NUMBER(' || v_Expression || ')'
         WHEN p_DATA_TYPE = 'DATE' THEN
-            'TO_DATE(' || v_Expression || ', '
+            'Custom_Changelog.FN_TO_DATE(' || v_Expression || ', '
             || DBMS_ASSERT.ENQUOTE_LITERAL(custom_changelog.Get_ChangeLogDateFormat) || ')'
         WHEN p_DATA_TYPE LIKE 'TIMESTAMP%' THEN
-            'TO_TIMESTAMP(' || v_Expression || ', '
+            'Custom_Changelog.FN_TO_TIMESTAMP(' || v_Expression || ', '
             || DBMS_ASSERT.ENQUOTE_LITERAL(custom_changelog.Get_ChangeLogTimestampFormat) || ')'
         WHEN p_DATA_TYPE IN ( 'VARCHAR2', 'VARCHAR', 'CHAR' ) THEN
-        	'CAST(' || v_Expression || ' AS ' || p_DATA_TYPE || '(' || p_CHAR_LENGTH || '))'
+        	'CAST(SUBSTR(' || v_Expression || ', 1, ' || p_CHAR_LENGTH || ') AS ' || p_DATA_TYPE || '(' || p_CHAR_LENGTH || '))'
 		WHEN p_DATA_TYPE = 'BLOB' THEN 
 			'TO_BLOB(' || v_Expression || ')'
 		WHEN p_DATA_TYPE IN ('CLOB', 'NCLOB') THEN 
