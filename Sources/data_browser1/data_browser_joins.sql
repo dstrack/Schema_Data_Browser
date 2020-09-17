@@ -143,6 +143,9 @@ is
 				LEFT OUTER JOIN JOIN_OPTIONS J ON S.TABLE_ALIAS = J.TABLE_ALIAS
 				WHERE T.VIEW_NAME = v_View_Name
 				AND (J.COLUMNS_INCLUDED IN ('A','K') OR J.COLUMNS_INCLUDED IS NULL)
+				-- avoid joins for file folder path 
+				AND (S.COLUMN_NAME != T.FILE_FOLDER_COLUMN_NAME OR T.FILE_FOLDER_COLUMN_NAME IS NULL)
+				AND (S.COLUMN_NAME != T.FOLDER_PARENT_COLUMN_NAME OR T.FOLDER_PARENT_COLUMN_NAME IS NULL)
 			)
 			UNION ALL -- foreign keys with unique columns and second level foreign keys
 			SELECT --+ INDEX(S)
@@ -162,6 +165,7 @@ is
 			WHERE S.VIEW_NAME = v_View_Name
 			AND S.JOIN_CLAUSE IS NOT NULL
 			AND S.PARENT_KEY_COLUMN IS NULL -- column is hidden because its content can be deduced from the references FILTER_KEY_COLUMN
+			AND S.IS_FILE_FOLDER_REF = 'N'
 			AND (J.COLUMNS_INCLUDED IN ('A','K') OR J.COLUMNS_INCLUDED IS NULL)
 			UNION ALL
 			SELECT --+ INDEX(S)

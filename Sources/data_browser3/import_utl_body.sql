@@ -71,6 +71,9 @@ CREATE OR REPLACE PACKAGE BODY import_utl IS
 			S.VIEW_NAME         D_VIEW_NAME,					-- lookup ids of imported table + related
 			'v_row.' || S.FOREIGN_KEY_COLS D_REF,
 			S.FOREIGN_KEY_COLS D_COLUMN_NAME,
+			S.IS_FILE_FOLDER_REF,
+			G.FOLDER_PARENT_COLUMN_NAME,
+			G.FOLDER_NAME_COLUMN_NAME,
 			S.R_PRIMARY_KEY_COLS, S.R_CONSTRAINT_TYPE,
 			S.R_VIEW_NAME, S.COLUMN_ID, S.NULLABLE,
 			S.R_COLUMN_ID, S.R_COLUMN_NAME, S.R_NULLABLE, S.R_DATA_TYPE,
@@ -79,8 +82,11 @@ CREATE OR REPLACE PACKAGE BODY import_utl IS
 			SUM(case when S.R_NULLABLE = 'Y' then 1 else 0 end) OVER (PARTITION BY S.TABLE_NAME, S.FOREIGN_KEY_COLS) HAS_NULLABLE,
 			SUM(case when U.U_MEMBERS = 1 THEN 1 else 0 end ) OVER (PARTITION BY S.TABLE_NAME, S.FOREIGN_KEY_COLS) HAS_SIMPLE_UNIQUE,
 			case when S.IS_REFERENCE = 'N' then 0 else 1 end HAS_FOREIGN_KEY,
-			U.U_CONSTRAINT_NAME, U.U_MEMBERS, 2 POSITION2
+			U.U_CONSTRAINT_NAME, 
+			S.U_MEMBERS, 
+			2 POSITION2
 		FROM MVDATA_BROWSER_F_REFS S
+		JOIN MVDATA_BROWSER_REFERENCES G ON S.VIEW_NAME = G.VIEW_NAME AND S.FOREIGN_KEY_COLS = G.COLUMN_NAME
 		LEFT OUTER JOIN MVDATA_BROWSER_U_REFS U ON U.VIEW_NAME = S.R_VIEW_NAME AND U.COLUMN_NAME = S.R_COLUMN_NAME AND U.RANK = 1  -- unique key columns for each foreign key
 		WHERE S.R_COLUMN_ID IS NOT NULL
 		AND S.TABLE_NAME = v_Table_Name;
@@ -108,6 +114,9 @@ CREATE OR REPLACE PACKAGE BODY import_utl IS
 			S.R_VIEW_NAME 		D_VIEW_NAME,
 			'v_' || S.IMP_COLUMN_NAME D_REF,
 			S.IMP_COLUMN_NAME D_COLUMN_NAME,
+			Q.IS_FILE_FOLDER_REF,
+			null FOLDER_PARENT_COLUMN_NAME,
+			null FOLDER_NAME_COLUMN_NAME,
 			Q.R_PRIMARY_KEY_COLS, Q.R_CONSTRAINT_TYPE,
 			Q.R_VIEW_NAME, Q.COLUMN_ID, Q.NULLABLE,
 			Q.R_COLUMN_ID, Q.R_COLUMN_NAME, Q.R_NULLABLE, Q.R_DATA_TYPE,
@@ -128,7 +137,8 @@ CREATE OR REPLACE PACKAGE BODY import_utl IS
 			and Q.TABLE_ALIAS = S.TABLE_ALIAS
 			and Q.J_VIEW_NAME = S.R_VIEW_NAME
 			and Q.J_COLUMN_NAME = S.R_COLUMN_NAME
-		WHERE Q.VIEW_NAME = v_Table_Name;
+		WHERE Q.VIEW_NAME = v_Table_Name
+		AND Q.IS_FILE_FOLDER_REF = 'N';
         v_in_row rec_table_imp_fk;
 	BEGIN
 		OPEN views_cur(p_Table_Name);
@@ -193,7 +203,7 @@ CREATE OR REPLACE PACKAGE BODY import_utl IS
 		WITH REFERENCES_Q AS (
 			SELECT E.*
 			FROM TABLE (import_utl.FN_Pipe_table_imp_cols(v_Table_Name)) E
-			WHERE (E.TABLE_ALIAS != 'A' OR E.COLUMN_EXPR_TYPE = 'HIDDEN')
+			WHERE (E.TABLE_ALIAS != 'A'  OR E.TABLE_ALIAS IS NULL OR E.COLUMN_EXPR_TYPE = 'HIDDEN')
 		)
 		, PARENT_LOOKUP_Q AS (
 			SELECT /*+ USE_MERGE(S E F) */
@@ -224,44 +234,65 @@ CREATE OR REPLACE PACKAGE BODY import_utl IS
 			SELECT T.VIEW_NAME TABLE_NAME, 
 				 ---------------------------
 				case when MAX(T.U_CONSTRAINT_NAME) IS NOT NULL or import_utl.Get_Search_Keys_Unique = 'NO' then
-					RPAD(' ', 4) || 'if '
-					|| LISTAGG(S_REF || ' IS NOT NULL',
-						case when HAS_NULLABLE > 0 OR HAS_SIMPLE_UNIQUE > 0 then ' OR ' else ' AND ' end
-					) WITHIN GROUP (ORDER BY R_COLUMN_ID) -- conditions to trigger the search of foreign keys
-					|| ' then ' || chr(10)
-					|| case when D.DEFAULTS_MISSING = 0  AND import_utl.Get_Insert_Foreign_Keys = 'YES' 
-						then RPAD(' ', 6) || 'begin' || chr(10) end
-					|| RPAD(' ', 8) -- find foreign key values
-					|| 'SELECT ' || T.TABLE_ALIAS || '.' || T.R_PRIMARY_KEY_COLS || ' INTO ' || D_REF || chr(10) || RPAD(' ', 8)
-					|| 'FROM ' || T.R_VIEW_NAME || ' ' || T.TABLE_ALIAS || ' ' || chr(10) || RPAD(' ', 8)
-					|| 'WHERE '
-					|| LISTAGG(
-							case when (HAS_NULLABLE > 0 OR HAS_SIMPLE_UNIQUE > 0) AND T.U_MEMBERS > 1
-							then '('
-								|| import_utl.Get_Compare_Case_Insensitive(T.TABLE_ALIAS || '.' || T.R_COLUMN_NAME, S_REF, T.R_DATA_TYPE)
-								|| ' OR '
-								|| case when T.R_NULLABLE = 'Y' then T.TABLE_ALIAS || '.' || T.R_COLUMN_NAME || ' IS NULL AND ' end
-								|| S_REF || ' IS NULL)'
-							else
-								import_utl.Get_Compare_Case_Insensitive(T.TABLE_ALIAS || '.' || T.R_COLUMN_NAME, S_REF, T.R_DATA_TYPE)
-							end,
-						chr(10) || RPAD(' ', 8) || 'AND ') WITHIN GROUP (ORDER BY R_COLUMN_ID)
-					|| ';' 
-				 ---------------------------
-					|| chr(10) || RPAD(' ', 4)
-					|| case when D.DEFAULTS_MISSING = 0 AND import_utl.Get_Insert_Foreign_Keys = 'YES' then
-						'  exception when NO_DATA_FOUND then' || chr(10) || RPAD(' ', 8)
-						|| 'INSERT INTO ' || T.R_VIEW_NAME || '('
-						|| LISTAGG(T.R_COLUMN_NAME, ', ') WITHIN GROUP (ORDER BY R_COLUMN_ID)
-						|| ') VALUES ('
-						|| LISTAGG(S_REF, ', ') WITHIN GROUP (ORDER BY R_COLUMN_ID)
-						|| ') RETURNING (' || T.R_PRIMARY_KEY_COLS || ') INTO ' || D_REF || ';' || chr(10) || RPAD(' ', 4)
-						|| '  end;' || chr(10) || RPAD(' ', 4)
+					case when IS_FILE_FOLDER_REF = 'N' then 
+						RPAD(' ', 4) || 'if '
+						|| LISTAGG(S_REF || ' IS NOT NULL',
+							case when HAS_NULLABLE > 0 OR HAS_SIMPLE_UNIQUE > 0 then ' OR ' else ' AND ' end
+						) WITHIN GROUP (ORDER BY R_COLUMN_ID) -- conditions to trigger the search of foreign keys
+						|| ' then ' || chr(10)
+						|| case when D.DEFAULTS_MISSING = 0  AND import_utl.Get_Insert_Foreign_Keys = 'YES' 
+							then RPAD(' ', 6) || 'begin' || chr(10) end
+						|| RPAD(' ', 8) -- find foreign key values
+						|| 'SELECT ' || T.TABLE_ALIAS || '.' || T.R_PRIMARY_KEY_COLS || ' INTO ' 
+						|| D_REF || chr(10) || RPAD(' ', 8)
+						|| 'FROM ' || T.R_VIEW_NAME || ' ' || T.TABLE_ALIAS || ' ' || chr(10) || RPAD(' ', 8)
+						|| 'WHERE '
+						|| LISTAGG(
+								case when (HAS_NULLABLE > 0 OR HAS_SIMPLE_UNIQUE > 0) AND T.U_MEMBERS > 1
+								then '('
+									|| import_utl.Get_Compare_Case_Insensitive(T.TABLE_ALIAS || '.' || T.R_COLUMN_NAME, S_REF, T.R_DATA_TYPE)
+									|| ' OR '
+									|| case when T.R_NULLABLE = 'Y' then T.TABLE_ALIAS || '.' || T.R_COLUMN_NAME || ' IS NULL AND ' end
+									|| S_REF || ' IS NULL)'
+								else
+									import_utl.Get_Compare_Case_Insensitive(T.TABLE_ALIAS || '.' || T.R_COLUMN_NAME, S_REF, T.R_DATA_TYPE)
+								end,
+							chr(10) || RPAD(' ', 8) || 'AND ') WITHIN GROUP (ORDER BY R_COLUMN_ID)
+						|| ';' 
+					 ---------------------------
+						|| chr(10) || RPAD(' ', 4)
+						|| case when D.DEFAULTS_MISSING = 0 
+						and import_utl.Get_Insert_Foreign_Keys = 'YES' then
+							'  exception when NO_DATA_FOUND then' || chr(10) || RPAD(' ', 8)
+							|| 'INSERT INTO ' || T.R_VIEW_NAME || '('
+							|| LISTAGG(T.R_COLUMN_NAME, ', ') WITHIN GROUP (ORDER BY R_COLUMN_ID)
+							|| ') VALUES ('
+							|| LISTAGG(S_REF, ', ') WITHIN GROUP (ORDER BY R_COLUMN_ID)
+							|| ') RETURNING (' || T.R_PRIMARY_KEY_COLS || ') INTO ' || D_REF || ';' || chr(10) || RPAD(' ', 4)
+							|| '  end;' || chr(10) || RPAD(' ', 4)
 
-					end
+						end
+					else 
+						RPAD(' ', 4) 
+						|| 'if :new.' || MIN(T.S_COLUMN_NAME) || ' IS NOT NULL then ' || chr(10)
+						|| RPAD(' ', 8) -- find path values
+					    || 'SELECT ' || T.R_PRIMARY_KEY_COLS || ' INTO '
+						|| D_REF 
+						|| data_browser_conf.NL(8)
+						|| 'FROM (' || data_browser_conf.NL(12)
+						|| 	'SELECT ' || data_browser_conf.Enquote_Name_Required(T.R_PRIMARY_KEY_COLS) || ', SYS_CONNECT_BY_PATH(TRANSLATE(' 
+						||  data_browser_conf.Enquote_Name_Required(T.FOLDER_NAME_COLUMN_NAME) || q'[, '/', '-'), '/') PATH]' || data_browser_conf.NL(12)
+						|| 	'FROM ' || data_browser_select.FN_Table_Prefix || data_browser_conf.Enquote_Name_Required(T.R_VIEW_NAME) || data_browser_conf.NL(12)
+						|| 	'START WITH  ' || data_browser_conf.Enquote_Name_Required(T.FOLDER_PARENT_COLUMN_NAME) || ' IS NULL' || data_browser_conf.NL(12)
+						|| 	'CONNECT BY ' || data_browser_conf.Enquote_Name_Required(T.FOLDER_PARENT_COLUMN_NAME) 
+						|| ' = PRIOR ' || data_browser_conf.Enquote_Name_Required(T.R_PRIMARY_KEY_COLS) || data_browser_conf.NL(8)
+						|| ') WHERE PATH = :new.' || MIN(T.S_COLUMN_NAME)
+						|| ';' 
+						|| chr(10) || RPAD(' ', 4)
+					end 
 					|| (
 						select LISTAGG(
-							RPAD(' ', 4)
+							RPAD(' ', 2)
 							|| 'v_' || P.D_REF 
 							|| ' := '
 							|| T.D_REF || ';'
@@ -315,7 +346,7 @@ CREATE OR REPLACE PACKAGE BODY import_utl IS
 			FROM
 			(
 				SELECT /*+ USE_MERGE(S E F) */
-					S.* 
+					S.*, E.IMP_COLUMN_NAME S_COLUMN_NAME
 				FROM (
 					-- 2. level foreign keys
 					SELECT *
@@ -325,7 +356,8 @@ CREATE OR REPLACE PACKAGE BODY import_utl IS
 					SELECT *
 					FROM TABLE(import_utl.FN_Pipe_table_imp_fk1 (v_Table_Name))
 				) S
-				JOIN REFERENCES_Q E ON E.R_VIEW_NAME = S.S_VIEW_NAME AND E.REF_COLUMN_NAME = S.R_COLUMN_NAME AND E.TABLE_ALIAS = S.TABLE_ALIAS
+				JOIN REFERENCES_Q E ON E.R_VIEW_NAME = S.S_VIEW_NAME AND E.REF_COLUMN_NAME = S.R_COLUMN_NAME 
+					AND (E.TABLE_ALIAS = S.TABLE_ALIAS OR E.TABLE_ALIAS IS NULL)
 				JOIN REFERENCES_Q F ON F.R_VIEW_NAME = S.D_VIEW_NAME AND F.COLUMN_NAME = S.D_COLUMN_NAME
 			) T
 			JOIN MVDATA_BROWSER_VIEWS S ON S.VIEW_NAME = T.VIEW_NAME
@@ -355,7 +387,8 @@ CREATE OR REPLACE PACKAGE BODY import_utl IS
 				D.DEFAULTS_MISSING, T.TABLE_ALIAS, T.R_PRIMARY_KEY_COLS, T.COLUMN_NAME,
 				T.R_VIEW_NAME, T.COLUMN_ID, S.SHORT_NAME,
 				T.HAS_NULLABLE, T.HAS_SIMPLE_UNIQUE, T.U_MEMBERS, 
-				T.NULLABLE, T.D_REF, T.D_COLUMN_NAME, T.POSITION2
+				T.NULLABLE, T.D_REF, T.D_COLUMN_NAME, T.POSITION2,
+				T.IS_FILE_FOLDER_REF, T.FOLDER_PARENT_COLUMN_NAME, T.FOLDER_NAME_COLUMN_NAME
 			HAVING (MAX(T.U_CONSTRAINT_NAME) IS NOT NULL or import_utl.Get_Search_Keys_Unique = 'NO')
 			ORDER BY SUM(HAS_FOREIGN_KEY), T.U_MEMBERS, T.COLUMN_ID, T.POSITION2, T.D_REF
 		) 

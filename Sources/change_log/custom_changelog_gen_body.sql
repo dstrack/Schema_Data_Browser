@@ -8,6 +8,9 @@ DROP FUNCTION Changelog_Values;
 --
 
 CREATE OR REPLACE PACKAGE BODY custom_changelog_gen IS
+    g_Default_Data_Precision    CONSTANT PLS_INTEGER := 38;     -- Default Data Precision for number columns with unknown precision
+    g_Default_Data_Scale        CONSTANT PLS_INTEGER := 16;     -- Default Data Scale for number columns with unknown scale
+    g_Format_Max_Length         CONSTANT PLS_INTEGER := 63;     -- maximal length of a format mask 
 
 	PROCEDURE Lookup_custom_ref_Indexes (
 		p_fkey_tables OUT VARCHAR2, 
@@ -1284,15 +1287,17 @@ $END
 $IF DBMS_DB_VERSION.VERSION >= 12 $THEN
 	PRAGMA UDF;
 $END
-    	v_Data_Scale NUMBER := NVL(p_Data_Scale, 0);
-    	v_Data_Precision NUMBER := NVL(p_Data_Precision, 38) - v_Data_Scale + 1; -- one char for minus sign
+        v_Data_Scale CONSTANT PLS_INTEGER := NVL(p_Data_Scale, g_Default_Data_Scale);
+        v_Data_Precision CONSTANT PLS_INTEGER := NVL(p_Data_Precision, g_Default_Data_Precision + g_Default_Data_Scale) - v_Data_Scale + 1; -- one char for minus sign
 	BEGIN
-    	RETURN case when p_Use_Group_Separator = 'Y' then
-			SUBSTR(LPAD('0', CEIL((v_Data_Precision)/3)*4, 'G999'), -(v_Data_Precision+FLOOR((v_Data_Precision-1)/3)) )
-		else
-			LPAD('0', v_Data_Precision, '9')
-		end
-		|| case when v_Data_Scale > 0 then RPAD('D', v_Data_Scale+1, '9') end;
+    	RETURN SUBSTR(
+    		case when p_Use_Group_Separator = 'Y' then
+				SUBSTR(LPAD('0', CEIL((v_Data_Precision)/3)*4, 'G999'), -(v_Data_Precision+FLOOR((v_Data_Precision-1)/3)) )
+			else
+				LPAD('0', v_Data_Precision, '9')
+			end
+			|| case when v_Data_Scale > 0 then RPAD('D', v_Data_Scale+1, '9') end
+            , 1, g_Format_Max_Length); -- maximum length 
     END Get_Number_Format_Mask;
 
     FUNCTION Get_ChangeLogColDataType (
@@ -1314,9 +1319,12 @@ $END
 		WHEN p_DATA_TYPE = 'RAW' THEN
             'HEXTORAW(' || v_Expression || ')'
         WHEN p_DATA_TYPE = 'FLOAT' THEN
-            'TO_NUMBER(' || v_Expression || ')'
+            'FN_TO_NUMBER(' || v_Expression || ', '
+            	|| DBMS_ASSERT.ENQUOTE_LITERAL(Get_Number_Format_Mask(g_Default_Data_Precision + g_Default_Data_Scale, g_Default_Data_Scale))
+           	    || ', ' || custom_changelog.Get_ChangeLogCurrNumChars
+            	|| ')'
         WHEN p_DATA_TYPE = 'NUMBER' and p_Data_Scale > 0 THEN
-            'TO_NUMBER(' || v_Expression || ', '
+            'FN_TO_NUMBER(' || v_Expression || ', '
             	|| DBMS_ASSERT.ENQUOTE_LITERAL(Get_Number_Format_Mask(p_Data_Precision, p_Data_Scale))
            	    || ', ' || custom_changelog.Get_ChangeLogCurrNumChars
             	|| ')'

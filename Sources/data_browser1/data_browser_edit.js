@@ -184,7 +184,7 @@ function check_form_validations(p_table_name, p_data_source)
                     var element = $('div#TABLE_DATA_VIEW :input#' + field_id);
                     if (element) {
                         $(element).addClass('apex-tabular-form-error');
-                        $(element.parentNode).find('span.t-Form-error').remove();
+                        $(element).parent().find('span.t-Form-error').remove();
                         $(element).after('<span class="t-Form-error" style="white-space: normal;">'+message_text+'</span>');
                     }
                 }

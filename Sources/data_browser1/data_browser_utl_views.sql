@@ -487,6 +487,7 @@ SELECT T.TABLE_NAME,
 			and Q.TABLE_ALIAS = S.TABLE_ALIAS
 			and Q.J_VIEW_NAME = S.R_VIEW_NAME
 			and Q.J_COLUMN_NAME = S.R_COLUMN_NAME
+		WHERE Q.IS_FILE_FOLDER_REF = 'N'
         -- , (SELECT 'SALES' p_Table_name, 'NO' p_As_Of_Timestamp FROM DUAL ) PAR
 		UNION ALL
 		-- 1. level foreign keys
@@ -512,6 +513,7 @@ SELECT T.TABLE_NAME,
         LEFT OUTER JOIN MVDATA_BROWSER_F_REFS Q ON Q.VIEW_NAME = S.VIEW_NAME and Q.R_COLUMN_NAME = S.FOREIGN_KEY_COLS
         -- , (SELECT 'SALES' p_Table_name, 'NO' p_As_Of_Timestamp FROM DUAL ) PAR
 		WHERE S.R_COLUMN_ID IS NOT NULL
+		AND S.IS_FILE_FOLDER_REF = 'N'
 	) T
     JOIN MVDATA_BROWSER_VIEWS S ON S.VIEW_NAME = T.VIEW_NAME
     JOIN ( -- count of missing defaults for foreign key table

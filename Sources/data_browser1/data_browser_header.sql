@@ -426,7 +426,8 @@ IS
     	p_Comments VARCHAR2 DEFAULT NULL,					-- Comments
 	   	p_Parent_Name VARCHAR2 DEFAULT NULL,				-- Parent View or Table name. In View_Mode NAVIGATION_VIEW if set columns from the view are included in the Column list
     	p_Parent_Key_Column VARCHAR2 DEFAULT NULL,			-- Column Name with foreign key to Parent Table
-    	p_Parent_Key_Visible VARCHAR2 DEFAULT 'NO'			-- YES, NO, NULLABLE. Show foreign key column in View_Mode FORM_VIEW
+    	p_Parent_Key_Visible VARCHAR2 DEFAULT 'NO',			-- YES, NO, NULLABLE. Show foreign key column in View_Mode FORM_VIEW
+    	p_File_Page_ID NUMBER DEFAULT 31				    -- Page ID of target links to file preview in View_Mode FORM_VIEW
     ) RETURN CLOB;
 
 	---------------------------------------------------------------------------
