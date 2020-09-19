@@ -53,12 +53,12 @@ WITH MVIEW_LOGS AS (
          AS VARCHAR2(1024)) MVIEW_LOG_DEFINITION
     FROM SYS.USER_MVIEW_LOGS U
 ), TABLE_STATUS AS (
-    SELECT C.TABLE_NAME,
+    SELECT C.TABLE_NAME, 
         MAX(CASE WHEN C.COLUMN_NAME = changelog_conf.Get_ColumnWorkspace THEN
             CASE WHEN C.DATA_TYPE = 'NUMBER'
             AND C.NULLABLE = 'N'
             AND C.DEFAULT_LENGTH > 0
-            AND changelog_conf.Get_ColumnDefaultText(C.TABLE_NAME, C.COLUMN_NAME) = changelog_conf.Get_Context_WorkspaceID_Expr
+            AND RTRIM(C.DEFAULT_TEXT) = changelog_conf.Get_Context_WorkspaceID_Expr
             THEN 'READY' ELSE 'YES' END
         END) HAS_WORKSPACE_ID, -- Table has Workspace ID
         MAX(CASE WHEN C.COLUMN_NAME = changelog_conf.Get_ColumnDeletedMark THEN
@@ -66,10 +66,10 @@ WITH MVIEW_LOGS AS (
             AND C.CHAR_LENGTH = 1
             AND C.NULLABLE = 'Y'
             AND C.DEFAULT_LENGTH > 0
-            AND RTRIM(changelog_conf.Get_ColumnDefaultText(C.TABLE_NAME, C.COLUMN_NAME)) = changelog_conf.Get_DefaultDeletedMark
+            AND RTRIM(C.DEFAULT_TEXT) = changelog_conf.Get_DefaultDeletedMark
             THEN 'READY' ELSE 'YES' END
         END) HAS_DELETE_MARK -- Table has Delete_Mark
-    FROM SYS.USER_TAB_COLUMNS C
+    FROM TABLE ( changelog_conf.FN_Pipe_Table_Columns ) C
     WHERE C.COLUMN_NAME IN (changelog_conf.Get_ColumnWorkspace,  changelog_conf.Get_ColumnDeletedMark)
     GROUP BY C.TABLE_NAME
 ), TABLE_STATUS2 AS (
@@ -176,7 +176,7 @@ FROM (
         INCUDE_WORKSPACE_ID, INCLUDE_DELETE_MARK, INCLUDE_TIMESTAMP,
         SEQUENCE_OWNER, SEQUENCE_NAME
     FROM (
-        SELECT
+        SELECT  /*+ USE_MERGE(T D C) */ 
             T.TABLE_NAME, TABLESPACE_NAME, NVL(CONSTRAINT_NAME, '-') CONSTRAINT_NAME,
             CONSTRAINT_TYPE, READ_ONLY,
             VIEW_KEY_COLS, UNIQUE_KEY_COLS, KEY_COLS_COUNT, PREFIX_LENGTH, INDEX_OWNER, INDEX_NAME,
@@ -185,16 +185,8 @@ FROM (
             DEFERRABLE, DEFERRED, STATUS, VALIDATED,
             IOT_TYPE, AVG_ROW_LEN, SHORT_NAME, SHORT_NAME2, KEY_CLAUSE,
             '_V' || CONSTRAINT_EXT CONSTRAINT_EXT,
-            case when CONSTRAINT_TYPE = 'P'
-                OR CONSTRAINT_TYPE = 'U' AND NOT EXISTS (
-                    SELECT 'X' -- keys column is foreign key
-                    FROM SYS.USER_CONS_COLUMNS B
-                    JOIN SYS.USER_TAB_COLUMNS C ON B.TABLE_NAME = C.TABLE_NAME AND B.COLUMN_NAME = C.COLUMN_NAME
-                    WHERE B.TABLE_NAME = T.TABLE_NAME
-                    AND B.CONSTRAINT_NAME = T.CONSTRAINT_NAME
-                    AND C.NULLABLE = 'Y'
-                    AND C.COLUMN_NAME != changelog_conf.Get_ColumnDeletedMark
-            ) then 'YES' else 'NO' end  IS_CANDIDATE_KEY,
+            case when CONSTRAINT_TYPE = 'P' OR (CONSTRAINT_TYPE = 'U' AND HAS_NULLABLE = 0)
+                then 'YES' else 'NO' end  IS_CANDIDATE_KEY,
             case when REFERENCES_COUNT > 0 then 'YES' else 'NO' end  IS_REFERENCED_KEY,
             REFERENCES_COUNT,
             NVL(C.HAS_WORKSPACE_ID, 'NO') HAS_WORKSPACE_ID, -- Table has Workspace ID

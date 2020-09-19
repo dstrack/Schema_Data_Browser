@@ -396,7 +396,8 @@ IS
 		p_Column_Name 		VARCHAR2,
 		p_Default_Value		VARCHAR2 DEFAULT NULL,
 		p_indent 			PLS_INTEGER DEFAULT 4,
-		p_Convert_Expr		VARCHAR2 DEFAULT NULL
+		p_Convert_Expr		VARCHAR2 DEFAULT NULL,
+		p_Is_Virtual_Column VARCHAR2 -- Y/N 
     );
 
     FUNCTION Get_Collection_Query (
@@ -964,6 +965,18 @@ IS
 
 	FUNCTION Get_Default_Select_Columns (
 		p_Table_Name VARCHAR2,
+    	p_Unique_Key_Column VARCHAR2 DEFAULT NULL,
+		p_View_Mode IN VARCHAR2 DEFAULT 'FORM_VIEW',	-- FORM_VIEW, RECORD_VIEW, NAVIGATION_VIEW, NESTED_VIEW, IMPORT_VIEW, EXPORT_VIEW
+		p_Join_Options VARCHAR2 DEFAULT NULL,
+		p_Edit_Mode VARCHAR2 DEFAULT 'NO',				-- YES, NO
+		p_Parent_Name VARCHAR2 DEFAULT NULL,
+		p_Parent_Key_Column VARCHAR2 DEFAULT NULL,			-- Column Name with foreign key to Parent Table
+		p_Parent_Key_Visible VARCHAR2 DEFAULT 'NO'			-- YES, NO, NULLABLE. Show foreign key column in View_Mode FORM_VIEW
+	) RETURN CLOB;
+
+	FUNCTION Filter_Select_Columns (
+		p_Table_Name VARCHAR2,
+		p_Select_Columns VARCHAR2,
     	p_Unique_Key_Column VARCHAR2 DEFAULT NULL,
 		p_View_Mode IN VARCHAR2 DEFAULT 'FORM_VIEW',	-- FORM_VIEW, RECORD_VIEW, NAVIGATION_VIEW, NESTED_VIEW, IMPORT_VIEW, EXPORT_VIEW
 		p_Join_Options VARCHAR2 DEFAULT NULL,

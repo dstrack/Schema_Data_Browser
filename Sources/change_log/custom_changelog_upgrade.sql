@@ -30,7 +30,7 @@ $END
 	from user_tab_columns 
 	where DATA_TYPE = 'VARCHAR2'
 	and DEFAULT_LENGTH > 10
-	and data_browser_conf.Get_ColumnDefaultText(TABLE_NAME, SYS_CONTEXT('USERENV', 'CURRENT_SCHEMA'), COLUMN_NAME) LIKE q'[%SYS_CONTEXT('CUSTOM_CTX', 'USER_NAME')%]';
+	and changelog_conf.Get_ColumnDefaultText(TABLE_NAME, COLUMN_NAME) LIKE q'[%SYS_CONTEXT('CUSTOM_CTX', 'USER_NAME')%]';
 	TYPE stat_tbl IS TABLE OF keys_cur%ROWTYPE;
 	v_stat_tbl stat_tbl;
 begin 

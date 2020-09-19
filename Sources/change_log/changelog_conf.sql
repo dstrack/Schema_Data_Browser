@@ -72,6 +72,13 @@ IS
     g_Use_ORDIMAGE     CONSTANT BOOLEAN := FALSE;
     g_debug         NUMBER          := 0;
 
+	TYPE rec_references_count IS RECORD (
+		R_CONSTRAINT_NAME             VARCHAR2(128),
+		R_OWNER                   	  VARCHAR2(128), 
+		CNT		                      NUMBER
+	);
+	TYPE tab_references_count IS TABLE OF rec_references_count;
+
 	TYPE rec_insert_triggers IS RECORD (
 		TABLE_NAME                    VARCHAR2(128), 
 		TABLE_OWNER                   VARCHAR2(128), 
@@ -159,6 +166,7 @@ IS
 		VIEW_KEY_COLS				  VARCHAR2(512),
 		UNIQUE_KEY_COLS				  VARCHAR2(512),
 		KEY_COLS_COUNT				  NUMBER,
+		HAS_NULLABLE				  NUMBER,
 		INDEX_OWNER                   VARCHAR2(128), 
 		INDEX_NAME                    VARCHAR2(128), 
 		PREFIX_LENGTH				  NUMBER       , 
@@ -194,6 +202,12 @@ IS
 	);
 	TYPE tab_base_views IS TABLE OF rec_base_views;
 
+	TYPE rec_Changelog_fkeys IS RECORD (
+		TABLE_NAME                    VARCHAR2(128), 
+		FOREIGN_KEY_COL               VARCHAR2(128)
+	);
+	TYPE tab_Changelog_fkeys IS TABLE OF rec_Changelog_fkeys;
+
 	TYPE rec_table_columns IS RECORD (
 		TABLE_NAME              	VARCHAR2(128), 
 		COLUMN_ID					NUMBER,
@@ -208,8 +222,13 @@ IS
 	);
 	TYPE tab_table_columns IS TABLE OF rec_table_columns;
 
+	g_fetch_limit CONSTANT PLS_INTEGER := 100;
+
 	PROCEDURE Save_Config_Defaults;
 	PROCEDURE Load_Config;
+
+	FUNCTION FN_Pipe_References_Count
+	RETURN changelog_conf.tab_references_count PIPELINED;
 
 	FUNCTION FN_Pipe_insert_triggers (
 		p_Table_Name VARCHAR2 DEFAULT NULL
@@ -240,6 +259,9 @@ IS
 
 	FUNCTION FN_Pipe_Base_Views
 	RETURN changelog_conf.tab_base_views PIPELINED;
+
+	FUNCTION FN_Pipe_Changelog_fkeys
+	RETURN changelog_conf.tab_Changelog_fkeys PIPELINED;
 
 	FUNCTION FN_Pipe_Table_Columns
 	RETURN changelog_conf.tab_table_columns PIPELINED;
@@ -700,6 +722,58 @@ IS
     EXCEPTION WHEN NO_DATA_FOUND THEN
     	NULL;
     END;
+
+	FUNCTION FN_Pipe_References_Count
+	RETURN changelog_conf.tab_references_count PIPELINED
+	IS
+		PRAGMA UDF;
+		CURSOR all_refs_cur
+		IS 	
+			SELECT /*+ RESULT_CACHE */
+				A.R_CONSTRAINT_NAME, 
+				A.R_OWNER,
+				COUNT(*) CNT
+			FROM SYS.ALL_CONSTRAINTS A 
+			WHERE A.CONSTRAINT_TYPE = 'R' 
+			GROUP BY A.R_CONSTRAINT_NAME, A.R_OWNER;
+
+		CURSOR user_refs_cur
+		IS 	
+			SELECT /*+ RESULT_CACHE */
+				A.R_CONSTRAINT_NAME, 
+				A.R_OWNER,
+				COUNT(*) CNT -- key is referenced in a foreign key clause
+			FROM SYS.USER_CONSTRAINTS A 
+			WHERE A.CONSTRAINT_TYPE = 'R' 
+			AND A.R_OWNER = SYS_CONTEXT('USERENV', 'CURRENT_SCHEMA') 
+			GROUP BY A.R_CONSTRAINT_NAME, A.R_OWNER;
+
+		v_in_rows tab_references_count;
+	BEGIN
+		if g_Include_External_Objects = 'YES' then 
+			OPEN all_refs_cur;
+			LOOP
+				FETCH all_refs_cur
+				BULK COLLECT INTO v_in_rows LIMIT g_fetch_limit;
+				EXIT WHEN v_in_rows.COUNT = 0;
+				FOR ind IN 1 .. v_in_rows.COUNT LOOP
+					pipe row (v_in_rows(ind));
+				END LOOP;
+			END LOOP;
+			CLOSE all_refs_cur;  
+		else
+			OPEN user_refs_cur;
+			LOOP
+				FETCH user_refs_cur
+				BULK COLLECT INTO v_in_rows LIMIT g_fetch_limit;
+				EXIT WHEN v_in_rows.COUNT = 0;
+				FOR ind IN 1 .. v_in_rows.COUNT LOOP
+					pipe row (v_in_rows(ind));
+				END LOOP;
+			END LOOP;
+			CLOSE user_refs_cur;  
+		end if;
+	END FN_Pipe_References_Count;
 
 	FUNCTION FN_Pipe_insert_triggers (
 		p_Table_Name VARCHAR2 DEFAULT NULL
@@ -1183,7 +1257,8 @@ IS
         CURSOR keys_cur
         IS
             SELECT T.TABLE_NAME, T.TABLESPACE_NAME, T.CONSTRAINT_NAME, T.CONSTRAINT_TYPE, 
-                T.VIEW_KEY_COLS, T.UNIQUE_KEY_COLS, T.KEY_COLS_COUNT, T.INDEX_OWNER, T.INDEX_NAME, I.PREFIX_LENGTH,
+                T.VIEW_KEY_COLS, T.UNIQUE_KEY_COLS, T.KEY_COLS_COUNT, T.HAS_NULLABLE, 
+                T.INDEX_OWNER, T.INDEX_NAME, I.PREFIX_LENGTH,
                 T.DEFERRABLE, T.DEFERRED, T.STATUS, T.VALIDATED, T.IOT_TYPE, T.AVG_ROW_LEN,
                 T.BASE_NAME,
                 RTRIM(SUBSTR(BASE_NAME, 1, 23), '_' || RUN_NO) || RUN_NO SHORT_NAME,
@@ -1193,17 +1268,12 @@ IS
                 T.KEY_HAS_WORKSPACE_ID, T.KEY_HAS_DELETE_MARK, T.KEY_HAS_NEXTVAL, T.KEY_HAS_SYS_GUID, 
                 T.HAS_SCALAR_VIEW_KEY, T.HAS_SERIAL_VIEW_KEY, T.SEQUENCE_OWNER, T.SEQUENCE_NAME, 
                 T.READ_ONLY,
-                (
-					SELECT COUNT(*) -- key is referenced in a foreign key clause
-					FROM SYS.USER_CONSTRAINTS A
-					WHERE A.R_CONSTRAINT_NAME = T.CONSTRAINT_NAME
-					AND A.CONSTRAINT_TYPE = 'R'
-					AND T.CONSTRAINT_TYPE IN ('P', 'U')
-				) REFERENCES_COUNT
+                NVL(R.CNT, 0) REFERENCES_COUNT
             FROM (
                 SELECT DISTINCT
                     A.TABLE_NAME, A.TABLESPACE_NAME, B.CONSTRAINT_NAME, B.CONSTRAINT_TYPE, A.READ_ONLY,
-                    B.VIEW_KEY_COLS, B.UNIQUE_KEY_COLS, B.KEY_COLS_COUNT, B.INDEX_OWNER, B.INDEX_NAME,
+                    B.VIEW_KEY_COLS, B.UNIQUE_KEY_COLS, B.KEY_COLS_COUNT, B.HAS_NULLABLE, 
+                    B.INDEX_OWNER, B.INDEX_NAME,
                     B.DEFERRABLE, B.DEFERRED,
                     DECODE(B.STATUS, 'ENABLED', 'ENABLE', 'DISABLED', 'DISABLE') STATUS,
                     DECODE(B.VALIDATED, 'VALIDATED', 'VALIDATE', 'NOT VALIDATED', 'NOVALIDATE') VALIDATED,
@@ -1235,7 +1305,9 @@ IS
             ) T
 			LEFT OUTER JOIN SYS.USER_INDEXES I 
 				ON T.INDEX_NAME = I.INDEX_NAME 
-				AND T.TABLE_NAME = I.TABLE_NAME;
+				AND T.TABLE_NAME = I.TABLE_NAME
+			LEFT OUTER JOIN TABLE (changelog_conf.FN_Pipe_References_Count) R 
+				ON T.CONSTRAINT_NAME = R.R_CONSTRAINT_NAME AND R.R_OWNER = SYS_CONTEXT('USERENV', 'CURRENT_SCHEMA');
         v_in_rows tab_alter_unique_keys;
 	BEGIN
 		OPEN keys_cur;
@@ -1261,7 +1333,8 @@ IS
 	$END
         CURSOR user_keys_cur
         IS
-		SELECT V.VIEW_NAME, V.TABLE_NAME,
+		SELECT /*+ RESULT_CACHE */
+			V.VIEW_NAME, V.TABLE_NAME,
 			NULLIF(V.RUN_NO, 1) RUN_NO,
 			RTRIM(SUBSTR(V.VIEW_NAME, 1, 23), '_') || NULLIF(V.RUN_NO, 1) SHORT_NAME
 		FROM (
@@ -1307,6 +1380,44 @@ IS
 		end if;
 		raise;
 	END FN_Pipe_Base_Views;
+
+
+	FUNCTION FN_Pipe_Changelog_fkeys
+	RETURN changelog_conf.tab_Changelog_fkeys PIPELINED
+	IS
+	$IF DBMS_DB_VERSION.VERSION >= 12 $THEN
+		PRAGMA UDF;
+	$END
+        CURSOR user_keys_cur
+        IS
+		SELECT DISTINCT A.TABLE_NAME, 
+			FIRST_VALUE(CAST(B.COLUMN_NAME AS VARCHAR2(128)) ) OVER (PARTITION BY A.TABLE_NAME ORDER BY Q.RN, A.DELETE_RULE, A.CONSTRAINT_NAME, B.POSITION DESC) FOREIGN_KEY_COL
+		  FROM USER_CONSTRAINTS A,
+			USER_CONS_COLUMNS B,     -- column of foreign key source
+			USER_CONS_COLUMNS D,    -- column of foreign key target
+			(SELECT N.COLUMN_VALUE TABLE_NAME, ROWNUM RN FROM TABLE( changelog_conf.in_list(changelog_conf.Get_ChangeLogFKeyTables, ',') ) N) Q
+		  WHERE A.CONSTRAINT_NAME = B.CONSTRAINT_NAME 
+		  AND A.R_CONSTRAINT_NAME = D.CONSTRAINT_NAME
+		  AND changelog_conf.Get_BaseName(D.TABLE_NAME) = Q.TABLE_NAME
+		  AND A.CONSTRAINT_TYPE = 'R'
+		  AND B.COLUMN_NAME <> changelog_conf.Get_ColumnWorkspace
+		  AND B.TABLE_NAME <> D.TABLE_NAME; -- not recursive connection
+
+        v_in_rows tab_Changelog_fkeys;
+	BEGIN
+		OPEN user_keys_cur;
+		FETCH user_keys_cur BULK COLLECT INTO v_in_rows;
+		CLOSE user_keys_cur;  
+		FOR ind IN 1 .. v_in_rows.COUNT LOOP
+			pipe row (v_in_rows(ind));
+		END LOOP;
+	exception
+	  when others then
+	    if user_keys_cur%ISOPEN then
+			CLOSE user_keys_cur;
+		end if;
+		raise;
+	END FN_Pipe_Changelog_fkeys;
 
 
 	FUNCTION FN_Pipe_Table_Columns

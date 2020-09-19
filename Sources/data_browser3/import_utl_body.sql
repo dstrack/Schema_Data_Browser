@@ -1410,7 +1410,7 @@ CREATE OR REPLACE PACKAGE BODY import_utl IS
         end loop;
 
 		v_Str := chr(10) || rpad(' ', 4)
-		|| 'if INSERTING OR :new.LINK_ID$ IS NULL then ' || chr(10)
+		|| 'if INSERTING then ' || chr(10)
 		|| v_Default_Stat || rpad(' ', 8)
 		|| 'INSERT INTO ' || v_Table_Name|| ' VALUES v_row;' || chr(10) || rpad(' ', 4)
 		|| 'else ' || chr(10) || rpad(' ', 8)
@@ -1447,6 +1447,7 @@ CREATE OR REPLACE PACKAGE BODY import_utl IS
 		for c_cur IN (
 			SELECT TABLE_NAME, VIEW_NAME
 			FROM MVDATA_BROWSER_VIEWS
+			WHERE READ_ONLY = 'NO'
 			ORDER BY TABLE_NAME
 		) loop
 			v_Stat := import_utl.Get_Imp_Table_View (

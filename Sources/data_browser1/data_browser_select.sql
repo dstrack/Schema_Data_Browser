@@ -280,7 +280,7 @@ is
 				and T.COLUMN_NAME = S.FILE_CONTENT_COLUMN_NAME
 				and T.IS_BLOB = 'Y' then
 					'FILE_BROWSER'
-				when T.IS_PRIMARY_KEY = 'Y' 		-- primary key shouldn´t be input field
+				when T.IS_SEARCH_KEY = 'Y' 		-- primary key shouldn´t be input field
 				and S.HAS_SCALAR_KEY = 'YES'	-- primary key is managed automatically
 				and T.IS_DISPLAYED_KEY_COLUMN = 'N' 
 				and E.COLUMN_NAME IS NULL then	-- In View Mode FORM_VIEW foreign keys are popup fields
@@ -947,6 +947,9 @@ is
 					end FORMAT_MASK,
 					null LOV_QUERY,
 					case
+					when T.COLUMN_NAME = S.FILE_CONTENT_COLUMN_NAME
+					and T.IS_BLOB = 'Y' then
+						'FILE_BROWSER'
 					when T.IS_SEARCH_KEY = 'Y' 			-- primary key shouldn´t be a input field
 					and S.HAS_SCALAR_KEY = 'YES'	-- primary key is managed automatically
 					and T.IS_DISPLAYED_KEY_COLUMN = 'N' then -- field is invisible
@@ -964,6 +967,8 @@ is
 					or (T.IS_AUDIT_COLUMN = 'Y' and T.HAS_DEFAULT = 'Y')
 					or (T.IS_READONLY = 'Y' and T.IS_CHECKED = 'N') then
 						'DISPLAY_ONLY'
+					when T.IS_READONLY = 'Y' then
+						'DISPLAY_AND_SAVE'
 					else
 						data_browser_conf.Get_Column_Expr_Type(T.COLUMN_NAME, T.DATA_TYPE, T.CHAR_LENGTH, T.IS_READONLY)
 					end COLUMN_EXPR_TYPE,
@@ -1128,9 +1133,9 @@ is
 							p_Use_Group_Separator => case when v_Data_Format = 'FORM' then 'Y' else 'N' end)
 					end FORMAT_MASK,
 					'' LOV_QUERY,
-					case 
-					when E.COLUMN_NAME IS NOT NULL  -- In View Mode Import/Export the foreign key columns are hidden.
-						 then 'HIDDEN'
+					case when E.COLUMN_NAME IS NOT NULL  -- In View Mode Import/Export the foreign key columns are hidden.
+					and data_browser_select.FN_List_Offest(v_Select_Columns, S.IMP_COLUMN_NAME) = 0 -- not visible
+						then 'HIDDEN'
 					else
 						'POPUP_FROM_LOV' -- text field with popup list
 					end COLUMN_EXPR_TYPE,
@@ -1278,8 +1283,9 @@ is
 							p_Use_Group_Separator => case when v_Data_Format = 'FORM' then 'Y' else 'N' end)
 					end FORMAT_MASK, 
 					'' LOV_QUERY,
-					case when E.COLUMN_NAME IS NOT NULL then -- In View Mode Import/Export the foreign key columns are hidden.
-						'HIDDEN'
+					case when E.COLUMN_NAME IS NOT NULL -- In View Mode Import/Export the foreign key columns are hidden.
+					and data_browser_select.FN_List_Offest(v_Select_Columns, S.IMP_COLUMN_NAME) = 0 -- not visible
+						then 'HIDDEN'
 					else 
 						'DISPLAY_ONLY'
 					end COLUMN_EXPR_TYPE,
@@ -1574,7 +1580,7 @@ is
 		FROM (
 			SELECT F.VIEW_NAME, F.TABLE_NAME, TC.COLUMN_NAME, TC.COLUMN_ID, TC.NULLABLE,
 				F.R_PRIMARY_KEY_COLS, F.R_CONSTRAINT_TYPE,
-				R_VIEW_NAME, R_TABLE_NAME,
+				F.R_VIEW_NAME, F.R_TABLE_NAME,
 				T.COLUMN_NAME R_COLUMN_NAME,
 				T.COLUMN_ID*10000 R_COLUMN_ID, 
 				T.COLUMN_ID*10000+NVL(TC.COLUMN_ID,0)*100 POSITION,
@@ -1676,9 +1682,7 @@ is
 	
 	FUNCTION FN_List_Offest(p_Select_Columns VARCHAR2, p_Column_Name VARCHAR2) return NUMBER 
 	is 
-$IF DBMS_DB_VERSION.VERSION >= 12 $THEN
 	PRAGMA UDF;
-$END
 	begin 
 		return INSTR(FN_Terminate_List(p_Select_Columns), FN_Terminate_List(p_Column_Name));
 	end FN_List_Offest;
@@ -1688,11 +1692,9 @@ $END
     )
     RETURN INTEGER DETERMINISTIC	-- 0, 1
     IS
-$IF DBMS_DB_VERSION.VERSION >= 12 $THEN
 	PRAGMA UDF;
-$END
 	BEGIN
-		RETURN case when p_Column_Expr_Type IN ('HIDDEN', 'DISPLAY_ONLY', 'LINK', 'LINK_LIST', 'LINK_ID', 'ROW_SELECTOR', 'FILE_BROWSER') 
+		RETURN case when p_Column_Expr_Type IN ('HIDDEN', 'LINK', 'LINK_LIST', 'LINK_ID', 'ROW_SELECTOR') 
 			then 0 else 1 
 		end;
 	END Field_Has_CInput_ID;
@@ -1705,9 +1707,7 @@ $END
     )
     RETURN INTEGER DETERMINISTIC	-- 0, 1
     IS
-$IF DBMS_DB_VERSION.VERSION >= 12 $THEN
 	PRAGMA UDF;
-$END
 	BEGIN
 		RETURN case when p_Column_Expr_Type = 'HIDDEN' and p_Data_Type != 'NUMBER'
 				and (p_Is_Search_Key = 'Y' or p_Is_Foreign_Key = 'Y')
@@ -1722,9 +1722,7 @@ $END
     )
     RETURN INTEGER DETERMINISTIC	-- 0, 1
     IS
-$IF DBMS_DB_VERSION.VERSION >= 12 $THEN
 	PRAGMA UDF;
-$END
 	BEGIN
 		RETURN case when p_Column_Expr_Type = 'HIDDEN' and p_Data_Type = 'NUMBER'
 				and (p_Is_Search_Key = 'Y' or p_Is_Foreign_Key = 'Y')
@@ -1769,9 +1767,7 @@ $END
 		p_R_Column_Name VARCHAR2
 	) RETURN VARCHAR2 DETERMINISTIC
 	is
-$IF DBMS_DB_VERSION.VERSION >= 12 $THEN
 	PRAGMA UDF;
-$END
 		v_Result VARCHAR2(10);
 	begin
 		v_Result := case when (
@@ -1888,9 +1884,7 @@ $END
 		p_Is_Searchable_Ref VARCHAR2 DEFAULT 'N'
 	) RETURN VARCHAR2 DETERMINISTIC
 	IS
-$IF DBMS_DB_VERSION.VERSION >= 12 $THEN
 	PRAGMA UDF;
-$END
 	BEGIN
 		return case when p_Is_Searchable_Ref = 'Y' 
 		and p_Column_Expr_Type IN ('TEXT', 'TEXTAREA', 'TEXT_EDITOR', 'NUMBER', 'DATE_POPUP', 
@@ -1905,9 +1899,7 @@ $END
 		p_Column_Expr_Type VARCHAR2
 	) RETURN VARCHAR2
 	IS
-$IF DBMS_DB_VERSION.VERSION >= 12 $THEN
 	PRAGMA UDF;
-$END
 	BEGIN
 		return case when p_Column_Expr_Type NOT IN ('HIDDEN', 'LINK_ID', 'LINK_LIST', 'ROW_SELECTOR', 'FILE_BROWSER', 'TEXT_EDITOR' )
 			then 'YES' else 'NO'
@@ -1951,9 +1943,7 @@ $END
 		p_Is_Subtotal VARCHAR2 DEFAULT NULL
 	) RETURN VARCHAR2
 	is
-$IF DBMS_DB_VERSION.VERSION >= 12 $THEN
 	PRAGMA UDF;
-$END
 	begin
 		return case when p_Data_Format IN ('FORM', 'QUERY') then
 			'FN_Navigation_Counter('
@@ -1986,9 +1976,7 @@ $END
 		p_Is_Subtotal VARCHAR2 DEFAULT NULL
 	) RETURN VARCHAR2
 	is
-$IF DBMS_DB_VERSION.VERSION >= 12 $THEN
 	PRAGMA UDF;
-$END
 	begin
 		return case when p_Data_Format IN ('FORM', 'QUERY') then
 			'FN_Nested_Link('
@@ -2026,9 +2014,7 @@ $END
         p_View_Mode VARCHAR2 DEFAULT 'FORM_VIEW'
 	) RETURN VARCHAR2
 	is
-$IF DBMS_DB_VERSION.VERSION >= 12 $THEN
 	PRAGMA UDF;
-$END
 	begin
 		return case when p_Data_Format IN ('FORM', 'QUERY', 'HTML') then
 			'FN_Detail_Link('
@@ -2059,9 +2045,7 @@ $END
 		p_Display_Key_Column VARCHAR2 DEFAULT 'N'
 	) RETURN VARCHAR2 DETERMINISTIC
 	is
-$IF DBMS_DB_VERSION.VERSION >= 12 $THEN
 	PRAGMA UDF;
-$END
 		v_Result VARCHAR2(512);
 	begin
 		v_Result := case when p_Is_Required = 'Y'
@@ -2086,9 +2070,7 @@ $END
 		p_Comments VARCHAR2 DEFAULT NULL
 	) RETURN VARCHAR2
 	is
-$IF DBMS_DB_VERSION.VERSION >= 12 $THEN
 	PRAGMA UDF;
-$END
 		v_title VARCHAR2(4000);
 	begin
 		v_title := apex_lang.lang('Field Infos') || ' ' || htf.escape_sc(p_Column_Header);
@@ -2115,9 +2097,7 @@ $END
 
     FUNCTION Current_Job_ID RETURN NUMBER
     IS
-$IF DBMS_DB_VERSION.VERSION >= 12 $THEN
 	PRAGMA UDF;
-$END
     BEGIN return g_Export_Job_ID; END;
 
     FUNCTION Get_First_ID_Expression (	-- row reference in select list
@@ -2171,9 +2151,7 @@ $END
 		p_Search_Item VARCHAR2
 	)  RETURN VARCHAR2
 	IS
-$IF DBMS_DB_VERSION.VERSION >= 12 $THEN
 	PRAGMA UDF;
-$END
 	BEGIN
 		RETURN case when p_Search_Item IS NOT NULL
 			and data_browser_select.FN_Is_Searchable_Column(p_Column_Expr_Type, p_Is_Searchable_Ref) = 'YES'
@@ -2234,9 +2212,7 @@ $END
 		p_Column_Name VARCHAR2
 	) RETURN VARCHAR2
 	IS
-$IF DBMS_DB_VERSION.VERSION >= 12 $THEN
 	PRAGMA UDF;
-$END
 	BEGIN
 		RETURN case when p_Data_Format = 'FORM' then
 			data_browser_select.Get_Apex_Item_Hidden (
@@ -2271,9 +2247,7 @@ $END
 		p_Data_Type VARCHAR2
 	)  RETURN VARCHAR2
 	IS
-$IF DBMS_DB_VERSION.VERSION >= 12 $THEN
 	PRAGMA UDF;
-$END
 		v_Column_Expr VARCHAR2(4000);
 	BEGIN
 		v_Column_Expr := REPLACE(p_Column_Expr, 'A.'||p_Column_Name , 'NVL2(' || p_Key_Column || ', A.' || p_Column_Name || ', B.' || p_Column_Name || ')');
@@ -2305,9 +2279,7 @@ $END
         p_Indent INTEGER DEFAULT 4
     ) RETURN VARCHAR2
 	IS
-$IF DBMS_DB_VERSION.VERSION >= 12 $THEN
 	PRAGMA UDF;
-$END
 		v_Column_List VARCHAR2(4000);
 		v_From_Clause VARCHAR2(4000);
 		v_Column_Expr VARCHAR2(4000);
@@ -2571,9 +2543,7 @@ $END
         p_Indent INTEGER DEFAULT 4
     ) RETURN VARCHAR2
 	is
-$IF DBMS_DB_VERSION.VERSION >= 12 $THEN
 	PRAGMA UDF;
-$END
 	begin
 		$IF data_browser_conf.g_debug $THEN
 			apex_debug.message(
@@ -2685,9 +2655,7 @@ $END
         p_Level INTEGER DEFAULT 1
     ) RETURN VARCHAR2
 	is
-$IF DBMS_DB_VERSION.VERSION >= 12 $THEN
 	PRAGMA UDF;
-$END
         v_Inner_Condition	VARCHAR2(32767);
         v_Query				VARCHAR2(32767);
  	begin
@@ -3087,9 +3055,7 @@ $END
         p_Level IN NUMBER DEFAULT 1
     ) RETURN VARCHAR2
 	IS
-$IF DBMS_DB_VERSION.VERSION >= 12 $THEN
 	PRAGMA UDF;
-$END
 		v_Column_List VARCHAR2(4000);
 		v_From_Clause VARCHAR2(4000);
 		v_Column_Expr VARCHAR2(4000);
@@ -3313,9 +3279,7 @@ $END
     	p_Order_Direction VARCHAR2 DEFAULT 'ASC'		-- Example : 'ASC' or 'ASC NULLS LAST' or 'DESC' or 'DESC NULLS LAST'
 	) RETURN VARCHAR2
 	is
-$IF DBMS_DB_VERSION.VERSION >= 12 $THEN
 	PRAGMA UDF;
-$END
 		v_Order_By VARCHAR2(200);
 		v_Order_Dir VARCHAR2(200);
 	begin
@@ -3502,7 +3466,8 @@ $END
 		p_Column_Name 		VARCHAR2,
 		p_Default_Value		VARCHAR2 DEFAULT NULL,
 		p_indent 			PLS_INTEGER DEFAULT 4,
-		p_Convert_Expr		VARCHAR2 DEFAULT NULL
+		p_Convert_Expr		VARCHAR2 DEFAULT NULL,
+		p_Is_Virtual_Column VARCHAR2 -- Y/N 
     )
     IS
         v_Delimiter2	VARCHAR2(50);
@@ -3514,7 +3479,7 @@ $END
 			end if;
 			v_Delimiter2 := case when LENGTH(p_Map_Column_List) - INSTR(p_Map_Column_List, chr(10), -1) > 70 then ', ' || NL(p_indent+4)  else ', ' end;
 			v_Expression := case when p_Convert_Expr IS NOT NULL then p_Convert_Expr else 'A.' || p_Input_ID end;
-			if p_Default_Value IS NOT NULL then 
+			if p_Default_Value IS NOT NULL and p_Is_Virtual_Column = 'N' then 
 				v_Expression := 'NVL(' || v_Expression || ', ' || p_Default_Value || ')';
 			end if;
 			if p_Data_Type IN ('CLOB', 'NCLOB') then 
@@ -3688,7 +3653,8 @@ $END
 				v_Column_Expr := g_Describe_Cols_tab(ind).COLUMN_EXPR;
 				if p_Data_Source = 'TABLE' then
 					if p_Data_Format IN ('FORM', 'HTML')
-					and g_Describe_Cols_tab(ind).COLUMN_EXPR_TYPE = 'TEXT' then
+					and g_Describe_Cols_tab(ind).COLUMN_EXPR_TYPE IN ('TEXT', 'POPUP_FROM_LOV', 'DISPLAY_AND_SAVE') 
+					and p_Edit_Mode = 'NO' then
 						v_Column_Expr := 'APEX_ESCAPE.HTML(' || v_Column_Expr || ')';	-- bugfix for XSS vulnerability reported by joel.kallman@oracle.com on 11.06.2020
 					end if;
 
@@ -3778,13 +3744,14 @@ $END
 							p_Data_Type => g_Describe_Cols_tab(ind).DATA_TYPE,
 							p_Input_ID => g_Describe_Cols_tab(ind).INPUT_ID,
 							p_Column_Name => g_Describe_Cols_tab(ind).COLUMN_NAME,
+							p_indent => 4,
 							p_Convert_Expr => case 
 								when g_Describe_Cols_tab(ind).IS_NUMBER_YES_NO_COLUMN = 'Y' 
 									then data_browser_conf.Lookup_Yes_No_Call('NUMBER', 'A.' || g_Describe_Cols_tab(ind).INPUT_ID)
 								when g_Describe_Cols_tab(ind).IS_CHAR_YES_NO_COLUMN = 'Y' 
 									then data_browser_conf.Lookup_Yes_No_Call('CHAR', 'A.' || g_Describe_Cols_tab(ind).INPUT_ID)
 							end,
-							p_indent => 4
+							p_Is_Virtual_Column => g_Describe_Cols_tab(ind).IS_VIRTUAL_COLUMN
 						);
 						if g_Describe_Cols_tab(ind).COLUMN_NAME = v_Unique_Key_Column then 
 							v_Map_Unique_Key := g_Describe_Cols_tab(ind).INPUT_ID;
@@ -4030,7 +3997,8 @@ $END
 				v_Column_Expr := g_Describe_Cols_tab(ind).COLUMN_EXPR;
 				if p_Data_Source = 'TABLE' 
 				and p_Data_Format IN ('FORM', 'HTML')
-				and g_Describe_Cols_tab(ind).COLUMN_EXPR_TYPE = 'TEXT' then
+				and g_Describe_Cols_tab(ind).COLUMN_EXPR_TYPE IN ('TEXT', 'POPUP_FROM_LOV', 'DISPLAY_AND_SAVE') 
+				and p_Edit_Mode = 'NO' then
 					v_Column_Expr := 'APEX_ESCAPE.HTML(' || v_Column_Expr || ')';	-- bugfix for XSS vulnerability reported by joel.kallman@oracle.com on 11.06.2020
 				end if;
         	  	-- insert highlight search expression in Search mode
@@ -4480,9 +4448,7 @@ $END
     	p_File_Page_ID NUMBER DEFAULT 31				    -- Page ID of target links to file preview in View_Mode FORM_VIEW
 	) RETURN data_browser_conf.tab_record_view PIPELINED
     IS
-$IF DBMS_DB_VERSION.VERSION >= 12 $THEN
 	PRAGMA UDF;
-$END
         v_Table_Name 	MVDATA_BROWSER_VIEWS.VIEW_NAME%TYPE := UPPER(p_Table_Name);
     	v_Describe_Cols_md5 VARCHAR2(300);
         v_is_cached			VARCHAR2(10);

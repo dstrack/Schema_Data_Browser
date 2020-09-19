@@ -979,7 +979,7 @@ $END
 							|| 'p_Context => ' || p_Context || ',' || chr(10)
 							|| 'p_Completion_Procedure => q''{' || v_Completion_Procedure || '}''' || chr(10)
 							|| ');' || chr(10)
-							|| 'data_browser_conf.Refresh_Tree_View(p_context => '|| p_Context
+							|| 'data_browser_jobs.Refresh_Tree_View(p_context => '|| p_Context
 							|| ');' || chr(10) || 
 							'end;';
 						$IF data_browser_conf.g_debug $THEN

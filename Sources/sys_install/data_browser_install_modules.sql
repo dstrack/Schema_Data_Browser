@@ -31,7 +31,7 @@ prompt ============================================================
 @@data_browser1/data_browser_trees.sql
 @@data_browser1/data_browser_header.sql
 @@data_browser1/data_browser_edit_functions.sql
-@@data_browser1/data_browser_edit_wrap.sql
+@@data_browser1/data_browser_edit.sql
 @@data_browser1/data_browser_joins.sql
 @@data_browser1/data_browser_select_functions.sql
 @@data_browser1/data_browser_select.sql

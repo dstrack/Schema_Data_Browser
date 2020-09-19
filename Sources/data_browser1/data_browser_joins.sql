@@ -36,7 +36,7 @@ is
 				COLUMN_PREFIX,
 				CAST(TABLE_ALIAS AS VARCHAR2(10)) TABLE_ALIAS
 			FROM (
-				SELECT VIEW_NAME, FOREIGN_KEY_COLS COLUMN_NAME, COLUMN_ID,
+				SELECT VIEW_NAME, FOREIGN_KEY_COLS COLUMN_NAME, COLUMN_ID, 
 					R_PRIMARY_KEY_COLS, R_CONSTRAINT_TYPE,
 					R_VIEW_NAME, R_TABLE_NAME, R_COLUMN_NAME, COLUMN_PREFIX,
 					data_browser_conf.Sequence_To_Table_Alias(DENSE_RANK() OVER (PARTITION BY TABLE_NAME ORDER BY COLUMN_ID)) TABLE_ALIAS    
@@ -48,6 +48,8 @@ is
 				COLUMN_NAME, 
 				COLUMN_ID, 
 				R_TABLE_NAME,
+				R_VIEW_NAME,
+				J_VIEW_NAME,
 				CAST(R_COLUMN_NAME AS VARCHAR2(128)) R_COLUMN_NAME,
 				COLUMN_PREFIX,
 				CAST(TABLE_ALIAS AS VARCHAR2(10)) TABLE_ALIAS,
@@ -61,6 +63,8 @@ is
 					NVL(G.R_COLUMN_NAME, G.R_PRIMARY_KEY_COLS) R_COLUMN_NAME,
 					F.COLUMN_PREFIX,
 					G.R_TABLE_NAME,
+					G.R_VIEW_NAME,
+					G.VIEW_NAME J_VIEW_NAME,
 					F.TABLE_ALIAS,
 					data_browser_conf.Concat_List(F.TABLE_ALIAS, G.TABLE_ALIAS, '_') R_TABLE_ALIAS,
 					G.R_VIEW_NAME JOIN_VIEW_NAME,
@@ -84,9 +88,7 @@ is
 		SELECT DISTINCT COLUMN_NAME, SQL_TEXT,
 			COLUMN_ID, POSITION, MATCHING, COLUMNS_INCLUDED, TABLE_ALIAS, R_TABLE_NAME,
 			TABLE_HEADER
-			|| case when TABLE_HEADER != COLUMN_HEADER then
-				' ( ' || COLUMN_HEADER || ' ) '
-			end JOIN_HEADER
+			|| ' as ' || TABLE_ALIAS JOIN_HEADER
 		FROM (
 		SELECT COLUMN_NAME,
 			case when v_As_Of_Timestamp = 'YES'
@@ -95,8 +97,7 @@ is
 				else JOIN_CLAUSE
 			end SQL_TEXT,
 			COLUMN_ID, POSITION, MATCHING, COLUMNS_INCLUDED, TABLE_ALIAS, R_TABLE_NAME,
-			data_browser_conf.Table_Name_To_Header(R_TABLE_NAME) TABLE_HEADER,
-			data_browser_conf.Column_Name_to_Header(p_Column_Name => COLUMN_NAME, p_Remove_Extension => 'YES', p_Remove_Prefix => COLUMN_PREFIX) COLUMN_HEADER
+			TABLE_HEADER
 		FROM (
 			SELECT S.SEARCH_KEY_COLS COLUMN_NAME, S.COLUMN_PREFIX,
 				CAST('FROM '
@@ -107,7 +108,8 @@ is
 				|| ' A' AS VARCHAR2(1024)) JOIN_CLAUSE,
 				S.VIEW_NAME JOIN_VIEW_NAME,
 				0 COLUMN_ID, 1 POSITION, 1 MATCHING, 'A' COLUMNS_INCLUDED, 'A' TABLE_ALIAS,
-				NULL R_TABLE_NAME
+				NULL R_TABLE_NAME,
+				data_browser_conf.Table_Name_To_Header(S.VIEW_NAME) TABLE_HEADER
 			FROM MVDATA_BROWSER_VIEWS S
 			WHERE S.VIEW_NAME = v_View_Name
 			UNION ALL -- foreign keys with description columns
@@ -116,10 +118,14 @@ is
 					AS VARCHAR2(1024)) JOIN_CLAUSE,
 				JOIN_VIEW_NAME,
 				COLUMN_ID, 1 POSITION, MATCHING, COLUMNS_INCLUDED, TABLE_ALIAS,
-				R_TABLE_NAME
+				R_TABLE_NAME,
+				data_browser_conf.Column_Name_to_Header(p_Column_Name => COLUMN_NAME, p_Remove_Extension => 'YES', p_Remove_Prefix => COLUMN_PREFIX) 
+				|| '->' ||
+				data_browser_conf.Table_Name_To_Header(R_TABLE_NAME) TABLE_HEADER
 			FROM (
 				SELECT --+ INDEX(T) USE_NL_WITH_INDEX(S)
-					DISTINCT S.COLUMN_NAME, T.COLUMN_PREFIX,
+					DISTINCT S.COLUMN_NAME, -- foreign key column.
+					T.COLUMN_PREFIX,
 					CASE WHEN S.FK_NULLABLE = 'Y' THEN 'LEFT OUTER ' END || 'JOIN '
 					|| case when v_Include_Schema = 'YES' then 
 						SYS_CONTEXT('USERENV', 'CURRENT_SCHEMA') || '.'
@@ -130,7 +136,6 @@ is
 					|| data_browser_conf.Get_Join_Expression(
 						p_Left_Columns=>S.R_PRIMARY_KEY_COLS, p_Left_Alias=> S.TABLE_ALIAS,
 						p_Right_Columns=>S.COLUMN_NAME, p_Right_Alias=> 'A') 
-					-- || S.TABLE_ALIAS || '.' || S.R_PRIMARY_KEY_COLS || ' = A.' || S.COLUMN_NAME
 					JOIN_CLAUSE,
 					S.R_VIEW_NAME JOIN_VIEW_NAME,
 					S.FK_COLUMN_ID COLUMN_ID,
@@ -159,7 +164,9 @@ is
 				S.COLUMN_ID, 2 POSITION, 1 MATCHING,
 				NVL(J.COLUMNS_INCLUDED, 'K') COLUMNS_INCLUDED,
 				S.R_TABLE_ALIAS TABLE_ALIAS,
-				S.R_TABLE_NAME
+				S.R_TABLE_NAME,
+				data_browser_conf.Table_Name_To_Header(S.J_VIEW_NAME) || '->' ||
+				data_browser_conf.Table_Name_To_Header(S.R_VIEW_NAME) TABLE_HEADER
 			FROM  MVDATA_BROWSER_Q_REFS S
 			LEFT OUTER JOIN JOIN_OPTIONS J ON S.TABLE_ALIAS = J.TABLE_ALIAS
 			WHERE S.VIEW_NAME = v_View_Name
@@ -174,7 +181,9 @@ is
 				S.COLUMN_ID, 2 POSITION, 1 MATCHING,
 				J.COLUMNS_INCLUDED,
 				S.R_TABLE_ALIAS TABLE_ALIAS,
-				S.R_TABLE_NAME
+				S.R_TABLE_NAME,
+				data_browser_conf.Table_Name_To_Header(S.J_VIEW_NAME) || '->' ||
+				data_browser_conf.Table_Name_To_Header(S.R_VIEW_NAME) TABLE_HEADER
 			FROM BROWSER_QC_REFS S
 			JOIN JOIN_OPTIONS J ON S.TABLE_ALIAS = J.TABLE_ALIAS
 			WHERE S.VIEW_NAME = v_View_Name

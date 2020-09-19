@@ -24,6 +24,21 @@ IS
 	g_debug CONSTANT BOOLEAN := false;
 	g_Use_App_Preferences CONSTANT BOOLEAN := TRUE;
 	
+	TYPE rec_user_job_states IS RECORD (
+		SID						NUMBER,
+		SERIAL#					NUMBER,
+		MESSAGE                 VARCHAR2(512), 
+		SOFAR                   NUMBER, 
+		TOTALWORK              	NUMBER, 
+		CONTEXT              	NUMBER, 
+		START_TIME              DATE, 
+		LAST_UPDATE_TIME        DATE, 
+		TIME_REMAINING		    VARCHAR2(50),
+		ELAPSED_TIME		    VARCHAR2(50),
+		PERCENT                 NUMBER
+	);
+	TYPE tab_user_job_states IS TABLE OF rec_user_job_states;
+
 	FUNCTION Get_Jobs_Collection(p_Enquote VARCHAR2 DEFAULT 'NO') RETURN VARCHAR2 DETERMINISTIC;
 	FUNCTION Get_Encrypt_Function RETURN VARCHAR2;
     FUNCTION Get_Encrypt_Function(p_Key_Column VARCHAR2, p_Column_Name VARCHAR2) RETURN VARCHAR2;
@@ -181,6 +196,10 @@ IS
 	FUNCTION Get_User_Job_State (
 		p_Job_Name VARCHAR2 DEFAULT NULL
 	) RETURN VARCHAR2;
+
+	FUNCTION FN_Pipe_user_running_jobs
+	RETURN data_browser_jobs.tab_user_job_states PIPELINED;
+
 END data_browser_jobs;
 /
 
@@ -1300,23 +1319,6 @@ $END
  		end if;
 	END Refresh_Tree_View_Job;
 
-/*
-	FUNCTION Get_Running_Job_State RETURN VARCHAR2
-	IS 
-		v_Running_Count PLS_INTEGER;
-	BEGIN 
-		
-		SELECT COUNT(*) INTO v_Running_Count
-		FROM V$SCHEDULER_RUNNING_JOBS
-		WHERE ROWNUM = 1;
-		return case 
-			when v_Running_Count > 0 
-			then 'RUNNING'
-			else 'DONE'
-		end;
-	END Get_Running_Job_State;
-*/	
-
 	FUNCTION Get_User_Job_State_Peek (
 		p_Job_Name VARCHAR2 DEFAULT NULL
 	) RETURN VARCHAR2
@@ -1651,6 +1653,33 @@ $END
 		end if;
 		RETURN v_Job_State;
 	END Get_User_Job_State;
+
+	FUNCTION FN_Pipe_user_running_jobs
+	RETURN data_browser_jobs.tab_user_job_states PIPELINED
+	IS
+		PRAGMA UDF;
+        CURSOR views_cur
+        IS
+			SELECT  DISTINCT
+					N001 SID, N002 SERIAL#, CAST(C001 AS VARCHAR2(512)) MESSAGE, N003 SOFAR, N004 TOTALWORK, N005 CONTEXT,
+					D001 START_TIME, D002 LAST_UPDATE_TIME,
+					CAST(C002 AS VARCHAR2(50)) TIME_REMAINING, CAST(C003 AS VARCHAR2(50)) ELAPSED_TIME, TO_NUMBER(C004) PERCENT
+			FROM APEX_COLLECTIONS 
+			where COLLECTION_NAME = data_browser_jobs.Get_Jobs_Collection
+			;
+        v_in_rows tab_user_job_states;
+	BEGIN
+		OPEN views_cur;
+		LOOP
+			FETCH views_cur BULK COLLECT INTO v_in_rows LIMIT 100;
+			EXIT WHEN v_in_rows.COUNT = 0;
+			FOR ind IN 1 .. v_in_rows.COUNT LOOP
+				pipe row (v_in_rows(ind));
+			END LOOP;
+		END LOOP;
+		CLOSE views_cur;
+	END FN_Pipe_user_running_jobs;
+
 END data_browser_jobs;
 /
 
