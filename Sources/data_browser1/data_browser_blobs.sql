@@ -822,8 +822,9 @@ $END
 					INTO v_Container_Key_Column, v_Container_Table
 					FROM MVDATA_BROWSER_REFERENCES
 					WHERE VIEW_NAME = v_Folder_Table_Name
-					AND R_VIEW_NAME != v_Parent_Table
+					AND R_VIEW_NAME != VIEW_NAME
 					AND FK_NULLABLE = 'N'
+					AND DELETE_RULE = 'CASCADE'
 					AND ROWNUM = 1;
 
 					-- lookup Container Ref value
@@ -1583,7 +1584,7 @@ $END
 			|| case when NVL(p_Column_Expr, 'NULL') != 'NULL'
 				then '||' || p_Column_Expr
 			end
-			|| data_browser_conf.NL(8)
+			|| data_browser_conf.NL(4)
 			|| '||' || Enquote_Literal('</div>')
 		else
 			p_Column_Expr

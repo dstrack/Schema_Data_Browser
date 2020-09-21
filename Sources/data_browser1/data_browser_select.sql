@@ -184,7 +184,7 @@ is
 				when v_View_Mode != 'RECORD_VIEW' and T.IS_CHAR_YES_NO_COLUMN = 'Y' then
 					data_browser_conf.Get_Yes_No_Static_LOV('CHAR')
 				when E.DISPLAYED_COLUMN_NAMES IS NOT NULL then
-					data_browser_select.Key_Values_Query (
+					data_browser_select.Key_Values_Path_Query (
 						p_Table_Name    	=> E.R_VIEW_NAME,
 						p_Display_Col_Names => E.DISPLAYED_COLUMN_NAMES,
 						p_Extra_Col_Names	=> NULL,
@@ -196,6 +196,8 @@ is
 						p_Active_Data_Type	=> E.ACTIVE_LOV_DATA_TYPE,
 						p_Folder_Par_Col_Name	=> E.FOLDER_PARENT_COLUMN_NAME,
 						p_Folder_Name_Col_Name => E.FOLDER_NAME_COLUMN_NAME,
+						p_Folder_Cont_Col_Name => E.FOLDER_CONTAINER_COLUMN_NAME,
+						p_Folder_Cont_Alias => case when E.VIEW_NAME = E.R_VIEW_NAME then 'A' end,
 						p_Order_by			=> NVL(E.ORDERING_COLUMN_NAME, '1')
 					)
 				end LOV_QUERY, -- query for popup list of values
@@ -212,7 +214,7 @@ is
 							'A.' || T.COLUMN_NAME
 					when v_View_Mode != 'RECORD_VIEW' and E.DISPLAYED_COLUMN_NAMES IS NOT NULL then
 						'(' || -- Display from List of values
-						data_browser_select.Key_Values_Query (
+						data_browser_select.Key_Values_Path_Query (
 							p_Table_Name    	=> E.R_VIEW_NAME,
 							p_Display_Col_Names => E.DISPLAYED_COLUMN_NAMES,
 							p_Extra_Col_Names	=> null,
@@ -225,6 +227,8 @@ is
 							p_Exclude_Col_Name  => case when E.PARENT_KEY_COLUMN = v_Parent_Key_Column then E.FILTER_KEY_COLUMN end,
 							p_Folder_Par_Col_Name	=> E.FOLDER_PARENT_COLUMN_NAME,
 							p_Folder_Name_Col_Name => E.FOLDER_NAME_COLUMN_NAME,
+							p_Folder_Cont_Col_Name => E.FOLDER_CONTAINER_COLUMN_NAME,
+							p_Folder_Cont_Alias => case when E.VIEW_NAME = E.R_VIEW_NAME then 'A' end,
 							p_Active_Col_Name	=> E.ACTIVE_LOV_COLUMN_NAME,
 							p_Active_Data_Type	=> E.ACTIVE_LOV_DATA_TYPE,
 							p_Order_by			=> null -- not needed
@@ -912,6 +916,10 @@ is
 					and T.IS_DISPLAYED_KEY_COLUMN = 'N' -- field is invisible
 					and S.HAS_SCALAR_KEY = 'YES' then	-- primary key is managed automatically
 						'A.' || T.COLUMN_NAME
+					when T.COLUMN_NAME = S.MIME_TYPE_COLUMN_NAME then
+						data_browser_blobs.File_Type_Name_Call(p_Mime_Type_Column_Name => 'A.' || T.COLUMN_NAME)
+					when T.IS_AUDIT_COLUMN = 'Y' and T.CHAR_LENGTH > 0 then
+						'INITCAP(A.' || T.COLUMN_NAME || ')'
 					when E.COLUMN_NAME IS NULL 
 					and T.COLUMN_NAME != NVL(S.ROW_VERSION_COLUMN_NAME, '-')
 					and T.IS_ORDERING_COLUMN = 'N'
@@ -1033,8 +1041,10 @@ is
 						p_Table_Name    	=> F.R_VIEW_NAME,
 						p_Search_Key_Col    => F.R_PRIMARY_KEY_COLS,
 						p_Search_Value    	=> null,
-						p_Folder_Par_Col_Name	=> F.FOLDER_PARENT_COLUMN_NAME,
+						p_Folder_Par_Col_Name  => F.FOLDER_PARENT_COLUMN_NAME,
 						p_Folder_Name_Col_Name => F.FOLDER_NAME_COLUMN_NAME,
+						p_Folder_Cont_Col_Name => F.FOLDER_CONTAINER_COLUMN_NAME,
+						p_Folder_Cont_Alias => case when F.VIEW_NAME = F.R_VIEW_NAME then 'A' else F.TABLE_ALIAS end,
 						p_View_Mode    		=> v_View_Mode,
 						p_Filter_Cond		=> data_browser_conf.Get_Join_Expression( -- support for composite keys
 							p_Left_Columns=> F.R_PRIMARY_KEY_COLS, p_Left_Alias=> 'L1',
@@ -1052,8 +1062,10 @@ is
 						p_Table_Name    	=> F.R_VIEW_NAME,
 						p_Search_Key_Col    => F.R_PRIMARY_KEY_COLS,
 						p_Search_Value    	=> null,
-						p_Folder_Par_Col_Name	=> F.FOLDER_PARENT_COLUMN_NAME,
+						p_Folder_Par_Col_Name  => F.FOLDER_PARENT_COLUMN_NAME,
 						p_Folder_Name_Col_Name => F.FOLDER_NAME_COLUMN_NAME,
+						p_Folder_Cont_Col_Name => F.FOLDER_CONTAINER_COLUMN_NAME,
+						p_Folder_Cont_Alias => case when F.VIEW_NAME = F.R_VIEW_NAME then 'A' else F.TABLE_ALIAS end,
 						p_View_Mode    		=> v_View_Mode,
 						p_Filter_Cond		=> null,
 						p_Order_by			=> NVL(F.ORDERING_COLUMN_NAME, '1')
@@ -2324,15 +2336,16 @@ is
 					) R_COLUMN_NAMES -- all description columns of one foreign key
 				FROM (
 					WITH PARAM AS (
-					/*	SELECT 'DEPARTMENTS' Table_Name,
-							'DEPARTMENT_NAME, MANAGER_ID, LOCATION_ID' Display_Col_Names,
-							'DEPARTMENT_ID' 	Search_Key_Col,
+						 /* SELECT 'SW_FILES' Table_Name,
+							'SW_FOLDERS_ID, FILE_NAME' Display_Col_Names,
+							'ID' 	Search_Key_Col,
 							NULL 	Exclude_Col_Name,
-							'FORM_VIEW' 		View_Mode,
+							'FORM_VIEW'	View_Mode,
 							'YES' 	Alias_Required,
-							'L1' 		Alias_Prefix, 
+							'L1' 	Alias_Prefix, 
 							' - '	Group_Delimiter,
-							1				Call_Level
+							1		Call_Level,
+                            4       P_INDENT
 						FROM DUAL */
 						SELECT p_Table_Name Table_Name,
 							p_Display_Col_Names Display_Col_Names,
@@ -2362,10 +2375,34 @@ is
 						or PA.Alias_Required = 'YES'
 							then PA.Alias_Prefix || '.' -- use table alias in FROM clause, when foreign keys are contained in the display columns list
 						end TABLE_ALIAS,
-						T.R_TABLE_ALIAS,
+						case when F.IS_FILE_FOLDER_REF = 'Y' then 
+							null
+						else
+							T.R_TABLE_ALIAS
+						end R_TABLE_ALIAS,
+						-- info columns
+						S.FILE_FOLDER_COLUMN_NAME, R.FOLDER_NAME_COLUMN_NAME, R.FOLDER_PARENT_COLUMN_NAME, F.IS_FILE_FOLDER_REF,
+						case 
+						when F.IS_FILE_FOLDER_REF = 'Y' AND S.FOLDER_PARENT_COLUMN_NAME = F.R_COLUMN_NAME then 
+							'(' || data_browser_select.Key_Path_Query (
+								p_Table_Name    	=> S.VIEW_NAME,
+								p_Search_Key_Col    => S.PRIMARY_KEY_COLS,
+								p_Search_Value    	=> null,
+								p_Folder_Par_Col_Name  => S.FOLDER_PARENT_COLUMN_NAME,
+								p_Folder_Name_Col_Name => S.FOLDER_NAME_COLUMN_NAME,
+								p_Folder_Cont_Col_Name => R.FOLDER_CONTAINER_COLUMN_NAME,
+								p_Folder_Cont_Alias => 'L' || PA.Call_Level,
+								p_View_Mode    		=> PA.View_Mode,
+								p_Filter_Cond => data_browser_conf.Get_Join_Expression(
+									p_Left_Columns=>F.R_PRIMARY_KEY_COLS, p_Left_Alias=> 'L' || (PA.Call_Level + 1),
+									p_Right_Columns=>F.R_PRIMARY_KEY_COLS, p_Right_Alias=> 'L' || PA.Call_Level),
+								p_Order_by			=> null,
+								p_Level				=> PA.Call_Level + 1
+							) || RPAD(' ', p_Indent + PA.Call_Level*4) || ')'
 						-- with levels > 1 error ORA-06502: PL/SQL: numerischer oder Wertefehler: Bulk Bind: Truncated Bind
-						case when G.R_VIEW_NAME IS NOT NULL and PA.Call_Level = 1 then
-							'(' || data_browser_select.Key_Values_Query (
+						when G.R_VIEW_NAME IS NOT NULL and PA.Call_Level = 1 
+						and F.IS_FILE_FOLDER_REF = 'N' then
+							'(' || data_browser_select.Key_Values_Path_Query (
 								p_Table_Name		=> G.R_VIEW_NAME,
 								p_Display_Col_Names => G.DISPLAYED_COLUMN_NAMES,
 								p_Extra_Col_Names	=> null,
@@ -2378,22 +2415,27 @@ is
 								p_Exclude_Col_Name	=> case when G.R_VIEW_NAME = PA.Table_Name then PA.Exclude_Col_Name end,
 								p_Folder_Par_Col_Name => G.FOLDER_PARENT_COLUMN_NAME,
 								p_Folder_Name_Col_Name => G.FOLDER_NAME_COLUMN_NAME,
+								p_Folder_Cont_Col_Name => G.FOLDER_CONTAINER_COLUMN_NAME,
+								p_Folder_Cont_Alias => case when G.VIEW_NAME = G.R_VIEW_NAME then T.R_TABLE_ALIAS else G.TABLE_ALIAS end,
 								p_Active_Col_Name => G.ACTIVE_LOV_COLUMN_NAME,
 								p_Active_Data_Type => G.ACTIVE_LOV_DATA_TYPE,
 								p_Order_by			=> null,
 								p_Level 			=> PA.Call_Level + 1
-							) || data_browser_conf.NL(p_Indent + PA.Call_Level*4) || ')'
+							) || data_browser_conf.NL(p_Indent + PA.Call_Level*4) || ') -- recursive query '
+							|| data_browser_conf.NL(p_Indent + PA.Call_Level*4)
 						end R_SUB_QUERY,
 						PA.Group_Delimiter
-					FROM PARAM PA 
-					CROSS JOIN DISPLAY_COLS_Q T
+					FROM PARAM PA, DISPLAY_COLS_Q T
 					JOIN MVDATA_BROWSER_SIMPLE_COLS C ON C.COLUMN_NAME = T.COLUMN_NAME
-					LEFT OUTER JOIN MVDATA_BROWSER_REFERENCES R ON R.VIEW_NAME = C.VIEW_NAME AND R.COLUMN_NAME = T.COLUMN_NAME
-					LEFT OUTER JOIN MVDATA_BROWSER_F_REFS F ON F.VIEW_NAME = C.VIEW_NAME AND F.FOREIGN_KEY_COLS = T.COLUMN_NAME
+					JOIN MVDATA_BROWSER_VIEWS S ON S.VIEW_NAME = C.VIEW_NAME
+					LEFT OUTER JOIN MVDATA_BROWSER_REFERENCES R ON R.VIEW_NAME = C.VIEW_NAME AND R.COLUMN_NAME = T.COLUMN_NAME 
+					LEFT OUTER JOIN MVDATA_BROWSER_F_REFS F ON F.VIEW_NAME = R.VIEW_NAME AND F.FOREIGN_KEY_COLS = R.COLUMN_NAME
 						AND F.R_COLUMN_NAME IS NOT NULL-- foreign key with description columns
+						AND (F.IS_FILE_FOLDER_REF = 'N' OR S.FOLDER_PARENT_COLUMN_NAME = F.R_COLUMN_NAME)
 					LEFT OUTER JOIN MVDATA_BROWSER_REFERENCES G ON G.VIEW_NAME = F.R_VIEW_NAME AND G.COLUMN_NAME = F.R_COLUMN_NAME
 					WHERE C.VIEW_NAME = PA.Table_Name
                     AND (F.R_COLUMN_NAME IS NULL OR PA.Exclude_Col_Name IS NULL OR F.R_COLUMN_NAME != PA.Exclude_Col_Name )
+                    AND (T.COLUMN_NAME != S.FOLDER_NAME_COLUMN_NAME OR S.FOLDER_NAME_COLUMN_NAME IS NULL)
 				)
 				GROUP BY VIEW_NAME, TABLE_ALIAS, COLUMN_NAME, POSITION, NULLABLE, -- one line or each foreign key
 					DATA_TYPE, DATA_PRECISION, DATA_SCALE, CHAR_LENGTH, IS_DATETIME,
@@ -2417,9 +2459,6 @@ is
 			v_From_Clause := NL(p_Indent + (p_Level-1)*4) 
 			|| ' FROM ' || data_browser_select.FN_Table_Prefix 
 			|| data_browser_conf.Enquote_Name_Required(p_Table_Name) || ' ' || v_Table_Alias;
-			-- before: in order to return foreign key references for composite keys that can be searched in to current table, a hash value is produced is that case.)
-			-- v_Column_Expr := data_browser_conf.Get_Foreign_Key_Expression(p_Foreign_Key_Column => p_Search_Key_Col, p_Table_Alias => v_Table_Alias);
-			
 			v_Column_Expr := data_browser_conf.Get_Link_ID_Expression (	-- row reference in select list, produces CAST(A.ROWID AS VARCHAR2(128)) references in case of composite or missing unique keys
 				p_Unique_Key_Column => p_Search_Key_Col,
 				p_Table_Alias => v_Table_Alias,
@@ -2451,7 +2490,7 @@ is
 				if v_out_tab(ind).R_VIEW_NAME IS NOT NULL then
 					-- foreign key columns - new group
 					v_Column_List := v_Column_List || v_out_tab(ind).R_COLUMN_NAMES;
-					if (ind = 1 or v_out_tab(ind).R_TABLE_ALIAS != v_out_tab(ind - 1).R_TABLE_ALIAS) then
+					if (ind = 1 or v_out_tab(ind).R_TABLE_ALIAS != v_out_tab(ind - 1).R_TABLE_ALIAS) and v_out_tab(ind).R_TABLE_ALIAS IS NOT NULL then
 						v_From_Clause := v_From_Clause
 						|| NL(p_Indent + (p_Level-1)*4) 
 						|| case when v_out_tab(ind).NULLABLE = 'Y' then ' LEFT OUTER' end
@@ -2515,17 +2554,9 @@ is
 		else
 			return 'select null d, null r from dual';
 		end if;
-$IF data_browser_conf.g_use_exceptions $THEN
-	exception
-	  when others then
-	    if Display_Values_cur%ISOPEN then
-			CLOSE Display_Values_cur;
-		end if;
-		raise;
-$END
 	END Key_Values_Query;
 
-    FUNCTION Key_Values_Query (
+    FUNCTION Key_Values_Path_Query (
         p_Table_Name    VARCHAR2,
         p_Display_Col_Names VARCHAR2,	-- display columns,
         p_Extra_Col_Names VARCHAR2 DEFAULT NULL, -- extra columns,
@@ -2536,6 +2567,8 @@ $END
         p_Exclude_Col_Name VARCHAR2,
         p_Folder_Par_Col_Name VARCHAR2,
         p_Folder_Name_Col_Name VARCHAR2,
+        p_Folder_Cont_Col_Name VARCHAR2,
+        p_Folder_Cont_Alias VARCHAR2 DEFAULT NULL,
 		p_Active_Col_Name VARCHAR2,
 		p_Active_Data_Type VARCHAR2,		-- NUMBER, CHAR
         p_Order_by VARCHAR2, 
@@ -2544,12 +2577,14 @@ $END
     ) RETURN VARCHAR2
 	is
 	PRAGMA UDF;
+		v_Result VARCHAR2(32767);
 	begin
 		$IF data_browser_conf.g_debug $THEN
 			apex_debug.message(
 				p_message => 
-				'data_browser_select.Key_Values_Query(p_Table_Name => %s, p_Display_Col_Names => %s, p_Extra_Col_Names => %s, p_Search_Key_Col => %s, ' || chr(10)
+				'data_browser_select.Key_Values_Path_Query(p_Table_Name => %s, p_Display_Col_Names => %s, p_Extra_Col_Names => %s, p_Search_Key_Col => %s, ' || chr(10)
 				|| 'p_Search_Value => %s, p_View_Mode => %s, p_Filter_Cond => %s, p_Exclude_Col_Name => %s, ' || chr(10)
+				|| 'p_Folder_Par_Col_Name => %s, p_Folder_Name_Col_Name => %s, p_Folder_Cont_Col_Name => %s, p_Folder_Cont_Alias => %s,' || chr(10)
 				|| 'p_Active_Col_Name => %s, p_Active_Data_Type => %s, p_Order_by => %s, p_Level => %s) ',
 				p0 => DBMS_ASSERT.ENQUOTE_LITERAL(p_Table_name),
 				p1 => DBMS_ASSERT.ENQUOTE_LITERAL(p_Display_Col_Names),
@@ -2561,24 +2596,29 @@ $END
 				p7 => DBMS_ASSERT.ENQUOTE_LITERAL(p_Exclude_Col_Name),
 				p8 => DBMS_ASSERT.ENQUOTE_LITERAL(p_Folder_Par_Col_Name),
 				p9 => DBMS_ASSERT.ENQUOTE_LITERAL(p_Folder_Name_Col_Name),
-				p10 => DBMS_ASSERT.ENQUOTE_LITERAL(p_Active_Col_Name),
-				p11 => DBMS_ASSERT.ENQUOTE_LITERAL(p_Active_Data_Type),
-				p12 => DBMS_ASSERT.ENQUOTE_LITERAL(p_Order_by),
-				p13 => p_Level,
+				p10 => DBMS_ASSERT.ENQUOTE_LITERAL(p_Folder_Cont_Col_Name),
+				p11 => DBMS_ASSERT.ENQUOTE_LITERAL(p_Folder_Cont_Alias),
+				p12 => DBMS_ASSERT.ENQUOTE_LITERAL(p_Active_Col_Name),
+				p13 => DBMS_ASSERT.ENQUOTE_LITERAL(p_Active_Data_Type),
+				p14 => DBMS_ASSERT.ENQUOTE_LITERAL(p_Order_by),
+				p15 => p_Level,
 				p_max_length => 3500
-				, p_level => apex_debug.c_log_level_app_trace
+				--, p_level => apex_debug.c_log_level_app_trace
 			);
 		$END
-		return
+		v_Result :=
 		case when p_Folder_Name_Col_Name IS NOT NULL
 			and p_Folder_Par_Col_Name IS NOT NULL
+			and p_Folder_Cont_Alias IS NOT NULL
 		then 
 			data_browser_select.Key_Path_Query (
 				p_Table_Name    	=> p_Table_Name,
 				p_Search_Key_Col    => p_Search_Key_Col,
 				p_Search_Value    	=> p_Search_Value,
-				p_Folder_Par_Col_Name	=> p_Folder_Par_Col_Name,
+				p_Folder_Par_Col_Name  => p_Folder_Par_Col_Name,
 				p_Folder_Name_Col_Name => p_Folder_Name_Col_Name,
+				p_Folder_Cont_Col_Name => p_Folder_Cont_Col_Name,
+				p_Folder_Cont_Alias => p_Folder_Cont_Alias,
 				p_View_Mode    		=> p_View_Mode,
 				p_Filter_Cond		=> p_Filter_Cond,
 				p_Order_by			=> p_Order_by,
@@ -2601,7 +2641,16 @@ $END
         		p_Indent			=> p_Indent
 			)
 		end;
-	end;
+		$IF data_browser_conf.g_debug $THEN
+			apex_debug.message(
+				p_message => 'Result Query : %s',
+				p0 => v_Result,
+				p_max_length => 3500
+				--, p_level => apex_debug.c_log_level_app_trace
+			);
+		$END
+		return v_Result;
+	end Key_Values_Path_Query;
 
     FUNCTION Key_Values_Query (
         p_Table_Name    VARCHAR2
@@ -2610,7 +2659,7 @@ $END
 		v_query 		VARCHAR2(32767);
 	begin
 		SELECT
-			data_browser_select.Key_Values_Query(
+			data_browser_select.Key_Values_Path_Query(
 				p_Table_Name => VIEW_NAME,
 				p_Display_Col_Names => DISPLAYED_COLUMN_NAMES,
 				p_Extra_Col_Names	=> null,
@@ -2622,6 +2671,7 @@ $END
 				p_Active_Data_Type => ACTIVE_LOV_DATA_TYPE,
 				p_Folder_Par_Col_Name	=> FOLDER_PARENT_COLUMN_NAME,
 				p_Folder_Name_Col_Name => FOLDER_NAME_COLUMN_NAME,
+				p_Folder_Cont_Col_Name => FOLDER_CONTAINER_COLUMN_NAME,
 				p_Order_by => NVL(ORDERING_COLUMN_NAME, '1'),
 				p_Indent => 1
             ) LOV_QUERY
@@ -2649,6 +2699,8 @@ $END
         p_Search_Value  VARCHAR2 DEFAULT NULL, -- used to produce only a single output row for known value or reference
         p_Folder_Par_Col_Name VARCHAR2,
         p_Folder_Name_Col_Name VARCHAR2,
+        p_Folder_Cont_Col_Name VARCHAR2,
+        p_Folder_Cont_Alias VARCHAR2 DEFAULT NULL,
         p_View_Mode VARCHAR2,
         p_Filter_Cond VARCHAR2,
         p_Order_by VARCHAR2,
@@ -2675,7 +2727,7 @@ $END
 			end if;
 		end if;
 
-		v_Query := 'SELECT PATH ' 
+		v_Query := 'SELECT PATH' 
 		|| case when p_Search_Value IS NULL and p_Order_by IS NOT NULL then 
 			', ' || data_browser_conf.Enquote_Name_Required(p_Search_Key_Col) 
 		end
@@ -2683,7 +2735,20 @@ $END
 		|| 'FROM (' || NL(8)
 		|| 	'SELECT ' || data_browser_conf.Enquote_Name_Required(p_Search_Key_Col) || ', SYS_CONNECT_BY_PATH(TRANSLATE(' 
 		||  data_browser_conf.Enquote_Name_Required(p_Folder_Name_Col_Name) || q'[, '/', '-'), '/') PATH]' || NL(8)
-		|| 	'FROM ' || data_browser_select.FN_Table_Prefix || data_browser_conf.Enquote_Name_Required(p_Table_Name) || NL(8)
+		||  'FROM (SELECT ' || data_browser_conf.Enquote_Name_Required(p_Search_Key_Col) || ', '
+		|| data_browser_conf.Enquote_Name_Required(p_Folder_Par_Col_Name) || ', '
+		|| data_browser_conf.Enquote_Name_Required(p_Folder_Name_Col_Name) || NL(12)
+		|| 	'FROM ' || data_browser_select.FN_Table_Prefix || data_browser_conf.Enquote_Name_Required(p_Table_Name) 
+		|| ' L' || (p_Level+1)
+		|| case when p_Folder_Cont_Col_Name IS NOT NULL and p_Folder_Cont_Alias IS NOT NULL then 
+			NL(12)
+			|| 'WHERE ' || ' L' || (p_Level+1)
+			|| '.' || data_browser_conf.Enquote_Name_Required(p_Folder_Cont_Col_Name)
+			|| ' = ' || p_Folder_Cont_Alias
+			|| '.' || data_browser_conf.Enquote_Name_Required(p_Folder_Cont_Col_Name)
+		end
+		||  NL(8)
+		|| ')' || NL(8)
 		|| 	'START WITH ' || data_browser_conf.Enquote_Name_Required(p_Folder_Par_Col_Name) || ' IS NULL' || NL(8)
 		|| 	'CONNECT BY ' || data_browser_conf.Enquote_Name_Required(p_Folder_Par_Col_Name) 
 		|| ' = PRIOR ' || data_browser_conf.Enquote_Name_Required(p_Search_Key_Col) || NL(6)
@@ -2720,12 +2785,14 @@ $END
 		v_Ordering_Column_Name   	MVDATA_BROWSER_DESCRIPTIONS.ORDERING_COLUMN_NAME%TYPE;
 		v_Folder_Parent_Column_Name MVDATA_BROWSER_DESCRIPTIONS.FOLDER_PARENT_COLUMN_NAME%TYPE;
 		v_Folder_Name_Column_Name   MVDATA_BROWSER_DESCRIPTIONS.FOLDER_NAME_COLUMN_NAME%TYPE;
+		v_Folder_Cont_Col_Name		MVDATA_BROWSER_DESCRIPTIONS.FOLDER_CONTAINER_COLUMN_NAME%TYPE;
+		v_Table_Alias				MVDATA_BROWSER_REFERENCES.TABLE_ALIAS%TYPE;
 	begin
 		if p_Table_Name IS NOT NULL and p_Parent_Table IS NOT NULL and p_Parent_Key_Column IS NOT NULL then 
 			SELECT E.R_PRIMARY_KEY_COLS, E.DISPLAYED_COLUMN_NAMES, E.ACTIVE_LOV_COLUMN_NAME, E.ACTIVE_LOV_DATA_TYPE, E.ORDERING_COLUMN_NAME,
-				S.FOLDER_PARENT_COLUMN_NAME, S.FOLDER_NAME_COLUMN_NAME
+				S.FOLDER_PARENT_COLUMN_NAME, S.FOLDER_NAME_COLUMN_NAME, S.FOLDER_CONTAINER_COLUMN_NAME, E.TABLE_ALIAS
 			INTO v_Foreign_Key_Columns, v_Displayed_Column_Names, v_Active_Lov_Column_Name, v_Active_Lov_Data_Type, v_Ordering_Column_Name,
-				v_Folder_Parent_Column_Name, v_Folder_Name_Column_Name
+				v_Folder_Parent_Column_Name, v_Folder_Name_Column_Name, v_Folder_Cont_Col_Name, v_Table_Alias
 			FROM MVDATA_BROWSER_DESCRIPTIONS S
 			JOIN MVDATA_BROWSER_REFERENCES E ON S.VIEW_NAME = E.R_VIEW_NAME 
 			WHERE E.VIEW_NAME = p_Table_Name
@@ -2743,7 +2810,7 @@ $END
 				end
 				|| ')';
 			end if;
-			v_query := data_browser_select.Key_Values_Query(
+			v_query := data_browser_select.Key_Values_Path_Query(
 				p_Table_Name => p_Parent_Table,
 				p_Display_Col_Names => v_Displayed_Column_Names,
 				p_Search_Key_Col => v_Foreign_Key_Columns,
@@ -2753,6 +2820,8 @@ $END
 				p_Active_Data_Type	=> v_Active_Lov_Data_Type,
 				p_Folder_Par_Col_Name	=> v_Folder_Parent_Column_Name,
 				p_Folder_Name_Col_Name => v_Folder_Name_Column_Name,
+				p_Folder_Cont_Col_Name => v_Folder_Cont_Col_Name,
+				p_Folder_Cont_Alias => v_Table_Alias,
 				p_View_Mode => 'FORM_VIEW',
 				p_Filter_Cond => v_filter,
 				p_Order_by => NVL(v_Ordering_Column_Name, '1')
@@ -2787,12 +2856,13 @@ $END
 		v_Ordering_Column_Name   	MVDATA_BROWSER_DESCRIPTIONS.ORDERING_COLUMN_NAME%TYPE;
 		v_Folder_Parent_Column_Name MVDATA_BROWSER_DESCRIPTIONS.FOLDER_PARENT_COLUMN_NAME%TYPE;
 		v_Folder_Name_Column_Name   MVDATA_BROWSER_DESCRIPTIONS.FOLDER_NAME_COLUMN_NAME%TYPE;
+		v_Folder_Cont_Col_Name		MVDATA_BROWSER_DESCRIPTIONS.FOLDER_CONTAINER_COLUMN_NAME%TYPE;
 	begin
 		if p_Table_Name IS NOT NULL then 
 			SELECT SEARCH_KEY_COLS, DISPLAYED_COLUMN_NAMES, ACTIVE_LOV_COLUMN_NAME, ACTIVE_LOV_DATA_TYPE, ORDERING_COLUMN_NAME,
-				FOLDER_PARENT_COLUMN_NAME, FOLDER_NAME_COLUMN_NAME
+				FOLDER_PARENT_COLUMN_NAME, FOLDER_NAME_COLUMN_NAME, FOLDER_CONTAINER_COLUMN_NAME
 			INTO v_Unique_Key_Column, v_Displayed_Column_Names, v_Active_Lov_Column_Name, v_Active_Lov_Data_Type, v_Ordering_Column_Name,
-				v_Folder_Parent_Column_Name, v_Folder_Name_Column_Name
+				v_Folder_Parent_Column_Name, v_Folder_Name_Column_Name, v_Folder_Cont_Col_Name
 			FROM MVDATA_BROWSER_DESCRIPTIONS
 			WHERE VIEW_NAME = p_Table_Name;
 			if p_Parent_Key_Column IS NOT NULL and p_Parent_Key_Item IS NOT NULL
@@ -2807,7 +2877,7 @@ $END
 					v_filter := p_Filter_Cond;
 				end if;
 			end if;
-			v_query := data_browser_select.Key_Values_Query(
+			v_query := data_browser_select.Key_Values_Path_Query(
 				p_Table_Name => p_Table_Name,
 				p_Display_Col_Names => v_Displayed_Column_Names,
 				p_Search_Key_Col => v_Unique_Key_Column,
@@ -2817,6 +2887,7 @@ $END
 				p_Active_Data_Type	=> v_Active_Lov_Data_Type,
 				p_Folder_Par_Col_Name	=> v_Folder_Parent_Column_Name,
 				p_Folder_Name_Col_Name => v_Folder_Name_Column_Name,
+				p_Folder_Cont_Col_Name => v_Folder_Cont_Col_Name,
 				p_View_Mode => 'FORM_VIEW',
 				p_Filter_Cond => v_filter,
 				p_Order_by => COALESCE(p_Order_by, v_Ordering_Column_Name, '1')
@@ -2878,14 +2949,15 @@ $END
 		v_Active_Lov_Data_Type  	MVDATA_BROWSER_DESCRIPTIONS.ACTIVE_LOV_DATA_TYPE%TYPE;
 		v_Folder_Parent_Column_Name MVDATA_BROWSER_DESCRIPTIONS.FOLDER_PARENT_COLUMN_NAME%TYPE;
 		v_Folder_Name_Column_Name   MVDATA_BROWSER_DESCRIPTIONS.FOLDER_NAME_COLUMN_NAME%TYPE;
+		v_Folder_Cont_Col_Name		MVDATA_BROWSER_DESCRIPTIONS.FOLDER_CONTAINER_COLUMN_NAME%TYPE;
 		v_Calendar_Start_Date_Column MVDATA_BROWSER_DESCRIPTIONS.CALEND_START_DATE_COLUMN_NAME%TYPE;
 		v_Calendar_End_Date_Column MVDATA_BROWSER_DESCRIPTIONS.CALENDAR_END_DATE_COLUMN_NAME%TYPE;
 	begin
 		SELECT SEARCH_KEY_COLS, DISPLAYED_COLUMN_NAMES, ACTIVE_LOV_COLUMN_NAME, ACTIVE_LOV_DATA_TYPE, 
-			FOLDER_PARENT_COLUMN_NAME, FOLDER_NAME_COLUMN_NAME,
+			FOLDER_PARENT_COLUMN_NAME, FOLDER_NAME_COLUMN_NAME, FOLDER_CONTAINER_COLUMN_NAME,
 			CALEND_START_DATE_COLUMN_NAME, CALENDAR_END_DATE_COLUMN_NAME
 		INTO v_Unique_Key_Column, v_Displayed_Column_Names, v_Active_Lov_Column_Name, v_Active_Lov_Data_Type, 
-			v_Folder_Parent_Column_Name, v_Folder_Name_Column_Name,
+			v_Folder_Parent_Column_Name, v_Folder_Name_Column_Name, v_Folder_Cont_Col_Name,
 			v_Calendar_Start_Date_Column, v_Calendar_End_Date_Column
 		FROM MVDATA_BROWSER_DESCRIPTIONS
 		WHERE VIEW_NAME = p_Table_Name;
@@ -2895,7 +2967,7 @@ $END
 			|| ' = NVL(V(' || dbms_assert.enquote_literal(p_Parent_Key_Item) || '), L1.' || p_Parent_Key_Column || ')';
 		end if;
 		if v_Calendar_Start_Date_Column IS NOT NULL then
-			v_Query := data_browser_select.Key_Values_Query(
+			v_Query := data_browser_select.Key_Values_Path_Query(
 				p_Table_Name => p_Table_Name,
 				p_Display_Col_Names => v_Displayed_Column_Names,
 				p_Extra_Col_Names => data_browser_conf.Concat_List(v_Calendar_Start_Date_Column, v_Calendar_End_Date_Column),
@@ -2906,6 +2978,7 @@ $END
 				p_Exclude_Col_Name => case when V(p_Parent_Key_Item) IS NOT NULL then p_Parent_Key_Column end, -- only exclude when the value is known
 				p_Folder_Par_Col_Name	=> v_Folder_Parent_Column_Name,
 				p_Folder_Name_Col_Name => v_Folder_Name_Column_Name,
+				p_Folder_Cont_Col_Name => v_Folder_Cont_Col_Name,
 				p_Active_Col_Name	=> v_Active_Lov_Column_Name,
 				p_Active_Data_Type	=> v_Active_Lov_Data_Type,
 				p_Order_by => null
@@ -3000,12 +3073,16 @@ $END
 		v_Filter_Key_Column			MVDATA_BROWSER_REFERENCES.FILTER_KEY_COLUMN%TYPE;
 		v_Folder_Par_Col_Name		MVDATA_BROWSER_REFERENCES.FOLDER_PARENT_COLUMN_NAME%TYPE;
 		v_Folder_Name_Col_Name		MVDATA_BROWSER_REFERENCES.FOLDER_NAME_COLUMN_NAME%TYPE;
+		v_Folder_Cont_Col_Name		MVDATA_BROWSER_REFERENCES.FOLDER_CONTAINER_COLUMN_NAME%TYPE;
+		v_Table_Alias				MVDATA_BROWSER_REFERENCES.TABLE_ALIAS%TYPE;
 	begin
 		if p_Table_Name IS NOT NULL then 
 			SELECT R_VIEW_NAME, R_PRIMARY_KEY_COLS, DISPLAYED_COLUMN_NAMES, ACTIVE_LOV_COLUMN_NAME, ACTIVE_LOV_DATA_TYPE, 
-					ORDERING_COLUMN_NAME, PARENT_KEY_COLUMN, FILTER_KEY_COLUMN, FOLDER_PARENT_COLUMN_NAME, FOLDER_NAME_COLUMN_NAME
+					ORDERING_COLUMN_NAME, PARENT_KEY_COLUMN, FILTER_KEY_COLUMN, 
+					FOLDER_PARENT_COLUMN_NAME, FOLDER_NAME_COLUMN_NAME, FOLDER_CONTAINER_COLUMN_NAME, TABLE_ALIAS
 			INTO v_R_View_Name, v_Unique_Key_Column, v_Displayed_Column_Names, v_Active_Lov_Column_Name, v_Active_Lov_Data_Type, 
-					v_Ordering_Column_Name, v_Parent_Key_Column, v_Filter_Key_Column, v_Folder_Par_Col_Name, v_Folder_Name_Col_Name
+					v_Ordering_Column_Name, v_Parent_Key_Column, v_Filter_Key_Column, 
+					v_Folder_Par_Col_Name, v_Folder_Name_Col_Name, v_Folder_Cont_Col_Name, v_Table_Alias
 			FROM MVDATA_BROWSER_REFERENCES
 			WHERE VIEW_NAME = p_Table_Name
         	AND COLUMN_NAME = p_Column_Name
@@ -3014,7 +3091,7 @@ $END
 				v_filter := 'L1.' || v_Filter_Key_Column
 				|| ' = NVL(V(' || dbms_assert.enquote_literal(p_Parent_Key_Item) || '), L1.' || v_Filter_Key_Column || ')';
 			end if;
-			return data_browser_select.Key_Values_Query(
+			return data_browser_select.Key_Values_Path_Query(
 				p_Table_Name => v_R_View_Name,
 				p_Display_Col_Names => v_Displayed_Column_Names,
 				p_Search_Key_Col => v_Unique_Key_Column,
@@ -3024,6 +3101,8 @@ $END
 				p_Active_Data_Type	=> v_Active_Lov_Data_Type,
 				p_Folder_Par_Col_Name  => v_Folder_Par_Col_Name,
 				p_Folder_Name_Col_Name => v_Folder_Name_Col_Name,
+				p_Folder_Cont_Col_Name => v_Folder_Cont_Col_Name,
+				p_Folder_Cont_Alias => v_Table_Alias,
 				p_View_Mode => 'FORM_VIEW',
 				p_Filter_Cond => v_filter,
 				p_Order_by => NVL(v_Ordering_Column_Name, '1')
@@ -3604,7 +3683,7 @@ $END
     BEGIN
 		v_Data_Format := p_Data_Format;
 		v_Select_Columns := FN_Terminate_List(p_Select_Columns);
-		v_Parent_Key_Visible := case when p_Select_Columns IS NOT NULL or p_Edit_Mode = 'YES' then 'YES' else p_Parent_Key_Visible end;
+		v_Parent_Key_Visible := case when p_Select_Columns IS NOT NULL or p_Edit_Mode = 'YES' or p_Data_Format IN ('CSV', 'NATIVE') then 'YES' else p_Parent_Key_Visible end;
 		if p_Unique_Key_Column IS NULL then
 			SELECT SEARCH_KEY_COLS
 			INTO v_Unique_Key_Column
@@ -3935,7 +4014,7 @@ $END
 		v_Calc_Totals := NVL(p_Calc_Totals, 'NO');
 		v_Nested_Links := NVL(p_Nested_Links, 'NO');
 		v_Select_Columns := FN_Terminate_List(p_Select_Columns);
-		v_Parent_Key_Visible := case when p_Select_Columns IS NOT NULL then 'YES' else p_Edit_Mode end;
+		v_Parent_Key_Visible := case when p_Select_Columns IS NOT NULL or p_Data_Format IN ('CSV', 'NATIVE') then 'YES' else p_Edit_Mode end;
 		v_Use_Grouping := v_Calc_Totals = 'YES';
 		if p_Unique_Key_Column IS NULL then
 			SELECT SEARCH_KEY_COLS

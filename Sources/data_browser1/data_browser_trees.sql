@@ -100,7 +100,8 @@ IS
 			   end as status, 
 			   level level_val, 
 			   TABLE_LABEL
-				|| case when INSTR(TABLE_LABEL, REF_LABEL) = 0 
+				|| case when REF_LABEL IS NOT NULL
+				and INSTR(prior TABLE_LABEL, REF_LABEL) = 0 and INSTR(REF_LABEL, prior TABLE_LABEL) = 0
 					then ' – ' || REF_LABEL
 				end
 				|| case when NUM_ROWS > 0 then ' ( ' || ltrim(to_char(NUM_ROWS, '999G999G999G999G999G999G990')) || ' )'

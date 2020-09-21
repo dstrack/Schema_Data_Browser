@@ -265,7 +265,7 @@ IS
         p_Indent INTEGER DEFAULT 4
     ) RETURN VARCHAR2;
 
-    FUNCTION Key_Values_Query (
+    FUNCTION Key_Values_Path_Query (
         p_Table_Name    VARCHAR2,
         p_Display_Col_Names VARCHAR2,	-- display columns,
         p_Extra_Col_Names VARCHAR2 DEFAULT NULL, -- extra columns,
@@ -276,6 +276,8 @@ IS
         p_Exclude_Col_Name VARCHAR2,
         p_Folder_Par_Col_Name VARCHAR2,
         p_Folder_Name_Col_Name VARCHAR2,
+        p_Folder_Cont_Col_Name VARCHAR2,
+        p_Folder_Cont_Alias VARCHAR2 DEFAULT NULL,
 		p_Active_Col_Name VARCHAR2,
 		p_Active_Data_Type VARCHAR2,		-- NUMBER, CHAR
         p_Order_by VARCHAR2, 
@@ -287,15 +289,17 @@ IS
         p_Table_Name    VARCHAR2
 	) RETURN VARCHAR2;
 
-    FUNCTION Key_Path_Query (			-- internal
+    FUNCTION Key_Path_Query (
         p_Table_Name    VARCHAR2,
         p_Search_Key_Col VARCHAR2,		-- return column (usually the primary key of p_Table_Name)
         p_Search_Value  VARCHAR2 DEFAULT NULL, -- used to produce only a single output row for known value or reference
         p_Folder_Par_Col_Name VARCHAR2,
         p_Folder_Name_Col_Name VARCHAR2,
+        p_Folder_Cont_Col_Name VARCHAR2,
+        p_Folder_Cont_Alias VARCHAR2 DEFAULT NULL,
         p_View_Mode VARCHAR2,
         p_Filter_Cond VARCHAR2,
-        p_Order_by VARCHAR2 ,
+        p_Order_by VARCHAR2,
         p_Level INTEGER DEFAULT 1
     ) RETURN VARCHAR2;
 
@@ -1326,6 +1330,12 @@ IS
     	p_Detail_Key_ID VARCHAR2 DEFAULT NULL,
     	p_Link_Page_ID NUMBER DEFAULT V('APP_PAGE_ID'),	-- Page ID of target links
     	p_Link_Items VARCHAR2 -- Item names for Parent_Table, Parent_Key_Column, Parent_Key_ID, Detail_Table, Detail_Key_Column, Detail_Key_ID
+	)
+	RETURN data_browser_conf.tab_apex_links_list PIPELINED;
+
+	FUNCTION Report_View_Modes_List (
+		p_Table_name IN VARCHAR2,
+    	p_View_Mode_Item VARCHAR2 
 	)
 	RETURN data_browser_conf.tab_apex_links_list PIPELINED;
 

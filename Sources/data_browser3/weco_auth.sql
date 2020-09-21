@@ -44,7 +44,6 @@ currently not used
 
 -- required privileges:
 GRANT EXECUTE ON SYS.DBMS_CRYPTO TO OWNER;
-GRANT EXECUTE ON SYS.DBMS_LOCK TO OWNER;
 GRANT EXECUTE ON CUSTOM_KEYS.SCHEMA_KEYCHAIN TO OWNER;
 
 -- uninstall
@@ -739,11 +738,9 @@ $END
 		end if;
 		log_message(v_message, v_user);
 
-$IF data_browser_specs.g_use_dbms_lock $THEN
 		if v_result = false then
-			SYS.DBMS_LOCK.SLEEP (1);
+			APEX_UTIL.PAUSE(1);
 		end if;
-$END
         return v_result;
     END authenticate;
 
@@ -948,47 +945,6 @@ $END
 END weco_auth;
 /
 show errors
-
-CREATE OR REPLACE PROCEDURE init_app_preferences
-is
-begin
-$IF data_browser_specs.g_use_schema_tools $THEN
-	-- copy mail server preferences from workspace settings
-	INSERT INTO APP_PREFERENCES(INFOMAIL_FROM, INFOMAIL_FOOTER,
-		SMTP_HOST_ADDRESS, SMTP_HOST_PORT, SMTP_USERNAME, SMTP_PASSWORD, 
-		WALLET_PATH, WALLET_PASSWORD, SMTP_SSL, SMTP_SSL_CONNECT_PLAIN)
-	SELECT NVL(INFOMAIL_FROM, 'Strack.Software@t-online.de') INFOMAIL_FROM, 
-			'You are welcome to explore the site. Strack Software Development' INFOMAIL_FOOTER,
-			SMTP_HOST_ADDRESS,
-			SMTP_HOST_PORT,
-			SMTP_USERNAME,
-			Weco_Auth.Hex_Crypt(1, SMTP_PASSWORD) SMTP_PASSWORD,
-			WALLET_PATH,
-			Weco_Auth.Hex_Crypt(1,WALLET_PWD) WALLET_PWD,
-			SMTP_TLS_MODE,
-			SMTP_TLS_PLAIN
-	FROM table(DATA_BROWSER_SCHEMA.fn_pipe_mail_parameter)
-	WHERE NOT EXISTS (SELECT 1 FROM APP_PREFERENCES);
-	if SQL%ROWCOUNT = 0 then
-		UPDATE APP_PREFERENCES
-		SET (INFOMAIL_FROM, SMTP_HOST_ADDRESS, SMTP_HOST_PORT, SMTP_USERNAME, SMTP_PASSWORD, 
-			WALLET_PATH, WALLET_PASSWORD, SMTP_SSL, SMTP_SSL_CONNECT_PLAIN) = 
-			(SELECT INFOMAIL_FROM, 
-				SMTP_HOST_ADDRESS,
-				SMTP_HOST_PORT,
-				SMTP_USERNAME,
-				Weco_Auth.Hex_Crypt(1, SMTP_PASSWORD) SMTP_PASSWORD,
-				WALLET_PATH,
-				Weco_Auth.Hex_Crypt(1, WALLET_PWD) WALLET_PWD,
-				SMTP_TLS_MODE,
-				SMTP_TLS_PLAIN
-			FROM table(DATA_BROWSER_SCHEMA.fn_pipe_mail_parameter))
-		WHERE INFOMAIL_FROM IS NULL OR SMTP_HOST_ADDRESS IS NULL;
-	end if;
-$END
-	COMMIT;
-end;
-/
 
 
 

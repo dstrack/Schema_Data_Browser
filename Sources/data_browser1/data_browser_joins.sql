@@ -149,7 +149,6 @@ is
 				WHERE T.VIEW_NAME = v_View_Name
 				AND (J.COLUMNS_INCLUDED IN ('A','K') OR J.COLUMNS_INCLUDED IS NULL)
 				-- avoid joins for file folder path 
-				AND (S.COLUMN_NAME != T.FILE_FOLDER_COLUMN_NAME OR T.FILE_FOLDER_COLUMN_NAME IS NULL)
 				AND (S.COLUMN_NAME != T.FOLDER_PARENT_COLUMN_NAME OR T.FOLDER_PARENT_COLUMN_NAME IS NULL)
 			)
 			UNION ALL -- foreign keys with unique columns and second level foreign keys

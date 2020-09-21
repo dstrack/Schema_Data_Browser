@@ -22,7 +22,6 @@ declare
 	v_update_apex_tables VARCHAR2(128);
 	v_use_apex_installer VARCHAR2(128);
 	v_use_dbms_crypt VARCHAR2(128);
-	v_use_dbms_lock VARCHAR2(128);
 	v_use_ctx_ddl VARCHAR2(128);
 	v_use_key_chain VARCHAR2(128);
 	v_use_custom_ctx VARCHAR2(128);
@@ -57,13 +56,6 @@ begin
 	SELECT case when COUNT(*) > 0 then 'TRUE' else 'FALSE' end INTO v_use_dbms_crypt
 	FROM SYS.ALL_TAB_PRIVS 
 	WHERE TABLE_NAME = 'DBMS_CRYPTO' 
-	AND TABLE_SCHEMA = 'SYS' 
-	AND GRANTEE IN (v_Schema_Name, 'PUBLIC')
-	AND PRIVILEGE = 'EXECUTE';
-
-	SELECT case when COUNT(*) > 0 then 'TRUE' else 'FALSE' end INTO v_use_dbms_lock
-	FROM SYS.ALL_TAB_PRIVS 
-	WHERE TABLE_NAME = 'DBMS_LOCK' 
 	AND TABLE_SCHEMA = 'SYS' 
 	AND GRANTEE IN (v_Schema_Name, 'PUBLIC')
 	AND PRIVILEGE = 'EXECUTE';
@@ -107,7 +99,6 @@ CREATE OR REPLACE PACKAGE data_browser_specs AUTHID DEFINER
 IS -- package for specifications of the available libraries in the current installation schema
 	g_update_apex_tables		CONSTANT BOOLEAN	:= ' || v_update_apex_tables || ';
 	g_use_apex_installer		CONSTANT BOOLEAN	:= ' || v_use_apex_installer || ';
-	g_use_dbms_lock 			CONSTANT BOOLEAN	:= ' || v_use_dbms_lock || ';
 	g_use_dbms_crypt 			CONSTANT BOOLEAN	:= ' || v_use_dbms_crypt || ';
 	g_use_ctx_ddl 			    CONSTANT BOOLEAN	:= ' || v_use_ctx_ddl || ';
 	g_use_crypt_key_chain 		CONSTANT BOOLEAN	:= ' || v_use_key_chain || ';

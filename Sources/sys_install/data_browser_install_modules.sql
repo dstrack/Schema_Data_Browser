@@ -45,11 +45,7 @@ prompt ============================================================
 @@data_browser2/data_browser_check.sql
 
 @@data_browser3/app_users_tables.sql
-@@data_browser3/app_preferences_table.sql
-@@data_browser3/weco_auth_upgrade.sql
 @@data_browser3/weco_auth.sql
-@@data_browser3/weco_auth_mgr.sql
-@@data_browser3/weco_mail.sql
 @@data_browser3/weco_login.sql
 @@data_browser3/import_utl_tables.sql
 @@data_browser3/import_utl_head.sql

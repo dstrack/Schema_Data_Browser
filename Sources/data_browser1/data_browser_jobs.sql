@@ -604,11 +604,7 @@ IS
   		v_http_request   UTL_HTTP.req;
 	BEGIN
 		loop 
-$IF data_browser_specs.g_use_dbms_lock $THEN
-			SYS.DBMS_LOCK.SLEEP(1/5);
-$ELSE
 			APEX_UTIL.PAUSE(1/5);
-$END
 			v_Job_State := Get_User_Job_State_Peek(p_Job_Name => p_Job_Name);
 			exit when v_Job_State IN ('RUNNING', 'FINISHED','DONE');
 			v_Loops := v_Loops - 1;
@@ -1070,12 +1066,6 @@ $END
 			|| 'p_App_ID=>' || dbms_assert.enquote_literal(p_App_ID)
 			|| ',p_Dest_Schema =>' || dbms_assert.enquote_literal(p_Dest_Schema)
 			|| ');' || chr(10)
-			-- copy mail server preferences into APP_PREFERENCES 
-			|| case when v_count_Custom > 0 then 
-				   'data_browser_schema.init_app_preferences ('
-				|| 'p_Dest_Schema => ' || dbms_assert.enquote_literal(p_Dest_Schema)
-				|| ');' || chr(10)
-			end
 			-- add admin, guest, demo accounts
 			|| 'data_browser_schema.First_Run ('
 			|| 'p_Dest_Schema => ' || dbms_assert.enquote_literal(p_Dest_Schema)

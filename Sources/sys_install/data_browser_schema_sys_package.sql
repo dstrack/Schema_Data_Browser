@@ -139,10 +139,6 @@ IS
 		p_Add_Demo_Guest VARCHAR2
 	);
 
-	PROCEDURE Init_App_Preferences (
-		p_Dest_Schema VARCHAR2
-	);
-
 	g_Use_Special_Features	   CONSTANT BOOLEAN := ]'
 	|| v_Use_Special_Features || ';' || chr(10) 
 	|| 'END;' || chr(10) ;
@@ -351,7 +347,6 @@ $END
 
 		Run_Stat('GRANT EXECUTE ON SYS.DBMS_CRYPTO TO ' || v_app_owner);
 		-- Run_Stat('GRANT EXECUTE ON SYS.DBMS_STATS TO ' || v_app_owner);
-		Run_Stat('GRANT EXECUTE ON SYS.DBMS_LOCK TO ' || v_app_owner);
 		-- monitoring of jobs
 		Run_Stat('GRANT SELECT ON SYS.V_$LOCK TO ' || v_app_owner);
 		Run_Stat('GRANT SELECT ON SYS.V_$SESSION TO ' || v_app_owner);
@@ -457,7 +452,6 @@ $END
 		and owner = 'PUBLIC';
 
 		Run_Stat('REVOKE EXECUTE ON SYS.DBMS_CRYPTO FROM ' || l_app_owner);
-		Run_Stat('REVOKE EXECUTE ON SYS.DBMS_LOCK FROM ' || l_app_owner);
 		Run_Stat('REVOKE EXECUTE ON SYS.UTL_RECOMP FROM ' || l_app_owner);
 		Run_Stat('REVOKE EXECUTE ON SYS.DBMS_REDEFINITION FROM ' || l_app_owner);
 		Run_Stat('REVOKE SELECT ON SYS.DBA_REDEFINITION_ERRORS FROM ' || l_app_owner);
@@ -872,18 +866,6 @@ $END
 		EXECUTE IMMEDIATE v_First_Run;
 	end First_Run;
 	
-	PROCEDURE Init_App_Preferences (
-		p_Dest_Schema VARCHAR2
-	)
-	is
-		v_init_prefs VARCHAR2(2000);
-	begin
-		v_init_prefs := 'begin '
-			|| dbms_assert.enquote_name(p_Dest_Schema) 
-			|| '.init_app_preferences; end;';
-		EXECUTE IMMEDIATE v_init_prefs;	
-	end Init_App_Preferences;
-
 end data_browser_schema;
 /
 

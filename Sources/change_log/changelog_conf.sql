@@ -579,7 +579,7 @@ IS
 		'USER_NAMESPACES,USER_WORKSPACE_SESSIONS,CHANGE_LOG_USERS,CHANGE_LOG';
     g_CExcludeWorkspaceIDPattern CONSTANT VARCHAR2(4000) :=	-- Internal list of table name pattern that are excluded from 'Application Namespace Support'.
     	'CHANGE_LOG_CONFIG,CHANGE_LOG_TABLES,%PLAN_TABLE%,CHAINED_ROWS,USER_IMPORT_JOBS,%_IMP,'
-    	|| 'APP_USERS,APP_USER_LEVELS,APP_PROTOCOL,APP_PREFERENCES,USER_IMPORT_JOBS,SPRINGY_DIAGRAMS,DIAGRAM_SHAPES,DIAGRAM_NODES,DIAGRAM_EDGES,'
+    	|| 'APP_USERS,APP_USER_LEVELS,APP_PROTOCOL,USER_IMPORT_JOBS,SPRINGY_DIAGRAMS,DIAGRAM_SHAPES,DIAGRAM_NODES,DIAGRAM_EDGES,'
     	|| 'USER_INDEX_STATS$,USER_PROCESS_OUTPUT$,USER_WORKSPACE$_DIFFERENCES,USER_WORKSPACE$_MASTER_TABLES,CREATE$JAVA$LOB$TABLE,'
     	|| 'T_%,%STATIC%,PAYPAL_%,%PARAMETER%,DATA_BROWSER%';
 
@@ -779,9 +779,6 @@ IS
 		p_Table_Name VARCHAR2 DEFAULT NULL
 	) RETURN changelog_conf.tab_insert_triggers PIPELINED
 	IS
-	$IF DBMS_DB_VERSION.VERSION >= 12 $THEN
-		PRAGMA UDF;
-	$END
         CURSOR trigger_cur
         IS
 			SELECT T.TABLE_NAME, T.TABLE_OWNER,
@@ -869,9 +866,6 @@ IS
 	FUNCTION FN_Pipe_table_cols
 	RETURN changelog_conf.tab_table_cols PIPELINED
 	IS
-	$IF DBMS_DB_VERSION.VERSION >= 12 $THEN
-		PRAGMA UDF;
-	$END
         CURSOR keys_cur
         IS
 			SELECT C.TABLE_NAME, C.OWNER, C.COLUMN_NAME, C.COLUMN_ID, C.DATA_TYPE
@@ -913,9 +907,6 @@ IS
 	FUNCTION FN_Pipe_unique_keys 
 	RETURN changelog_conf.tab_unique_keys PIPELINED
 	IS
-	$IF DBMS_DB_VERSION.VERSION >= 12 $THEN
-		PRAGMA UDF;
-	$END
         CURSOR keys_cur
         IS
 			SELECT C.TABLE_NAME, C.OWNER TABLE_OWNER, C.CONSTRAINT_NAME, B.CONSTRAINT_TYPE, C.COLUMN_NAME, C.POSITION,
@@ -950,6 +941,9 @@ IS
         v_exclude_cols_pattern VARCHAR2(4000);
 		v_exclude_cols_Array apex_t_varchar2;
 	BEGIN
+		if g_Use_Change_Log IS NULL then
+			return; -- not initialised (during create mview)
+		end if;
 		v_exclude_cols_pattern := changelog_conf.Concat_List(changelog_conf.Get_ColumnWorkspace_List, changelog_conf.Get_ColumnDeletedMark_List);
 		v_exclude_cols_Array := apex_string.split(REPLACE(v_exclude_cols_pattern,'_','\_'), ',');
 		if g_Include_External_Objects = 'YES' then 
@@ -995,9 +989,6 @@ IS
 		p_Table_Name VARCHAR2 DEFAULT NULL
 	) RETURN changelog_conf.tab_unique_keys PIPELINED
 	IS
-	$IF DBMS_DB_VERSION.VERSION >= 12 $THEN
-		PRAGMA UDF;
-	$END
         CURSOR keys_cur
         IS
 			SELECT C.TABLE_NAME, C.TABLE_OWNER, SUBSTR(C.INDEX_NAME, 1, 27) || '_IC' CONSTRAINT_NAME, 'U' CONSTRAINT_TYPE, C.COLUMN_NAME, C.COLUMN_POSITION POSITION,
@@ -1081,9 +1072,6 @@ IS
 	FUNCTION FN_Pipe_Base_Uniquekeys
 	RETURN changelog_conf.tab_base_unique_keys PIPELINED
 	IS
-	$IF DBMS_DB_VERSION.VERSION >= 12 $THEN
-		PRAGMA UDF;
-	$END
 		c_cur SYS_REFCURSOR;
 		v_row changelog_conf.rec_base_unique_keys; -- output row
 	BEGIN
@@ -1328,9 +1316,6 @@ IS
 	FUNCTION FN_Pipe_Base_Views
 	RETURN changelog_conf.tab_base_views PIPELINED
 	IS
-	$IF DBMS_DB_VERSION.VERSION >= 12 $THEN
-		PRAGMA UDF;
-	$END
         CURSOR user_keys_cur
         IS
 		SELECT /*+ RESULT_CACHE */
@@ -1373,21 +1358,12 @@ IS
 		FOR ind IN 1 .. v_in_rows.COUNT LOOP
 			pipe row (v_in_rows(ind));
 		END LOOP;
-	exception
-	  when others then
-	    if user_keys_cur%ISOPEN then
-			CLOSE user_keys_cur;
-		end if;
-		raise;
 	END FN_Pipe_Base_Views;
 
 
 	FUNCTION FN_Pipe_Changelog_fkeys
 	RETURN changelog_conf.tab_Changelog_fkeys PIPELINED
 	IS
-	$IF DBMS_DB_VERSION.VERSION >= 12 $THEN
-		PRAGMA UDF;
-	$END
         CURSOR user_keys_cur
         IS
 		SELECT DISTINCT A.TABLE_NAME, 
@@ -1411,21 +1387,12 @@ IS
 		FOR ind IN 1 .. v_in_rows.COUNT LOOP
 			pipe row (v_in_rows(ind));
 		END LOOP;
-	exception
-	  when others then
-	    if user_keys_cur%ISOPEN then
-			CLOSE user_keys_cur;
-		end if;
-		raise;
 	END FN_Pipe_Changelog_fkeys;
 
 
 	FUNCTION FN_Pipe_Table_Columns
 	RETURN changelog_conf.tab_table_columns PIPELINED
 	IS
-	$IF DBMS_DB_VERSION.VERSION >= 12 $THEN
-		PRAGMA UDF;
-	$END
         CURSOR user_keys_cur
         IS
 		SELECT TABLE_NAME, COLUMN_ID, COLUMN_NAME, DATA_TYPE, NULLABLE, DEFAULT_LENGTH, DATA_DEFAULT, DATA_PRECISION, DATA_SCALE, CHAR_LENGTH
@@ -1451,12 +1418,6 @@ IS
 			v_row.CHAR_LENGTH 			:= v_in_rows(ind).CHAR_LENGTH;			
 			pipe row (v_row);
 		END LOOP;
-	exception
-	  when others then
-	    if user_keys_cur%ISOPEN then
-			CLOSE user_keys_cur;
-		end if;
-		raise;
 	END FN_Pipe_Table_Columns;
 
 

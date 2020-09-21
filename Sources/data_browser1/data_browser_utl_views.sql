@@ -101,7 +101,7 @@ select
 		|| APEX_ITEM.SELECT_LIST_FROM_QUERY_XL (p_idx => data_browser_conf.Get_Search_Column_Index, p_value => C001
        					, p_query => 'SELECT COLUMN_HEADER d, COLUMN_NAME r FROM VDATA_BROWSER_FILTER_COLS ORDER BY 1'
 						, p_attributes => 'class="popup_lov apex-item-text" style="max-width: 220px"'
-						, p_null_value => '%', p_null_text => 'All Text Columns'
+						, p_null_value => '%', p_null_text => 'All Columns'
 						, p_item_id => 'f' || LPAD(data_browser_conf.Get_Search_Column_Index, 2, '0') || '_' || ROWNUM
 						, p_item_label => 'Field'
 						)

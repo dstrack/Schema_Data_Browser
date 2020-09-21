@@ -35,7 +35,6 @@ CREATE OR REPLACE PACKAGE weco_login
 AUTHID DEFINER -- enable caller to find users (V_CONTEXT_USERS).
 AS
 	c_Job_Name_Prefix 	CONSTANT VARCHAR2(64) := 'WECO_LOGIN_';
-	c_Use_Weco_Mail     CONSTANT BOOLEAN := FALSE;
 
    	FUNCTION Get_App_Base_URL
    	RETURN VARCHAR2;
@@ -298,9 +297,7 @@ CREATE OR REPLACE PACKAGE BODY weco_login AS
 			exception
 			  when NO_DATA_FOUND then
 			COMMIT;
-$IF data_browser_specs.g_use_dbms_lock $THEN
-			SYS.DBMS_LOCK.SLEEP (1);
-$END
+			APEX_UTIL.PAUSE(1);
 			p_Message := APEX_LANG.LANG('No matching data found.');
 			return;
 		end;
@@ -319,9 +316,7 @@ $END
 	EXCEPTION
 	  when others then
 	  	COMMIT;
-$IF data_browser_specs.g_use_dbms_lock $THEN
-		SYS.DBMS_LOCK.SLEEP (1);
-$END
+		APEX_UTIL.PAUSE(1);
 		p_Message := APEX_LANG.LANG('The service is currently not available.');
 	end;
 
@@ -357,9 +352,7 @@ $END
 	  when NO_DATA_FOUND then
 		NULL;
 	  when others then
-$IF data_browser_specs.g_use_dbms_lock $THEN
-		SYS.DBMS_LOCK.SLEEP (1);
-$END
+		APEX_UTIL.PAUSE(1);
 		RAISE;
 	END;
 
@@ -544,15 +537,12 @@ $END
 			FROM V_CONTEXT_USERS B
 			WHERE B.USER_ID = p_Sender_ID;
 		end if;
-		begin
-			SELECT COALESCE(A.INFOMAIL_FROM, 'info@' || v_domain_name)  EMAIL_ADDRESS,
-				A.INFOMAIL_FOOTER
-			INTO v_Mail_From, v_Mail_Footer
-			FROM APP_PREFERENCES A;
-		exception
-		  when NO_DATA_FOUND then
-			v_Mail_From		:= 'info@' || v_domain_name;
-		end;
+
+		SELECT DESCRIPTION 
+		INTO v_Mail_Footer
+		FROM DATA_BROWSER_CONFIG
+		WHERE ID = data_browser_conf.Get_Configuration_ID;
+		v_Mail_From		:= COALESCE(APEX_UTIL.GET_EMAIL(V('APP_USER')), 'info@' || v_domain_name);
 
 		v_instance_url := RTRIM(NVL(p_instance_url, weco_login.Get_App_Base_URL), '/ ');
 		v_confirm_url  := v_instance_url || '/f?p=' || p_App_ID 
@@ -631,31 +621,15 @@ $END
 		end if;
 		v_body := REGEXP_REPLACE(REPLACE(v_AccountInfos, v_newline, v_cr), '<[^>]+>', '');
 		v_body_html := v_body_html || v_AccountInfos || '</body></html>';
-$IF weco_login.c_Use_Weco_Mail $THEN
-			weco_mail.send_mail(
-				p_to 		=> v_Mail_To,
-				p_from 		=> v_Mail_From,
-				p_body 		=> v_body,
-				p_body_html => v_body_html,
-				p_subj 		=> v_Subject,
-				p_conn 		=> v_conn,
-				p_Message 	=> v_ErrorMessage
-			);
-			UPDATE V_CONTEXT_USERS 
-				SET SEND_MAIL_REPLY_MESSAGE = NVL(SUBSTR(v_ErrorMessage, 1, 1000), 'OK')
-			WHERE USER_ID = p_User_ID;
-			COMMIT;
-$ELSE
-			apex_mail.Send (
-				p_to 		=> v_Mail_To,
-				p_from 		=> v_Mail_From,
-				p_body 		=> v_body,
-				p_body_html => v_body_html,
-				p_subj 		=> v_Subject
-			);
-			commit;
-			apex_mail.push_queue;
-$END
+		apex_mail.Send (
+			p_to 		=> v_Mail_To,
+			p_from 		=> v_Mail_From,
+			p_body 		=> v_body,
+			p_body_html => v_body_html,
+			p_subj 		=> v_Subject
+		);
+		commit;
+		apex_mail.push_queue;
 	END Account_Info_Mail;
 
 	PROCEDURE Load_Job(

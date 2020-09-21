@@ -1668,9 +1668,7 @@ $END
 				commit;
 				DBMS_OUTPUT.PUT_LINE('Job - stopped ' || v_Job_Name );
 			end if;
-$IF data_browser_specs.g_use_dbms_lock $THEN
-			SYS.DBMS_LOCK.SLEEP(1/10);
-$END
+			APEX_UTIL.PAUSE(1/10);
 		exception
 		  when NO_DATA_FOUND then
 			v_Job_Name := dbms_scheduler.generate_job_name (v_Job_Name_Prefix);
@@ -1693,9 +1691,7 @@ $END
 				comments => p_Comment,
 				enabled => true );
 			COMMIT;
-$IF data_browser_specs.g_use_dbms_lock $THEN
-			SYS.DBMS_LOCK.SLEEP(1/4);
-$END
+			APEX_UTIL.PAUSE(1/4);
 		end if;
 	END Load_Job;
 
