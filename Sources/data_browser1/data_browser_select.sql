@@ -1234,7 +1234,7 @@ is
 					S.R_VIEW_NAME REF_VIEW_NAME, 
 					S.R_COLUMN_NAME REF_COLUMN_NAME,
 					'' COMMENTS
-				FROM MVDATA_BROWSER_Q_REFS S
+				FROM TABLE(data_browser_select.FN_Pipe_browser_q_refs(v_View_Name)) S
 				LEFT OUTER JOIN JOIN_OPTIONS J ON S.TABLE_ALIAS = J.TABLE_ALIAS
 				WHERE S.VIEW_NAME = v_View_Name
 				AND S.PARENT_KEY_COLUMN IS NULL -- column is hidden because its content can be deduced from the references FILTER_KEY_COLUMN
@@ -1535,7 +1535,7 @@ is
 		) FC 
 		where not exists (
 			select 1 
-			from MVDATA_BROWSER_Q_REFS F
+			from TABLE(data_browser_select.FN_Pipe_browser_q_refs(FC.VIEW_NAME)) F
 			where F.VIEW_NAME = FC.VIEW_NAME
 			and F.FOREIGN_KEY_COLS = FC.COLUMN_NAME 
 			and F.COLUMN_ID = FC.COLUMN_ID
@@ -1665,6 +1665,289 @@ is
 		END LOOP;
 		CLOSE keys_cur;
 	END FN_Pipe_browser_fc_refs;
+
+	/*
+	List of displayed column names for each user table foreign key target tables.
+	The columns names match a pattern in the list of Reference Description Cols configuration list
+	or the column names are members of unique key definitions
+	or the column names are displayed columns of second level foreign keys of composite primary keys.
+	*/
+	FUNCTION FN_Pipe_browser_q_refs (p_View_Name VARCHAR2)
+	RETURN data_browser_select.tab_data_browser_q_refs PIPELINED
+	IS
+        CURSOR keys_cur (v_View_Name VARCHAR2)
+        IS -- find qualified unique key for target table of foreign key reference
+		SELECT VIEW_NAME, TABLE_NAME,
+			IMP_COLUMN_NAME
+			|| case when COUNT(*) OVER (PARTITION BY TABLE_NAME, IMP_COLUMN_NAME) > 1
+				then DENSE_RANK() OVER (PARTITION BY TABLE_NAME, IMP_COLUMN_NAME ORDER BY COLUMN_ID, R_COLUMN_ID, POSITION) -- run_no
+			end
+			AS IMP_COLUMN_NAME, 
+			COLUMN_PREFIX, IS_UPPER_NAME,
+			CAST(data_browser_conf.Column_Name_to_Header(
+				p_Column_Name => COLUMN_HEADER, 
+				p_Remove_Extension => 'NO', 
+				p_Remove_Prefix => COLUMN_PREFIX, 
+				p_Is_Upper_Name => IS_UPPER_NAME
+			) AS VARCHAR2(128)) COLUMN_HEADER,
+			WARNING_MSG,
+			PRIMARY_KEY_COLS, SEARCH_KEY_COLS, SHORT_NAME, COLUMN_ID, R_COLUMN_ID, POSITION, R_COLUMN_NAME, NULLABLE,
+			FOREIGN_KEY_COLS, R_PRIMARY_KEY_COLS, R_CONSTRAINT_TYPE, R_VIEW_NAME, R_TABLE_NAME,
+			CAST(TABLE_ALIAS AS VARCHAR2(10)) TABLE_ALIAS,
+			CAST(R_TABLE_ALIAS AS VARCHAR2(10)) R_TABLE_ALIAS,
+			R_NULLABLE, R_DATA_TYPE, R_DATA_SCALE, R_DATA_PRECISION, R_CHAR_LENGTH,
+			COLUMN_ALIGN,
+			JOIN_VIEW_NAME,
+			CAST( case when JOIN_COND IS NOT NULL then 
+					case when NULLABLE = 'Y' then 'LEFT OUTER ' end || 'JOIN '
+					|| JOIN_COND
+				end
+			AS VARCHAR2(1024)) JOIN_CLAUSE,
+			CAST(case when JOIN_COND IS NOT NULL then 
+					case when NULLABLE = 'Y' then 'LEFT OUTER ' end || 'JOIN '
+					|| SYS_CONTEXT('USERENV', 'CURRENT_SCHEMA') || '.'
+					|| JOIN_COND
+				end
+			AS VARCHAR2(1024)) JOIN_CLAUSE_EXPL,
+			CAST(COLUMN_EXPR AS VARCHAR2(1024)) COLUMN_EXPR,
+			COLUMN_NAME, HAS_HELP_TEXT, HAS_DEFAULT, IS_BLOB, IS_PASSWORD,
+			IS_AUDIT_COLUMN, IS_READONLY, DISPLAY_IN_REPORT, 
+			IS_DISPLAYED_KEY_COLUMN, IS_REFERENCE,
+			HAS_NULLABLE, U_CONSTRAINT_NAME, U_MEMBERS, U_MATCHING,
+			J_VIEW_NAME,
+			CAST(J_COLUMN_NAME AS VARCHAR2(128)) J_COLUMN_NAME,
+			IS_FILE_FOLDER_REF,
+			FILTER_KEY_COLUMN, PARENT_KEY_COLUMN
+		FROM (
+			SELECT DISTINCT F.TABLE_NAME, F.VIEW_NAME,
+					F.FOREIGN_KEY_COLS COLUMN_NAME,
+					F.PRIMARY_KEY_COLS,
+					F.SEARCH_KEY_COLS,
+					F.SHORT_NAME,
+					F.COLUMN_ID,
+					F.R_COLUMN_ID,
+					F.POSITION+G.R_COLUMN_ID/10000 POSITION,
+					NVL(G.R_COLUMN_NAME, G.R_PRIMARY_KEY_COLS) R_COLUMN_NAME,
+					case when G.R_COLUMN_NAME IS NULL then 'No description columns found. (Q)' end WARNING_MSG,
+					F.NULLABLE,
+					F.FOREIGN_KEY_COLS,
+					G.R_PRIMARY_KEY_COLS,
+					G.R_CONSTRAINT_TYPE,
+					G.R_VIEW_NAME,
+					G.R_TABLE_NAME,
+					F.TABLE_ALIAS,
+					data_browser_conf.Concat_List(F.TABLE_ALIAS, G.TABLE_ALIAS, '_') R_TABLE_ALIAS,
+					G.R_NULLABLE,
+					G.R_DATA_TYPE,
+					G.R_DATA_SCALE,
+					G.R_DATA_PRECISION,
+					G.R_CHAR_LENGTH,
+					G.COLUMN_ALIGN,
+					G.R_VIEW_NAME JOIN_VIEW_NAME,
+					case when G.FOREIGN_KEY_COLS IS NOT NULL then
+						G.R_VIEW_NAME
+						|| ' ' || data_browser_conf.Concat_List(F.TABLE_ALIAS, G.TABLE_ALIAS, '_')
+						|| ' ON ' 
+						-- || data_browser_conf.Concat_List(F.TABLE_ALIAS, G.TABLE_ALIAS, '_') || '.' || G.R_PRIMARY_KEY_COLS || ' = ' || F.TABLE_ALIAS || '.' || G.FOREIGN_KEY_COLS
+						|| data_browser_conf.Get_Join_Expression(
+							p_Left_Columns=>G.R_PRIMARY_KEY_COLS, p_Left_Alias=> data_browser_conf.Concat_List(F.TABLE_ALIAS, G.TABLE_ALIAS, '_'),
+							p_Right_Columns=>G.FOREIGN_KEY_COLS, p_Right_Alias=> F.TABLE_ALIAS)
+					end JOIN_COND,
+					case when G.R_COLUMN_NAME IS NOT NULL then
+						data_browser_conf.Get_ExportColFunction(
+							p_Column_Name => data_browser_conf.Concat_List(F.TABLE_ALIAS, G.TABLE_ALIAS, '_') || '.' || G.R_COLUMN_NAME,
+							p_Data_Type => G.R_DATA_TYPE,
+							p_Data_Precision => G.R_DATA_PRECISION,
+							p_Data_Scale => G.R_DATA_SCALE,
+							p_Char_Length => G.R_CHAR_LENGTH,
+							p_Use_Group_Separator =>  'N',
+							p_Use_Trim => 'Y'
+						)
+					else
+						data_browser_conf.Get_ExportColFunction(
+							p_Column_Name => data_browser_conf.Concat_List(F.TABLE_ALIAS, G.TABLE_ALIAS, '_') || '.' || G.R_PRIMARY_KEY_COLS,
+							p_Data_Type => G.R_DATA_TYPE,
+							p_Data_Precision => G.R_DATA_PRECISION,
+							p_Data_Scale => G.R_DATA_SCALE,
+							p_Char_Length => G.R_CHAR_LENGTH,
+							p_Use_Group_Separator =>  'N',
+							p_Use_Trim => 'Y'
+						)
+					end COLUMN_EXPR,
+					CAST(case when G.U_MEMBERS = 1 and F.VIEW_NAME != G.R_VIEW_NAME then
+							data_browser_conf.Compose_Column_Name(
+								p_First_Name=> data_browser_conf.Normalize_Column_Name(
+									p_Column_Name => F.FOREIGN_KEY_COLS, p_Remove_Prefix => F.COLUMN_PREFIX),
+								p_Second_Name => data_browser_conf.Normalize_Column_Name(
+									p_Column_Name => F.R_COLUMN_NAME, p_Remove_Prefix => F.COLUMN_PREFIX)
+								, p_Deduplication=>'NO', p_Max_Length=>29) -- avoid duplicatate names in recursive relations
+						else
+							data_browser_conf.Compose_Column_Name(
+								p_First_Name=> data_browser_conf.Normalize_Column_Name(
+									p_Column_Name => F.FOREIGN_KEY_COLS, p_Remove_Prefix => F.COLUMN_PREFIX), 
+								p_Second_Name=> data_browser_conf.Compose_Column_Name(
+									p_First_Name=> data_browser_conf.Normalize_Column_Name(
+										p_Column_Name => F.R_COLUMN_NAME, p_Remove_Prefix => F.COLUMN_PREFIX)
+									, p_Second_Name=> NVL(G.R_COLUMN_NAME, G.R_PRIMARY_KEY_COLS)
+									, p_Deduplication=>'NO', p_Max_Length=>29)
+								, p_Deduplication=>'NO', p_Max_Length=>29)
+						end AS VARCHAR2(32))
+					AS IMP_COLUMN_NAME,
+					F.COLUMN_PREFIX, G.IS_UPPER_NAME,
+					CAST(case when G.U_MEMBERS = 1 and F.VIEW_NAME != G.R_VIEW_NAME then -- simple column name when only one member is displayed
+							data_browser_conf.Compose_Column_Name(
+								p_First_Name=> data_browser_conf.Normalize_Column_Name(
+									p_Column_Name => F.FOREIGN_KEY_COLS, p_Remove_Prefix => F.COLUMN_PREFIX),
+								p_Second_Name => data_browser_conf.Normalize_Column_Name(
+									p_Column_Name => F.R_COLUMN_NAME, p_Remove_Prefix => F.COLUMN_PREFIX)
+								, p_Deduplication=>'NO', p_Max_Length=>128)
+						else
+							data_browser_conf.Compose_Column_Name(
+								p_First_Name=> data_browser_conf.Normalize_Column_Name(
+									p_Column_Name => F.FOREIGN_KEY_COLS, p_Remove_Prefix => F.COLUMN_PREFIX), 
+								p_Second_Name=> data_browser_conf.Compose_Column_Name(
+									p_First_Name=> data_browser_conf.Normalize_Column_Name(
+										p_Column_Name => F.R_COLUMN_NAME, p_Remove_Prefix => F.COLUMN_PREFIX)
+									, p_Second_Name=> NVL(G.R_COLUMN_NAME, G.R_PRIMARY_KEY_COLS)
+									, p_Deduplication=>'NO', p_Max_Length=>128)
+								, p_Deduplication=>'NO', p_Max_Length=>128)
+						end AS VARCHAR2(128))
+					AS COLUMN_HEADER,
+					G.HAS_HELP_TEXT, G.HAS_DEFAULT, G.IS_BLOB, G.IS_PASSWORD,
+					G.IS_AUDIT_COLUMN, G.IS_READONLY, G.DISPLAY_IN_REPORT,
+					F.IS_DISPLAYED_KEY_COLUMN,
+					G.IS_REFERENCE,
+					G.HAS_NULLABLE, G.U_CONSTRAINT_NAME,
+					G.U_MEMBERS, G.U_MATCHING,
+					F.R_VIEW_NAME J_VIEW_NAME,
+					F.R_COLUMN_NAME J_COLUMN_NAME,
+					F.IS_FILE_FOLDER_REF,
+					H.FILTER_KEY_COLUMN, -- column of table F.R_VIEW_NAME
+					H.PARENT_KEY_COLUMN -- column of table F.VIEW_NAME
+				FROM MVDATA_BROWSER_F_REFS F
+				, MVDATA_BROWSER_F_REFS G 
+				, VUSER_FOREIGN_KEY_PARENTS H 
+				WHERE G.VIEW_NAME = F.R_VIEW_NAME AND G.FOREIGN_KEY_COLS = F.R_COLUMN_NAME
+				AND F.R_VIEW_NAME = H.R_VIEW_NAME (+) AND F.VIEW_NAME = H.VIEW_NAME2 (+) AND F.FOREIGN_KEY_COLS = H.COLUMN_NAME (+)
+				AND F.VIEW_NAME = v_View_Name
+			);
+
+        v_in_rows tab_data_browser_q_refs;
+	BEGIN
+		OPEN keys_cur(p_View_Name);
+		LOOP
+			FETCH keys_cur BULK COLLECT INTO v_in_rows LIMIT 100;
+			EXIT WHEN v_in_rows.COUNT = 0;
+			FOR ind IN 1 .. v_in_rows.COUNT LOOP
+				pipe row (v_in_rows(ind));
+			END LOOP;
+		END LOOP;
+		CLOSE keys_cur;
+	END FN_Pipe_browser_q_refs;
+
+	FUNCTION FN_Pipe_table_imp_fk1 (p_Table_Name VARCHAR2)
+	RETURN data_browser_select.tab_table_imp_fk PIPELINED
+	IS
+        CURSOR views_cur (v_Table_Name VARCHAR2)
+        IS
+		-- 1. level foreign keys
+		SELECT --+ INDEX(S)
+			S.VIEW_NAME, S.TABLE_NAME, S.PRIMARY_KEY_COLS, S.SHORT_NAME,
+			S.FOREIGN_KEY_COLS COLUMN_NAME,
+			S.R_VIEW_NAME 		S_VIEW_NAME,
+			S.IMP_COLUMN_NAME 	S_REF,
+			S.VIEW_NAME         D_VIEW_NAME,					-- lookup ids of imported table + related
+			S.FOREIGN_KEY_COLS 	D_REF,
+			S.FOREIGN_KEY_COLS 	D_COLUMN_NAME,
+			S.IS_FILE_FOLDER_REF,
+			G.FOLDER_PARENT_COLUMN_NAME,
+			G.FOLDER_NAME_COLUMN_NAME,
+			G.FOLDER_CONTAINER_COLUMN_NAME,
+			NULL FILTER_KEY_COLUMN, NULL PARENT_KEY_COLUMN, 
+			S.R_PRIMARY_KEY_COLS, S.R_CONSTRAINT_TYPE,
+			S.R_TABLE_NAME, S.R_VIEW_NAME, S.COLUMN_ID, S.NULLABLE,
+			S.R_COLUMN_ID, S.R_COLUMN_NAME, S.POSITION, S.R_NULLABLE, S.R_DATA_TYPE,
+			S.R_DATA_PRECISION, S.R_DATA_SCALE, S.R_CHAR_LENGTH,
+			S.TABLE_ALIAS, S.IMP_COLUMN_NAME, NULL JOIN_CLAUSE,
+			SUM(case when S.R_NULLABLE = 'Y' then 1 else 0 end) OVER (PARTITION BY S.TABLE_NAME, S.FOREIGN_KEY_COLS) HAS_NULLABLE,
+			SUM(case when U.U_MEMBERS = 1 THEN 1 else 0 end ) OVER (PARTITION BY S.TABLE_NAME, S.FOREIGN_KEY_COLS) HAS_SIMPLE_UNIQUE,
+			case when S.IS_REFERENCE = 'N' then 0 else 1 end HAS_FOREIGN_KEY,
+			U.U_CONSTRAINT_NAME, 
+			S.U_MEMBERS, 
+			2 POSITION2
+		FROM MVDATA_BROWSER_F_REFS S
+		JOIN MVDATA_BROWSER_REFERENCES G ON S.VIEW_NAME = G.VIEW_NAME AND S.FOREIGN_KEY_COLS = G.COLUMN_NAME
+		LEFT OUTER JOIN MVDATA_BROWSER_U_REFS U ON U.VIEW_NAME = S.R_VIEW_NAME AND U.COLUMN_NAME = S.R_COLUMN_NAME AND U.RANK = 1  -- unique key columns for each foreign key
+        -- , (SELECT 'SALES' p_Table_name, 'NO' p_As_Of_Timestamp FROM DUAL ) PAR
+		WHERE S.TABLE_NAME = NVL(v_Table_Name, S.TABLE_NAME)
+		AND S.R_COLUMN_ID IS NOT NULL;
+        v_in_row rec_table_imp_fk;
+	BEGIN
+		OPEN views_cur(p_Table_Name);
+		LOOP
+			FETCH views_cur INTO v_in_row;
+			EXIT WHEN views_cur%NOTFOUND;
+			pipe row (v_in_row);
+		END LOOP;
+		CLOSE views_cur;
+	end FN_Pipe_table_imp_fk1;
+
+	FUNCTION FN_Pipe_table_imp_fk2 (
+		p_Table_Name VARCHAR2,
+		p_As_Of_Timestamp VARCHAR2 DEFAULT 'NO'
+	)
+	RETURN data_browser_select.tab_table_imp_fk PIPELINED
+	IS
+        CURSOR views_cur (v_Table_Name VARCHAR2)
+        IS
+		-- 2. level foreign keys
+		SELECT  --+ INDEX(Q) USE_NL_WITH_INDEX(S)
+			Q.VIEW_NAME, Q.TABLE_NAME, Q.SEARCH_KEY_COLS, Q.SHORT_NAME,
+			Q.FOREIGN_KEY_COLS 	COLUMN_NAME,
+			Q.R_VIEW_NAME 		S_VIEW_NAME,
+			Q.IMP_COLUMN_NAME 	S_REF,
+			S.R_VIEW_NAME 		D_VIEW_NAME,
+			S.IMP_COLUMN_NAME D_REF,
+			S.IMP_COLUMN_NAME D_COLUMN_NAME,
+			Q.IS_FILE_FOLDER_REF,
+			null FOLDER_PARENT_COLUMN_NAME,
+			null FOLDER_NAME_COLUMN_NAME,
+			null FOLDER_CONTAINER_COLUMN_NAME,
+            Q.FILTER_KEY_COLUMN, Q.PARENT_KEY_COLUMN, 
+			Q.R_PRIMARY_KEY_COLS, Q.R_CONSTRAINT_TYPE,
+			Q.R_TABLE_NAME, Q.R_VIEW_NAME, Q.COLUMN_ID, Q.NULLABLE,
+			Q.R_COLUMN_ID, Q.R_COLUMN_NAME, Q.POSITION, Q.R_NULLABLE, Q.R_DATA_TYPE,
+			Q.R_DATA_PRECISION, Q.R_DATA_SCALE, Q.R_CHAR_LENGTH,
+			Q.R_TABLE_ALIAS 	TABLE_ALIAS, 
+			Q.IMP_COLUMN_NAME,
+			case when p_As_Of_Timestamp = 'YES'
+				then REPLACE (Q.JOIN_CLAUSE, Q.JOIN_VIEW_NAME, custom_changelog.Get_ChangeLogViewName(Q.JOIN_VIEW_NAME))
+				else Q.JOIN_CLAUSE
+			end JOIN_CLAUSE,
+			SUM(case when Q.R_NULLABLE = 'Y' then 1 else 0 end) OVER (PARTITION BY Q.TABLE_NAME, Q.FOREIGN_KEY_COLS) HAS_NULLABLE,
+			SUM(case when Q.U_MEMBERS = 1 THEN 1 else 0 end ) OVER (PARTITION BY Q.TABLE_NAME, Q.FOREIGN_KEY_COLS) HAS_SIMPLE_UNIQUE,
+			case when Q.IS_REFERENCE = 'N' then 0 else 1 end HAS_FOREIGN_KEY,
+			Q.U_CONSTRAINT_NAME, Q.U_MEMBERS, 1 POSITION2
+		FROM MVDATA_BROWSER_F_REFS S, TABLE(data_browser_select.FN_Pipe_browser_q_refs(S.VIEW_NAME)) Q 
+        -- , (SELECT 'SALES' p_Table_name, 'NO' p_As_Of_Timestamp FROM DUAL ) PAR
+		where Q.VIEW_NAME = S.VIEW_NAME
+			and Q.FOREIGN_KEY_COLS = S.FOREIGN_KEY_COLS
+			and Q.TABLE_ALIAS = S.TABLE_ALIAS
+			and Q.J_VIEW_NAME = S.R_VIEW_NAME
+			and Q.J_COLUMN_NAME = S.R_COLUMN_NAME
+		and Q.TABLE_NAME = NVL(v_Table_Name, Q.TABLE_NAME)
+		AND Q.IS_FILE_FOLDER_REF = 'N';
+        v_in_row rec_table_imp_fk;
+	BEGIN
+		OPEN views_cur(p_Table_Name);
+		LOOP
+			FETCH views_cur INTO v_in_row;
+			EXIT WHEN views_cur%NOTFOUND;
+			pipe row (v_in_row);
+		END LOOP;
+		CLOSE views_cur;
+	end FN_Pipe_table_imp_fk2;
+
 
 	FUNCTION NL(p_Indent PLS_INTEGER) RETURN VARCHAR2 
 	is begin return data_browser_conf.NL(p_Indent);
@@ -2801,7 +3084,7 @@ $END
 		||  ') START WITH ' || data_browser_conf.Enquote_Name_Required(p_Folder_Par_Col_Name) || ' IS NULL' || NL(12+p_Level*4)
 		|| 	'CONNECT BY ' || data_browser_conf.Enquote_Name_Required(p_Folder_Par_Col_Name) 
 		|| ' = PRIOR ' || data_browser_conf.Enquote_Name_Required(p_Search_Key_Col) || NL(8+p_Level*4)
-		|| ') WHERE PATH = :new.' || p_Search_Path;
+		|| ') WHERE PATH = ' || p_Search_Path;
 		return v_Query;
 	end Key_Path_Lookup_Query;
 

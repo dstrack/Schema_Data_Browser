@@ -52,106 +52,6 @@ limitations under the License.
 
 CREATE OR REPLACE PACKAGE BODY import_utl IS
 
-	FUNCTION FN_Pipe_table_imp_fk1 (p_Table_Name VARCHAR2)
-	RETURN tab_table_imp_fk PIPELINED
-	IS
-        CURSOR views_cur (v_Table_Name VARCHAR2)
-        IS
-		-- 1. level foreign keys
-		SELECT S.VIEW_NAME,S.TABLE_NAME, S.PRIMARY_KEY_COLS, S.SHORT_NAME,
-			S.FOREIGN_KEY_COLS COLUMN_NAME,
-			S.R_VIEW_NAME 		S_VIEW_NAME,
-			case when EXISTS (
-				SELECT 1 
-				FROM MVDATA_BROWSER_FKEYS FK
-				WHERE FK.VIEW_NAME = S.R_VIEW_NAME 
-				AND FK.FOREIGN_KEY_COLS = S.R_COLUMN_NAME
-			) then 'v_' else ':new.' end 
-			|| S.IMP_COLUMN_NAME S_REF,
-			S.VIEW_NAME         D_VIEW_NAME,					-- lookup ids of imported table + related
-			'v_row.' || S.FOREIGN_KEY_COLS D_REF,
-			S.FOREIGN_KEY_COLS D_COLUMN_NAME,
-			S.IS_FILE_FOLDER_REF,
-			G.FOLDER_PARENT_COLUMN_NAME,
-			G.FOLDER_NAME_COLUMN_NAME,
-			G.FOLDER_CONTAINER_COLUMN_NAME,
-			S.R_PRIMARY_KEY_COLS, S.R_CONSTRAINT_TYPE,
-			S.R_VIEW_NAME, S.COLUMN_ID, S.NULLABLE,
-			S.R_COLUMN_ID, S.R_COLUMN_NAME, S.R_NULLABLE, S.R_DATA_TYPE,
-			S.R_DATA_SCALE, S.R_CHAR_LENGTH,
-			S.TABLE_ALIAS, S.IMP_COLUMN_NAME, NULL JOIN_CLAUSE,
-			SUM(case when S.R_NULLABLE = 'Y' then 1 else 0 end) OVER (PARTITION BY S.TABLE_NAME, S.FOREIGN_KEY_COLS) HAS_NULLABLE,
-			SUM(case when U.U_MEMBERS = 1 THEN 1 else 0 end ) OVER (PARTITION BY S.TABLE_NAME, S.FOREIGN_KEY_COLS) HAS_SIMPLE_UNIQUE,
-			case when S.IS_REFERENCE = 'N' then 0 else 1 end HAS_FOREIGN_KEY,
-			U.U_CONSTRAINT_NAME, 
-			S.U_MEMBERS, 
-			2 POSITION2
-		FROM MVDATA_BROWSER_F_REFS S
-		JOIN MVDATA_BROWSER_REFERENCES G ON S.VIEW_NAME = G.VIEW_NAME AND S.FOREIGN_KEY_COLS = G.COLUMN_NAME
-		LEFT OUTER JOIN MVDATA_BROWSER_U_REFS U ON U.VIEW_NAME = S.R_VIEW_NAME AND U.COLUMN_NAME = S.R_COLUMN_NAME AND U.RANK = 1  -- unique key columns for each foreign key
-		WHERE S.R_COLUMN_ID IS NOT NULL
-		AND S.TABLE_NAME = v_Table_Name;
-        v_in_row rec_table_imp_fk;
-	BEGIN
-		OPEN views_cur(p_Table_Name);
-		LOOP
-			FETCH views_cur INTO v_in_row;
-			EXIT WHEN views_cur%NOTFOUND;
-			pipe row (v_in_row);
-		END LOOP;
-		CLOSE views_cur;
-	end FN_Pipe_table_imp_fk1;
-
-	FUNCTION FN_Pipe_table_imp_fk2 (p_Table_Name VARCHAR2)
-	RETURN tab_table_imp_fk PIPELINED
-	IS
-        CURSOR views_cur (v_Table_Name VARCHAR2)
-        IS
-		-- 2. level foreign keys
-		SELECT Q.VIEW_NAME, Q.TABLE_NAME, Q.PRIMARY_KEY_COLS, Q.SHORT_NAME,
-			Q.FOREIGN_KEY_COLS COLUMN_NAME,
-			Q.R_VIEW_NAME 		S_VIEW_NAME,
-			':new.' || Q.IMP_COLUMN_NAME S_REF,
-			S.R_VIEW_NAME 		D_VIEW_NAME,
-			'v_' || S.IMP_COLUMN_NAME D_REF,
-			S.IMP_COLUMN_NAME D_COLUMN_NAME,
-			Q.IS_FILE_FOLDER_REF,
-			null FOLDER_PARENT_COLUMN_NAME,
-			null FOLDER_NAME_COLUMN_NAME,
-			null FOLDER_CONTAINER_COLUMN_NAME,
-			Q.R_PRIMARY_KEY_COLS, Q.R_CONSTRAINT_TYPE,
-			Q.R_VIEW_NAME, Q.COLUMN_ID, Q.NULLABLE,
-			Q.R_COLUMN_ID, Q.R_COLUMN_NAME, Q.R_NULLABLE, Q.R_DATA_TYPE,
-			Q.R_DATA_SCALE, Q.R_CHAR_LENGTH,
-			Q.R_TABLE_ALIAS 	TABLE_ALIAS, 
-			Q.IMP_COLUMN_NAME,
-			case when import_utl.Get_As_Of_Timestamp = 'YES'
-				then REPLACE (Q.JOIN_CLAUSE, Q.JOIN_VIEW_NAME, custom_changelog.Get_ChangeLogViewName(Q.JOIN_VIEW_NAME))
-				else Q.JOIN_CLAUSE
-			end JOIN_CLAUSE,
-			SUM(case when Q.R_NULLABLE = 'Y' then 1 else 0 end) OVER (PARTITION BY Q.TABLE_NAME, Q.FOREIGN_KEY_COLS) HAS_NULLABLE,
-			SUM(case when Q.U_MEMBERS = 1 THEN 1 else 0 end ) OVER (PARTITION BY Q.TABLE_NAME, Q.FOREIGN_KEY_COLS) HAS_SIMPLE_UNIQUE,
-			case when Q.IS_REFERENCE = 'N' then 0 else 1 end HAS_FOREIGN_KEY,
-			Q.U_CONSTRAINT_NAME, Q.U_MEMBERS, 1 POSITION2
-		FROM MVDATA_BROWSER_Q_REFS Q
-		JOIN MVDATA_BROWSER_F_REFS S ON Q.VIEW_NAME = S.VIEW_NAME
-			and Q.FOREIGN_KEY_COLS = S.FOREIGN_KEY_COLS
-			and Q.TABLE_ALIAS = S.TABLE_ALIAS
-			and Q.J_VIEW_NAME = S.R_VIEW_NAME
-			and Q.J_COLUMN_NAME = S.R_COLUMN_NAME
-		WHERE Q.VIEW_NAME = v_Table_Name
-		AND Q.IS_FILE_FOLDER_REF = 'N';
-        v_in_row rec_table_imp_fk;
-	BEGIN
-		OPEN views_cur(p_Table_Name);
-		LOOP
-			FETCH views_cur INTO v_in_row;
-			EXIT WHEN views_cur%NOTFOUND;
-			pipe row (v_in_row);
-		END LOOP;
-		CLOSE views_cur;
-	end FN_Pipe_table_imp_fk2;
-
 	FUNCTION FN_Pipe_table_imp_cols (p_Table_Name VARCHAR2)
 	RETURN tab_table_imp_cols PIPELINED
 	IS
@@ -221,13 +121,13 @@ CREATE OR REPLACE PACKAGE BODY import_utl IS
 					Q.TABLE_ALIAS 		TABLE_ALIAS, 
 					S.R_VIEW_NAME 		D_VIEW_NAME,
 					S.IMP_COLUMN_NAME
-				FROM MVDATA_BROWSER_Q_REFS Q
-				JOIN MVDATA_BROWSER_F_REFS S ON Q.VIEW_NAME = S.VIEW_NAME
+				FROM MVDATA_BROWSER_F_REFS S, TABLE(data_browser_select.FN_Pipe_browser_q_refs(S.VIEW_NAME)) Q
+				where Q.VIEW_NAME = S.VIEW_NAME
 					and Q.FOREIGN_KEY_COLS = S.FOREIGN_KEY_COLS
 					and Q.TABLE_ALIAS = S.TABLE_ALIAS
 					and Q.J_VIEW_NAME = S.R_VIEW_NAME
 					and Q.J_COLUMN_NAME = S.R_COLUMN_NAME
-				WHERE Q.VIEW_NAME = v_Table_Name
+				and S.VIEW_NAME = v_Table_Name
 			) S
 			JOIN REFERENCES_Q E ON E.R_VIEW_NAME = S.S_VIEW_NAME AND E.COLUMN_NAME = S.PARENT_KEY_COLUMN
 			JOIN REFERENCES_Q F ON F.R_VIEW_NAME = S.D_VIEW_NAME AND F.COLUMN_NAME = S.IMP_COLUMN_NAME
@@ -276,12 +176,12 @@ CREATE OR REPLACE PACKAGE BODY import_utl IS
 						end
 					else 
 						RPAD(' ', 4) 
-						|| 'if :new.' || MIN(T.S_COLUMN_NAME) || ' IS NOT NULL then ' || chr(10)
+						|| 'if :new.' || MAX(T.S_COLUMN_NAME) || ' IS NOT NULL then ' || chr(10)
 						|| RPAD(' ', 8) -- find path values
 						|| data_browser_select.Key_Path_Lookup_Query (
 							p_Table_Name  			=> T.R_VIEW_NAME,
 							p_Search_Key_Col  		=> T.R_PRIMARY_KEY_COLS,
-							p_Search_Path   		=> MIN(T.S_COLUMN_NAME),
+							p_Search_Path   		=> ':new.' || MAX(T.S_COLUMN_NAME),
 							p_Search_Value   		=> T.D_REF,
 							p_Folder_Par_Col_Name  	=> T.FOLDER_PARENT_COLUMN_NAME,
 							p_Folder_Name_Col_Name  => T.FOLDER_NAME_COLUMN_NAME,
@@ -352,12 +252,35 @@ CREATE OR REPLACE PACKAGE BODY import_utl IS
 					'v_' || FC.IMP_COLUMN_NAME FOLDER_CONTAINER_REF
 				FROM (
 					-- 2. level foreign keys
-					SELECT *
-					FROM TABLE(import_utl.FN_Pipe_table_imp_fk2 (v_Table_Name))
+					SELECT 	VIEW_NAME, TABLE_NAME, SEARCH_KEY_COLS, SHORT_NAME, COLUMN_NAME, 
+						S_VIEW_NAME, ':new.' || S_REF S_REF, 
+						D_VIEW_NAME, 'v_' || D_REF D_REF, 
+						D_COLUMN_NAME, 
+						IS_FILE_FOLDER_REF, FOLDER_PARENT_COLUMN_NAME, FOLDER_NAME_COLUMN_NAME, FOLDER_CONTAINER_COLUMN_NAME, 
+						R_PRIMARY_KEY_COLS, R_CONSTRAINT_TYPE, R_VIEW_NAME, COLUMN_ID, NULLABLE, 
+						R_COLUMN_ID, R_COLUMN_NAME, R_NULLABLE, R_DATA_TYPE, R_DATA_PRECISION, R_DATA_SCALE, 
+						R_CHAR_LENGTH, TABLE_ALIAS, IMP_COLUMN_NAME, JOIN_CLAUSE, HAS_NULLABLE, HAS_SIMPLE_UNIQUE, 
+						HAS_FOREIGN_KEY, U_CONSTRAINT_NAME, U_MEMBERS, POSITION2		
+					FROM TABLE(data_browser_select.FN_Pipe_table_imp_fk2 (v_Table_Name, import_utl.Get_As_Of_Timestamp))
 					UNION ALL
 					-- 1. level foreign keys
-					SELECT *
-					FROM TABLE(import_utl.FN_Pipe_table_imp_fk1 (v_Table_Name))
+					SELECT VIEW_NAME, TABLE_NAME, SEARCH_KEY_COLS, SHORT_NAME, COLUMN_NAME, 
+						S_VIEW_NAME, 
+						case when EXISTS (
+							SELECT 1 
+							FROM MVDATA_BROWSER_FKEYS FK
+							WHERE FK.VIEW_NAME = S.R_VIEW_NAME 
+							AND FK.FOREIGN_KEY_COLS = S.R_COLUMN_NAME
+						) then 'v_' else ':new.' end 
+						|| S_REF S_REF, 
+						D_VIEW_NAME, 'v_row.' || D_REF D_REF, 
+						D_COLUMN_NAME, 
+						IS_FILE_FOLDER_REF, FOLDER_PARENT_COLUMN_NAME, FOLDER_NAME_COLUMN_NAME, FOLDER_CONTAINER_COLUMN_NAME, 
+						R_PRIMARY_KEY_COLS, R_CONSTRAINT_TYPE, R_VIEW_NAME, COLUMN_ID, NULLABLE, 
+						R_COLUMN_ID, R_COLUMN_NAME, R_NULLABLE, R_DATA_TYPE, R_DATA_PRECISION, R_DATA_SCALE, 
+						R_CHAR_LENGTH, TABLE_ALIAS, IMP_COLUMN_NAME, JOIN_CLAUSE, HAS_NULLABLE, HAS_SIMPLE_UNIQUE, 
+						HAS_FOREIGN_KEY, U_CONSTRAINT_NAME, U_MEMBERS, POSITION2
+					FROM TABLE(data_browser_select.FN_Pipe_table_imp_fk1 (v_Table_Name)) S
 				) S
 				JOIN REFERENCES_Q E ON E.R_VIEW_NAME = S.S_VIEW_NAME AND E.REF_COLUMN_NAME = S.R_COLUMN_NAME 
 					AND (E.TABLE_ALIAS = S.TABLE_ALIAS OR E.TABLE_ALIAS IS NULL)
@@ -1357,8 +1280,8 @@ CREATE OR REPLACE PACKAGE BODY import_utl IS
         || 'DECLARE ' || chr(10) || RPAD(' ', 4)
         || 'v_row ' || v_Table_Name || '%ROWTYPE;' || chr(10);
         for c_cur in (
-            SELECT DISTINCT D_REF || ' ' || R_VIEW_NAME || '.' || R_PRIMARY_KEY_COLS || '%TYPE;' SQL_TEXT
-            FROM TABLE (import_utl.FN_Pipe_table_imp_FK2(v_Table_Name))
+            SELECT DISTINCT 'v_' || D_REF || ' ' || R_VIEW_NAME || '.' || R_PRIMARY_KEY_COLS || '%TYPE;' SQL_TEXT
+            FROM TABLE (data_browser_select.FN_Pipe_table_imp_FK2(v_Table_Name, import_utl.Get_As_Of_Timestamp))
             ORDER BY 1
         ) loop
             v_Str := RPAD(' ', 4) || c_cur.SQL_TEXT || chr(10);

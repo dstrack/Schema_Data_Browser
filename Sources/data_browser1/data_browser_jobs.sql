@@ -20,7 +20,7 @@ IS
 	g_Job_Name_Prefix 			CONSTANT VARCHAR2(10) := 'DBROW_';
 	g_Refresh_MViews_Start_Unique CONSTANT BINARY_INTEGER := 1;
 	g_Refresh_MViews_Start_Foreign CONSTANT BINARY_INTEGER := 5;
-	g_Refresh_MViews_Start_Project CONSTANT BINARY_INTEGER := 11;
+	g_Refresh_MViews_Start_Project CONSTANT BINARY_INTEGER := 10;
 	g_debug CONSTANT BOOLEAN := false;
 	g_Use_App_Preferences CONSTANT BOOLEAN := TRUE;
 	
@@ -538,7 +538,7 @@ IS
         v_rindex 		binary_integer := dbms_application_info.set_session_longops_nohint;
         v_slno   		binary_integer;
         v_Start_Step  	constant binary_integer := nvl(p_Start_Step, g_Refresh_MViews_Start_Unique);
-        v_Steps  		constant binary_integer := 12;
+        v_Steps  		constant binary_integer := 11;
 		v_LAST_DDL_TIME USER_OBJECTS.LAST_DDL_TIME%TYPE;
     BEGIN
         Set_Process_Infos(v_rindex, v_slno, g_Refresh_MViews_Proc_Name, p_context, v_Steps-v_Start_Step, 0, 'steps');
@@ -574,14 +574,11 @@ IS
 				when 9 then MView_Refresh(p_MView_Name => 'MVDATA_BROWSER_F_REFS', 
 										p_Dependent_MViews => 'MVDATA_BROWSER_VIEWS,MVDATA_BROWSER_FKEYS,MVDATA_BROWSER_D_REFS,MVDATA_BROWSER_U_REFS,MVDATA_BROWSER_DESCRIPTIONS', 
 										p_Owner => p_Owner, p_LAST_DDL_TIME => v_LAST_DDL_TIME);
-				when 10 then MView_Refresh(p_MView_Name => 'MVDATA_BROWSER_Q_REFS', 
-										p_Dependent_MViews => 'MVDATA_BROWSER_F_REFS,MVDATA_BROWSER_FKEYS', 
-										p_Owner => p_Owner, p_LAST_DDL_TIME => v_LAST_DDL_TIME);
 				-- columns projections --
-				when 11 then MView_Refresh(p_MView_Name => 'MVDATA_BROWSER_REFERENCES', 
+				when 10 then MView_Refresh(p_MView_Name => 'MVDATA_BROWSER_REFERENCES', 
 										p_Dependent_MViews => 'MVDATA_BROWSER_VIEWS,MVDATA_BROWSER_FKEYS,MVDATA_BROWSER_U_REFS,MVDATA_BROWSER_D_REFS', 
 										p_Owner => p_Owner, p_LAST_DDL_TIME => v_LAST_DDL_TIME);
-				when 12 then MView_Refresh(p_MView_Name => 'MVDATA_BROWSER_SIMPLE_COLS', 
+				when 11 then MView_Refresh(p_MView_Name => 'MVDATA_BROWSER_SIMPLE_COLS', 
 										p_Dependent_MViews => 'MVDATA_BROWSER_VIEWS,MVDATA_BROWSER_DESCRIPTIONS,MVDATA_BROWSER_CHECKS_DEFS', 
 										p_Owner => p_Owner, p_LAST_DDL_TIME => v_LAST_DDL_TIME);
 				else null;

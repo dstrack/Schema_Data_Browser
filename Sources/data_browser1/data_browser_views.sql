@@ -30,7 +30,6 @@ BEGIN
 	DROP_MVIEW('MVDATA_BROWSER_SIMPLE_COLS');
 	DROP_MVIEW('MVDATA_BROWSER_DESCRIPTIONS');
 	DROP_MVIEW('MVDATA_BROWSER_FC_REFS'); -- old name
-	DROP_MVIEW('MVDATA_BROWSER_Q_REFS');
 	DROP_MVIEW('MVDATA_BROWSER_U_REFS');
 	DROP_MVIEW('MVDATA_BROWSER_F_REFS');
 	DROP_MVIEW('MVDATA_BROWSER_D_REFS');
@@ -862,187 +861,6 @@ COMMENT ON MATERIALIZED VIEW MVDATA_BROWSER_F_REFS IS
 'List of displayed column names for each user table foreign key. The columns names match a pattern in the list of Reference Description Cols configuration list.';
 
 
-
-
--- foreign keys with unique columns and second level foreign keys
-CREATE MATERIALIZED VIEW MVDATA_BROWSER_Q_REFS
-	CACHE
-	NOLOGGING
-	STORAGE (
-	  INITIAL 1024
-	  NEXT 1024
-	  MINEXTENTS 1
-	  MAXEXTENTS UNLIMITED
-	  BUFFER_POOL KEEP
-	)
-	BUILD DEFERRED
-    REFRESH COMPLETE
-    ON DEMAND
-AS -- find qualified unique key for target table of foreign key reference
-SELECT VIEW_NAME, TABLE_NAME,
-	IMP_COLUMN_NAME
-	|| case when COUNT(*) OVER (PARTITION BY TABLE_NAME, IMP_COLUMN_NAME) > 1
-		then DENSE_RANK() OVER (PARTITION BY TABLE_NAME, IMP_COLUMN_NAME ORDER BY COLUMN_ID, R_COLUMN_ID, POSITION) -- run_no
-	end
-	AS IMP_COLUMN_NAME, 
-	COLUMN_PREFIX, IS_UPPER_NAME,
-	CAST(data_browser_conf.Column_Name_to_Header(
-		p_Column_Name => COLUMN_HEADER, 
-		p_Remove_Extension => 'NO', 
-		p_Remove_Prefix => COLUMN_PREFIX, 
-		p_Is_Upper_Name => IS_UPPER_NAME
-	) AS VARCHAR2(128)) COLUMN_HEADER,
-	WARNING_MSG,
-	PRIMARY_KEY_COLS, SEARCH_KEY_COLS, SHORT_NAME, COLUMN_ID, R_COLUMN_ID, POSITION, R_COLUMN_NAME, NULLABLE,
-	FOREIGN_KEY_COLS, R_PRIMARY_KEY_COLS, R_CONSTRAINT_TYPE, R_VIEW_NAME, R_TABLE_NAME,
-	CAST(TABLE_ALIAS AS VARCHAR2(10)) TABLE_ALIAS,
-	CAST(R_TABLE_ALIAS AS VARCHAR2(10)) R_TABLE_ALIAS,
-	R_NULLABLE, R_DATA_TYPE, R_DATA_SCALE, R_DATA_PRECISION, R_CHAR_LENGTH,
-	COLUMN_ALIGN,
-	JOIN_VIEW_NAME,
-	CAST( case when JOIN_COND IS NOT NULL then 
-		    case when NULLABLE = 'Y' then 'LEFT OUTER ' end || 'JOIN '
-			|| JOIN_COND
-		end
-	AS VARCHAR2(1024)) JOIN_CLAUSE,
-	CAST(case when JOIN_COND IS NOT NULL then 
-		    case when NULLABLE = 'Y' then 'LEFT OUTER ' end || 'JOIN '
-			|| SYS_CONTEXT('USERENV', 'CURRENT_SCHEMA') || '.'
-			|| JOIN_COND
-		end
-	AS VARCHAR2(1024)) JOIN_CLAUSE_EXPL,
-	CAST(COLUMN_EXPR AS VARCHAR2(1024)) COLUMN_EXPR,
-	COLUMN_NAME, HAS_HELP_TEXT, HAS_DEFAULT, IS_BLOB, IS_PASSWORD,
-	IS_AUDIT_COLUMN, IS_READONLY, DISPLAY_IN_REPORT, 
-	IS_DISPLAYED_KEY_COLUMN, IS_REFERENCE,
-	HAS_NULLABLE, U_CONSTRAINT_NAME, U_MEMBERS, U_MATCHING,
-	J_VIEW_NAME,
-	CAST(J_COLUMN_NAME AS VARCHAR2(128)) J_COLUMN_NAME,
-	IS_FILE_FOLDER_REF,
-	FILTER_KEY_COLUMN, PARENT_KEY_COLUMN
-FROM (
-	SELECT DISTINCT F.TABLE_NAME, F.VIEW_NAME,
-		F.FOREIGN_KEY_COLS COLUMN_NAME,
-		F.PRIMARY_KEY_COLS,
-		F.SEARCH_KEY_COLS,
-		F.SHORT_NAME,
-		F.COLUMN_ID,
-		F.R_COLUMN_ID,
-		F.POSITION+G.R_COLUMN_ID/10000 POSITION,
-		NVL(G.R_COLUMN_NAME, G.R_PRIMARY_KEY_COLS) R_COLUMN_NAME,
-		case when G.R_COLUMN_NAME IS NULL then 'No description columns found. (Q)' end WARNING_MSG,
-		F.NULLABLE,
-		F.FOREIGN_KEY_COLS,
-		G.R_PRIMARY_KEY_COLS,
-		G.R_CONSTRAINT_TYPE,
-		G.R_VIEW_NAME,
-		G.R_TABLE_NAME,
-		F.TABLE_ALIAS,
-		data_browser_conf.Concat_List(F.TABLE_ALIAS, G.TABLE_ALIAS, '_') R_TABLE_ALIAS,
-		G.R_NULLABLE,
-		G.R_DATA_TYPE,
-		G.R_DATA_SCALE,
-		G.R_DATA_PRECISION,
-		G.R_CHAR_LENGTH,
-		G.COLUMN_ALIGN,
-		G.R_VIEW_NAME JOIN_VIEW_NAME,
-		case when G.FOREIGN_KEY_COLS IS NOT NULL then
-			G.R_VIEW_NAME
-			|| ' ' || data_browser_conf.Concat_List(F.TABLE_ALIAS, G.TABLE_ALIAS, '_')
-			|| ' ON ' 
-			-- || data_browser_conf.Concat_List(F.TABLE_ALIAS, G.TABLE_ALIAS, '_') || '.' || G.R_PRIMARY_KEY_COLS || ' = ' || F.TABLE_ALIAS || '.' || G.FOREIGN_KEY_COLS
-			|| data_browser_conf.Get_Join_Expression(
-				p_Left_Columns=>G.R_PRIMARY_KEY_COLS, p_Left_Alias=> data_browser_conf.Concat_List(F.TABLE_ALIAS, G.TABLE_ALIAS, '_'),
-				p_Right_Columns=>G.FOREIGN_KEY_COLS, p_Right_Alias=> F.TABLE_ALIAS)
-		end JOIN_COND,
-		case when G.R_COLUMN_NAME IS NOT NULL then
-			data_browser_conf.Get_ExportColFunction(
-				p_Column_Name => data_browser_conf.Concat_List(F.TABLE_ALIAS, G.TABLE_ALIAS, '_') || '.' || G.R_COLUMN_NAME,
-				p_Data_Type => G.R_DATA_TYPE,
-				p_Data_Precision => G.R_DATA_PRECISION,
-				p_Data_Scale => G.R_DATA_SCALE,
-				p_Char_Length => G.R_CHAR_LENGTH,
-				p_Use_Group_Separator =>  'N',
-				p_Use_Trim => 'Y'
-			)
-		else
-			data_browser_conf.Get_ExportColFunction(
-				p_Column_Name => data_browser_conf.Concat_List(F.TABLE_ALIAS, G.TABLE_ALIAS, '_') || '.' || G.R_PRIMARY_KEY_COLS,
-				p_Data_Type => G.R_DATA_TYPE,
-				p_Data_Precision => G.R_DATA_PRECISION,
-				p_Data_Scale => G.R_DATA_SCALE,
-				p_Char_Length => G.R_CHAR_LENGTH,
-				p_Use_Group_Separator =>  'N',
-				p_Use_Trim => 'Y'
-			)
-		end COLUMN_EXPR,
-		CAST(case when G.U_MEMBERS = 1 and F.VIEW_NAME != G.R_VIEW_NAME then
-				data_browser_conf.Compose_Column_Name(
-					p_First_Name=> data_browser_conf.Normalize_Column_Name(
-						p_Column_Name => F.FOREIGN_KEY_COLS, p_Remove_Prefix => F.COLUMN_PREFIX),
-					p_Second_Name => data_browser_conf.Normalize_Column_Name(
-						p_Column_Name => F.R_COLUMN_NAME, p_Remove_Prefix => F.COLUMN_PREFIX)
-					, p_Deduplication=>'NO', p_Max_Length=>29) -- avoid duplicatate names in recursive relations
-			else
-                data_browser_conf.Compose_Column_Name(
-                    p_First_Name=> data_browser_conf.Normalize_Column_Name(
-						p_Column_Name => F.FOREIGN_KEY_COLS, p_Remove_Prefix => F.COLUMN_PREFIX), 
-                    p_Second_Name=> data_browser_conf.Compose_Column_Name(
-                        p_First_Name=> data_browser_conf.Normalize_Column_Name(
-                            p_Column_Name => F.R_COLUMN_NAME, p_Remove_Prefix => F.COLUMN_PREFIX)
-                        , p_Second_Name=> NVL(G.R_COLUMN_NAME, G.R_PRIMARY_KEY_COLS)
-                        , p_Deduplication=>'NO', p_Max_Length=>29)
-                    , p_Deduplication=>'NO', p_Max_Length=>29)
-			end AS VARCHAR2(32))
-		AS IMP_COLUMN_NAME,
-		F.COLUMN_PREFIX, G.IS_UPPER_NAME,
-		CAST(case when G.U_MEMBERS = 1 and F.VIEW_NAME != G.R_VIEW_NAME then -- simple column name when only one member is displayed
-				data_browser_conf.Compose_Column_Name(
-					p_First_Name=> data_browser_conf.Normalize_Column_Name(
-						p_Column_Name => F.FOREIGN_KEY_COLS, p_Remove_Prefix => F.COLUMN_PREFIX),
-					p_Second_Name => data_browser_conf.Normalize_Column_Name(
-						p_Column_Name => F.R_COLUMN_NAME, p_Remove_Prefix => F.COLUMN_PREFIX)
-					, p_Deduplication=>'NO', p_Max_Length=>128)
-			else
-                data_browser_conf.Compose_Column_Name(
-                    p_First_Name=> data_browser_conf.Normalize_Column_Name(
-						p_Column_Name => F.FOREIGN_KEY_COLS, p_Remove_Prefix => F.COLUMN_PREFIX), 
-                    p_Second_Name=> data_browser_conf.Compose_Column_Name(
-                        p_First_Name=> data_browser_conf.Normalize_Column_Name(
-                            p_Column_Name => F.R_COLUMN_NAME, p_Remove_Prefix => F.COLUMN_PREFIX)
-                        , p_Second_Name=> NVL(G.R_COLUMN_NAME, G.R_PRIMARY_KEY_COLS)
-                        , p_Deduplication=>'NO', p_Max_Length=>128)
-                    , p_Deduplication=>'NO', p_Max_Length=>128)
-			end AS VARCHAR2(128))
-		AS COLUMN_HEADER,
-		G.HAS_HELP_TEXT, G.HAS_DEFAULT, G.IS_BLOB, G.IS_PASSWORD,
-		G.IS_AUDIT_COLUMN, G.IS_READONLY, G.DISPLAY_IN_REPORT,
-		F.IS_DISPLAYED_KEY_COLUMN,
-		G.IS_REFERENCE,
-		G.HAS_NULLABLE, G.U_CONSTRAINT_NAME,
-		G.U_MEMBERS, G.U_MATCHING,
-		F.R_VIEW_NAME J_VIEW_NAME,
-		F.R_COLUMN_NAME J_COLUMN_NAME,
-		F.IS_FILE_FOLDER_REF,
-		H.FILTER_KEY_COLUMN, -- column of table F.R_VIEW_NAME
-		H.PARENT_KEY_COLUMN -- column of table F.VIEW_NAME
-	FROM MVDATA_BROWSER_F_REFS F
-	, MVDATA_BROWSER_F_REFS G 
-	, VUSER_FOREIGN_KEY_PARENTS H 
-	WHERE G.VIEW_NAME = F.R_VIEW_NAME AND G.FOREIGN_KEY_COLS = F.R_COLUMN_NAME
-	AND F.R_VIEW_NAME = H.R_VIEW_NAME (+) AND F.VIEW_NAME = H.VIEW_NAME2 (+) AND F.FOREIGN_KEY_COLS = H.COLUMN_NAME (+)
-);
-
-ALTER TABLE MVDATA_BROWSER_Q_REFS ADD CONSTRAINT MVDATA_BROWSER_TAB_Q_REFS_PK PRIMARY KEY (VIEW_NAME, IMP_COLUMN_NAME);
-COMMENT ON MATERIALIZED VIEW MVDATA_BROWSER_Q_REFS IS
-'List of displayed column names for each user table foreign key target tables.
-The columns names match a pattern in the list of Reference Description Cols configuration list
-or the column names are members of unique key definitions
-or the column names are displayed columns of second level foreign keys of composite primary keys.
-';
-
-
-
 CREATE MATERIALIZED VIEW MVDATA_BROWSER_CHECKS_DEFS (
 	TABLE_OWNER, TABLE_NAME, VIEW_NAME, COLUMN_NAME, CHECK_CONSTRAINT_NAME, CHECK_CONDITION,
 	CONS_COLS_COUNT, IS_FOREIGN_KEY, CHECK_UNIQUE, CONSTRAINT_NAME, REQUIRED, DATA_DEFAULT,
@@ -1695,7 +1513,7 @@ from (
     from TABLE(data_browser_select.FN_Pipe_browser_fc_refs('DIAGRAM_EDGES'))
     UNION ALL
     select 'Q' TYPE, VIEW_NAME, FOREIGN_KEY_COLS, R_VIEW_NAME, COLUMN_ID, R_COLUMN_ID, POSITION, COLUMN_HEADER, R_COLUMN_NAME, IMP_COLUMN_NAME, TABLE_ALIAS, R_TABLE_ALIAS, IS_READONLY, WARNING_MSG
-    from MVDATA_BROWSER_Q_REFS
+    from TABLE(data_browser_select.FN_Pipe_browser_q_refs('DIAGRAM_EDGES'))
     UNION ALL
     select 'QC' TYPE, VIEW_NAME, COLUMN_NAME FOREIGN_KEY_COLS, R_VIEW_NAME, COLUMN_ID, R_COLUMN_ID, POSITION, COLUMN_HEADER, R_COLUMN_NAME, IMP_COLUMN_NAME, TABLE_ALIAS, R_TABLE_ALIAS, R_IS_READONLY, NULL WARNING_MSG
     from TABLE(data_browser_select.FN_Pipe_browser_qc_refs('DIAGRAM_EDGES'))

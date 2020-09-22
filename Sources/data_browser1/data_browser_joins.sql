@@ -40,7 +40,7 @@ is
 					R_PRIMARY_KEY_COLS, R_CONSTRAINT_TYPE,
 					R_VIEW_NAME, R_TABLE_NAME, R_COLUMN_NAME, COLUMN_PREFIX,
 					data_browser_conf.Sequence_To_Table_Alias(DENSE_RANK() OVER (PARTITION BY TABLE_NAME ORDER BY COLUMN_ID)) TABLE_ALIAS    
-				FROM TABLE (data_browser_select.FN_Pipe_browser_fc_refs(v_View_Name) ) 
+				FROM TABLE (data_browser_select.FN_Pipe_browser_fc_refs(v_View_Name)) 
 			) T
 		), BROWSER_QC_REFS AS (
 			 -- find qualified unique key for target table of foreign key reference
@@ -166,7 +166,7 @@ is
 				S.R_TABLE_NAME,
 				data_browser_conf.Table_Name_To_Header(S.J_VIEW_NAME) || '->' ||
 				data_browser_conf.Table_Name_To_Header(S.R_VIEW_NAME) TABLE_HEADER
-			FROM  MVDATA_BROWSER_Q_REFS S
+			FROM  TABLE(data_browser_select.FN_Pipe_browser_q_refs(v_View_Name)) S
 			LEFT OUTER JOIN JOIN_OPTIONS J ON S.TABLE_ALIAS = J.TABLE_ALIAS
 			WHERE S.VIEW_NAME = v_View_Name
 			AND S.JOIN_CLAUSE IS NOT NULL
