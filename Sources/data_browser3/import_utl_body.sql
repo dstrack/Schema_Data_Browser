@@ -289,7 +289,7 @@ CREATE OR REPLACE PACKAGE BODY import_utl IS
 							p_Folder_Cont_Alias 	=> T.FOLDER_CONTAINER_REF,
 							p_Level 				=> 0
 						)
-						|| chr(10) || RPAD(' ', 4)
+						|| ';' || chr(10) || RPAD(' ', 4)
 					end 
 					|| (
 						select LISTAGG(

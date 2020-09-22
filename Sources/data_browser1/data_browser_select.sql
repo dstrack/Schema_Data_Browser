@@ -2801,8 +2801,7 @@ $END
 		||  ') START WITH ' || data_browser_conf.Enquote_Name_Required(p_Folder_Par_Col_Name) || ' IS NULL' || NL(12+p_Level*4)
 		|| 	'CONNECT BY ' || data_browser_conf.Enquote_Name_Required(p_Folder_Par_Col_Name) 
 		|| ' = PRIOR ' || data_browser_conf.Enquote_Name_Required(p_Search_Key_Col) || NL(8+p_Level*4)
-		|| ') WHERE PATH = :new.' || p_Search_Path
-		|| ';';
+		|| ') WHERE PATH = :new.' || p_Search_Path;
 		return v_Query;
 	end Key_Path_Lookup_Query;
 
