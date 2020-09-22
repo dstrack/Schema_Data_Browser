@@ -74,6 +74,7 @@ CREATE OR REPLACE PACKAGE BODY import_utl IS
 			S.IS_FILE_FOLDER_REF,
 			G.FOLDER_PARENT_COLUMN_NAME,
 			G.FOLDER_NAME_COLUMN_NAME,
+			G.FOLDER_CONTAINER_COLUMN_NAME,
 			S.R_PRIMARY_KEY_COLS, S.R_CONSTRAINT_TYPE,
 			S.R_VIEW_NAME, S.COLUMN_ID, S.NULLABLE,
 			S.R_COLUMN_ID, S.R_COLUMN_NAME, S.R_NULLABLE, S.R_DATA_TYPE,
@@ -117,6 +118,7 @@ CREATE OR REPLACE PACKAGE BODY import_utl IS
 			Q.IS_FILE_FOLDER_REF,
 			null FOLDER_PARENT_COLUMN_NAME,
 			null FOLDER_NAME_COLUMN_NAME,
+			null FOLDER_CONTAINER_COLUMN_NAME,
 			Q.R_PRIMARY_KEY_COLS, Q.R_CONSTRAINT_TYPE,
 			Q.R_VIEW_NAME, Q.COLUMN_ID, Q.NULLABLE,
 			Q.R_COLUMN_ID, Q.R_COLUMN_NAME, Q.R_NULLABLE, Q.R_DATA_TYPE,
@@ -276,18 +278,17 @@ CREATE OR REPLACE PACKAGE BODY import_utl IS
 						RPAD(' ', 4) 
 						|| 'if :new.' || MIN(T.S_COLUMN_NAME) || ' IS NOT NULL then ' || chr(10)
 						|| RPAD(' ', 8) -- find path values
-					    || 'SELECT ' || T.R_PRIMARY_KEY_COLS || ' INTO '
-						|| D_REF 
-						|| data_browser_conf.NL(8)
-						|| 'FROM (' || data_browser_conf.NL(12)
-						|| 	'SELECT ' || data_browser_conf.Enquote_Name_Required(T.R_PRIMARY_KEY_COLS) || ', SYS_CONNECT_BY_PATH(TRANSLATE(' 
-						||  data_browser_conf.Enquote_Name_Required(T.FOLDER_NAME_COLUMN_NAME) || q'[, '/', '-'), '/') PATH]' || data_browser_conf.NL(12)
-						|| 	'FROM ' || data_browser_select.FN_Table_Prefix || data_browser_conf.Enquote_Name_Required(T.R_VIEW_NAME) || data_browser_conf.NL(12)
-						|| 	'START WITH  ' || data_browser_conf.Enquote_Name_Required(T.FOLDER_PARENT_COLUMN_NAME) || ' IS NULL' || data_browser_conf.NL(12)
-						|| 	'CONNECT BY ' || data_browser_conf.Enquote_Name_Required(T.FOLDER_PARENT_COLUMN_NAME) 
-						|| ' = PRIOR ' || data_browser_conf.Enquote_Name_Required(T.R_PRIMARY_KEY_COLS) || data_browser_conf.NL(8)
-						|| ') WHERE PATH = :new.' || MIN(T.S_COLUMN_NAME)
-						|| ';' 
+						|| data_browser_select.Key_Path_Lookup_Query (
+							p_Table_Name  			=> T.R_VIEW_NAME,
+							p_Search_Key_Col  		=> T.R_PRIMARY_KEY_COLS,
+							p_Search_Path   		=> MIN(T.S_COLUMN_NAME),
+							p_Search_Value   		=> T.D_REF,
+							p_Folder_Par_Col_Name  	=> T.FOLDER_PARENT_COLUMN_NAME,
+							p_Folder_Name_Col_Name  => T.FOLDER_NAME_COLUMN_NAME,
+							p_Folder_Cont_Col_Name  => T.FOLDER_CONTAINER_COLUMN_NAME,
+							p_Folder_Cont_Alias 	=> T.FOLDER_CONTAINER_REF,
+							p_Level 				=> 0
+						)
 						|| chr(10) || RPAD(' ', 4)
 					end 
 					|| (
@@ -346,7 +347,9 @@ CREATE OR REPLACE PACKAGE BODY import_utl IS
 			FROM
 			(
 				SELECT /*+ USE_MERGE(S E F) */
-					S.*, E.IMP_COLUMN_NAME S_COLUMN_NAME
+					S.*, 
+					E.IMP_COLUMN_NAME S_COLUMN_NAME,
+					'v_' || FC.IMP_COLUMN_NAME FOLDER_CONTAINER_REF
 				FROM (
 					-- 2. level foreign keys
 					SELECT *
@@ -358,7 +361,9 @@ CREATE OR REPLACE PACKAGE BODY import_utl IS
 				) S
 				JOIN REFERENCES_Q E ON E.R_VIEW_NAME = S.S_VIEW_NAME AND E.REF_COLUMN_NAME = S.R_COLUMN_NAME 
 					AND (E.TABLE_ALIAS = S.TABLE_ALIAS OR E.TABLE_ALIAS IS NULL)
+					AND (E.REF_COLUMN_NAME != S.FOLDER_CONTAINER_COLUMN_NAME OR S.FOLDER_CONTAINER_COLUMN_NAME IS NULL)
 				JOIN REFERENCES_Q F ON F.R_VIEW_NAME = S.D_VIEW_NAME AND F.COLUMN_NAME = S.D_COLUMN_NAME
+				LEFT OUTER JOIN REFERENCES_Q FC ON FC.R_VIEW_NAME = S.S_VIEW_NAME AND FC.REF_COLUMN_NAME = S.FOLDER_CONTAINER_COLUMN_NAME
 			) T
 			JOIN MVDATA_BROWSER_VIEWS S ON S.VIEW_NAME = T.VIEW_NAME
 			JOIN ( -- count of missing defaults for foreign key table
@@ -388,7 +393,8 @@ CREATE OR REPLACE PACKAGE BODY import_utl IS
 				T.R_VIEW_NAME, T.COLUMN_ID, S.SHORT_NAME,
 				T.HAS_NULLABLE, T.HAS_SIMPLE_UNIQUE, T.U_MEMBERS, 
 				T.NULLABLE, T.D_REF, T.D_COLUMN_NAME, T.POSITION2,
-				T.IS_FILE_FOLDER_REF, T.FOLDER_PARENT_COLUMN_NAME, T.FOLDER_NAME_COLUMN_NAME
+				T.IS_FILE_FOLDER_REF, T.FOLDER_PARENT_COLUMN_NAME, T.FOLDER_NAME_COLUMN_NAME, 
+				T.FOLDER_CONTAINER_COLUMN_NAME, T.FOLDER_CONTAINER_REF
 			HAVING (MAX(T.U_CONSTRAINT_NAME) IS NOT NULL or import_utl.Get_Search_Keys_Unique = 'NO')
 			ORDER BY SUM(HAS_FOREIGN_KEY), T.U_MEMBERS, T.COLUMN_ID, T.POSITION2, T.D_REF
 		) 

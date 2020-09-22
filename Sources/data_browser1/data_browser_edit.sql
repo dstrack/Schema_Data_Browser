@@ -3688,19 +3688,19 @@ $END
 						end,
 					data_browser_conf.NL(14) || 'AND ') WITHIN GROUP (ORDER BY R_COLUMN_ID, POSITION)
 			else 
-			   'SELECT ' || T.R_PRIMARY_KEY_COLS || ' INTO '
-				|| case when p_Data_Source = 'COLLECTION' then 
-						case when T.D_REF_TYPE = 'N' then 'v_NResult' else 'v_CResult' end
-					else D_REF end
-				|| data_browser_conf.NL(14)
-				|| 'FROM (' || data_browser_conf.NL(16)
-				|| 	'SELECT ' || data_browser_conf.Enquote_Name_Required(T.R_PRIMARY_KEY_COLS) || ', SYS_CONNECT_BY_PATH(TRANSLATE(' 
-				||  data_browser_conf.Enquote_Name_Required(T.FOLDER_NAME_COLUMN_NAME) || q'[, '/', '-'), '/') PATH]' || data_browser_conf.NL(16)
-				|| 	'FROM ' || data_browser_select.FN_Table_Prefix || data_browser_conf.Enquote_Name_Required(T.R_VIEW_NAME) || data_browser_conf.NL(16)
-				|| 	'START WITH  ' || data_browser_conf.Enquote_Name_Required(T.FOLDER_PARENT_COLUMN_NAME) || ' IS NULL' || data_browser_conf.NL(16)
-				|| 	'CONNECT BY ' || data_browser_conf.Enquote_Name_Required(T.FOLDER_PARENT_COLUMN_NAME) 
-				|| ' = PRIOR ' || data_browser_conf.Enquote_Name_Required(T.R_PRIMARY_KEY_COLS) || data_browser_conf.NL(14)
-				|| ') WHERE PATH = ' || MIN(T.S_REF)
+				 data_browser_select.Key_Path_Lookup_Query (
+					p_Table_Name  			=> T.R_VIEW_NAME,
+					p_Search_Key_Col  		=> T.R_PRIMARY_KEY_COLS,
+					p_Search_Path   		=> MIN(T.S_REF),
+					p_Search_Value   		=> case when p_Data_Source = 'COLLECTION' then 
+												case when T.D_REF_TYPE = 'N' then 'v_NResult' else 'v_CResult' end
+											else D_REF end,
+					p_Folder_Par_Col_Name  	=> T.FOLDER_PARENT_COLUMN_NAME,
+					p_Folder_Name_Col_Name  => T.FOLDER_NAME_COLUMN_NAME,
+					p_Folder_Cont_Col_Name  => T.FOLDER_CONTAINER_COLUMN_NAME,
+					p_Folder_Cont_Alias 	=> T.FOLDER_CONTAINER_REF,
+					p_Level 				=> 1
+				)
 			end 
 			|| ';'
 			|| case when p_Data_Source = 'COLLECTION' then
@@ -3891,6 +3891,17 @@ $END
 				S.IS_FILE_FOLDER_REF,
 				S.FOLDER_PARENT_COLUMN_NAME,
 				S.FOLDER_NAME_COLUMN_NAME,
+				S.FOLDER_CONTAINER_COLUMN_NAME,
+				case when p_Data_Source = 'COLLECTION' then
+					'p_cur.' || FC.INPUT_ID
+				else
+					data_browser_edit.Get_Apex_Item_Call (
+						p_Idx 			=> FC.APEX_ITEM_IDX,
+						p_Row_Factor	=> FC.ROW_FACTOR,
+						p_Row_Offset	=> FC.ROW_OFFSET,
+						p_Row_Number	=> 'p_Row'
+					)
+				end FOLDER_CONTAINER_REF,
 				data_browser_edit.Get_Apex_Item_Ref (
 					p_Idx 			=> F.APEX_ITEM_IDX,
 					p_Row_Factor	=> F.ROW_FACTOR,
@@ -3935,6 +3946,7 @@ $END
 					Q.IS_FILE_FOLDER_REF,
 					null FOLDER_PARENT_COLUMN_NAME,
 					null FOLDER_NAME_COLUMN_NAME,
+					null FOLDER_CONTAINER_COLUMN_NAME,
                     Q.FILTER_KEY_COLUMN, Q.PARENT_KEY_COLUMN, 
 					Q.R_PRIMARY_KEY_COLS, 
 					Q.R_CONSTRAINT_TYPE,
@@ -3972,6 +3984,7 @@ $END
 					S.IS_FILE_FOLDER_REF,
 					G.FOLDER_PARENT_COLUMN_NAME,
 					G.FOLDER_NAME_COLUMN_NAME,
+					G.FOLDER_CONTAINER_COLUMN_NAME,
                     NULL FILTER_KEY_COLUMN, NULL PARENT_KEY_COLUMN, 
 					S.R_PRIMARY_KEY_COLS, S.R_CONSTRAINT_TYPE,
 					S.R_TABLE_NAME, S.R_VIEW_NAME, S.COLUMN_ID, S.NULLABLE,
@@ -3993,7 +4006,9 @@ $END
 			) S
 			JOIN REFERENCES_Q E ON E.R_VIEW_NAME = S.S_VIEW_NAME AND E.REF_COLUMN_NAME = S.R_COLUMN_NAME
 				AND (E.TABLE_ALIAS = S.TABLE_ALIAS OR E.TABLE_ALIAS IS NULL)
+				AND (E.REF_COLUMN_NAME != S.FOLDER_CONTAINER_COLUMN_NAME OR S.FOLDER_CONTAINER_COLUMN_NAME IS NULL)
 			JOIN REFERENCES_Q F ON F.R_VIEW_NAME = S.D_VIEW_NAME AND F.COLUMN_NAME = S.D_REF
+			LEFT OUTER JOIN REFERENCES_Q FC ON FC.R_VIEW_NAME = S.S_VIEW_NAME AND FC.REF_COLUMN_NAME = S.FOLDER_CONTAINER_COLUMN_NAME
 			-- , (SELECT 1 v_Row_Number, 'COLLECTION' p_Data_Source FROM DUAL) PAR
 		) T
 		JOIN MVDATA_BROWSER_VIEWS S ON S.VIEW_NAME = T.VIEW_NAME
@@ -4035,7 +4050,8 @@ $END
 			T.R_VIEW_NAME, T.COLUMN_ID, S.SHORT_NAME,
 			T.HAS_NULLABLE, T.HAS_SIMPLE_UNIQUE, U_MEMBERS, 
 			T.NULLABLE, D_REF, D_REF_TYPE, 
-			T.IS_FILE_FOLDER_REF, T.FOLDER_PARENT_COLUMN_NAME, T.FOLDER_NAME_COLUMN_NAME
+			T.IS_FILE_FOLDER_REF, T.FOLDER_PARENT_COLUMN_NAME, T.FOLDER_NAME_COLUMN_NAME, 
+			T.FOLDER_CONTAINER_COLUMN_NAME, T.FOLDER_CONTAINER_REF
             -- , p_Table_name, p_Use_Empty_Columns, p_Exec_Phase, p_Data_Source, p_DML_Command, p_Unique_Key_Column
             -- , v_Compare_Case_Insensitive, v_Search_Keys_Unique, v_Insert_Foreign_Keys, p_View_Mode
 		HAVING (MAX(T.U_CONSTRAINT_NAME) IS NOT NULL or v_Search_Keys_Unique = 'NO')

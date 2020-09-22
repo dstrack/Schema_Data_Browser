@@ -2748,8 +2748,7 @@ $END
 			|| '.' || data_browser_conf.Enquote_Name_Required(p_Folder_Cont_Col_Name)
 		end
 		||  NL(8)
-		|| ')' || NL(8)
-		|| 	'START WITH ' || data_browser_conf.Enquote_Name_Required(p_Folder_Par_Col_Name) || ' IS NULL' || NL(8)
+		|| ') START WITH ' || data_browser_conf.Enquote_Name_Required(p_Folder_Par_Col_Name) || ' IS NULL' || NL(8)
 		|| 	'CONNECT BY ' || data_browser_conf.Enquote_Name_Required(p_Folder_Par_Col_Name) 
 		|| ' = PRIOR ' || data_browser_conf.Enquote_Name_Required(p_Search_Key_Col) || NL(6)
 		|| case when p_Search_Value IS NULL and p_Order_by IS NOT NULL then 
@@ -2766,6 +2765,46 @@ $END
 		end if;
 	end Key_Path_Query;
 
+    FUNCTION Key_Path_Lookup_Query (
+        p_Table_Name    VARCHAR2,
+        p_Search_Key_Col VARCHAR2,		-- return column (usually the primary key of p_Table_Name)
+        p_Search_Path  VARCHAR2 DEFAULT NULL, -- used to lookup only a single output row for known path
+        p_Search_Value  VARCHAR2 DEFAULT NULL, -- output variable for found identity value.
+        p_Folder_Par_Col_Name VARCHAR2,
+        p_Folder_Name_Col_Name VARCHAR2,
+        p_Folder_Cont_Col_Name VARCHAR2 DEFAULT NULL,
+        p_Folder_Cont_Alias VARCHAR2 DEFAULT NULL,
+        p_Level INTEGER DEFAULT 1
+    ) RETURN VARCHAR2
+	is
+	PRAGMA UDF;
+        v_Query				VARCHAR2(32767);
+ 	begin
+		v_Query := 'SELECT ' || p_Search_Key_Col || ' INTO '
+		|| p_Search_Value 
+		|| NL(8+p_Level*4)
+		|| 'FROM (' || NL(12+p_Level*4)
+		|| 	'SELECT ' || data_browser_conf.Enquote_Name_Required(p_Search_Key_Col) || ', SYS_CONNECT_BY_PATH(TRANSLATE(' 
+		||  data_browser_conf.Enquote_Name_Required(p_Folder_Name_Col_Name) || q'[, '/', '-'), '/') PATH]' || NL(12+p_Level*4)
+		|| 	'FROM (SELECT ' || data_browser_conf.Enquote_Name_Required(p_Search_Key_Col) || ', ' 
+		||  data_browser_conf.Enquote_Name_Required(p_Folder_Par_Col_Name) || ', '
+		||  data_browser_conf.Enquote_Name_Required(p_Folder_Name_Col_Name) || NL(16+p_Level*4)
+		|| 	'FROM ' || data_browser_select.FN_Table_Prefix || data_browser_conf.Enquote_Name_Required(p_Table_Name)
+		|| ' L' || (p_Level+1)
+		|| case when p_Folder_Cont_Col_Name IS NOT NULL and p_Folder_Cont_Alias IS NOT NULL then 
+			NL(16+p_Level*4)
+			|| 'WHERE ' || ' L' || (p_Level+1)
+			|| '.' || data_browser_conf.Enquote_Name_Required(p_Folder_Cont_Col_Name)
+			|| ' = ' || p_Folder_Cont_Alias
+		end
+		|| NL(12+p_Level*4)
+		||  ') START WITH ' || data_browser_conf.Enquote_Name_Required(p_Folder_Par_Col_Name) || ' IS NULL' || NL(12+p_Level*4)
+		|| 	'CONNECT BY ' || data_browser_conf.Enquote_Name_Required(p_Folder_Par_Col_Name) 
+		|| ' = PRIOR ' || data_browser_conf.Enquote_Name_Required(p_Search_Key_Col) || NL(8+p_Level*4)
+		|| ') WHERE PATH = :new.' || p_Search_Path
+		|| ';';
+		return v_Query;
+	end Key_Path_Lookup_Query;
 
 
     FUNCTION Get_Parent_LOV_Query (

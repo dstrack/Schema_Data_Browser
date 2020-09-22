@@ -45,7 +45,13 @@ begin
 		END LOOP;
 		DBMS_OUTPUT.PUT_LINE('upgraded column ' || v_stat_tbl.COUNT || ' defaults for current user_name');
 	END IF;
-    
+    UPDATE Change_Log_Config
+	SET Add_Insert_Trigger = 'NO',
+		Add_Delete_Trigger ='NO',
+		Add_Update_Trigger1 ='NO',
+		Add_Update_Trigger2 ='NO'
+	where add_changelog_views = 'NO';
+
     update CHANGE_LOG_CONFIG set FUNCTION_MODIFY_USER = q'[NVL(SYS_CONTEXT('APEX$SESSION','APP_USER'), SYS_CONTEXT('USERENV','SESSION_USER'))]';
     commit;
 end;

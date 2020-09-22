@@ -303,6 +303,18 @@ IS
         p_Level INTEGER DEFAULT 1
     ) RETURN VARCHAR2;
 
+    FUNCTION Key_Path_Lookup_Query (
+        p_Table_Name    VARCHAR2,
+        p_Search_Key_Col VARCHAR2,		-- return column (usually the primary key of p_Table_Name)
+        p_Search_Path  VARCHAR2 DEFAULT NULL, -- used to lookup only a single output row for known path
+        p_Search_Value  VARCHAR2 DEFAULT NULL, -- output variable for found identity value.
+        p_Folder_Par_Col_Name VARCHAR2,
+        p_Folder_Name_Col_Name VARCHAR2,
+        p_Folder_Cont_Col_Name VARCHAR2 DEFAULT NULL,
+        p_Folder_Cont_Alias VARCHAR2 DEFAULT NULL,
+        p_Level INTEGER DEFAULT 1
+    ) RETURN VARCHAR2;
+
     FUNCTION Get_Parent_LOV_Query (
         p_Table_Name    IN VARCHAR2,
     	p_Parent_Table VARCHAR2 DEFAULT NULL,			-- Parent View or Table name.
