@@ -4035,7 +4035,7 @@ $END
     BEGIN
 		v_Data_Format := p_Data_Format;
 		v_Select_Columns := FN_Terminate_List(p_Select_Columns);
-		v_Parent_Key_Visible := case when p_Select_Columns IS NOT NULL or p_Edit_Mode = 'YES' or p_Data_Format IN ('CSV', 'NATIVE') then 'YES' else p_Parent_Key_Visible end;
+		v_Parent_Key_Visible := case when p_Select_Columns IS NOT NULL or p_Edit_Mode = 'YES' then 'YES' else p_Parent_Key_Visible end;
 		if p_Unique_Key_Column IS NULL then
 			SELECT SEARCH_KEY_COLS
 			INTO v_Unique_Key_Column
@@ -4366,7 +4366,7 @@ $END
 		v_Calc_Totals := NVL(p_Calc_Totals, 'NO');
 		v_Nested_Links := NVL(p_Nested_Links, 'NO');
 		v_Select_Columns := FN_Terminate_List(p_Select_Columns);
-		v_Parent_Key_Visible := case when p_Select_Columns IS NOT NULL or p_Data_Format IN ('CSV', 'NATIVE') then 'YES' else p_Edit_Mode end;
+		v_Parent_Key_Visible := case when p_Select_Columns IS NOT NULL then 'YES' else p_Edit_Mode end;
 		v_Use_Grouping := v_Calc_Totals = 'YES';
 		if p_Unique_Key_Column IS NULL then
 			SELECT SEARCH_KEY_COLS
