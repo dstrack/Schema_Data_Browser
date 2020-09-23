@@ -1161,19 +1161,6 @@ IS
     	p_Constraint_Name IN OUT VARCHAR2				-- Parent key
 	);
 
-	PROCEDURE Get_Sort_Preferences (					-- internal
-		p_Table_name IN VARCHAR2,						-- View or Table name
-		p_Unique_Key_Column VARCHAR2 DEFAULT NULL,
-    	p_Parent_Name VARCHAR2 DEFAULT NULL,			-- Parent View or Table name.
-    	p_Parent_Key_Column VARCHAR2 DEFAULT NULL,		-- Column Name with foreign key to Parent Table
-    	p_Parent_Key_Visible VARCHAR2 DEFAULT 'NO',     -- YES, NO, NULLABLE. Show foreign key column in View_Mode FORM_VIEW
-    	p_Parent_Key_Filter VARCHAR2 DEFAULT 'NO',  	-- YES, NO, when YES, no p_Control_Break for that column is produced by default.
-		p_View_Mode IN VARCHAR2,						-- FORM_VIEW, RECORD_VIEW, NAVIGATION_VIEW, NESTED_VIEW, IMPORT_VIEW, EXPORT_VIEW
-    	p_Order_by OUT VARCHAR2,						-- Example : NAME
-    	p_Order_Direction OUT VARCHAR2,					-- Example : 'ASC' or 'ASC NULLS LAST' or 'DESC' or 'DESC NULLS LAST'
-    	p_Control_Break OUT VARCHAR2
-	);
-
 	PROCEDURE Get_Report_Preferences (
 		-- independent --
 		p_Table_name IN VARCHAR2,					-- View or Table name

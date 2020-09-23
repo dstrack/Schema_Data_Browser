@@ -247,9 +247,9 @@ is
 						data_browser_conf.Get_Yes_No_Static_Function('A.' || T.COLUMN_NAME, 'NUMBER')
 					when T.IS_CHAR_YES_NO_COLUMN = 'Y' and E.COLUMN_NAME IS NULL and v_Data_Format != 'QUERY' then
 						data_browser_conf.Get_Yes_No_Static_Function('A.' || T.COLUMN_NAME, 'CHAR')
-					when T.COLUMN_NAME = S.MIME_TYPE_COLUMN_NAME then
+					when T.COLUMN_NAME = S.MIME_TYPE_COLUMN_NAME and v_Data_Format NOT IN ('NATIVE', 'CSV') then
 						data_browser_blobs.File_Type_Name_Call(p_Mime_Type_Column_Name => 'A.' || T.COLUMN_NAME)
-					when T.IS_AUDIT_COLUMN = 'Y' and T.CHAR_LENGTH > 0 then
+					when T.IS_AUDIT_COLUMN = 'Y' and T.CHAR_LENGTH > 0 and v_Data_Format NOT IN ('NATIVE', 'CSV') then
 						'INITCAP(A.' || T.COLUMN_NAME || ')'
 					when E.COLUMN_NAME IS NULL
 					and T.COLUMN_NAME != NVL(S.ROW_VERSION_COLUMN_NAME, '-')
@@ -902,7 +902,7 @@ is
 					case when T.IS_FOREIGN_KEY = 'Y'
 						then data_browser_conf.Column_Name_to_Header(p_Column_Name=> T.COLUMN_NAME, p_Remove_Extension=>'NO', 
 									p_Remove_Prefix=>S.COLUMN_PREFIX, 
-									p_Is_Upper_Name=>data_browser_pattern.Match_Upper_Names_Columns(T.COLUMN_NAME)
+									p_Is_Upper_Name=>T.IS_UPPER_NAME
 								)
 						else T.COLUMN_HEADER
 					end COLUMN_HEADER,
@@ -912,13 +912,13 @@ is
 						data_browser_conf.Get_ColumnDefaultText (p_Table_Name => T.TABLE_NAME, p_Owner => T.TABLE_OWNER, p_Column_Name => T.COLUMN_NAME)
 					when T.IS_OBFUSCATED = 'Y' then
 						'DATA_BROWSER_CONF.SCRAMBLE_UMLAUTE(A.' || T.COLUMN_NAME || ')'
-					when T.IS_SEARCH_KEY = 'Y' 		-- primary key shouldn´t be a input field
+					when T.IS_PRIMARY_KEY = 'Y' 		-- primary key shouldn´t be a input field
 					and T.IS_DISPLAYED_KEY_COLUMN = 'N' -- field is invisible
 					and S.HAS_SCALAR_KEY = 'YES' then	-- primary key is managed automatically
 						'A.' || T.COLUMN_NAME
-					when T.COLUMN_NAME = S.MIME_TYPE_COLUMN_NAME then
+					when T.COLUMN_NAME = S.MIME_TYPE_COLUMN_NAME and v_Data_Format NOT IN ('NATIVE', 'CSV') then
 						data_browser_blobs.File_Type_Name_Call(p_Mime_Type_Column_Name => 'A.' || T.COLUMN_NAME)
-					when T.IS_AUDIT_COLUMN = 'Y' and T.CHAR_LENGTH > 0 then
+					when T.IS_AUDIT_COLUMN = 'Y' and T.CHAR_LENGTH > 0 and v_Data_Format NOT IN ('NATIVE', 'CSV') then
 						'INITCAP(A.' || T.COLUMN_NAME || ')'
 					when E.COLUMN_NAME IS NULL 
 					and T.COLUMN_NAME != NVL(S.ROW_VERSION_COLUMN_NAME, '-')
@@ -1031,7 +1031,7 @@ is
 					data_browser_conf.Concat_List(
 						p_First_Name=> data_browser_conf.Column_Name_to_Header(p_Column_Name=> T.COLUMN_HEADER, p_Remove_Extension=>'YES', 
 								p_Remove_Prefix=>S.COLUMN_PREFIX, 
-								p_Is_Upper_Name=>data_browser_pattern.Match_Upper_Names_Columns(T.COLUMN_HEADER)
+								p_Is_Upper_Name=>T.IS_UPPER_NAME
 							)
 						, p_Second_Name => Apex_lang.lang('Path'), p_Delimiter=>'-'
 					) COLUMN_HEADER,
@@ -1636,7 +1636,7 @@ is
 			JOIN SYS.ALL_CONS_COLUMNS FC ON F.OWNER = FC.OWNER AND F.CONSTRAINT_NAME = FC.CONSTRAINT_NAME AND F.TABLE_NAME = FC.TABLE_NAME
 			JOIN SYS.ALL_TAB_COLS TC ON TC.TABLE_NAME = F.VIEW_NAME AND TC.OWNER = S.VIEW_OWNER -- only columns that appear in the view
 				AND TC.COLUMN_NAME = FC.COLUMN_NAME
-			WHERE T.IS_PRIMARY_KEY = 'N' -- Filter Primary Key Column
+			WHERE (T.IS_PRIMARY_KEY = 'N' AND T.IS_SEARCH_KEY = 'N' OR T.IS_DISPLAYED_KEY_COLUMN = 'Y') -- Filter Primary Key Column
 			AND T.IS_IGNORED = 'N'
 			AND TC.HIDDEN_COLUMN = 'NO'
 			AND F.FK_COLUMN_COUNT = 1
@@ -2204,6 +2204,24 @@ is
 		end if;
 	end FN_Display_In_Report;
 
+
+	FUNCTION FN_Parent_Key_Visible (
+		p_Parent_Key_Visible VARCHAR2,
+		p_Edit_Mode VARCHAR2,
+		p_View_Mode VARCHAR2,
+		p_Data_Format VARCHAR2,
+		p_Select_Columns VARCHAR2
+	) RETURN VARCHAR2 DETERMINISTIC
+	is
+        v_Parent_Key_Visible VARCHAR2(10);
+	begin
+		if p_View_Mode IN ('IMPORT_VIEW', 'EXPORT_VIEW') then
+			v_Parent_Key_Visible := case when p_Select_Columns IS NOT NULL or p_Edit_Mode = 'YES' or p_Data_Format IN ('CSV', 'NATIVE') then 'YES' else p_Parent_Key_Visible end;
+		else 
+			v_Parent_Key_Visible := case when p_Select_Columns IS NOT NULL or p_Edit_Mode = 'YES' then 'YES' else p_Parent_Key_Visible end;
+		end if;
+		return v_Parent_Key_Visible;
+	end FN_Parent_Key_Visible;
 
 	FUNCTION FN_Is_Searchable_Column(
 		p_Column_Expr_Type VARCHAR2,
@@ -3764,7 +3782,7 @@ $END
         v_Parent_Key_Visible VARCHAR2(10);
     BEGIN
 		v_Select_Columns := FN_Terminate_List(p_Select_Columns);
-		v_Parent_Key_Visible := case when p_Select_Columns IS NOT NULL or p_Edit_Mode = 'YES' then 'YES' else p_Parent_Key_Visible end;
+		v_Parent_Key_Visible := FN_Parent_Key_Visible (p_Parent_Key_Visible, p_Edit_Mode, p_View_Mode, v_Data_Format, p_Select_Columns);
     	v_Describe_Cols_md5 := wwv_flow_item.md5 (v_Table_Name, p_Unique_Key_Column, p_View_Mode, v_Data_Format, 
     											p_Select_Columns, p_Parent_Name, p_Parent_Key_Column, v_Parent_Key_Visible, p_Join_Options);
 		v_is_cached	:= case when g_Describe_Cols_md5 = 'X' then 'init'
@@ -4035,7 +4053,7 @@ $END
     BEGIN
 		v_Data_Format := p_Data_Format;
 		v_Select_Columns := FN_Terminate_List(p_Select_Columns);
-		v_Parent_Key_Visible := case when p_Select_Columns IS NOT NULL or p_Edit_Mode = 'YES' then 'YES' else p_Parent_Key_Visible end;
+		v_Parent_Key_Visible := FN_Parent_Key_Visible (p_Parent_Key_Visible, p_Edit_Mode, p_View_Mode, v_Data_Format, p_Select_Columns);
 		if p_Unique_Key_Column IS NULL then
 			SELECT SEARCH_KEY_COLS
 			INTO v_Unique_Key_Column
@@ -4366,7 +4384,7 @@ $END
 		v_Calc_Totals := NVL(p_Calc_Totals, 'NO');
 		v_Nested_Links := NVL(p_Nested_Links, 'NO');
 		v_Select_Columns := FN_Terminate_List(p_Select_Columns);
-		v_Parent_Key_Visible := case when p_Select_Columns IS NOT NULL then 'YES' else p_Edit_Mode end;
+		v_Parent_Key_Visible := FN_Parent_Key_Visible (p_Parent_Key_Visible, p_Edit_Mode, p_View_Mode, v_Data_Format, p_Select_Columns);
 		v_Use_Grouping := v_Calc_Totals = 'YES';
 		if p_Unique_Key_Column IS NULL then
 			SELECT SEARCH_KEY_COLS
@@ -4742,7 +4760,7 @@ $END
         v_Parent_Key_Visible VARCHAR2(10);
     BEGIN
 		v_Select_Columns := FN_Terminate_List(p_Select_Columns);
-		v_Parent_Key_Visible := case when p_Select_Columns IS NOT NULL then 'YES' else p_Edit_Mode end;
+		v_Parent_Key_Visible := FN_Parent_Key_Visible (p_Parent_Key_Visible, p_Edit_Mode, p_View_Mode, v_Data_Format, p_Select_Columns);
     	v_Describe_Cols_md5 := wwv_flow_item.md5 (v_Table_Name, p_Unique_Key_Column, p_View_Mode, v_Data_Format, 
     											p_Parent_Name, p_Parent_Key_Column,
     											p_Link_Page_ID, p_Detail_Page_ID, v_Calc_Totals);
@@ -4891,7 +4909,7 @@ $END
         v_Nested_Links		VARCHAR2(10) := 'NO';
     BEGIN
 		v_Select_Columns := FN_Terminate_List(p_Select_Columns);
-		v_Parent_Key_Visible := case when p_Select_Columns IS NOT NULL or p_Edit_Mode = 'YES' then 'YES' else p_Parent_Key_Visible end;
+		v_Parent_Key_Visible := FN_Parent_Key_Visible (p_Parent_Key_Visible, p_Edit_Mode, p_View_Mode, p_Data_Format, p_Select_Columns);
 		v_Describe_Cols_md5 := wwv_flow_item.md5 (v_Table_Name, p_Unique_Key_Column, p_View_Mode, p_Data_Format, 
 												p_Join_Options, p_Select_Columns, p_Parent_Name, p_Parent_Key_Column, v_Parent_Key_Visible,
 												p_Link_Page_ID, p_Detail_Page_ID, v_Calc_Totals);
