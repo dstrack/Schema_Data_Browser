@@ -29,68 +29,40 @@ declare
 	v_use_schema_tools VARCHAR2(128);
 	v_stat VARCHAR2(32767);
 begin
-	SELECT table_owner INTO v_apex_schema
-	FROM all_synonyms
-	WHERE synonym_name = 'APEX'
-	and owner = 'PUBLIC';
+	SELECT S.TABLE_OWNER apex_schema
+	   , max(case when P.TABLE_NAME = 'WWV_FLOW_HNT_LOV_DATA' then 'TRUE' else 'FALSE' end) update_apex_tables
+	   , max(case when P.TABLE_NAME = 'WWV_FLOW_INSTALL_WIZARD' then 'TRUE' else 'FALSE' end) use_apex_installer
+	INTO v_apex_schema, v_update_apex_tables, v_use_apex_installer
+	FROM SYS.ALL_SYNONYMS S
+	LEFT OUTER JOIN SYS.ALL_TAB_PRIVS P
+	ON P.TABLE_NAME IN ('WWV_FLOW_HNT_LOV_DATA', 'WWV_FLOW_INSTALL_WIZARD')
+	AND P.TABLE_SCHEMA = S.TABLE_OWNER
+	AND P.GRANTEE = SYS_CONTEXT('USERENV', 'CURRENT_SCHEMA')
+	AND P.PRIVILEGE IN ('INSERT', 'EXECUTE')
+	WHERE S.synonym_name = 'APEX'
+	AND S.owner = 'PUBLIC'
+    GROUP BY S.TABLE_OWNER;
 
     dbms_output.put_line('-- creating packge data_browser_specs');
     dbms_output.put_line('-- current schema : ' || v_Schema_Name);
     dbms_output.put_line('-- apex schema    : ' || v_apex_schema);
 
-	SELECT case when COUNT(*) > 0 then 'TRUE' else 'FALSE' end INTO v_update_apex_tables
-	FROM SYS.ALL_TAB_PRIVS P
-	WHERE P.TABLE_NAME = 'WWV_FLOW_HNT_LOV_DATA' 
-	AND P.TABLE_SCHEMA = v_apex_schema
-	AND P.GRANTEE = v_Schema_Name
-	AND P.PRIVILEGE = 'INSERT';
-
-
-	SELECT case when COUNT(*) > 0 then 'TRUE' else 'FALSE' end INTO v_use_apex_installer
-	FROM SYS.ALL_TAB_PRIVS P
-	JOIN SYS.USER_SYNONYMS S ON P.TABLE_NAME = S.SYNONYM_NAME
-	WHERE P.TABLE_NAME = 'WWV_FLOW_INSTALL_WIZARD' 
-	AND P.GRANTEE = v_Schema_Name
-	AND P.PRIVILEGE = 'EXECUTE';
-
-	SELECT case when COUNT(*) > 0 then 'TRUE' else 'FALSE' end INTO v_use_dbms_crypt
+	SELECT max(case when TABLE_NAME = 'DBMS_CRYPTO' AND TABLE_SCHEMA = 'SYS' then 'TRUE' else 'FALSE' end) use_dbms_crypt
+		   , max(case when TABLE_NAME = 'CTX_DDL' AND TABLE_SCHEMA = 'CTXSYS' then 'TRUE' else 'FALSE' end) use_ctx_ddl
+		   , max(case when TABLE_NAME = 'SCHEMA_KEYCHAIN' AND TABLE_SCHEMA = 'CUSTOM_KEYS' then 'TRUE' else 'FALSE' end) use_key_chain
+		   , max(case when TABLE_NAME = 'SET_CUSTOM_CTX' AND TABLE_SCHEMA = 'CUSTOM_KEYS' then 'TRUE' else 'FALSE' end) use_custom_ctx
+		   , max(case when TABLE_NAME = 'DATA_BROWSER_SCHEMA' then 'TRUE' else 'FALSE' end) use_schema_tools
+	INTO v_use_dbms_crypt, v_use_ctx_ddl, v_use_key_chain, v_use_custom_ctx, v_use_schema_tools
 	FROM SYS.ALL_TAB_PRIVS 
-	WHERE TABLE_NAME = 'DBMS_CRYPTO' 
-	AND TABLE_SCHEMA = 'SYS' 
-	AND GRANTEE IN (v_Schema_Name, 'PUBLIC')
-	AND PRIVILEGE = 'EXECUTE';
-
-	SELECT case when COUNT(*) > 0 then 'TRUE' else 'FALSE' end INTO v_use_ctx_ddl
-	FROM SYS.ALL_TAB_PRIVS 
-	WHERE TABLE_NAME = 'CTX_DDL' 
-	AND TABLE_SCHEMA = 'CTXSYS' 
-	AND GRANTEE IN (v_Schema_Name, 'PUBLIC')
-	AND PRIVILEGE = 'EXECUTE';
-
-	SELECT case when COUNT(*) > 0 then 'TRUE' else 'FALSE' end INTO v_use_key_chain
-	FROM SYS.ALL_TAB_PRIVS 
-	WHERE TABLE_NAME = 'SCHEMA_KEYCHAIN' 
-	AND TABLE_SCHEMA = 'CUSTOM_KEYS' 
-	AND GRANTEE = v_Schema_Name
-	AND PRIVILEGE = 'EXECUTE';
-
-	SELECT case when COUNT(*) > 0 then 'TRUE' else 'FALSE' end INTO v_use_custom_ctx
-	FROM SYS.ALL_TAB_PRIVS 
-	WHERE TABLE_NAME = 'SET_CUSTOM_CTX' 
-	AND TABLE_SCHEMA = 'CUSTOM_KEYS' 
-	AND GRANTEE IN (v_Schema_Name, 'PUBLIC')
+	WHERE TABLE_NAME IN (
+		'DBMS_CRYPTO', 'CTX_DDL', 'SCHEMA_KEYCHAIN', 'SET_CUSTOM_CTX', 
+		'EBA_DP_DATA_SOURCES', 'DATA_BROWSER_SCHEMA')
+	AND GRANTEE IN (SYS_CONTEXT('USERENV', 'CURRENT_SCHEMA'), 'PUBLIC')
 	AND PRIVILEGE = 'EXECUTE';
 
 	SELECT case when COUNT(*) > 0 then 'TRUE' else 'FALSE' end INTO v_use_data_reporter
 	FROM SYS.USER_TABLES 
 	WHERE TABLE_NAME = 'EBA_DP_DATA_SOURCES';
-
-	SELECT case when COUNT(*) > 0 then 'TRUE' else 'FALSE' end INTO v_use_schema_tools
-	FROM SYS.ALL_TAB_PRIVS P
-	JOIN SYS.USER_SYNONYMS S ON P.TABLE_NAME = S.SYNONYM_NAME
-	WHERE P.TABLE_NAME = 'DATA_BROWSER_SCHEMA' 
-	AND P.GRANTEE = v_Schema_Name
-	AND P.PRIVILEGE = 'EXECUTE';
 
 	/* generate the package data_browser_spec to enable conditional compilation */
 
