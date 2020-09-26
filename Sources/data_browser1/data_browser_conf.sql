@@ -600,7 +600,8 @@ IS
 		COLUMNS_INCLUDED	VARCHAR2(2),
 		TABLE_ALIAS 		VARCHAR2(10),
 		R_TABLE_NAME		VARCHAR2(128),
-		JOIN_HEADER			VARCHAR2(128)
+		JOIN_HEADER			VARCHAR2(128),
+		SOURCE_INFO			VARCHAR2(10)
 	);
 	-- output of data_browser_joins.Get_Detail_Table_Joins_Cursor
 	TYPE tab_describe_joins IS TABLE OF rec_describe_joins;

@@ -30,16 +30,17 @@ is
 			SELECT
 				VIEW_NAME, 
 				COLUMN_NAME, 
-				COLUMN_ID, 
+				COLUMN_ID, NULLABLE,
 				R_VIEW_NAME, 
 				R_TABLE_NAME, R_COLUMN_NAME, 
 				COLUMN_PREFIX,
 				CAST(TABLE_ALIAS AS VARCHAR2(10)) TABLE_ALIAS
 			FROM (
-				SELECT VIEW_NAME, FOREIGN_KEY_COLS COLUMN_NAME, COLUMN_ID, 
+				SELECT VIEW_NAME, FOREIGN_KEY_COLS COLUMN_NAME, COLUMN_ID, NULLABLE,
 					R_PRIMARY_KEY_COLS, R_CONSTRAINT_TYPE,
 					R_VIEW_NAME, R_TABLE_NAME, R_COLUMN_NAME, COLUMN_PREFIX,
-					data_browser_conf.Sequence_To_Table_Alias(DENSE_RANK() OVER (PARTITION BY TABLE_NAME ORDER BY COLUMN_ID)) TABLE_ALIAS    
+					-- data_browser_conf.Sequence_To_Table_Alias(DENSE_RANK() OVER (PARTITION BY TABLE_NAME ORDER BY COLUMN_ID)) 
+					TABLE_ALIAS    
 				FROM TABLE (data_browser_select.FN_Pipe_browser_fc_refs(v_View_Name)) 
 			) T
 		), BROWSER_QC_REFS AS (
@@ -69,7 +70,7 @@ is
 					data_browser_conf.Concat_List(F.TABLE_ALIAS, G.TABLE_ALIAS, '_') R_TABLE_ALIAS,
 					G.R_VIEW_NAME JOIN_VIEW_NAME,
 					case when G.FOREIGN_KEY_COLS IS NOT NULL then
-						case when G.NULLABLE = 'Y' then 'LEFT OUTER ' end || 'JOIN '
+						case when (F.NULLABLE = 'Y' OR G.NULLABLE = 'Y') then 'LEFT OUTER ' end || 'JOIN '
 						|| case when v_Include_Schema = 'YES' then 
 							SYS_CONTEXT('USERENV', 'CURRENT_SCHEMA') || '.'
 						end 
@@ -88,7 +89,8 @@ is
 		SELECT DISTINCT COLUMN_NAME, SQL_TEXT,
 			COLUMN_ID, POSITION, MATCHING, COLUMNS_INCLUDED, TABLE_ALIAS, R_TABLE_NAME,
 			TABLE_HEADER
-			|| ' as ' || TABLE_ALIAS JOIN_HEADER
+			|| ' as ' || TABLE_ALIAS JOIN_HEADER, 
+			SOURCE_INFO
 		FROM (
 		SELECT COLUMN_NAME,
 			case when v_As_Of_Timestamp = 'YES'
@@ -97,7 +99,7 @@ is
 				else JOIN_CLAUSE
 			end SQL_TEXT,
 			COLUMN_ID, POSITION, MATCHING, COLUMNS_INCLUDED, TABLE_ALIAS, R_TABLE_NAME,
-			TABLE_HEADER
+			TABLE_HEADER, SOURCE_INFO
 		FROM (
 			SELECT S.SEARCH_KEY_COLS COLUMN_NAME, S.COLUMN_PREFIX,
 				CAST('FROM '
@@ -109,7 +111,8 @@ is
 				S.VIEW_NAME JOIN_VIEW_NAME,
 				0 COLUMN_ID, 1 POSITION, 1 MATCHING, 'A' COLUMNS_INCLUDED, 'A' TABLE_ALIAS,
 				NULL R_TABLE_NAME,
-				data_browser_conf.Table_Name_To_Header(S.VIEW_NAME) TABLE_HEADER
+				data_browser_conf.Table_Name_To_Header(S.VIEW_NAME) TABLE_HEADER,
+				'A' SOURCE_INFO
 			FROM MVDATA_BROWSER_VIEWS S
 			WHERE S.VIEW_NAME = v_View_Name
 			UNION ALL -- foreign keys with description columns
@@ -121,7 +124,8 @@ is
 				R_TABLE_NAME,
 				data_browser_conf.Column_Name_to_Header(p_Column_Name => COLUMN_NAME, p_Remove_Extension => 'YES', p_Remove_Prefix => COLUMN_PREFIX) 
 				|| '->' ||
-				data_browser_conf.Table_Name_To_Header(R_TABLE_NAME) TABLE_HEADER
+				data_browser_conf.Table_Name_To_Header(R_TABLE_NAME) TABLE_HEADER,
+				'A_REFS' SOURCE_INFO
 			FROM (
 				SELECT --+ INDEX(T) USE_NL_WITH_INDEX(S)
 					DISTINCT S.COLUMN_NAME, -- foreign key column.
@@ -165,7 +169,8 @@ is
 				S.R_TABLE_ALIAS TABLE_ALIAS,
 				S.R_TABLE_NAME,
 				data_browser_conf.Table_Name_To_Header(S.J_VIEW_NAME) || '->' ||
-				data_browser_conf.Table_Name_To_Header(S.R_VIEW_NAME) TABLE_HEADER
+				data_browser_conf.Table_Name_To_Header(S.R_VIEW_NAME) TABLE_HEADER,
+				'Q_REFS' SOURCE_INFO
 			FROM  TABLE(data_browser_select.FN_Pipe_browser_q_refs(v_View_Name)) S
 			LEFT OUTER JOIN JOIN_OPTIONS J ON S.TABLE_ALIAS = J.TABLE_ALIAS
 			WHERE S.VIEW_NAME = v_View_Name
@@ -183,7 +188,8 @@ is
 				S.R_TABLE_ALIAS TABLE_ALIAS,
 				S.R_TABLE_NAME,
 				data_browser_conf.Table_Name_To_Header(S.J_VIEW_NAME) || '->' ||
-				data_browser_conf.Table_Name_To_Header(S.R_VIEW_NAME) TABLE_HEADER
+				data_browser_conf.Table_Name_To_Header(S.R_VIEW_NAME) TABLE_HEADER,
+				'QC_REFS' SOURCE_INFO
 			FROM BROWSER_QC_REFS S
 			JOIN JOIN_OPTIONS J ON S.TABLE_ALIAS = J.TABLE_ALIAS
 			WHERE S.VIEW_NAME = v_View_Name
