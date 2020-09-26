@@ -1058,6 +1058,7 @@ is
 					S.IS_BLOB,
 					S.IS_PASSWORD,
 					null FORMAT_MASK,
+					'select distinct path d, path r from (' ||
 					data_browser_select.Key_Path_Query (
 						p_Table_Name    	=> F.R_VIEW_NAME,
 						p_Search_Key_Col    => F.R_PRIMARY_KEY_COLS,
@@ -1065,11 +1066,27 @@ is
 						p_Folder_Par_Col_Name  => F.FOLDER_PARENT_COLUMN_NAME,
 						p_Folder_Name_Col_Name => F.FOLDER_NAME_COLUMN_NAME,
 						p_Folder_Cont_Col_Name => F.FOLDER_CONTAINER_COLUMN_NAME,
-						p_Folder_Cont_Alias => case when F.VIEW_NAME = F.R_VIEW_NAME then 'A' else F.TABLE_ALIAS end,
+						p_Folder_Cont_Alias => NULL, -- problem - variable reference 
 						p_View_Mode    		=> v_View_Mode,
 						p_Filter_Cond		=> null,
 						p_Order_by			=> NVL(F.ORDERING_COLUMN_NAME, '1')
-					)					
+					) || ')'		
+					/*data_browser_select.Key_Values_Path_Query (
+						p_Table_Name    	=> F.R_VIEW_NAME,
+						p_Display_Col_Names => F.DISPLAYED_COLUMN_NAMES,
+						p_Extra_Col_Names	=> NULL,
+						p_Search_Key_Col    => F.R_PRIMARY_KEY_COLS,
+						p_Search_Value    	=> NULL,
+						p_View_Mode    		=> v_View_Mode,
+						p_Exclude_Col_Name  => case when F.PARENT_KEY_COLUMN = v_Parent_Key_Column then F.FILTER_KEY_COLUMN end,
+						p_Active_Col_Name	=> F.ACTIVE_LOV_COLUMN_NAME,
+						p_Active_Data_Type	=> F.ACTIVE_LOV_DATA_TYPE,
+						p_Folder_Par_Col_Name	=> F.FOLDER_PARENT_COLUMN_NAME,
+						p_Folder_Name_Col_Name => F.FOLDER_NAME_COLUMN_NAME,
+						p_Folder_Cont_Col_Name => F.FOLDER_CONTAINER_COLUMN_NAME,
+						p_Folder_Cont_Alias => case when F.VIEW_NAME = F.R_VIEW_NAME then 'A' end,
+						p_Order_by			=> NVL(F.ORDERING_COLUMN_NAME, '1')
+					)*/
 					LOV_QUERY,
 					'POPUP_FROM_LOV' -- Display folder path			
 					COLUMN_EXPR_TYPE,
@@ -1637,6 +1654,7 @@ is
 			JOIN SYS.ALL_TAB_COLS TC ON TC.TABLE_NAME = F.VIEW_NAME AND TC.OWNER = S.VIEW_OWNER -- only columns that appear in the view
 				AND TC.COLUMN_NAME = FC.COLUMN_NAME
 			WHERE (T.IS_PRIMARY_KEY = 'N' AND T.IS_SEARCH_KEY = 'N' OR T.IS_DISPLAYED_KEY_COLUMN = 'Y') -- Filter Primary Key Column
+			-- WHERE T.IS_PRIMARY_KEY = 'N' -- Filter Primary Key Column (BEFORE)
 			AND T.IS_IGNORED = 'N'
 			AND TC.HIDDEN_COLUMN = 'NO'
 			AND F.FK_COLUMN_COUNT = 1
@@ -3444,15 +3462,29 @@ $END
 		v_Folder_Par_Col_Name		MVDATA_BROWSER_REFERENCES.FOLDER_PARENT_COLUMN_NAME%TYPE;
 		v_Folder_Name_Col_Name		MVDATA_BROWSER_REFERENCES.FOLDER_NAME_COLUMN_NAME%TYPE;
 		v_Folder_Cont_Col_Name		MVDATA_BROWSER_REFERENCES.FOLDER_CONTAINER_COLUMN_NAME%TYPE;
-		v_Table_Alias				MVDATA_BROWSER_REFERENCES.TABLE_ALIAS%TYPE;
 	begin
+		$IF data_browser_conf.g_debug $THEN
+			apex_debug.message(
+				p_message => 
+				'data_browser_select.Get_Ref_LOV_Query(p_Table_Name => %s, p_FK_Column_ID => %s, p_Column_Name => %s, ' || chr(10)
+				|| 'p_Parent_Table => %s, p_Parent_Key_Column => %s, p_Parent_Key_Item => %s)',
+				p0 => DBMS_ASSERT.ENQUOTE_LITERAL(p_Table_name),
+				p1 => DBMS_ASSERT.ENQUOTE_LITERAL(p_FK_Column_ID),
+				p2 => DBMS_ASSERT.ENQUOTE_LITERAL(p_Column_Name),
+				p3 => DBMS_ASSERT.ENQUOTE_LITERAL(p_Parent_Table),
+				p4 => DBMS_ASSERT.ENQUOTE_LITERAL(p_Parent_Key_Column),
+				p5 => DBMS_ASSERT.ENQUOTE_LITERAL(p_Parent_Key_Item),
+				p_max_length => 3500
+				--, p_level => apex_debug.c_log_level_app_trace
+			);
+		$END
 		if p_Table_Name IS NOT NULL then 
 			SELECT R_VIEW_NAME, R_PRIMARY_KEY_COLS, DISPLAYED_COLUMN_NAMES, ACTIVE_LOV_COLUMN_NAME, ACTIVE_LOV_DATA_TYPE, 
 					ORDERING_COLUMN_NAME, PARENT_KEY_COLUMN, FILTER_KEY_COLUMN, 
-					FOLDER_PARENT_COLUMN_NAME, FOLDER_NAME_COLUMN_NAME, FOLDER_CONTAINER_COLUMN_NAME, TABLE_ALIAS
+					FOLDER_PARENT_COLUMN_NAME, FOLDER_NAME_COLUMN_NAME, FOLDER_CONTAINER_COLUMN_NAME
 			INTO v_R_View_Name, v_Unique_Key_Column, v_Displayed_Column_Names, v_Active_Lov_Column_Name, v_Active_Lov_Data_Type, 
 					v_Ordering_Column_Name, v_Parent_Key_Column, v_Filter_Key_Column, 
-					v_Folder_Par_Col_Name, v_Folder_Name_Col_Name, v_Folder_Cont_Col_Name, v_Table_Alias
+					v_Folder_Par_Col_Name, v_Folder_Name_Col_Name, v_Folder_Cont_Col_Name
 			FROM MVDATA_BROWSER_REFERENCES
 			WHERE VIEW_NAME = p_Table_Name
         	AND COLUMN_NAME = p_Column_Name
@@ -3472,7 +3504,7 @@ $END
 				p_Folder_Par_Col_Name  => v_Folder_Par_Col_Name,
 				p_Folder_Name_Col_Name => v_Folder_Name_Col_Name,
 				p_Folder_Cont_Col_Name => v_Folder_Cont_Col_Name,
-				p_Folder_Cont_Alias => v_Table_Alias,
+				p_Folder_Cont_Alias => NULL,
 				p_View_Mode => 'FORM_VIEW',
 				p_Filter_Cond => v_filter,
 				p_Order_by => NVL(v_Ordering_Column_Name, '1')

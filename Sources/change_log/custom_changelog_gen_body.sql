@@ -186,12 +186,11 @@ $END
 		WHERE MVIEW_NAME = p_MView_Name
 		;
 		v_LAST_DDL_TIME := Get_Last_DDL_Time(p_Dependent_MViews);
-		if v_COMPILE_STATE = 'NEEDS_COMPILE' then 
+		/*if v_COMPILE_STATE = 'NEEDS_COMPILE' then 
 			v_Statement := 'ALTER MATERIALIZED VIEW ' || DBMS_ASSERT.ENQUOTE_NAME(p_MView_Name) || ' COMPILE';
-			DBMS_OUTPUT.PUT_LINE(v_Statement);
 			EXECUTE IMMEDIATE v_Statement;
 			DBMS_OUTPUT.PUT_LINE('-- compiled ' || p_MView_Name || ' Compile State: ' || v_COMPILE_STATE || ' Staleness: ' || v_STALENESS);
-		end if;
+		end if;*/
 		if v_LAST_DDL_TIME > v_LAST_REFRESH_DATE OR v_LAST_REFRESH_DATE IS NULL 
 		or v_STALENESS IN ('NEEDS_COMPILE', 'UNUSABLE') then
 			DBMS_MVIEW.REFRESH(p_MView_Name);
@@ -433,7 +432,7 @@ $END
 		if p_Changelog_Only = 'NO' then
 			FOR  stat_cur IN (
 				SELECT 'DROP TRIGGER ' || TRIGGER_NAME STATMENT, TRIGGERING_EVENT, TRIGGER_BODY
-				FROM VBASE_TRIGGER
+				FROM TABLE(changelog_conf.FN_Pipe_base_triggers)
 				WHERE IS_CANDIDATE = 'YES'
 				AND (TRIGGERING_EVENT IN ('INSERT', 'UPDATE') AND TRIGGER_TYPE = 'BEFORE EACH ROW')
 				AND (TABLE_NAME = p_Table_Name OR p_Table_Name IS NULL)

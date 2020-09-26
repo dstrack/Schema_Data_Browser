@@ -152,9 +152,9 @@ is
 				AND (S.COLUMN_NAME != T.FOLDER_PARENT_COLUMN_NAME OR T.FOLDER_PARENT_COLUMN_NAME IS NULL)
 			)
 			UNION ALL -- foreign keys with unique columns and second level foreign keys
-			SELECT --+ INDEX(S)
+			SELECT DISTINCT --+ INDEX(S)
 				S.COLUMN_NAME, S.COLUMN_PREFIX,
-				case when data_browser_conf.Get_Include_Query_Schema = 'YES' then 
+				case when v_Include_Schema = 'YES' then 
 					S.JOIN_CLAUSE_EXPL
 				else 
 					S.JOIN_CLAUSE
@@ -174,9 +174,10 @@ is
 			AND S.IS_FILE_FOLDER_REF = 'N'
 			AND (J.COLUMNS_INCLUDED IN ('A','K') OR J.COLUMNS_INCLUDED IS NULL)
 			UNION ALL
-			SELECT --+ INDEX(S)
+			SELECT DISTINCT --+ INDEX(S)
 				S.COLUMN_NAME, S.COLUMN_PREFIX,
-				S.JOIN_CLAUSE, S.JOIN_VIEW_NAME,
+				S.JOIN_CLAUSE, 
+				S.JOIN_VIEW_NAME,
 				S.COLUMN_ID, 2 POSITION, 1 MATCHING,
 				J.COLUMNS_INCLUDED,
 				S.R_TABLE_ALIAS TABLE_ALIAS,

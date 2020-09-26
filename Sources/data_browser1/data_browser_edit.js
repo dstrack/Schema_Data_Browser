@@ -411,6 +411,11 @@ var PaginationControl = (function (document) {
     };
 })(document);
 
+// allow users to close a #orclapex modal dialog, by clicking or tapping on the main window.
+$(document).on('click', 'div.ui-widget-overlay.ui-front', function(){
+    apex.navigation.dialog.close(true, false);
+});
+
 /*
 -- Example Init --
 var curPagination = new PaginationControl.curPagination('P30_ROWS', 'P30_REP_REGION_ID', 'TABLE_DATA_VIEW');

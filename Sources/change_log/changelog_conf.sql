@@ -90,6 +90,25 @@ IS
 	);
 	TYPE tab_insert_triggers IS TABLE OF rec_insert_triggers;
 	
+	TYPE rec_base_triggers IS RECORD (
+		TABLE_NAME                    VARCHAR2(128), 
+		TABLE_OWNER                   VARCHAR2(128), 
+		TRIGGER_NAME				  VARCHAR2(128),
+		TRIGGERING_EVENT		      VARCHAR2(256),
+		TRIGGER_TYPE				  VARCHAR2(16),
+		TRIGGER_BODY		          VARCHAR(4000),
+		IS_CANDIDATE				  VARCHAR2(3)
+	);
+	TYPE tab_base_triggers IS TABLE OF rec_base_triggers;
+	
+	TYPE rec_views_triggers IS RECORD (
+		TABLE_NAME                    VARCHAR2(128), 
+		VIEW_INSERT_TRIGGER_NAME      VARCHAR2(128), 
+		VIEW_UPDATE_TRIGGER_NAME	  VARCHAR2(128),
+		VIEW_DELETE_TRIGGER_NAME      VARCHAR2(128)
+	);
+	TYPE tab_views_triggers IS TABLE OF rec_views_triggers;
+
 	TYPE rec_unique_keys IS RECORD (
 		TABLE_NAME                    VARCHAR2(128), 
 		TABLE_OWNER                   VARCHAR2(128), 
@@ -208,6 +227,11 @@ IS
 	);
 	TYPE tab_Changelog_fkeys IS TABLE OF rec_Changelog_fkeys;
 
+	TYPE rec_has_set_null_fkeys IS RECORD (
+		TABLE_NAME                    VARCHAR2(128)
+	);
+	TYPE tab_has_set_null_fkeys IS TABLE OF rec_has_set_null_fkeys;
+
 	TYPE rec_table_columns IS RECORD (
 		TABLE_NAME              	VARCHAR2(128), 
 		COLUMN_ID					NUMBER,
@@ -233,6 +257,14 @@ IS
 	FUNCTION FN_Pipe_insert_triggers (
 		p_Table_Name VARCHAR2 DEFAULT NULL
 	) RETURN changelog_conf.tab_insert_triggers PIPELINED;
+
+	FUNCTION FN_Pipe_base_triggers (
+		p_Table_Name VARCHAR2 DEFAULT NULL
+	) RETURN changelog_conf.tab_base_triggers PIPELINED;
+
+	FUNCTION FN_Pipe_views_triggers (
+		p_Table_Name VARCHAR2 DEFAULT NULL
+	) RETURN changelog_conf.tab_views_triggers PIPELINED;
 
 	FUNCTION FN_Pipe_table_cols 
 	RETURN changelog_conf.tab_table_cols PIPELINED;
@@ -262,6 +294,9 @@ IS
 
 	FUNCTION FN_Pipe_Changelog_fkeys
 	RETURN changelog_conf.tab_Changelog_fkeys PIPELINED;
+
+	FUNCTION FN_Pipe_has_set_null_fkeys (p_Table_Name VARCHAR2 DEFAULT NULL)
+	RETURN changelog_conf.tab_has_set_null_fkeys PIPELINED;
 
 	FUNCTION FN_Pipe_Table_Columns
 	RETURN changelog_conf.tab_table_columns PIPELINED;
@@ -851,17 +886,124 @@ IS
 				PIPE ROW(v_out_row);
 			end loop;
         END IF;
-		RETURN;
-	exception
-	  when others then
-	    if trigger_cur%ISOPEN then
-			CLOSE trigger_cur;
-		end if;
-	    if user_trigger_cur%ISOPEN then
-			CLOSE user_trigger_cur;
-		end if;
-		raise;
 	END FN_Pipe_insert_triggers;
+
+	FUNCTION FN_Pipe_base_triggers (
+		p_Table_Name VARCHAR2 DEFAULT NULL
+	) RETURN changelog_conf.tab_base_triggers PIPELINED
+	IS
+        CURSOR trigger_cur
+        IS
+		SELECT T.TABLE_NAME, T.TABLE_OWNER, T.TRIGGER_NAME, T.TRIGGERING_EVENT, T.TRIGGER_TYPE,
+			T.TRIGGER_BODY,
+			CASE WHEN ((T.TRIGGER_TYPE = 'BEFORE EACH ROW'
+				AND ((T.TRIGGERING_EVENT = 'INSERT' AND T.TRIGGER_NAME = changelog_conf.Get_BiTrigger_Name(T.TABLE_NAME))
+					OR (T.TRIGGERING_EVENT = 'UPDATE' AND T.TRIGGER_NAME = changelog_conf.Get_BuTrigger_Name(T.TABLE_NAME))
+					OR (T.TRIGGERING_EVENT = 'DELETE' AND EXISTS (
+						SELECT 'X'
+						FROM USER_CONSTRAINTS FK
+						WHERE T.TRIGGER_NAME = FK.CONSTRAINT_NAME
+						AND FK.CONSTRAINT_TYPE = 'R')
+						)
+					)
+				)
+				OR (T.TRIGGER_TYPE = 'COMPOUND'  AND T.TRIGGER_NAME = changelog_conf.Get_ChangelogTrigger_Name(T.TABLE_NAME)
+					AND T.TRIGGERING_EVENT = 'INSERT OR UPDATE OR DELETE')
+			)
+			AND T.REFERENCING_NAMES = 'REFERENCING NEW AS NEW OLD AS OLD'
+			THEN 'YES' ELSE 'NO' END IS_CANDIDATE
+		FROM ALL_TRIGGERS T
+		WHERE T.BASE_OBJECT_TYPE = 'TABLE';
+
+        CURSOR user_trigger_cur
+        IS
+		SELECT T.TABLE_NAME, SYS_CONTEXT('USERENV', 'CURRENT_SCHEMA') TABLE_OWNER, T.TRIGGER_NAME, T.TRIGGERING_EVENT, T.TRIGGER_TYPE,
+			T.TRIGGER_BODY,
+			CASE WHEN ((T.TRIGGER_TYPE = 'BEFORE EACH ROW'
+				AND ((T.TRIGGERING_EVENT = 'INSERT' AND T.TRIGGER_NAME = changelog_conf.Get_BiTrigger_Name(T.TABLE_NAME))
+					OR (T.TRIGGERING_EVENT = 'UPDATE' AND T.TRIGGER_NAME = changelog_conf.Get_BuTrigger_Name(T.TABLE_NAME))
+					OR (T.TRIGGERING_EVENT = 'DELETE' AND EXISTS (
+						SELECT 'X'
+						FROM USER_CONSTRAINTS FK
+						WHERE T.TRIGGER_NAME = FK.CONSTRAINT_NAME
+						AND FK.CONSTRAINT_TYPE = 'R')
+						)
+					)
+				)
+				OR (T.TRIGGER_TYPE = 'COMPOUND'  AND T.TRIGGER_NAME = changelog_conf.Get_ChangelogTrigger_Name(T.TABLE_NAME)
+					AND T.TRIGGERING_EVENT = 'INSERT OR UPDATE OR DELETE')
+			)
+			AND T.REFERENCING_NAMES = 'REFERENCING NEW AS NEW OLD AS OLD'
+			THEN 'YES' ELSE 'NO' END IS_CANDIDATE
+		FROM USER_TRIGGERS T
+		WHERE T.BASE_OBJECT_TYPE = 'TABLE';
+        
+        TYPE stat_tbl IS TABLE OF trigger_cur%ROWTYPE;
+        v_in_rows stat_tbl;
+		v_out_row changelog_conf.rec_base_triggers; -- output row
+	BEGIN
+		if g_Include_External_Objects = 'YES' then 
+			OPEN trigger_cur;
+			FETCH trigger_cur BULK COLLECT INTO v_in_rows;
+			CLOSE trigger_cur;
+        else 
+			OPEN user_trigger_cur;
+			FETCH user_trigger_cur BULK COLLECT INTO v_in_rows;
+			CLOSE user_trigger_cur;  
+        end if;
+        IF v_in_rows.FIRST IS NOT NULL THEN
+            FOR ind IN 1 .. v_in_rows.COUNT
+			loop
+				v_out_row.TABLE_NAME := v_in_rows(ind).TABLE_NAME;
+				v_out_row.TABLE_OWNER := v_in_rows(ind).TABLE_OWNER;
+				v_out_row.TRIGGER_NAME := v_in_rows(ind).TRIGGER_NAME;
+				v_out_row.TRIGGERING_EVENT := v_in_rows(ind).TRIGGERING_EVENT;
+				v_out_row.TRIGGER_TYPE := v_in_rows(ind).TRIGGER_TYPE;
+				v_out_row.TRIGGER_BODY := SUBSTR(TO_CLOB(v_in_rows(ind).TRIGGER_BODY), 1, 3500); -- special conversion of LONG type; give a margin of 200 bytes for char expansion 
+				v_out_row.IS_CANDIDATE := v_in_rows(ind).IS_CANDIDATE;
+				PIPE ROW(v_out_row);
+			end loop;
+        END IF;
+	END FN_Pipe_base_triggers;
+
+
+	FUNCTION FN_Pipe_views_triggers (
+		p_Table_Name VARCHAR2 DEFAULT NULL
+	) RETURN changelog_conf.tab_views_triggers PIPELINED
+	IS
+        CURSOR trigger_cur
+        IS
+		SELECT R.TABLE_NAME,
+			MAX(CASE WHEN R.TRIGGERING_EVENT = 'INSERT'
+				AND R.TRIGGER_NAME LIKE changelog_conf.Get_InsTrigger_Name('%')
+				THEN  R.TRIGGER_NAME END
+			) VIEW_INSERT_TRIGGER_NAME,
+			MAX(CASE WHEN R.TRIGGERING_EVENT = 'UPDATE'
+				AND R.TRIGGER_NAME LIKE changelog_conf.Get_UpdTrigger_Name('%')
+				THEN  R.TRIGGER_NAME END
+			) VIEW_UPDATE_TRIGGER_NAME,
+			MAX(CASE WHEN R.TRIGGERING_EVENT = 'DELETE'
+				AND R.TRIGGER_NAME LIKE changelog_conf.Get_DelTrigger_Name('%')
+				THEN  R.TRIGGER_NAME END
+			) VIEW_DELETE_TRIGGER_NAME
+		FROM USER_TRIGGERS R
+		WHERE R.BASE_OBJECT_TYPE = 'VIEW'
+		AND R.TRIGGER_TYPE = 'INSTEAD OF'
+		AND R.REFERENCING_NAMES = 'REFERENCING NEW AS NEW OLD AS OLD'
+		GROUP BY R.TABLE_NAME;
+
+        v_in_rows changelog_conf.tab_views_triggers;
+	BEGIN
+		OPEN trigger_cur;
+		FETCH trigger_cur BULK COLLECT INTO v_in_rows;
+		CLOSE trigger_cur;
+        IF v_in_rows.FIRST IS NOT NULL THEN
+            FOR ind IN 1 .. v_in_rows.COUNT
+			loop
+				PIPE ROW(v_in_rows(ind));
+			end loop;
+        END IF;
+	END FN_Pipe_views_triggers;
 
 	FUNCTION FN_Pipe_table_cols
 	RETURN changelog_conf.tab_table_cols PIPELINED
@@ -1394,6 +1536,44 @@ IS
 	END FN_Pipe_Changelog_fkeys;
 
 
+	FUNCTION FN_Pipe_has_set_null_fkeys (p_Table_Name VARCHAR2 DEFAULT NULL)
+	RETURN changelog_conf.tab_has_set_null_fkeys PIPELINED
+	IS
+        CURSOR user_keys_cur
+        IS
+		SELECT DISTINCT P.TABLE_NAME  -- table is referenced in a foreign key clause with on delete set null clause
+		FROM USER_CONSTRAINTS A
+		JOIN USER_CONSTRAINTS P ON A.R_CONSTRAINT_NAME = P.CONSTRAINT_NAME
+		WHERE A.CONSTRAINT_TYPE = 'R'
+		AND P.CONSTRAINT_TYPE IN ('P', 'U')
+		AND A.DELETE_RULE = 'SET NULL'     -- before migration
+		AND P.TABLE_NAME  = NVL(p_Table_Name, P.TABLE_NAME)
+		UNION 
+		SELECT DISTINCT P.TABLE_NAME  
+		FROM USER_CONSTRAINTS A
+		JOIN USER_CONSTRAINTS P ON A.R_CONSTRAINT_NAME = P.CONSTRAINT_NAME
+		JOIN USER_TRIGGERS TR -- a trigger to support the set null clause exists
+			ON      TR.TRIGGER_NAME = A.CONSTRAINT_NAME
+			AND     TR.TABLE_NAME = P.TABLE_NAME
+			AND     TR.TABLE_OWNER = A.OWNER
+		WHERE A.CONSTRAINT_TYPE = 'R'
+		AND P.CONSTRAINT_TYPE IN ('P', 'U')
+		AND A.DELETE_RULE = 'NO ACTION'  -- after migration
+		AND TR.TRIGGERING_EVENT = 'DELETE'
+		AND TR.BASE_OBJECT_TYPE = 'TABLE'
+		AND P.TABLE_NAME  = NVL(p_Table_Name, P.TABLE_NAME);
+		
+        v_in_rows tab_has_set_null_fkeys;
+	BEGIN
+		OPEN user_keys_cur;
+		FETCH user_keys_cur BULK COLLECT INTO v_in_rows;
+		CLOSE user_keys_cur;  
+		FOR ind IN 1 .. v_in_rows.COUNT LOOP
+			pipe row (v_in_rows(ind));
+		END LOOP;
+	END FN_Pipe_has_set_null_fkeys;
+
+
 	FUNCTION FN_Pipe_Table_Columns
 	RETURN changelog_conf.tab_table_columns PIPELINED
 	IS
@@ -1428,9 +1608,7 @@ IS
 	FUNCTION Enquote_Name (str VARCHAR2)
 	RETURN VARCHAR2 DETERMINISTIC
 	IS
-$IF DBMS_DB_VERSION.VERSION >= 12 $THEN
 	PRAGMA UDF;
-$END
 	BEGIN
 		return DBMS_ASSERT.ENQUOTE_NAME (str => str, capitalize => FALSE);
 	END;
@@ -1438,9 +1616,7 @@ $END
 	FUNCTION Enquote_Literal ( p_Text VARCHAR2 )
 	RETURN VARCHAR2 DETERMINISTIC
 	IS
-$IF DBMS_DB_VERSION.VERSION >= 12 $THEN
 	PRAGMA UDF;
-$END
 		v_Quote CONSTANT VARCHAR2(1) := chr(39);
 	BEGIN
 		RETURN v_Quote || REPLACE(p_Text, v_Quote, v_Quote||v_Quote) || v_Quote ;
@@ -1449,9 +1625,7 @@ $END
 	FUNCTION First_Element (str VARCHAR2)
 	RETURN VARCHAR2 DETERMINISTIC
 	IS -- return first element of comma delimited list as native column name
-$IF DBMS_DB_VERSION.VERSION >= 12 $THEN
 	PRAGMA UDF;
-$END
 		v_Offset PLS_INTEGER := INSTR(str, ',');
 		v_trim_set CONSTANT VARCHAR2(10) := ' _%';
 	BEGIN
@@ -1479,9 +1653,7 @@ $END
     	p_Max_Length NUMBER DEFAULT 30
     ) RETURN VARCHAR2 DETERMINISTIC
     IS
-$IF DBMS_DB_VERSION.VERSION >= 12 $THEN
 	PRAGMA UDF;
-$END
         v_Table_Name VARCHAR2(128) := Normalize_Table_Name(p_Table_Name => p_Table_Name); -- remove ending _BT
         v_Column_Name VARCHAR2(128) := Normalize_Column_Name(p_Column_Name => p_Column_Name); -- remove ending _ID2
         v_Half_Length CONSTANT INTEGER := FLOOR(p_Max_Length / 2);
@@ -1497,9 +1669,7 @@ $END
     	p_Max_Length NUMBER DEFAULT 30
     ) RETURN VARCHAR2 DETERMINISTIC
     IS
-$IF DBMS_DB_VERSION.VERSION >= 12 $THEN
 	PRAGMA UDF;
-$END
         v_Half_Length CONSTANT INTEGER := FLOOR(p_Max_Length / 2);
     BEGIN
     	if p_Deduplication = 'YES' then
@@ -1528,78 +1698,69 @@ $END
 
     FUNCTION Get_Base_Table_Ext RETURN VARCHAR2
     IS
-$IF DBMS_DB_VERSION.VERSION >= 12 $THEN
 	PRAGMA UDF;
-$END
     BEGIN RETURN g_BaseTableExt; END;
+    
     FUNCTION Get_Base_Table_Name ( p_Name VARCHAR2 ) RETURN VARCHAR2
     IS
-$IF DBMS_DB_VERSION.VERSION >= 12 $THEN
 	PRAGMA UDF;
-$END
     BEGIN
         RETURN p_Name || g_BaseTableExt;
     END;
 
+    FUNCTION Get_Short_Name ( p_Name VARCHAR2 ) RETURN VARCHAR2 DETERMINISTIC
+    IS
+    BEGIN
+        RETURN RTRIM(SUBSTR(p_Name, 1, 23), '_');
+    END;
+
     FUNCTION Get_ChangelogTrigger_Name ( p_Name VARCHAR2, p_RunNo VARCHAR2 DEFAULT NULL ) RETURN VARCHAR2
     IS
-$IF DBMS_DB_VERSION.VERSION >= 12 $THEN
 	PRAGMA UDF;
-$END
     	v_Max_Length INTEGER := g_Max_Name_Length - NVL(LENGTH(g_ChangelogTriggerPrefix), 0)
     							- NVL(LENGTH(g_ChangelogTriggerExt), 0) - NVL(LENGTH(p_RunNo), 0);
     BEGIN
-        RETURN g_ChangelogTriggerPrefix || RTRIM(SUBSTR(p_Name, 1, v_Max_Length), '_') || p_RunNo || g_ChangelogTriggerExt;
+        RETURN g_ChangelogTriggerPrefix || RTRIM(SUBSTR(Get_Short_Name(p_Name), 1, v_Max_Length), '_') || p_RunNo || g_ChangelogTriggerExt;
     END;
 
     FUNCTION Get_BiTrigger_Name ( p_Name VARCHAR2 ) RETURN VARCHAR2
     IS
-$IF DBMS_DB_VERSION.VERSION >= 12 $THEN
 	PRAGMA UDF;
-$END
     	v_Max_Length INTEGER := g_Max_Name_Length - NVL(LENGTH(g_BiTriggerPrefix), 0) - NVL(LENGTH(g_BiTriggerExt), 0);
     BEGIN
-        RETURN g_BiTriggerPrefix || RTRIM(SUBSTR(p_Name, 1, v_Max_Length), '_') || g_BiTriggerExt;
+        RETURN g_BiTriggerPrefix || RTRIM(SUBSTR(Get_Short_Name(p_Name), 1, v_Max_Length), '_') || g_BiTriggerExt;
     END;
 
     FUNCTION Get_BuTrigger_Name ( p_Name VARCHAR2 ) RETURN VARCHAR2
     IS
-$IF DBMS_DB_VERSION.VERSION >= 12 $THEN
 	PRAGMA UDF;
-$END
     	v_Max_Length INTEGER := g_Max_Name_Length - NVL(LENGTH(g_BuTriggerPrefix), 0) - NVL(LENGTH(g_BuTriggerExt), 0);
     BEGIN
-        RETURN g_BuTriggerPrefix || RTRIM(SUBSTR(p_Name, 1, v_Max_Length), '_') || g_BuTriggerExt;
+        RETURN g_BuTriggerPrefix || RTRIM(SUBSTR(Get_Short_Name(p_Name), 1, v_Max_Length), '_') || g_BuTriggerExt;
     END;
 
     FUNCTION Get_InsTrigger_Name ( p_Name VARCHAR2 ) RETURN VARCHAR2
     IS
-$IF DBMS_DB_VERSION.VERSION >= 12 $THEN
 	PRAGMA UDF;
-$END
     	v_Max_Length INTEGER := g_Max_Name_Length - NVL(LENGTH(g_InsTriggerPrefix), 0) - NVL(LENGTH(g_InsTriggerExt), 0);
     BEGIN
-        RETURN g_InsTriggerPrefix || RTRIM(SUBSTR(p_Name, 1, v_Max_Length), '_') || g_InsTriggerExt;
+        RETURN g_InsTriggerPrefix || RTRIM(SUBSTR(Get_Short_Name(p_Name), 1, v_Max_Length), '_') || g_InsTriggerExt;
     END;
 
     FUNCTION Get_DelTrigger_Name ( p_Name VARCHAR2 ) RETURN VARCHAR2
     IS
-$IF DBMS_DB_VERSION.VERSION >= 12 $THEN
 	PRAGMA UDF;
-$END
     	v_Max_Length INTEGER := g_Max_Name_Length - NVL(LENGTH(g_DelTriggerPrefix), 0) - NVL(LENGTH(g_DelTriggerExt), 0);
     BEGIN
-        RETURN g_DelTriggerPrefix || RTRIM(SUBSTR(p_Name, 1, v_Max_Length), '_') || g_DelTriggerExt;
+        RETURN g_DelTriggerPrefix || RTRIM(SUBSTR(Get_Short_Name(p_Name), 1, v_Max_Length), '_') || g_DelTriggerExt;
     END;
 
     FUNCTION Get_UpdTrigger_Name ( p_Name VARCHAR2 ) RETURN VARCHAR2
     IS
-$IF DBMS_DB_VERSION.VERSION >= 12 $THEN
 	PRAGMA UDF;
-$END
     	v_Max_Length INTEGER := g_Max_Name_Length - NVL(LENGTH(g_UpdTriggerPrefix), 0) - NVL(LENGTH(g_UpdTriggerExt), 0);
     BEGIN
-        RETURN g_UpdTriggerPrefix || RTRIM(SUBSTR(p_Name, 1, v_Max_Length), '_') || g_UpdTriggerExt;
+        RETURN g_UpdTriggerPrefix || RTRIM(SUBSTR(Get_Short_Name(p_Name), 1, v_Max_Length), '_') || g_UpdTriggerExt;
     END;
 
     FUNCTION Get_SequenceExt RETURN VARCHAR2 IS BEGIN RETURN g_SequenceExt; END;
@@ -1642,9 +1803,7 @@ $END
         p_Primary_Key_Col IN VARCHAR2
     ) RETURN NUMBER
     IS
-$IF DBMS_DB_VERSION.VERSION >= 12 $THEN
 	PRAGMA UDF;
-$END
         v_Stat              VARCHAR2(400);
         stat_cur            SYS_REFCURSOR;
         v_ID                NUMBER;
@@ -1702,9 +1861,7 @@ $END
     FUNCTION Get_Use_Change_Log RETURN VARCHAR2 IS BEGIN RETURN g_Use_Change_Log; END;
 	FUNCTION Get_Use_Audit_Info_Columns RETURN VARCHAR2
 	IS
-$IF DBMS_DB_VERSION.VERSION >= 12 $THEN
 	PRAGMA UDF;
-$END
 	BEGIN RETURN g_Use_Audit_Info_Columns; END;
 	FUNCTION Get_Use_Audit_Info_Trigger RETURN VARCHAR2 IS BEGIN RETURN case when g_Use_Audit_Info_Columns = 'YES' and g_Use_Audit_Info_Trigger = 'YES' then 'YES' else 'NO' end; END;
 	FUNCTION Get_Drop_Audit_Info_Columns RETURN VARCHAR2 IS BEGIN RETURN case when g_Use_Audit_Info_Columns = 'YES' and g_Drop_Audit_Info_Columns = 'YES' then 'YES' else 'NO' end; END;
@@ -1716,34 +1873,22 @@ $END
     FUNCTION Get_Add_Creation_User RETURN VARCHAR2 IS BEGIN RETURN g_Add_Creation_User; END;
     FUNCTION Get_Enforce_Not_Null RETURN VARCHAR2 IS BEGIN RETURN g_Enforce_Not_Null; END;
     FUNCTION Get_Add_Insert_Trigger RETURN VARCHAR2 IS
-$IF DBMS_DB_VERSION.VERSION >= 12 $THEN
 	PRAGMA UDF;
-$END
     BEGIN RETURN g_Add_Insert_Trigger; END;
     FUNCTION Get_Add_Delete_Trigger RETURN VARCHAR2 IS
-$IF DBMS_DB_VERSION.VERSION >= 12 $THEN
 	PRAGMA UDF;
-$END
     BEGIN RETURN g_Add_Delete_Trigger; END;
     FUNCTION Get_Add_Update_Trigger1 RETURN VARCHAR2 IS
-$IF DBMS_DB_VERSION.VERSION >= 12 $THEN
 	PRAGMA UDF;
-$END
     BEGIN RETURN g_Add_Update_Trigger1; END;
     FUNCTION Get_Add_Update_Trigger2 RETURN VARCHAR2 IS
-$IF DBMS_DB_VERSION.VERSION >= 12 $THEN
 	PRAGMA UDF;
-$END
     BEGIN RETURN g_Add_Update_Trigger2; END;
     FUNCTION Get_Add_Application_Schema RETURN VARCHAR2 IS
-$IF DBMS_DB_VERSION.VERSION >= 12 $THEN
 	PRAGMA UDF;
-$END
     BEGIN RETURN g_Add_Application_Schema; END;
     FUNCTION Get_Add_ChangeLog_Views RETURN VARCHAR2 IS
-$IF DBMS_DB_VERSION.VERSION >= 12 $THEN
 	PRAGMA UDF;
-$END
     BEGIN RETURN case when g_Add_ChangeLog_Views = 'YES' and g_Use_Change_Log = 'YES' then 'YES' else 'NO' end; END;
     FUNCTION App_User_Password RETURN VARCHAR2 IS BEGIN RETURN g_AppUserPassword; END;
     FUNCTION Apex_Workspace_Name RETURN VARCHAR2 IS BEGIN RETURN g_Apex_Workspace_Name; END;
@@ -1762,15 +1907,11 @@ $END
     
     FUNCTION Get_Table_Schema RETURN VARCHAR2
     IS
-$IF DBMS_DB_VERSION.VERSION >= 12 $THEN
 	PRAGMA UDF;
-$END
     BEGIN RETURN g_BaseTableSchema; END;
     FUNCTION Get_View_Schema RETURN VARCHAR2
     IS
-$IF DBMS_DB_VERSION.VERSION >= 12 $THEN
 	PRAGMA UDF;
-$END
     BEGIN RETURN g_BaseViewSchema; END;
 
     PROCEDURE Set_Table_Schema(p_Schema_Name IN VARCHAR2 DEFAULT NULL)
@@ -1808,24 +1949,18 @@ $END
 
     FUNCTION Get_TableWorkspaces RETURN VARCHAR2
     IS
-$IF DBMS_DB_VERSION.VERSION >= 12 $THEN
 	PRAGMA UDF;
-$END
     BEGIN RETURN UPPER(g_TableWorkspaces); END;
 	FUNCTION Get_Sys_Guid_Function RETURN VARCHAR2 IS BEGIN RETURN g_Sys_Guid_Function; END;
 
     FUNCTION Get_ColumnWorkspace RETURN VARCHAR2
     IS
-$IF DBMS_DB_VERSION.VERSION >= 12 $THEN
 	PRAGMA UDF;
-$END
     BEGIN RETURN UPPER(First_Element(g_ColumnWorkspace)); END;
 
     FUNCTION Get_ColumnWorkspace_List RETURN VARCHAR2
     IS
-$IF DBMS_DB_VERSION.VERSION >= 12 $THEN
 	PRAGMA UDF;
-$END
     BEGIN RETURN UPPER(g_ColumnWorkspace); END;
 
     FUNCTION Get_Context_WorkspaceID_Expr RETURN VARCHAR2 IS BEGIN RETURN g_ContextWorkspaceIDExpr; END;
@@ -1835,117 +1970,83 @@ $END
     FUNCTION Get_Table_App_Users RETURN VARCHAR2 IS BEGIN RETURN UPPER(g_Table_App_Users); END;
     FUNCTION Get_ExcludeTablesPattern RETURN VARCHAR2
     IS
-$IF DBMS_DB_VERSION.VERSION >= 12 $THEN
 	PRAGMA UDF;
-$END
     BEGIN RETURN g_ExcludedTablesPattern; END;
     FUNCTION Get_IncludeWorkspaceIDPattern RETURN VARCHAR2
     IS
-$IF DBMS_DB_VERSION.VERSION >= 12 $THEN
 	PRAGMA UDF;
-$END
     BEGIN RETURN Concat_List(g_CIncludeWorkspaceIDPattern, g_IncludeWorkspaceIDPattern);
     END;
     FUNCTION Get_ConstantWorkspaceIDPattern RETURN VARCHAR2
     IS
-$IF DBMS_DB_VERSION.VERSION >= 12 $THEN
 	PRAGMA UDF;
-$END
     BEGIN RETURN g_CIncludeWorkspaceIDPattern; END;
 
     FUNCTION Get_ExcludeWorkspaceIDPattern RETURN VARCHAR2
     IS
-$IF DBMS_DB_VERSION.VERSION >= 12 $THEN
 	PRAGMA UDF;
-$END
     BEGIN
     	RETURN Concat_List(g_CExcludeWorkspaceIDPattern, g_ExcludeWorkspaceIDPattern);
     END;
     FUNCTION Get_IncludeDeleteMarkPattern RETURN VARCHAR2
     IS
-$IF DBMS_DB_VERSION.VERSION >= 12 $THEN
 	PRAGMA UDF;
-$END
     BEGIN RETURN g_IncludeDeleteMarkPattern; END;
     FUNCTION Get_ExcludeDeleteMarkPattern RETURN VARCHAR2
     IS
-$IF DBMS_DB_VERSION.VERSION >= 12 $THEN
 	PRAGMA UDF;
-$END
     BEGIN
     	RETURN Concat_List(g_ExcludedTablesPattern, g_ExcludeDeleteMarkPattern);
     END;
     FUNCTION Get_IncludeTimestampPattern RETURN VARCHAR2
     IS
-$IF DBMS_DB_VERSION.VERSION >= 12 $THEN
 	PRAGMA UDF;
-$END
     BEGIN RETURN g_IncludeTimestampPattern; END;
     FUNCTION Get_ExcludeTimestampPattern RETURN VARCHAR2
     IS
-$IF DBMS_DB_VERSION.VERSION >= 12 $THEN
 	PRAGMA UDF;
-$END
     BEGIN
     	RETURN Concat_List(g_ExcludedTablesPattern, g_ExcludeTimestampPattern);
     END;
 
     FUNCTION Get_ColumnCreateUser RETURN VARCHAR2
     IS
-$IF DBMS_DB_VERSION.VERSION >= 12 $THEN
 	PRAGMA UDF;
-$END
     BEGIN RETURN UPPER(First_Element(g_ColumnCreateUser)); END;
 
     FUNCTION Get_ColumnCreateUser_List RETURN VARCHAR2
     IS
-$IF DBMS_DB_VERSION.VERSION >= 12 $THEN
 	PRAGMA UDF;
-$END
     BEGIN RETURN UPPER(g_ColumnCreateUser); END;
 
     FUNCTION Get_ColumnCreateDate RETURN VARCHAR2
     IS
-$IF DBMS_DB_VERSION.VERSION >= 12 $THEN
 	PRAGMA UDF;
-$END
     BEGIN RETURN UPPER(First_Element(g_ColumnCreateDate)); END;
 
     FUNCTION Get_ColumnCreateDate_List RETURN VARCHAR2
     IS
-$IF DBMS_DB_VERSION.VERSION >= 12 $THEN
 	PRAGMA UDF;
-$END
     BEGIN RETURN UPPER(g_ColumnCreateDate); END;
 
     FUNCTION Get_ColumnModifyUser RETURN VARCHAR2 IS
-$IF DBMS_DB_VERSION.VERSION >= 12 $THEN
 	PRAGMA UDF;
-$END
     BEGIN RETURN UPPER(First_Element(g_ColumnModifyUser)); END;
 
     FUNCTION Get_ColumnModifyUser_List RETURN VARCHAR2 IS
-$IF DBMS_DB_VERSION.VERSION >= 12 $THEN
 	PRAGMA UDF;
-$END
     BEGIN RETURN UPPER(g_ColumnModifyUser); END;
 
     FUNCTION Get_DatatypeModifyUser RETURN VARCHAR2 IS
-$IF DBMS_DB_VERSION.VERSION >= 12 $THEN
 	PRAGMA UDF;
-$END
     BEGIN RETURN g_DatatypeModifyUser; END;
     FUNCTION Get_ColumnTypeModifyUser RETURN VARCHAR2 IS
-$IF DBMS_DB_VERSION.VERSION >= 12 $THEN
 	PRAGMA UDF;
-$END
     BEGIN RETURN g_ColumnTypeModifyUser; END;
     
     FUNCTION Get_FunctionModifyUser RETURN VARCHAR2
     IS
-$IF DBMS_DB_VERSION.VERSION >= 12 $THEN
 	PRAGMA UDF;
-$END
     BEGIN
     	RETURN case when g_FunctionModifyUser IS NOT NULL
     		  then g_FunctionModifyUser
@@ -1957,72 +2058,50 @@ $END
     
     FUNCTION Get_DefaultModifyUser RETURN VARCHAR2
     IS
-$IF DBMS_DB_VERSION.VERSION >= 12 $THEN
 	PRAGMA UDF;
-$END
     BEGIN
     	RETURN 'NVL(' || g_ContextUserNameExpr || ', ' || g_SessionUserNameExpr || ')';
     END;
     	
     FUNCTION Get_ForeignKeyModifyUser RETURN VARCHAR2 IS
-$IF DBMS_DB_VERSION.VERSION >= 12 $THEN
 	PRAGMA UDF;
-$END
     BEGIN RETURN g_ForeignKeyModifyUser; END;
 
     FUNCTION Get_ColumnModifyDate RETURN VARCHAR2 IS
-$IF DBMS_DB_VERSION.VERSION >= 12 $THEN
 	PRAGMA UDF;
-$END
     BEGIN RETURN UPPER(First_Element(g_ColumnModifyDate)); END;
 
     FUNCTION Get_ColumnModifyDate_List RETURN VARCHAR2 IS
-$IF DBMS_DB_VERSION.VERSION >= 12 $THEN
 	PRAGMA UDF;
-$END
     BEGIN RETURN UPPER(g_ColumnModifyDate); END;
 
     FUNCTION Get_FunctionModifyDate RETURN VARCHAR2 IS
-$IF DBMS_DB_VERSION.VERSION >= 12 $THEN
 	PRAGMA UDF;
-$END
     BEGIN RETURN g_FunctionModifyDate; END;
     FUNCTION Get_DatatypeModifyDate RETURN VARCHAR2 IS
-$IF DBMS_DB_VERSION.VERSION >= 12 $THEN
 	PRAGMA UDF;
-$END
     BEGIN RETURN g_DatatypeModifyDate; END;
     FUNCTION Get_AltDatatypeModifyDate RETURN VARCHAR2 IS
-$IF DBMS_DB_VERSION.VERSION >= 12 $THEN
 	PRAGMA UDF;
-$END
     BEGIN RETURN g_AltDatatypeModifyDate; END;
 
     FUNCTION Get_ColumnDeletedMark RETURN VARCHAR2
     IS
-$IF DBMS_DB_VERSION.VERSION >= 12 $THEN
 	PRAGMA UDF;
-$END
     BEGIN RETURN UPPER(First_Element(g_ColumnDeletedMark)); END;
 
     FUNCTION Get_ColumnDeletedMark_List RETURN VARCHAR2
     IS
-$IF DBMS_DB_VERSION.VERSION >= 12 $THEN
 	PRAGMA UDF;
-$END
     BEGIN RETURN UPPER(g_ColumnDeletedMark); END;
 
     FUNCTION Get_DatatypeDeletedMark RETURN VARCHAR2
     IS
-$IF DBMS_DB_VERSION.VERSION >= 12 $THEN
 	PRAGMA UDF;
-$END
     BEGIN RETURN g_DatatypeDeletedMark; END;
     FUNCTION Get_DefaultDeletedMark RETURN VARCHAR2
     IS
-$IF DBMS_DB_VERSION.VERSION >= 12 $THEN
 	PRAGMA UDF;
-$END
     BEGIN RETURN g_DefaultDeletedMark; END;
     -- the column DELETED_MARK is added to each table with a primary key.
     -- existing rows have a NULL value in this column.
@@ -2046,9 +2125,7 @@ $END
 
     FUNCTION Get_ColumnIndexFormat RETURN VARCHAR2
     IS
-$IF DBMS_DB_VERSION.VERSION >= 12 $THEN
 	PRAGMA UDF;
-$END
     BEGIN RETURN UPPER(First_Element(g_ColumnIndexFormat)); END;
 
     FUNCTION Get_Admin_Workspace_Name RETURN VARCHAR2
@@ -2096,9 +2173,7 @@ $END
 
     FUNCTION Get_ColumnDefaultText (p_Table_Name VARCHAR2, p_Column_Name VARCHAR2, p_Owner VARCHAR2 DEFAULT SYS_CONTEXT('USERENV', 'CURRENT_SCHEMA')) RETURN VARCHAR2
     IS
-$IF DBMS_DB_VERSION.VERSION >= 12 $THEN
 	PRAGMA UDF;
-$END
         v_Default_Text SYS.ALL_TAB_COLUMNS.DATA_DEFAULT%TYPE;
     BEGIN
         if p_Table_Name IS NULL OR p_Column_Name IS NULL then
@@ -2122,9 +2197,7 @@ $END
 		p_Part IN NUMBER
 	) RETURN VARCHAR2 DETERMINISTIC
     IS
-$IF DBMS_DB_VERSION.VERSION >= 12 $THEN
 	PRAGMA UDF;
-$END
 		v_First_Name VARCHAR2(128);
 		v_Second_Name VARCHAR2(128);
 		v_Third_Name VARCHAR2(128);
@@ -2155,9 +2228,7 @@ $END
 
     FUNCTION Get_ColumnCheckCondition (p_Table_Name VARCHAR2, p_Column_Name VARCHAR2) RETURN VARCHAR2
     IS
-$IF DBMS_DB_VERSION.VERSION >= 12 $THEN
 	PRAGMA UDF;
-$END
         v_Search_Condition_Vc VARCHAR(4000);
     BEGIN
         if p_Table_Name IS NULL OR p_Column_Name IS NULL then
@@ -2192,9 +2263,7 @@ $END
 
     FUNCTION Get_TriggerText (p_Table_Name VARCHAR2, p_Trigger_Name VARCHAR2) RETURN CLOB
     IS
-$IF DBMS_DB_VERSION.VERSION >= 12 $THEN
 	PRAGMA UDF;
-$END
     BEGIN
         FOR C IN (
             SELECT C.TRIGGER_BODY
@@ -2210,9 +2279,7 @@ $END
 
     FUNCTION Get_BaseName (p_Table_Name VARCHAR2) RETURN VARCHAR2
     IS
-$IF DBMS_DB_VERSION.VERSION >= 12 $THEN
 	PRAGMA UDF;
-$END
     BEGIN
         RETURN REGEXP_REPLACE(p_Table_Name, g_BaseTableExt || '$');
     END;
@@ -2224,9 +2291,7 @@ $END
 	)
     RETURN VARCHAR2 DETERMINISTIC
     IS
-$IF DBMS_DB_VERSION.VERSION >= 12 $THEN
 	PRAGMA UDF;
-$END
     BEGIN
     	RETURN
 			case when p_First_Name IS NOT NULL and p_Second_Name IS NOT NULL
@@ -2240,9 +2305,7 @@ $END
 	FUNCTION Match_Column_Pattern (p_Column_Name VARCHAR2, p_Pattern VARCHAR2) 
 	RETURN VARCHAR2 DETERMINISTIC -- YES / NO
 	IS 
-$IF DBMS_DB_VERSION.VERSION >= 12 $THEN
 	PRAGMA UDF;
-$END
 		v_Pattern_Array apex_t_varchar2;
 	BEGIN
 		v_Pattern_Array := apex_string.split(TRANSLATE(p_Pattern, '_ ', '_'), ',');
@@ -2257,9 +2320,7 @@ $END
 	FUNCTION Match_Column_Pattern (p_Column_Name VARCHAR2, p_Pattern_Array apex_t_varchar2) 
 	RETURN VARCHAR2 DETERMINISTIC -- YES / NO
 	IS 
-$IF DBMS_DB_VERSION.VERSION >= 12 $THEN
 	PRAGMA UDF;
-$END
 	BEGIN
 		for c_idx IN 1..p_Pattern_Array.count loop
 			if p_Column_Name LIKE p_Pattern_Array(c_idx) ESCAPE '\' then
@@ -2279,9 +2340,7 @@ $END
     FUNCTION in_list( p_string in clob, p_delimiter in varchar2 := ';')
     RETURN sys.odciVarchar2List PIPELINED   -- VARCHAR2(4000)
     IS
-$IF DBMS_DB_VERSION.VERSION >= 12 $THEN
 	PRAGMA UDF;
-$END
         l_string    varchar2(32767);
         n           number          := length(p_string);
         p           number          := 1;
@@ -2310,9 +2369,7 @@ $END
     )
     RETURN VARCHAR2
     IS
-$IF DBMS_DB_VERSION.VERSION >= 12 $THEN
 	PRAGMA UDF;
-$END
         v_Result VARCHAR2(1000) := NULL;
     BEGIN
         FOR c_cur IN (
@@ -2389,9 +2446,7 @@ $END
     )
     RETURN VARCHAR2
     IS
-$IF DBMS_DB_VERSION.VERSION >= 12 $THEN
 	PRAGMA UDF;
-$END
         v_Result VARCHAR2(1000) := NULL;
     BEGIN
         FOR c_cur IN (
@@ -2471,9 +2526,7 @@ $END
     )
     RETURN VARCHAR2
     IS
-$IF DBMS_DB_VERSION.VERSION >= 12 $THEN
 	PRAGMA UDF;
-$END
         v_Column_Name   VARCHAR2(50);
         v_Column_ID     NUMBER;
         v_Result        VARCHAR2(32000) := NULL;
@@ -2640,16 +2693,12 @@ $END
 
     FUNCTION Get_ChangeLogTable RETURN VARCHAR2 DETERMINISTIC
     IS
-$IF DBMS_DB_VERSION.VERSION >= 12 $THEN
 	PRAGMA UDF;
-$END
     BEGIN RETURN g_ChangeLogTable; END;
     
     FUNCTION Get_ChangeLogFKeyTables RETURN VARCHAR2
     IS
-$IF DBMS_DB_VERSION.VERSION >= 12 $THEN
 	PRAGMA UDF;
-$END
     BEGIN RETURN g_ChangeLogFKeyTables; END;
     
     FUNCTION Get_ChangeLog_Custom_Ref(p_Table_Name VARCHAR2) RETURN VARCHAR2
@@ -2666,24 +2715,16 @@ $END
     END;
         
     FUNCTION Get_ChangeLogFKeyColumns RETURN VARCHAR2 IS
-$IF DBMS_DB_VERSION.VERSION >= 12 $THEN
 	PRAGMA UDF;
-$END
     BEGIN RETURN g_ChangeLogFKeyColumns; END;
     FUNCTION Get_IncludeChangeLogPattern RETURN VARCHAR2 IS
-$IF DBMS_DB_VERSION.VERSION >= 12 $THEN
 	PRAGMA UDF;
-$END
     BEGIN RETURN g_IncludeChangeLogPattern; END;
     FUNCTION Get_ExcludeChangeLogPattern RETURN VARCHAR2 IS
-$IF DBMS_DB_VERSION.VERSION >= 12 $THEN
 	PRAGMA UDF;
-$END
     BEGIN RETURN Concat_List(g_ExcludeChangeLogPattern, c_ExcludeChangeLogPattern); END;
     FUNCTION Get_ReferenceDescriptionCols RETURN VARCHAR2 IS
-$IF DBMS_DB_VERSION.VERSION >= 12 $THEN
 	PRAGMA UDF;
-$END
     BEGIN RETURN g_ReferenceDescriptionCols; END;
 
 

@@ -2775,8 +2775,7 @@ $END
 														|| ' from ' || data_browser_conf.Enquote_Name_Required(REF_VIEW_NAME) || ' ' || TABLE_ALIAS 
 														|| ' order by 1'
 													when COLUMN_EXPR_TYPE = 'POPUP_FROM_LOV' and IS_FILE_FOLDER_REF = 'Y' and LOV_QUERY IS NOT NULL then 
-														'select PATH d, PATH r'
-														|| ' from (' || LOV_QUERY || ')'
+														LOV_QUERY
 													else LOV_QUERY
 												end,
 							p_Check_Unique	=> CHECK_UNIQUE,
