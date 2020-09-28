@@ -81,15 +81,12 @@ WITH BASE_UNIQUEKEYS AS (
 	FROM (
 		SELECT T.*,
             RTRIM(SUBSTR(BASE_NAME, 1, 23), '_' || RUN_NO) || RUN_NO SHORT_NAME,
-            RTRIM(SUBSTR(BASE_NAME, 1, 26), '_' || RUN_NO) || RUN_NO SHORT_NAME2,
             case when CONSTRAINT_TYPE = 'P' OR (CONSTRAINT_TYPE = 'U' AND HAS_NULLABLE = 0)
                 then 'YES' else 'NO' end  IS_CANDIDATE_KEY,
             case when TABLESPACE_NAME IS NULL
             	then 'YES' else 'NO'
             end IS_INDEX_ORGANIZED
 		from TABLE ( data_browser_pipes.FN_Pipe_Table_Uniquekeys ) T
-		where data_browser_pattern.Match_Included_Tables(T.TABLE_NAME) = 'YES'
-		and data_browser_pattern.Match_Excluded_Tables(T.TABLE_NAME) = 'NO'
 	) T
 ),
 SCALAR_KEYS AS (
@@ -105,14 +102,6 @@ SCALAR_KEYS AS (
 				CONSTRAINT_NAME ASC) POSITION
 	FROM MVBASE_UNIQUE_KEYS SK
 	WHERE SK.HAS_SCALAR_KEY = 'YES'
-),
-BASE_VIEWS AS (
-	select * from table (data_browser_pipes.FN_Pipe_Mapping_Views) T
-	where data_browser_pattern.Match_Included_Tables(T.TABLE_NAME) = 'YES'
-	and data_browser_pattern.Match_Excluded_Tables(T.TABLE_NAME) = 'NO'
-),
-COLUMN_PREFIX AS (
-	select * from table (data_browser_pipes.FN_Pipe_Table_Cols_Prefix)
 )
 SELECT VIEW_NAME, VIEW_OWNER, TABLE_NAME, TABLE_OWNER, PRIMARY_KEY_COLS, 
 	NVL(SCALAR_KEY_COLUMN, PRIMARY_KEY_COLS) SEARCH_KEY_COLS,
@@ -181,13 +170,15 @@ FROM (
 		RV.INDEX_FORMAT_COLUMN_NAME, 
 		RV.AUDIT_DATE_COLUMN_NAME, 
 		RV.AUDIT_USER_COLUMN_NAME,
-		CP.COLUMN_PREFIX, PK.NUM_ROWS,
+		RV.COLUMN_PREFIX, 
+		PK.NUM_ROWS,
 		PK.READ_ONLY
-	FROM BASE_UNIQUEKEYS PK, BASE_VIEWS S, TABLE (data_browser_pipes.FN_Pipe_Special_Columns ) RV,
-		COLUMN_PREFIX CP, SCALAR_KEYS SK
+	FROM BASE_UNIQUEKEYS PK, SCALAR_KEYS SK,
+		table (data_browser_pipes.FN_Pipe_Mapping_Views) S, 
+		TABLE (data_browser_pipes.FN_Pipe_Special_Columns ) RV
 	WHERE PK.TABLE_NAME = S.TABLE_NAME (+) AND PK.TABLE_OWNER = S.TABLE_OWNER (+)
 	AND PK.TABLE_NAME = RV.TABLE_NAME (+) AND PK.TABLE_OWNER = RV.TABLE_OWNER (+)
-	AND PK.TABLE_NAME = CP.TABLE_NAME (+) AND PK.TABLE_OWNER = CP.OWNER (+) AND PK.POSITION (+) = 1
+	AND PK.POSITION = 1
 	AND PK.TABLE_NAME = SK.TABLE_NAME (+) AND PK.TABLE_OWNER = SK.TABLE_OWNER (+) AND SK.POSITION (+) = 1
 ) T
 WHERE VIEW_OWNER = SYS_CONTEXT('USERENV', 'CURRENT_SCHEMA');

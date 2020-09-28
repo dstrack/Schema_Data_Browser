@@ -170,7 +170,8 @@ IS
 		AUDIT_USER_COLUMN_NAME 				VARCHAR2(128),
 		SUMMAND_COLUMN_NAME					VARCHAR2(128),
 		MINUEND_COLUMN_NAME					VARCHAR2(128),
-		FACTORS_COLUMN_NAME					VARCHAR2(128)
+		FACTORS_COLUMN_NAME					VARCHAR2(128),
+		COLUMN_PREFIX						VARCHAR2(128)
 	);
 	TYPE tab_special_columns IS TABLE OF rec_special_columns;
 
@@ -369,6 +370,8 @@ IS
 				AND A.TEMPORARY = 'N'	-- skip temporary tables
 				AND A.SECONDARY = 'N'
 				AND A.NESTED = 'NO'
+				AND data_browser_pattern.Match_Included_Tables(A.TABLE_NAME) = 'YES'
+				AND data_browser_pattern.Match_Excluded_Tables(A.TABLE_NAME) = 'NO'
 			) T, SYS.USER_EXTERNAL_TABLES E, 
 			TABLE (data_browser_pipes.FN_Pipe_References_Count) R 
 			WHERE T.TABLE_NAME = E.TABLE_NAME (+) 
@@ -411,7 +414,8 @@ IS
 		PRAGMA UDF;
         CURSOR views_cur
         IS
-			SELECT VIEW_NAME, VIEW_OWNER, TABLE_NAME, TABLE_OWNER,
+			SELECT /*+ RESULT_CACHE */
+				VIEW_NAME, VIEW_OWNER, TABLE_NAME, TABLE_OWNER,
 				NULLIF(RUN_NO, 1) RUN_NO,
 				RTRIM(SUBSTR(VIEW_NAME, 1, 23), '_') || NULLIF(RUN_NO, 1) SHORT_NAME, READ_ONLY
 			FROM (
@@ -440,6 +444,8 @@ IS
 					AND A.TEMPORARY = 'N'		-- skip temporary tables
 					AND A.SECONDARY = 'N'
 					AND A.NESTED = 'NO'
+					AND data_browser_pattern.Match_Included_Tables(A.TABLE_NAME) = 'YES'
+					AND data_browser_pattern.Match_Excluded_Tables(A.TABLE_NAME) = 'NO'
 					UNION ALL 
 					SELECT D.NAME VIEW_NAME, D.OWNER VIEW_OWNER,
 						A.TABLE_NAME, A.OWNER TABLE_OWNER, A.READ_ONLY,
@@ -447,16 +453,24 @@ IS
 					FROM SYS.ALL_TABLES A, SYS.ALL_DEPENDENCIES D
 					WHERE A.TABLE_NAME = D.REFERENCED_NAME -- table is used in view
 					AND A.OWNER = D.REFERENCED_OWNER
+					AND A.IOT_NAME IS NULL		-- skip overflow tables of index organized tables
+					AND A.TABLE_NAME NOT LIKE 'DR$%$_'  -- skip fulltext index
+					AND A.TEMPORARY = 'N'		-- skip temporary tables
+					AND A.SECONDARY = 'N'
+					AND A.NESTED = 'NO'
 					AND D.TYPE = 'VIEW'
 					AND D.OWNER = SYS_CONTEXT('USERENV', 'CURRENT_SCHEMA') 
 					AND D.REFERENCED_TYPE = 'TABLE'
 					AND D.NAME = A.TABLE_NAME -- view_name = table_name
+					AND data_browser_pattern.Match_Included_Tables(A.TABLE_NAME) = 'YES'
+					AND data_browser_pattern.Match_Excluded_Tables(A.TABLE_NAME) = 'NO'
 				) T
 				WHERE TAB_CNT = 1 -- view has only one table
 			);
         CURSOR user_views_cur
         IS
-			SELECT VIEW_NAME, VIEW_OWNER, TABLE_NAME, TABLE_OWNER,
+			SELECT /*+ RESULT_CACHE */
+				VIEW_NAME, VIEW_OWNER, TABLE_NAME, TABLE_OWNER,
 				NULLIF(RUN_NO, 1) RUN_NO,
 				RTRIM(SUBSTR(VIEW_NAME, 1, 23), '_') || NULLIF(RUN_NO, 1) SHORT_NAME, READ_ONLY
 			FROM (
@@ -472,16 +486,17 @@ IS
 					AND D.TYPE = 'VIEW'
 					AND D.REFERENCED_TYPE = 'TABLE'
 					AND C.TABLE_NAME = D.NAME
-					AND (D.NAME = A.TABLE_NAME
-					 OR (A.TABLE_NAME LIKE '%' || data_browser_pattern.Get_Base_Table_Ext
+					AND A.TABLE_NAME LIKE '%' || data_browser_pattern.Get_Base_Table_Ext
 					AND D.NAME LIKE REGEXP_REPLACE(A.TABLE_NAME, '\d*' || data_browser_pattern.Get_Base_Table_Ext || '$') || '%'
-					AND D.NAME LIKE data_browser_pattern.Get_Base_View_Prefix || '%' || data_browser_pattern.Get_Base_View_Ext))
+					AND D.NAME LIKE data_browser_pattern.Get_Base_View_Prefix || '%' || data_browser_pattern.Get_Base_View_Ext
 					AND C.CONSTRAINT_TYPE = 'V' -- view has WITH CHECK OPTION constraint
 					AND A.IOT_NAME IS NULL		-- skip overflow tables of index organized tables
 					AND A.TABLE_NAME NOT LIKE 'DR$%$_'  -- skip fulltext index
 					AND A.TEMPORARY = 'N'		-- skip temporary tables
 					AND A.SECONDARY = 'N'
 					AND A.NESTED = 'NO'
+					AND data_browser_pattern.Match_Included_Tables(A.TABLE_NAME) = 'YES'
+					AND data_browser_pattern.Match_Excluded_Tables(A.TABLE_NAME) = 'NO'
 				) T
 				WHERE TAB_CNT = 1 -- view has only one table
 			);
@@ -523,6 +538,8 @@ IS
 				FROM  SYS.ALL_TAB_COLUMNS C
 				WHERE C.COLUMN_ID = 1
 				AND INSTR(C.COLUMN_NAME, '_') > 0
+				AND data_browser_pattern.Match_Included_Tables(C.TABLE_NAME) = 'YES'
+				AND data_browser_pattern.Match_Excluded_Tables(C.TABLE_NAME) = 'NO'
 			) A
 			WHERE NOT EXISTS (
 				SELECT 1
@@ -540,6 +557,8 @@ IS
 				FROM  SYS.USER_TAB_COLUMNS C
 				WHERE C.COLUMN_ID = 1
 				AND INSTR(C.COLUMN_NAME, '_') > 0
+				AND data_browser_pattern.Match_Included_Tables(C.TABLE_NAME) = 'YES'
+				AND data_browser_pattern.Match_Excluded_Tables(C.TABLE_NAME) = 'NO'
 			) A
 			WHERE NOT EXISTS (
 				SELECT 1
@@ -571,19 +590,25 @@ IS
 	$END
         CURSOR all_cols_cur
         IS
-		SELECT TABLE_NAME, OWNER TABLE_OWNER, 
+		SELECT /*+ RESULT_CACHE */
+			TABLE_NAME, OWNER TABLE_OWNER, 
 			COLUMN_ID, COLUMN_NAME, DATA_TYPE, DATA_TYPE_OWNER, NULLABLE, NUM_DISTINCT, DEFAULT_LENGTH, 
 			DATA_DEFAULT, DATA_PRECISION, DATA_SCALE, CHAR_LENGTH, HIDDEN_COLUMN, VIRTUAL_COLUMN
-		FROM SYS.ALL_TAB_COLS
-		WHERE OWNER NOT IN ('SYS', 'SYSTEM', 'SYSAUX', 'CTXSYS', 'MDSYS');
+		FROM SYS.ALL_TAB_COLS A
+		WHERE OWNER NOT IN ('SYS', 'SYSTEM', 'SYSAUX', 'CTXSYS', 'MDSYS')
+		AND data_browser_pattern.Match_Included_Tables(A.TABLE_NAME) = 'YES'
+		AND data_browser_pattern.Match_Excluded_Tables(A.TABLE_NAME) = 'NO';
 
         CURSOR user_cols_cur
         IS
-		SELECT TABLE_NAME, 
+		SELECT /*+ RESULT_CACHE */ 
+			TABLE_NAME, 
 			SYS_CONTEXT('USERENV', 'CURRENT_SCHEMA') TABLE_OWNER, 
 			COLUMN_ID, COLUMN_NAME, DATA_TYPE, DATA_TYPE_OWNER, NULLABLE, NUM_DISTINCT, DEFAULT_LENGTH, 
 			DATA_DEFAULT, DATA_PRECISION, DATA_SCALE, CHAR_LENGTH, HIDDEN_COLUMN, VIRTUAL_COLUMN
-		FROM SYS.USER_TAB_COLS;
+		FROM SYS.USER_TAB_COLS A
+		WHERE data_browser_pattern.Match_Included_Tables(A.TABLE_NAME) = 'YES'
+		AND data_browser_pattern.Match_Excluded_Tables(A.TABLE_NAME) = 'NO';
 
         TYPE stat_tbl IS TABLE OF user_cols_cur%ROWTYPE;
         v_in_rows stat_tbl;
@@ -650,12 +675,7 @@ IS
 		PRAGMA UDF;
 		CURSOR all_cols_cur
 		IS 	
-		WITH BASE_VIEWS AS (
-			select TABLE_NAME, TABLE_OWNER, VIEW_NAME 
-			from table (data_browser_pipes.FN_Pipe_Mapping_Views) T
-			where data_browser_pattern.Match_Included_Tables(T.TABLE_NAME) = 'YES'
-			and data_browser_pattern.Match_Excluded_Tables(T.TABLE_NAME) = 'NO'
-		), UNIQUE_KEYS AS (
+		WITH UNIQUE_KEYS AS (
 			SELECT 
 				TABLE_NAME, TABLE_OWNER, CONSTRAINT_NAME, CONSTRAINT_TYPE, COLUMN_NAME, 
 				POSITION, DEFAULT_TEXT, VIEW_COLUMN_NAME, DATA_TYPE, NULLABLE, 
@@ -714,7 +734,7 @@ IS
 					AND C.INDEX_OWNER = B.TABLE_OWNER
 				)
 			) B
-		) A, BASE_VIEWS B
+		) A, table (data_browser_pipes.FN_Pipe_Mapping_Views) B
 		WHERE A.TABLE_NAME = B.TABLE_NAME (+)
 		AND A.TABLE_OWNER = B.TABLE_OWNER (+);
 
@@ -937,7 +957,8 @@ IS
 		PRAGMA UDF;
 		CURSOR user_objects_cur
 		IS 	
-		SELECT TABLE_NAME, TABLE_OWNER,
+		SELECT /*+ RESULT_CACHE */
+			TABLE_NAME, TABLE_OWNER,
 			MAX(ROW_VERSION_COLUMN_NAME) ROW_VERSION_COLUMN_NAME,
 			MAX(ROW_LOCKED_COLUMN_NAME) ROW_LOCKED_COLUMN_NAME,
 			MAX(SOFT_LOCK_COLUMN_NAME) SOFT_LOCK_COLUMN_NAME,
@@ -962,9 +983,11 @@ IS
 			MAX(AUDIT_USER_COLUMN_NAME) AUDIT_USER_COLUMN_NAME,
 			MAX(SUMMAND_COLUMN_NAME) SUMMAND_COLUMN_NAME,
 			MAX(MINUEND_COLUMN_NAME) MINUEND_COLUMN_NAME,
-			MAX(FACTORS_COLUMN_NAME) FACTORS_COLUMN_NAME
+			MAX(FACTORS_COLUMN_NAME) FACTORS_COLUMN_NAME,
+			CASE WHEN MIN(COLUMN_PREFIX) = MAX(COLUMN_PREFIX) THEN MAX(COLUMN_PREFIX) END COLUMN_PREFIX
 		FROM (
 			SELECT TABLE_NAME, TABLE_OWNER,
+				COLUMN_PREFIX,
 				FIRST_VALUE(ROW_VERSION_COLUMN_NAME IGNORE NULLS) OVER (PARTITION BY TABLE_NAME, TABLE_OWNER ORDER BY COLUMN_ID) ROW_VERSION_COLUMN_NAME,
 				FIRST_VALUE(ROW_LOCKED_COLUMN_NAME IGNORE NULLS) OVER (PARTITION BY TABLE_NAME, TABLE_OWNER ORDER BY COLUMN_ID) ROW_LOCKED_COLUMN_NAME,
 				FIRST_VALUE(SOFT_LOCK_COLUMN_NAME IGNORE NULLS) OVER (PARTITION BY TABLE_NAME, TABLE_OWNER ORDER BY COLUMN_ID) SOFT_LOCK_COLUMN_NAME,
@@ -992,6 +1015,7 @@ IS
 				FIRST_VALUE(FACTORS_COLUMN_NAME IGNORE NULLS) OVER (PARTITION BY TABLE_NAME, TABLE_OWNER ORDER BY COLUMN_ID) FACTORS_COLUMN_NAME
 			FROM (
 				SELECT C.TABLE_NAME, C.TABLE_OWNER, C.COLUMN_ID,
+					SUBSTR(C.COLUMN_NAME, 1, INSTR(C.COLUMN_NAME, '_')) COLUMN_PREFIX,
 					case when C.DATA_TYPE = 'NUMBER' 
 							and data_browser_pattern.Match_Row_Version_Columns(C.COLUMN_NAME) = 'YES'
 						then C.COLUMN_NAME
