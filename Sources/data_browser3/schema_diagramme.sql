@@ -52,49 +52,6 @@ begin
 		]';
 		EXECUTE IMMEDIATE v_Stat;
 	end if;
-	
-	SELECT COUNT(*) INTO v_Count
-	from user_tab_cols where table_name = 'SPRINGY_DIAGRAMS' and column_name = 'CANVAS_WIDTH';
-	if v_Count = 0 then
-		EXECUTE IMMEDIATE 'ALTER TABLE SPRINGY_DIAGRAMS ADD (
-			CANVAS_WIDTH	NUMBER
-		)';
-	end if;
-	
-	SELECT COUNT(*) INTO v_Count
-	from user_tab_cols where table_name = 'SPRINGY_DIAGRAMS' and column_name = 'EXCITE_METHOD';
-	if v_Count = 0 then
-		EXECUTE IMMEDIATE q'[ALTER TABLE SPRINGY_DIAGRAMS ADD (
-			EXCITE_METHOD VARCHAR2(50) DEFAULT 'none' NOT NULL CONSTRAINT SPRINGY_DIAG_EXCITE_METHOD_CK CHECK (EXCITE_METHOD IN ('none', 'selected', 'downstream', 'upstream', 'connected'))
-		)]';
-	end if;
-	
-	SELECT COUNT(*) INTO v_Count
-	from user_tab_cols where table_name = 'SPRINGY_DIAGRAMS' and column_name = 'PINWEIGHT';
-	if v_Count = 0 then
-		EXECUTE IMMEDIATE 'ALTER TABLE SPRINGY_DIAGRAMS ADD (
-			PINWEIGHT FLOAT DEFAULT 10 NOT NULL
-		)';
-	end if;
-	
-	SELECT COUNT(*) INTO v_count
-	FROM USER_SEQUENCES WHERE SEQUENCE_NAME = 'SPRINGY_DIAGRAMS_SEQ';
-	if v_count = 0 then 
-		v_stat := q'[
-		CREATE SEQUENCE SPRINGY_DIAGRAMS_SEQ START WITH 1 INCREMENT BY 1 NOCYCLE
-		]';
-		EXECUTE IMMEDIATE v_Stat;
-	end if;
-	v_stat := q'[
-	ALTER TABLE SPRINGY_DIAGRAMS MODIFY (
-		DAMPING FLOAT DEFAULT 0.15,
-		FONTSIZE FLOAT DEFAULT 4,
-		STIFFNESS FLOAT DEFAULT 400,
-		REPULSION FLOAT DEFAULT 2000
-	)
-	]';
-	EXECUTE IMMEDIATE v_Stat;
-	
 	v_stat := q'[
 	CREATE OR REPLACE TRIGGER SPRINGY_DIAGRAMS_BI_TR 
 	BEFORE INSERT ON SPRINGY_DIAGRAMS FOR EACH ROW 
@@ -120,7 +77,6 @@ begin
 	EXECUTE IMMEDIATE v_Stat;
 end;
 /
-show errors
    
 declare 
 	v_count NUMBER;
@@ -246,7 +202,6 @@ begin
 	end if;
 end;
 /
-show errors
 
 declare 
 	v_count NUMBER;
@@ -310,7 +265,6 @@ begin
 	EXECUTE IMMEDIATE v_Stat;
 end;
 /
-show errors
 
 declare 
 	v_count NUMBER;
@@ -472,7 +426,6 @@ begin
 	end if;
 end;
 /
-show errors
 
 
 declare 
@@ -588,19 +541,8 @@ begin
 	END;
 	]';
 	EXECUTE IMMEDIATE v_Stat;
-
-	SELECT COUNT(*) INTO v_Count
-	from user_tab_cols where table_name = 'DIAGRAM_NODES' and column_name = 'DIAGRAM_COLOR_ID';
-	if v_Count = 0 then
-		EXECUTE IMMEDIATE q'[ALTER TABLE DIAGRAM_NODES ADD DIAGRAM_COLOR_ID NUMBER]';
-		EXECUTE IMMEDIATE q'[ALTER TABLE DIAGRAM_NODES ADD 
-			CONSTRAINT DIAGRAM_NODES_DIAGRAM_COLOR_FK FOREIGN KEY ( DIAGRAM_COLOR_ID ) REFERENCES DIAGRAM_COLORS ON DELETE SET NULL
-		]';
-		EXECUTE IMMEDIATE q'[CREATE INDEX DIAGRAM_NODES_DIAGRAM_COLO_FKI ON DIAGRAM_NODES( DIAGRAM_COLOR_ID ) COMPRESS 1]';
-	end if;
 end;
 /
-show errors
 
 declare 
 	v_count NUMBER;
@@ -643,22 +585,6 @@ begin
 		]';
 		EXECUTE IMMEDIATE v_Stat;
 	end if;
-	
-	SELECT COUNT(*)  INTO v_Count
-	from user_tab_cols where table_name = 'DIAGRAM_EDGES' and column_name = 'HEX_RGB';
-	if v_Count = 0 then
-		EXECUTE IMMEDIATE q'[
-		ALTER TABLE DIAGRAM_EDGES ADD (
-			HEX_RGB VARCHAR2(50 CHAR), 
-			DIAGRAM_COLOR_ID NUMBER
-		)]';
-		EXECUTE IMMEDIATE 'ALTER TABLE DIAGRAM_EDGES DROP CONSTRAINT DIAG_EDGES_NODES_UK';
-		EXECUTE IMMEDIATE 'ALTER TABLE DIAGRAM_EDGES ADD CONSTRAINT DIAG_EDGES_NODES_UK UNIQUE 
-			(SPRINGY_DIAGRAMS_ID, SOURCE_NODE_ID, TARGET_NODE_ID) USING INDEX';
-		EXECUTE IMMEDIATE 'ALTER TABLE DIAGRAM_EDGES ADD CONSTRAINT DIAGRAM_EDGES_DIAGRAM_COLOR_FK 
-			FOREIGN KEY ( DIAGRAM_COLOR_ID ) REFERENCES DIAGRAM_COLORS ON DELETE SET NULL';
-	end if;
-	
 	
 	SELECT COUNT(*) INTO v_count
 	FROM USER_INDEXES WHERE TABLE_NAME = 'DIAGRAM_EDGES'
@@ -741,34 +667,6 @@ begin
 	EXECUTE IMMEDIATE v_Stat;
 end;
 /
-show errors
-
-declare 
-	v_count NUMBER;
-	v_stat VARCHAR2(32767);
-begin
-	SELECT COUNT(*) INTO v_count
-	from user_tab_cols where table_name = 'DIAGRAM_EDGES' and column_name = 'COLOR';
-	if v_count = 0 then 
-		v_stat := q'[
-		ALTER TABLE DIAGRAM_EDGES ADD (COLOR VARCHAR2(128 CHAR) DEFAULT 'DarkGrey')
-		]';
-		EXECUTE IMMEDIATE v_Stat;
-	end if;
-	
-	SELECT COUNT(*) INTO v_count
-	from user_tab_cols where table_name = 'DIAGRAM_NODES' and column_name = 'HEX_RGB';
-	if v_count = 0 then 
-		v_stat := q'[
-		ALTER TABLE DIAGRAM_NODES ADD (HEX_RGB VARCHAR2(50 CHAR))
-		]';
-		EXECUTE IMMEDIATE v_Stat;
-	end if;
-end;
-/
-show errors
-
-
 /*
 DROP TABLE DIAGRAM_EDGES;
 DROP TABLE DIAGRAM_NODES;

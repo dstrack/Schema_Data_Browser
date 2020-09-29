@@ -21,7 +21,7 @@ IS
 	g_Refresh_MViews_Start_Unique CONSTANT BINARY_INTEGER := 1;
 	g_Refresh_MViews_Start_Foreign CONSTANT BINARY_INTEGER := 5;
 	g_Refresh_MViews_Start_Project CONSTANT BINARY_INTEGER := 10;
-	g_debug CONSTANT BOOLEAN := false;
+	g_debug CONSTANT BOOLEAN := FALSE;
 	g_Use_App_Preferences CONSTANT BOOLEAN := TRUE;
 	
 	TYPE rec_user_job_states IS RECORD (
@@ -1313,17 +1313,26 @@ $END
 		v_Job_Name 	USER_SCHEDULER_JOBS.JOB_NAME%TYPE := SUBSTR(data_browser_jobs.Get_Job_Name_Prefix || p_Job_Name, 1, 17);
 		v_Running_Count binary_integer := 0;
 		v_Scheduled_Count binary_integer := 0;
+		v_Job_State	USER_SCHEDULER_JOBS.STATE%TYPE := 'DONE';
 	BEGIN
+		COMMIT; -- start a new transaction, to load fresh data.
 		SELECT SUM(case when STATE = 'RUNNING' then 1 end) Running_Count,
 			SUM(case when STATE = 'SCHEDULED' then 1 end) Scheduled_Count
 		INTO v_Running_Count,  v_Scheduled_Count
 		FROM SYS.USER_SCHEDULER_JOBS 
 		WHERE JOB_NAME LIKE v_Job_Name || '%';
-		return case 
+		v_Job_State := case 
 			when v_Running_Count > 0 then 'RUNNING'
 			when v_Scheduled_Count > 0 then 'SCHEDULED'
 			else 'DONE'
 		end;
+		$IF data_browser_jobs.g_debug $THEN
+			apex_debug.message(
+				p_message => 'data_browser_jobs.Get_User_Job_State_Peek Job_State : %s',
+				p0 => DBMS_ASSERT.ENQUOTE_LITERAL(v_Job_State)
+			);
+		$END
+		return v_Job_State;
 	END Get_User_Job_State_Peek;
 
 
@@ -1378,16 +1387,11 @@ $END
 		v_jobs 			Jobs_Tab;
 
  	BEGIN
-		/*if apex_collection.collection_exists(v_Collections_Name) then
+		if apex_collection.collection_exists(v_Collections_Name) then
 			apex_collection.resequence_collection ( p_collection_name=>v_Collections_Name);
 		else
 			apex_collection.create_or_truncate_collection(p_collection_name=>v_Collections_Name);
-		end if;*/
-		begin
-		  apex_collection.create_or_truncate_collection (p_collection_name=>v_Collections_Name);
-		exception
-		  when dup_val_on_index then null;
-		end;
+		end if;
 
 		OPEN jobs_cur;
 		FETCH jobs_cur BULK COLLECT INTO v_jobs;
@@ -1450,14 +1454,6 @@ $END
 					elsif (v_jobs(ind).SID = v_jobs(ind).SID_D and v_jobs(ind).SERIAL# = v_jobs(ind).SERIAL_D) then
 						v_Sequence_Count := v_Sequence_Count + 1;
 					end if;
-				exception
-				  when others then
-					if SQLCODE NOT IN (
-						-20103, -- Member sequence x does not exist in apex collection
-						-1) -- unique constraint WWV_FLOW_COLLECTION_MEMBER_PK violated
-					then 
-						RAISE;
-					end if;
 				end;
 			end loop;
 		end if;
@@ -1473,6 +1469,16 @@ $END
 		$END
 		COMMIT;
 		RETURN v_Job_State;
+	exception
+	  when others then
+		$IF data_browser_jobs.g_debug $THEN
+			apex_debug.message(
+				p_message => 'data_browser_jobs.Get_User_Job_State1 Error : %s',
+				p0 => DBMS_UTILITY.FORMAT_ERROR_STACK 
+			);
+		$END
+		rollback;
+		RETURN 'DONE';
 	END Get_User_Job_State1;
 
 	FUNCTION Get_User_Job_State2 (
@@ -1531,16 +1537,11 @@ $END
 		TYPE Jobs_Tab2 IS TABLE OF jobs_cur2%ROWTYPE;
 		v_jobs2 			Jobs_Tab2;
 	BEGIN
-		/*if apex_collection.collection_exists(v_Collections_Name) then
+		if apex_collection.collection_exists(v_Collections_Name) then
 			apex_collection.resequence_collection ( p_collection_name=>v_Collections_Name);
 		else
 			apex_collection.create_or_truncate_collection(p_collection_name=>v_Collections_Name);
-		end if;*/
-		begin
-		  apex_collection.create_or_truncate_collection (p_collection_name=>v_Collections_Name);
-		exception
-		  when dup_val_on_index then null;
-		end;
+		end if;
 		OPEN jobs_cur2;
 		FETCH jobs_cur2 BULK COLLECT INTO v_jobs2;
 		CLOSE jobs_cur2;
@@ -1600,13 +1601,6 @@ $END
 				elsif (v_jobs2(ind).SID = v_jobs2(ind).SID_D and v_jobs2(ind).SERIAL# = v_jobs2(ind).SERIAL_D) then
 					v_Sequence_Count := v_Sequence_Count + 1;
 				end if;
-			exception when others then
-				if SQLCODE NOT IN (
-					-20103, -- Member sequence x does not exist in apex collection
-					-1) -- unique constraint WWV_FLOW_COLLECTION_MEMBER_PK violated
-				then 
-					RAISE;
-				end if;
 			end;
 			---------------------------------------------------------------------------
 			end loop;
@@ -1626,6 +1620,16 @@ $END
 		$END
 		COMMIT;
 		RETURN v_Job_State;
+	exception
+	  when others then
+		$IF data_browser_jobs.g_debug $THEN
+			apex_debug.message(
+				p_message => 'data_browser_jobs.Get_User_Job_State2 Error : %s',
+				p0 => DBMS_UTILITY.FORMAT_ERROR_STACK 
+			);
+		$END
+		rollback;
+		RETURN 'DONE';
 	END Get_User_Job_State2;
 
 	FUNCTION Get_User_Job_State (
@@ -1645,6 +1649,9 @@ $END
 	RETURN data_browser_jobs.tab_user_job_states PIPELINED
 	IS
 		PRAGMA UDF;
+		PRAGMA AUTONOMOUS_TRANSACTION;
+		v_Job_State	USER_SCHEDULER_JOBS.STATE%TYPE;
+		
         CURSOR views_cur
         IS
 			SELECT  DISTINCT
@@ -1656,6 +1663,7 @@ $END
 			;
         v_in_rows tab_user_job_states;
 	BEGIN
+		v_Job_State := data_browser_jobs.Get_User_Job_State;
 		OPEN views_cur;
 		LOOP
 			FETCH views_cur BULK COLLECT INTO v_in_rows LIMIT 100;
@@ -1665,6 +1673,7 @@ $END
 			END LOOP;
 		END LOOP;
 		CLOSE views_cur;
+		COMMIT;
 	END FN_Pipe_user_running_jobs;
 
 END data_browser_jobs;

@@ -2228,10 +2228,12 @@ is
 	is
         v_Parent_Key_Visible VARCHAR2(10);
 	begin
-		if p_View_Mode IN ('IMPORT_VIEW', 'EXPORT_VIEW') then
-			v_Parent_Key_Visible := case when p_Select_Columns IS NOT NULL or p_Edit_Mode = 'YES' or p_Data_Format IN ('CSV', 'NATIVE') then 'YES' else p_Parent_Key_Visible end;
+		if p_Select_Columns IS NOT NULL or p_Edit_Mode = 'YES' then 
+			v_Parent_Key_Visible := 'YES';
+		elsif p_View_Mode IN ('IMPORT_VIEW', 'EXPORT_VIEW') then
+			v_Parent_Key_Visible := case when p_Data_Format IN ('CSV', 'NATIVE') then 'YES' else p_Parent_Key_Visible end;
 		else 
-			v_Parent_Key_Visible := case when p_Select_Columns IS NOT NULL or p_Edit_Mode = 'YES' then 'YES' else p_Parent_Key_Visible end;
+			v_Parent_Key_Visible := p_Parent_Key_Visible;
 		end if;
 		return v_Parent_Key_Visible;
 	end FN_Parent_Key_Visible;

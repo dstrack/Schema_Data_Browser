@@ -339,7 +339,7 @@ CREATE OR REPLACE PACKAGE BODY custom_changelog IS
     -- Table name pattern of tables to be included in the change log.
     g_IncludeChangeLogPattern VARCHAR2(4000)            := '%';
     -- Table name pattern of tables to be excluded in the change log.
-    g_ExcludeChangeLogPattern VARCHAR2(4000)            := '';
+    g_ExcludeChangeLogPattern VARCHAR2(4000)            := 'EBA_DP%,CLOUD_VISITORS%';
     c_ExcludeChangeLogPattern CONSTANT VARCHAR2(400)    := 'CHANGE_LOG%,USER_WORKSPACE_SESSIONS,DATA_BROWSER_CHECKS,%HISTORY%,%PROTOCOL%,%PLUGIN%';
 
     -- Tables of interest with direct access in the CHANGE_LOG table. The Columns CUSTOM_REF_ID1 to CUSTOM_REF_ID9 will be defined as References to this tables.

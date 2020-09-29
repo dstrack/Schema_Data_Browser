@@ -680,7 +680,6 @@ $END
 						FROM MVDATA_BROWSER_CHECKS_DEFS S, TABLE( apex_string.split( S.COLUMN_NAME, ', ') ) T
 						where S.VIEW_NAME = p_Table_name
 						and S.CONS_COLS_COUNT > 1  -- multiple columns unique constraints
-						-- and NOT (S.CHECK_UNIQUE = 'Y' and v_Has_Scalar_Key = 'NO' and p_Data_Source = 'COLLECTION') -- only lookup Scalar Primary Key
 					) B
 				WHERE A.COLUMN_NAME = B.COLUMN_NAME
 				-- AND A.APEX_ITEM_REF IS NOT NULL

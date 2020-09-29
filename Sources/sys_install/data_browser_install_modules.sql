@@ -17,7 +17,6 @@ prompt ============================================================
 @@change_log/changelog_conf.sql
 @@change_log/user_namespaces_table.sql
 @@change_log/custom_changelog_tables.sql
-@@change_log/custom_changelog_upgrade.sql
 @@change_log/custom_changelog.sql
 @@change_log/mvbase_unique_keys.sql
 @@change_log/mvbase_alter_uniquekeys.sql
