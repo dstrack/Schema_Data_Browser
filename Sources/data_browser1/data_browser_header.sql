@@ -1164,12 +1164,12 @@ IS
 	PROCEDURE Get_Report_Preferences (
 		-- independent --
 		p_Table_name IN VARCHAR2,					-- View or Table name
-		p_Unique_Key_Column VARCHAR2 DEFAULT NULL,		-- primary keys cols of the table 
+		p_Unique_Key_Column VARCHAR2 DEFAULT NULL,	-- primary keys cols of the table 
 		p_Report_ID IN NUMBER DEFAULT NULL, 	
 		p_App_Page_ID IN VARCHAR2 DEFAULT V('APP_PAGE_ID'),
     	p_Parent_Name IN VARCHAR2 DEFAULT NULL,		-- Parent View or Table name.
     	p_Parent_Key_Column IN VARCHAR2 DEFAULT NULL,	-- Column Name with foreign key to Parent Table
-    	p_Parent_Key_Visible IN VARCHAR2 DEFAULT 'NO', -- YES, NO, NULLABLE. Show foreign key column in View_Mode FORM_VIEW
+    	p_Parent_Key_Visible IN OUT VARCHAR2, 		-- YES, NO, NULLABLE. Show foreign key column in View_Mode FORM_VIEW
     	p_Parent_Key_Filter IN VARCHAR2 DEFAULT 'NO',  -- YES, NO, when YES, no p_Control_Break for that column is produced by default.
     	p_Table_View_Mode IN VARCHAR2 DEFAULT 'TABLE_DATA_VIEW', -- TABLE_HIERARCHY/TABLE_DATA_VIEW
 		p_Edit_Enabled IN OUT VARCHAR2,				-- YES, NO

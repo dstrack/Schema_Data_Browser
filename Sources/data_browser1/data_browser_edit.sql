@@ -1734,12 +1734,13 @@ $END
 					S.REQUIRED, S.CHECK_UNIQUE, S.FORMAT_MASK, 
 					C.DATA_TYPE, C.DATA_PRECISION, C.DATA_SCALE, C.CHAR_LENGTH,
 					C.HAS_DEFAULT,  
-					case when C.HAS_DEFAULT = 'Y' then 
+					/*case when C.HAS_DEFAULT = 'Y' then 
 						data_browser_conf.Get_ColumnDefaultText (
 							p_Table_Name =>S.REF_TABLE_NAME, 
 							p_Owner => T.TABLE_OWNER, 
 							p_Column_Name => S.REF_COLUMN_NAME) 
-					end DATA_DEFAULT,
+					end DATA_DEFAULT,*/
+					C.DATA_DEFAULT,
 					S.APEX_ITEM_REF, S.COLUMN_EXPR_TYPE,
 					S.IS_BLOB, S.IS_AUDIT_COLUMN, S.IS_OBFUSCATED, S.IS_UPPER_NAME, S.IS_NUMBER_YES_NO_COLUMN, S.IS_CHAR_YES_NO_COLUMN, 
 					S.IS_REFERENCE, S.IS_SEARCHABLE_REF, 

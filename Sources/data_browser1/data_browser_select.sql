@@ -909,7 +909,8 @@ is
 					S.COLUMN_PREFIX,
 					case 
 					when T.IS_VIRTUAL_COLUMN ='Y' then 
-						data_browser_conf.Get_ColumnDefaultText (p_Table_Name => T.TABLE_NAME, p_Owner => T.TABLE_OWNER, p_Column_Name => T.COLUMN_NAME)
+						T.DATA_DEFAULT
+						-- data_browser_conf.Get_ColumnDefaultText (p_Table_Name => T.TABLE_NAME, p_Owner => T.TABLE_OWNER, p_Column_Name => T.COLUMN_NAME)
 					when T.IS_OBFUSCATED = 'Y' then
 						'DATA_BROWSER_CONF.SCRAMBLE_UMLAUTE(A.' || T.COLUMN_NAME || ')'
 					when T.IS_PRIMARY_KEY = 'Y' 		-- primary key shouldn´t be a input field
@@ -1071,22 +1072,6 @@ is
 						p_Filter_Cond		=> null,
 						p_Order_by			=> NVL(F.ORDERING_COLUMN_NAME, '1')
 					) || ')'		
-					/*data_browser_select.Key_Values_Path_Query (
-						p_Table_Name    	=> F.R_VIEW_NAME,
-						p_Display_Col_Names => F.DISPLAYED_COLUMN_NAMES,
-						p_Extra_Col_Names	=> NULL,
-						p_Search_Key_Col    => F.R_PRIMARY_KEY_COLS,
-						p_Search_Value    	=> NULL,
-						p_View_Mode    		=> v_View_Mode,
-						p_Exclude_Col_Name  => case when F.PARENT_KEY_COLUMN = v_Parent_Key_Column then F.FILTER_KEY_COLUMN end,
-						p_Active_Col_Name	=> F.ACTIVE_LOV_COLUMN_NAME,
-						p_Active_Data_Type	=> F.ACTIVE_LOV_DATA_TYPE,
-						p_Folder_Par_Col_Name	=> F.FOLDER_PARENT_COLUMN_NAME,
-						p_Folder_Name_Col_Name => F.FOLDER_NAME_COLUMN_NAME,
-						p_Folder_Cont_Col_Name => F.FOLDER_CONTAINER_COLUMN_NAME,
-						p_Folder_Cont_Alias => case when F.VIEW_NAME = F.R_VIEW_NAME then 'A' end,
-						p_Order_by			=> NVL(F.ORDERING_COLUMN_NAME, '1')
-					)*/
 					LOV_QUERY,
 					'POPUP_FROM_LOV' -- Display folder path			
 					COLUMN_EXPR_TYPE,
@@ -1266,7 +1251,7 @@ is
 					p_Parent_Key_Visible => v_Parent_Key_Visible,
 					p_Parent_Name 		=> v_Parent_Name,
 					p_Parent_Key_Column => v_Parent_Key_Column,
-					p_Ref_View_Name 	=> S.R_VIEW_NAME,
+					p_Ref_View_Name 	=> S.J_VIEW_NAME,
 					p_R_Column_Name 	=> S.COLUMN_NAME
 				) = 'NO'
 				---------------------------------------------------------------
@@ -2207,10 +2192,9 @@ is
 				return (p_Report_Mode = 'ALL' 			-- show all columns
 					or p_cols_rec.DISPLAY_IN_REPORT = 'Y');
 			else
-				return ((p_Report_Mode = 'YES' and p_cols_rec.DISPLAY_IN_REPORT = 'Y')  -- and p_cols_rec.IS_AUDIT_COLUMN = 'Y'
-					or p_Report_Mode = 'ALL'
-					or p_Report_Mode = 'NO'
-					or p_View_Mode = 'RECORD_VIEW');	-- show audit columns
+				return ((p_Report_Mode = 'YES' and p_cols_rec.DISPLAY_IN_REPORT = 'Y') 
+					or (p_Report_Mode IN ('ALL', 'NO') and p_View_Mode != 'RECORD_VIEW')
+					or (p_View_Mode = 'RECORD_VIEW' and p_cols_rec.TABLE_ALIAS = 'A'));	-- show audit columns
 			end if;
 		else 
 			return INSTR(p_Select_Columns, FN_Terminate_List(p_cols_rec.COLUMN_NAME)) > 0;
@@ -2679,7 +2663,7 @@ is
 								  	data_browser_conf.Get_Foreign_Key_Expression(p_Foreign_Key_Column=>R_COLUMN_NAME, p_Table_Alias=> R_TABLE_ALIAS)
 								  end
 							, Group_Delimiter)
-						WITHIN GROUP (ORDER BY POSITION
+						WITHIN GROUP (ORDER BY POSITION, R_COLUMN_ID
 					) R_COLUMN_NAMES -- all description columns of one foreign key
 				FROM (
 					WITH PARAM AS (
@@ -2715,7 +2699,7 @@ is
 						and (C.COLUMN_VALUE != PA.Exclude_Col_Name or PA.Display_Col_Names = PA.Exclude_Col_Name  or PA.Exclude_Col_Name IS NULL)
 					)
 					SELECT --+ USE_NL_WITH_INDEX(C) USE_NL_WITH_INDEX(F) USE_NL_WITH_INDEX(G)
-						C.VIEW_NAME, T.COLUMN_NAME, T.POSITION, C.NULLABLE,
+						C.VIEW_NAME, T.COLUMN_NAME, T.POSITION, F.R_COLUMN_ID, C.NULLABLE,
 						C.DATA_TYPE, C.DATA_PRECISION, C.DATA_SCALE, C.CHAR_LENGTH, C.IS_DATETIME,
 						F.R_VIEW_NAME, F.R_PRIMARY_KEY_COLS, F.R_COLUMN_NAME,
 						case when COUNT(F.R_VIEW_NAME) OVER (PARTITION BY C.VIEW_NAME) > 0

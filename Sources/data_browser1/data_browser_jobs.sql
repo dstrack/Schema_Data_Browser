@@ -1202,9 +1202,8 @@ $END
 			WHERE (STALE_STATS = 'YES' OR STALE_STATS IS NULL)
 			AND STATTYPE_LOCKED IS NULL
 			AND TABLE_NAME NOT LIKE 'DR$%$_'  -- skip fulltext index
-			AND TABLE_NAME NOT LIKE 'DATA_BROWSER%' -- skip own tables
-			AND TABLE_NAME NOT LIKE 'CHANGE_LOG%' -- skip own tables
-			AND TABLE_NAME NOT LIKE 'PLUGIN%' -- skip own tables
+			AND data_browser_pattern.Match_Included_Tables(T.TABLE_NAME) = 'YES'
+			AND data_browser_pattern.Match_Excluded_Tables(T.TABLE_NAME) = 'NO'
 			AND NOT EXISTS (    -- this table is part of materialized view
 				SELECT 1
 				FROM SYS.USER_OBJECTS MV
@@ -1220,9 +1219,8 @@ $END
 			AND STATTYPE_LOCKED IS NULL
 			AND OWNER = p_Schema_Name
 			AND TABLE_NAME NOT LIKE 'DR$%$_'  -- skip fulltext index
-			AND TABLE_NAME NOT LIKE 'DATA_BROWSER%' -- skip own tables
-			AND TABLE_NAME NOT LIKE 'CHANGE_LOG%' -- skip own tables
-			AND TABLE_NAME NOT LIKE 'PLUGIN%' -- skip own tables
+			AND data_browser_pattern.Match_Included_Tables(T.TABLE_NAME) = 'YES'
+			AND data_browser_pattern.Match_Excluded_Tables(T.TABLE_NAME) = 'NO'
 			AND NOT EXISTS (    -- this table is part of materialized view
 				SELECT 1
 				FROM SYS.ALL_OBJECTS MV
