@@ -47,7 +47,7 @@ IS
 	);
 	TYPE DATA_BROWSER_MAILPARAM_TAB IS TABLE OF DATA_BROWSER_MAILPARAM_TYPE;
 	
-	TYPE DATA_BROWSER_SCHEMA_INFOS_TYPE IS RECORD (
+	TYPE Data_Browser_Schema_List_Rec IS RECORD (
 		SCHEMA_NAME VARCHAR2(128),
 		APP_VERSION_NUMBER VARCHAR2(64),
 		SPACE_USED_BYTES NUMBER,
@@ -56,27 +56,11 @@ IS
 		DESCRIPTION VARCHAR2(2000),
 		CONFIGURATION_NAME VARCHAR2(128)
 	);
-	TYPE DATA_BROWSER_SCHEMA_INFOS_TAB IS TABLE OF DATA_BROWSER_SCHEMA_INFOS_TYPE;
+	TYPE Data_Browser_Schema_List_Tab IS TABLE OF Data_Browser_Schema_List_Rec;
 	
     FUNCTION FN_GET_PARAMETER(p_Name VARCHAR2) RETURN VARCHAR2;
 
 	FUNCTION FN_Pipe_mail_parameter RETURN DATA_BROWSER_MAILPARAM_TAB PIPELINED;
-
-	FUNCTION Data_Browser_Version_Number(
-		p_Schema_Name VARCHAR2
-	) RETURN VARCHAR2;
-
-	FUNCTION Data_Browser_Schema_Icon (
-		p_Schema_Name VARCHAR2
-	) RETURN VARCHAR2;
-
-	FUNCTION Data_Browser_Schema_Desc (
-		p_Schema_Name VARCHAR2
-	) RETURN VARCHAR2;
-
-	FUNCTION Schema_Space_Used (
-		p_Schema_Name VARCHAR2
-	) RETURN NUMBER;
 
 	FUNCTION Get_User_Access_Level (
 		p_Schema_Name VARCHAR2,
@@ -87,7 +71,7 @@ IS
 		p_User_Name IN VARCHAR2 DEFAULT SYS_CONTEXT('APEX$SESSION','APP_USER'),
 		p_application_id IN NUMBER DEFAULT NV('APP_ID'),
 		p_App_Version_Number IN VARCHAR2 DEFAULT NULL
-	) RETURN DATA_BROWSER_SCHEMA_INFOS_TAB PIPELINED;
+	) RETURN Data_Browser_Schema_List_Tab PIPELINED;
 
 	PROCEDURE Add_Schema (
 		p_Schema_Name	VARCHAR2,
@@ -143,7 +127,7 @@ IS
 	|| v_Use_Special_Features || ';' || chr(10) 
 	|| 'END;' || chr(10) ;
 	EXECUTE IMMEDIATE v_Stat;
-end;
+end data_browser_schema;
 /
 
 CREATE OR REPLACE PACKAGE BODY data_browser_schema
@@ -491,101 +475,6 @@ $END
 	end Revoke_Schema;
 
 
-
-	FUNCTION Data_Browser_Version_Number (
-		p_Schema_Name VARCHAR2
-	) RETURN VARCHAR2 
-	IS
-		v_App_Version_Number VARCHAR2(64);
-		v_Query VARCHAR2(1024);
-		cv		SYS_REFCURSOR;
-	BEGIN
-		v_Query := 'select APP_VERSION_NUMBER from '
-		|| DBMS_ASSERT.ENQUOTE_NAME(p_Schema_Name)
-		|| '.DATA_BROWSER_CONFIG where ID = 1';
-		OPEN cv FOR v_Query;
-		FETCH cv INTO v_App_Version_Number;
-		CLOSE cv;
-		
-		return v_App_Version_Number;
-	exception
-	  when others then
-		if SQLCODE IN (-904, -942) then
-			RETURN NULL;
-		end if;
-		raise;
-	END Data_Browser_Version_Number;
-
-	FUNCTION Data_Browser_Schema_Icon (
-		p_Schema_Name VARCHAR2
-	) RETURN VARCHAR2 
-	IS
-		v_Schema_Icon VARCHAR2(2000);
-		v_Query VARCHAR2(1024);
-		cv		SYS_REFCURSOR;
-	BEGIN
-		v_Query := 'select SCHEMA_ICON from '
-		|| DBMS_ASSERT.ENQUOTE_NAME(p_Schema_Name)
-		|| '.DATA_BROWSER_CONFIG where ID = 1';
-		OPEN cv FOR v_Query;
-		FETCH cv INTO v_Schema_Icon;
-		CLOSE cv;
-		
-		return v_Schema_Icon;
-	exception
-	  when others then
-		if SQLCODE IN (-904, -942) then
-			RETURN NULL;
-		end if;
-		raise;
-	END Data_Browser_Schema_Icon;
-
-	FUNCTION Data_Browser_Schema_Desc (
-		p_Schema_Name VARCHAR2
-	) RETURN VARCHAR2 
-	IS
-		v_Description VARCHAR2(2000);
-		v_Query VARCHAR2(1024);
-		cv		SYS_REFCURSOR;
-	BEGIN
-		v_Query := 'select DESCRIPTION from '
-		|| DBMS_ASSERT.ENQUOTE_NAME(p_Schema_Name)
-		|| '.DATA_BROWSER_CONFIG where ID = 1';
-		OPEN cv FOR v_Query;
-		FETCH cv INTO v_Description;
-		CLOSE cv;
-		
-		return v_Description;
-	exception
-	  when others then
-		if SQLCODE IN (-904, -942) then
-			RETURN NULL;
-		end if;
-		raise;
-	END Data_Browser_Schema_Desc;
-
-	FUNCTION Schema_Space_Used (
-		p_Schema_Name VARCHAR2
-	) RETURN NUMBER 
-	IS
-		v_Bytes NUMBER;
-		v_Query VARCHAR2(1024);
-		cv		SYS_REFCURSOR;
-	BEGIN
-		v_Query := 'SELECT SUM(BYTES) FROM DBA_SEGMENTS WHERE OWNER = :a';
-		OPEN cv FOR v_Query USING p_Schema_Name;
-		FETCH cv INTO v_Bytes;
-		CLOSE cv;
-		
-		return v_Bytes;
-	exception
-	  when others then
-		if SQLCODE IN (-904, -942) then
-			RETURN NULL;
-		end if;
-		raise;
-	END Schema_Space_Used;
-
 	FUNCTION Get_User_Access_Level (
 		p_Schema_Name VARCHAR2,
 		p_User_Name VARCHAR2
@@ -615,46 +504,31 @@ $END
 		p_User_Name IN VARCHAR2 DEFAULT SYS_CONTEXT('APEX$SESSION','APP_USER'),
 		p_application_id IN NUMBER DEFAULT NV('APP_ID'),
 		p_App_Version_Number IN VARCHAR2 DEFAULT NULL
-	) RETURN DATA_BROWSER_SCHEMA_INFOS_TAB PIPELINED
+	) RETURN Data_Browser_Schema_List_Tab PIPELINED
 	IS
 		s_cur  SYS_REFCURSOR;
-		v_row DATA_BROWSER_SCHEMA_INFOS_TYPE; -- output row
+		v_row Data_Browser_Schema_List_Rec; -- output row
     	v_stat VARCHAR2(32767);
 	BEGIN
 		for c_cur in (
 			select /*+ RESULT_CACHE */ 
-				A.owner, A.used_bytes,
-				B.has_DESCRIPTION,
-				B.has_SCHEMA_ICON
-			from (
-				select
-					A.owner,               
-					sum(A.bytes) used_bytes
-				from APEX_WORKSPACE_SCHEMAS S
-				join APEX_APPLICATIONS APP on S.WORKSPACE_NAME = APP.WORKSPACE
-				join sys.DBA_SEGMENTS A on S.SCHEMA = A.OWNER
-				join sys.DBA_TABLES B on A.owner = B.owner and B.table_name = 'DATA_BROWSER_CONFIG'
-				join sys.DBA_TABLES C on A.owner = C.owner and C.table_name = 'APP_USERS'
-				where APP.APPLICATION_ID = p_application_id
-				group by A.owner
-			) A join 
-			(select B.owner, 
-				count(case when B.COLUMN_NAME = 'DESCRIPTION' then 1 end) has_DESCRIPTION,
-				count(case when B.COLUMN_NAME = 'SCHEMA_ICON' then 1 end) has_SCHEMA_ICON
-			from sys.DBA_TAB_COLUMNS B 
-			where B.table_name = 'DATA_BROWSER_CONFIG'
-			group by B.owner
-			) B on A.owner = B.owner
+				A.owner,               
+				sum(A.BYTES) USED_BYTES
+			from APEX_WORKSPACE_SCHEMAS S
+			join APEX_APPLICATIONS APP on S.WORKSPACE_NAME = APP.WORKSPACE
+			join sys.DBA_SEGMENTS A on S.SCHEMA = A.OWNER
+			join sys.DBA_TABLES B on A.owner = B.owner and B.table_name = 'DATA_BROWSER_CONFIG'
+			join sys.DBA_TABLES C on A.owner = C.owner and C.table_name = 'APP_USERS'
+			where APP.APPLICATION_ID = p_application_id
+			group by A.owner
 		) loop 
 			v_stat := v_stat 
 			|| case when v_stat IS NOT NULL then 
 				chr(10)||'union all ' 
 			end         
 			|| 'select ' || dbms_assert.enquote_literal(c_cur.owner) || ' SCHEMA_NAME, A.APP_VERSION_NUMBER, '
-			||  dbms_assert.enquote_literal(c_cur.used_bytes) || ' SPACE_USED_BYTES, B.USER_LEVEL,'
-			|| case when c_cur.has_SCHEMA_ICON > 0 then 'A.' else 'null ' end || 'SCHEMA_ICON, '
-			|| case when c_cur.has_DESCRIPTION > 0 then 'A.' else 'null ' end || 'DESCRIPTION, '
-			|| 'A.CONFIGURATION_NAME' || chr(10)
+			||  dbms_assert.enquote_literal(c_cur.USED_BYTES) || ' SPACE_USED_BYTES, B.USER_LEVEL,'
+			||  'A.SCHEMA_ICON, A.DESCRIPTION, A.CONFIGURATION_NAME' || chr(10)
 			|| 'from ' || c_cur.owner || '.DATA_BROWSER_CONFIG A, ' || c_cur.owner || '.APP_USERS B, param P'|| chr(10)
 			|| 'where A.ID = 1 and B.UPPER_LOGIN_NAME = P.LOGIN_NAME';
 		end loop;
@@ -673,7 +547,9 @@ $END
 		end if;
 		return;
 	END List_Schema;
-	-- usage : SELECT S.Schema_Name, S.Space_Used_Bytes, S.App_Version_Number, S.Description FROM TABLE( sys.data_browser_schema.List_Schema(p_user_name => 'DIRK', p_application_id => 2000, p_App_Version_Number => '1.5.4') ) S;
+	-- usage : SELECT S.Schema_Name, S.Space_Used_Bytes, S.App_Version_Number, S.Description 
+	-- FROM TABLE( sys.data_browser_schema.List_Schema(p_user_name => 'DIRK', p_application_id => 2000, p_App_Version_Number => '1.5.4') ) S;
+
 	
 	PROCEDURE Copy_Schema (
 	  p_source_user		 IN VARCHAR2 DEFAULT SYS_CONTEXT('USERENV', 'CURRENT_SCHEMA'),

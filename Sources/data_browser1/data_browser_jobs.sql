@@ -148,7 +148,7 @@ IS
     	p_Start_Step 			IN binary_integer DEFAULT g_Refresh_MViews_Start_Unique,
     	p_App_ID				IN NUMBER DEFAULT  NV('APP_ID'),
 		p_Owner					IN VARCHAR2 DEFAULT SYS_CONTEXT('USERENV', 'CURRENT_SCHEMA'),
-		p_Delay_Seconds 		IN NUMBER DEFAULT 0.5,
+		p_Delay_Seconds 		IN NUMBER DEFAULT 5,
     	p_Context  				IN binary_integer DEFAULT FN_Scheduler_Context
     );
 
@@ -545,7 +545,6 @@ IS
 		for v_Step in p_Start_Step..v_Steps loop
 			case v_Step 
 				when 1 then 
-					-- data_browser_pattern.Load_Config;
 					-- detect deleted tables 
 					if data_browser_jobs.Has_Stale_ChangeLog_Views = 'YES' then 
 						data_browser_jobs.Touch_Configuration;
@@ -680,41 +679,33 @@ IS
     	p_Context  				IN binary_integer DEFAULT FN_Scheduler_Context
    	)
 	IS
-		v_LAST_DDL_TIME USER_OBJECTS.LAST_DDL_TIME%TYPE;
-		v_Last_Refresh_Date	USER_MVIEWS.LAST_REFRESH_DATE%TYPE;
 		v_sql USER_SCHEDULER_JOBS.JOB_ACTION%TYPE;
-		v_Start_Step binary_integer;
 	BEGIN
-		if data_browser_jobs.Has_Stale_ChangeLog_Views = 'YES' then -- detect deleted tables 
-			data_browser_jobs.Touch_Configuration;
-		end if;
-		v_LAST_DDL_TIME := Get_Last_DDL_Time(p_Owner => p_Owner);
-		v_Last_Refresh_Date := Get_MView_Last_Refresh_Date('MVBASE_UNIQUE_KEYS', p_Owner);
-		v_Start_Step := case when v_Last_Refresh_Date IS NULL then g_Refresh_MViews_Start_Unique else NVL(p_Start_Step, g_Refresh_MViews_Start_Unique) end;
-		if v_LAST_DDL_TIME > v_Last_Refresh_Date OR v_Last_Refresh_Date IS NULL then
-			v_sql :=
-			'begin' || chr(10)
-			|| ' data_browser_jobs.Refresh_MViews(p_owner=>'
-			|| DBMS_ASSERT.ENQUOTE_LITERAL(p_owner)
-			|| ',p_context=>'
-			|| DBMS_ASSERT.ENQUOTE_LITERAL(p_Context)
-			|| ',p_Start_Step=>'
-			|| v_Start_Step
-			|| ');' || chr(10)
-			-- launch refresh job for history mviews with no context.
-			|| 'end;';
-			data_browser_jobs.Load_Job(
-				p_Job_Name => 'RF_MVIEWS',
-				p_Comment => g_Refresh_MViews_Proc_Name,
-				p_Sql => v_sql,
-				p_Wait => p_Wait,
-				p_Delay_Seconds => p_Delay_Seconds,
-				p_Skip_When_Scheduled => 'YES'
-			);
-			COMMIT;
-			if v_Start_Step = 1 then 
-				data_browser_jobs.Refresh_ChangeLog_Job(p_context=>p_Context);
-			end if;
+		v_sql :=
+		'begin' || chr(10)
+		|| ' data_browser_jobs.Refresh_MViews(p_owner=>'
+		|| DBMS_ASSERT.ENQUOTE_LITERAL(p_owner)
+		|| ',p_context=>'
+		|| DBMS_ASSERT.ENQUOTE_LITERAL(p_Context)
+		|| ',p_Start_Step=>'
+		|| p_Start_Step
+		|| ');' || chr(10)
+		-- launch refresh job for history mviews with no context.
+		|| 'end;';
+		data_browser_jobs.Load_Job(
+			p_Job_Name => 'RF_MVIEWS',
+			p_Comment => g_Refresh_MViews_Proc_Name,
+			p_Sql => v_sql,
+			p_Wait => p_Wait,
+			p_Delay_Seconds => p_Delay_Seconds,
+			p_Skip_When_Scheduled => 'YES'
+		);
+		COMMIT;
+		if p_Start_Step = g_Refresh_MViews_Start_Unique then 
+			data_browser_jobs.Refresh_ChangeLog_Job(
+				p_context=>p_Context,
+				p_Wait =>'NO',
+				p_Delay_Seconds => 60);
 		end if;
 	END Refresh_MViews_Job;
 
@@ -1006,7 +997,7 @@ $END
     	p_Start_Step 			IN binary_integer DEFAULT g_Refresh_MViews_Start_Unique,
     	p_App_ID				IN NUMBER DEFAULT  NV('APP_ID'),
 		p_Owner					IN VARCHAR2 DEFAULT SYS_CONTEXT('USERENV', 'CURRENT_SCHEMA'),
-		p_Delay_Seconds 		IN NUMBER DEFAULT 0.5,
+		p_Delay_Seconds 		IN NUMBER DEFAULT 5,
     	p_Context  				IN binary_integer DEFAULT FN_Scheduler_Context
     )
 	is
@@ -1014,7 +1005,7 @@ $END
 		data_browser_jobs.Refresh_MViews_Job(
 			p_Owner => p_Owner,
 			p_Start_Step => p_Start_Step,
-			p_Wait => 'YES',
+			p_Wait => 'NO',
 			p_Delay_Seconds => p_Delay_Seconds,
 			p_Context => p_Context
 		);
