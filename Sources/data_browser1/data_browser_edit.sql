@@ -682,7 +682,6 @@ $END
 						and S.CONS_COLS_COUNT > 1  -- multiple columns unique constraints
 					) B
 				WHERE A.COLUMN_NAME = B.COLUMN_NAME
-				-- AND A.APEX_ITEM_REF IS NOT NULL
 				-- Support for unique constraints with fk columns is required!!
 				AND NOT(A.INPUT_ID IS NULL and p_Data_Source = 'COLLECTION')
 				-- AND NOT (S.CHECK_UNIQUE = 'Y' and CONSTRAINT_NAME = 'AUTOMATICALLY' and p_DML_Command = 'LOOKUP' 
@@ -3041,8 +3040,7 @@ $END
     											p_Parent_Name, p_Parent_Key_Column, p_Parent_Key_Visible, p_Parent_Key_Item, p_Primary_Key_Call,
     											p_Ordering_Column_Tool, p_Text_Editor_Page_ID, p_Text_Tool_Selector, p_File_Page_ID, p_Link_Page_ID, p_Link_Parameter,
     											p_Detail_Page_ID, p_Detail_Parameter, p_Form_Page_ID, p_Form_Parameter);
-		v_is_cached	:= case when g_Describe_Edit_Cols_md5 = 'X' then 'init'
-					when g_Describe_Edit_Cols_md5 != v_Describe_Edit_Cols_md5 then 'load' else 'cached!' end;
+		v_is_cached	:= case when g_Describe_Edit_Cols_md5 != v_Describe_Edit_Cols_md5 then 'load' else 'cached!' end;
 		if v_is_cached != 'cached!' then
 			OPEN form_view_cur;
 			FETCH form_view_cur BULK COLLECT INTO g_Describe_Edit_Cols_tab;

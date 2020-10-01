@@ -1172,7 +1172,7 @@ IS
 			|| case when v_stat IS NOT NULL then 
 				chr(10)||'union all ' 
 			end         
-			|| 'select ' || dbms_assert.enquote_literal(c_cur.owner) 
+			|| 'select /*+ RESULT_CACHE */ ' || dbms_assert.enquote_literal(c_cur.owner) 
 			|| ' SCHEMA_NAME, A.APP_VERSION_NUMBER, B.USER_LEVEL' || chr(10)
 			|| 'from ' || c_cur.owner || '.DATA_BROWSER_CONFIG A, ' || c_cur.owner || '.APP_USERS B, param P'|| chr(10)
 			|| 'where A.ID = 1 and B.UPPER_LOGIN_NAME = P.LOGIN_NAME';

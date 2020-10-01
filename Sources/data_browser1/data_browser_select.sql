@@ -3797,9 +3797,8 @@ $END
 		v_Select_Columns := FN_Terminate_List(p_Select_Columns);
 		v_Parent_Key_Visible := FN_Parent_Key_Visible (p_Parent_Key_Visible, p_Edit_Mode, p_View_Mode, v_Data_Format, p_Select_Columns);
     	v_Describe_Cols_md5 := wwv_flow_item.md5 (v_Table_Name, p_Unique_Key_Column, p_View_Mode, v_Data_Format, 
-    											p_Select_Columns, p_Parent_Name, p_Parent_Key_Column, v_Parent_Key_Visible, p_Join_Options);
-		v_is_cached	:= case when g_Describe_Cols_md5 = 'X' then 'init'
-					when g_Describe_Cols_md5 != v_Describe_Cols_md5 then 'load' else 'cached!' end;
+												v_Select_Columns, p_Parent_Name, p_Parent_Key_Column, v_Parent_Key_Visible, p_Join_Options);
+		v_is_cached	:= case when g_Describe_Cols_md5 != v_Describe_Cols_md5 then 'load' else 'cached!' end;
 		if v_is_cached != 'cached!' then
 			OPEN data_browser_select.Describe_Imp_Cols_cur (v_Table_Name, p_Unique_Key_Column, p_View_Mode, v_Data_Format, 
 															v_Select_Columns, p_Parent_Name, p_Parent_Key_Column, v_Parent_Key_Visible, p_Join_Options);
@@ -4076,9 +4075,8 @@ $END
 			v_Unique_Key_Column := p_Unique_Key_Column;
 		end if;
     	v_Describe_Cols_md5 := wwv_flow_item.md5 (v_Table_Name, v_Unique_Key_Column, p_View_Mode, v_Data_Format, 
-    											p_Select_Columns, p_Parent_Name, p_Parent_Key_Column, v_Parent_Key_Visible, p_Join_Options);
-		v_is_cached	:= case when g_Describe_Cols_md5 = 'X' then 'init'
-					when g_Describe_Cols_md5 != v_Describe_Cols_md5 then 'load' else 'cached!' end;
+												v_Select_Columns, p_Parent_Name, p_Parent_Key_Column, v_Parent_Key_Visible, p_Join_Options);
+		v_is_cached	:= case when g_Describe_Cols_md5 != v_Describe_Cols_md5 then 'load' else 'cached!' end;
 		if v_is_cached != 'cached!' then
 			OPEN data_browser_select.Describe_Imp_Cols_cur (v_Table_Name, v_Unique_Key_Column, p_View_Mode, v_Data_Format, 
 															v_Select_Columns, p_Parent_Name, p_Parent_Key_Column, v_Parent_Key_Visible, p_Join_Options);
@@ -4409,10 +4407,9 @@ $END
 		end if;
 		v_Unique_Key_Expr := data_browser_conf.Get_Link_ID_Expression(p_Unique_Key_Column=> v_Unique_Key_Column, p_Table_Alias=> 'A', p_View_Mode=> p_View_Mode);
     	v_Describe_Cols_md5 := wwv_flow_item.md5 (v_Table_Name, v_Unique_Key_Column, p_View_Mode, v_Data_Format, 
-    											p_Select_Columns, p_Parent_Name, p_Parent_Key_Column,
+												v_Select_Columns, p_Parent_Name, p_Parent_Key_Column,
     											p_Link_Page_ID, p_Detail_Page_ID, v_Calc_Totals);
-		v_is_cached	:= case when g_Describe_Cols_md5 = 'X' then 'init'
-					when g_Describe_Cols_md5 != v_Describe_Cols_md5 then 'load' else 'cached!' end;
+		v_is_cached	:= case when g_Describe_Cols_md5 != v_Describe_Cols_md5 then 'load' else 'cached!' end;
 		if v_is_cached != 'cached!' then
 			OPEN data_browser_select.Describe_Cols_cur (v_Table_Name, v_Unique_Key_Column, p_View_Mode, v_Data_Format, 
 												v_Select_Columns, p_Parent_Name, p_Parent_Key_Column,
@@ -4775,10 +4772,9 @@ $END
 		v_Select_Columns := FN_Terminate_List(p_Select_Columns);
 		v_Parent_Key_Visible := FN_Parent_Key_Visible (p_Parent_Key_Visible, p_Edit_Mode, p_View_Mode, v_Data_Format, p_Select_Columns);
     	v_Describe_Cols_md5 := wwv_flow_item.md5 (v_Table_Name, p_Unique_Key_Column, p_View_Mode, v_Data_Format, 
-    											p_Parent_Name, p_Parent_Key_Column,
+												v_Select_Columns, p_Parent_Name, p_Parent_Key_Column,
     											p_Link_Page_ID, p_Detail_Page_ID, v_Calc_Totals);
-		v_is_cached	:= case when g_Describe_Cols_md5 = 'X' then 'init'
-					when g_Describe_Cols_md5 != v_Describe_Cols_md5 then 'load' else 'cached!' end;
+		v_is_cached	:= case when g_Describe_Cols_md5 != v_Describe_Cols_md5 then 'load' else 'cached!' end;
 		if v_is_cached != 'cached!' then
 			OPEN data_browser_select.Describe_Cols_cur (v_Table_Name, p_Unique_Key_Column, p_View_Mode, v_Data_Format, 
 												v_Select_Columns, p_Parent_Name, p_Parent_Key_Column,
@@ -4923,12 +4919,11 @@ $END
     BEGIN
 		v_Select_Columns := FN_Terminate_List(p_Select_Columns);
 		v_Parent_Key_Visible := FN_Parent_Key_Visible (p_Parent_Key_Visible, p_Edit_Mode, p_View_Mode, p_Data_Format, p_Select_Columns);
-		v_Describe_Cols_md5 := wwv_flow_item.md5 (v_Table_Name, p_Unique_Key_Column, p_View_Mode, p_Data_Format, 
-												p_Join_Options, p_Select_Columns, p_Parent_Name, p_Parent_Key_Column, v_Parent_Key_Visible,
-												p_Link_Page_ID, p_Detail_Page_ID, v_Calc_Totals);
-		v_is_cached	:= case when g_Describe_Cols_md5 = 'X' then 'init'
-					when g_Describe_Cols_md5 != v_Describe_Cols_md5 then 'load' else 'cached!' end;
 		if p_View_Mode IN ('FORM_VIEW', 'HISTORY', 'RECORD_VIEW', 'NAVIGATION_VIEW', 'NESTED_VIEW') then
+			v_Describe_Cols_md5 := wwv_flow_item.md5 (v_Table_Name, p_Unique_Key_Column, p_View_Mode, p_Data_Format, 
+												v_Select_Columns, p_Parent_Name, p_Parent_Key_Column,
+    											p_Link_Page_ID, p_Detail_Page_ID, v_Calc_Totals);
+			v_is_cached	:= case when g_Describe_Cols_md5 != v_Describe_Cols_md5 then 'load' else 'cached!' end;
 			if v_is_cached != 'cached!' then
 				OPEN data_browser_select.Describe_Cols_cur (v_Table_Name, p_Unique_Key_Column, p_View_Mode, p_Data_Format, 
 												v_Select_Columns, p_Parent_Name, p_Parent_Key_Column,
@@ -4952,6 +4947,9 @@ $END
 				end if;
 			END LOOP;
 		elsif p_View_Mode IN ('IMPORT_VIEW', 'EXPORT_VIEW') then
+			v_Describe_Cols_md5 := wwv_flow_item.md5 (v_Table_Name, p_Unique_Key_Column, p_View_Mode, p_Data_Format,  
+													v_Select_Columns, p_Parent_Name, p_Parent_Key_Column, v_Parent_Key_Visible, p_Join_Options);
+			v_is_cached	:= case when g_Describe_Cols_md5 != v_Describe_Cols_md5 then 'load' else 'cached!' end;
 			if v_is_cached != 'cached!' then
 				OPEN data_browser_select.Describe_Imp_Cols_cur (v_Table_Name, p_Unique_Key_Column, p_View_Mode, p_Data_Format,  
 																v_Select_Columns, p_Parent_Name, p_Parent_Key_Column, v_Parent_Key_Visible, p_Join_Options);
@@ -4961,7 +4959,6 @@ $END
 			end if;
 			FOR ind IN 1 .. g_Describe_Cols_tab.COUNT
 			LOOP
-				-- if  (p_Edit_Mode = 'YES' or g_Describe_Cols_tab(ind).COLUMN_EXPR_TYPE != 'HIDDEN')	-- in Edit mode hidden (key) columns are included
 				if FN_Show_Row_Selector(p_Data_Format, p_Edit_Mode, p_Report_Mode, p_View_Mode, p_Data_Columns_Only, g_Describe_Cols_tab(ind).COLUMN_NAME)
 				and FN_Has_Collections_Adress(p_View_Mode, g_Describe_Cols_tab(ind))
 				and FN_Display_In_Report(p_Report_Mode, p_View_Mode, g_Describe_Cols_tab(ind), v_Select_Columns) 
