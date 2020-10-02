@@ -79,6 +79,7 @@ IS
 		R_DATA_SCALE		NUMBER,
 		R_CHAR_LENGTH		NUMBER,
 		COLUMN_ALIGN		VARCHAR2(6),
+		FIELD_LENGTH		NUMBER,
 		R_NULLABLE			CHAR(1),
 		R_IS_READONLY		CHAR(1),
 		TABLE_ALIAS			VARCHAR2(10),
@@ -171,6 +172,7 @@ IS
 		R_DATA_PRECISION	NUMBER,
 		R_CHAR_LENGTH		NUMBER,
 		COLUMN_ALIGN		VARCHAR2(6),
+		FIELD_LENGTH		NUMBER,
 		JOIN_VIEW_NAME 		VARCHAR2(128),
 		JOIN_CLAUSE			VARCHAR2(1024),
 		JOIN_CLAUSE_EXPL	VARCHAR2(1024),
@@ -1580,7 +1582,7 @@ IS
 		p_View_Mode IN VARCHAR2 DEFAULT 'FORM_VIEW',		-- FORM_VIEW, IMPORT_VIEW, EXPORT_VIEW
     	p_Data_Source VARCHAR2 DEFAULT 'TABLE', 			-- NEW_ROWS, TABLE, COLLECTION, MEMORY
 		p_Report_Mode VARCHAR2 DEFAULT 'NO', 				-- YES, NO
-    	p_Join_Options VARCHAR2,
+    	p_Join_Options VARCHAR2 DEFAULT NULL,
     	p_Parent_Name VARCHAR2 DEFAULT NULL,				-- Parent View or Table name. In View_Mode NAVIGATION_VIEW if set columns from the view are included in the Column list
     	p_Parent_Key_Column VARCHAR2 DEFAULT NULL,			-- Column Name with foreign key to Parent Table
     	p_Parent_Key_Visible VARCHAR2 DEFAULT 'NO',			-- YES, NO, NULLABLE. Show foreign key column
@@ -1875,13 +1877,13 @@ IS
 		p_Exec_Phase NUMBER DEFAULT 0
 	) RETURN VARCHAR2;
 
-	PROCEDURE Get_Form_Changed_Check (					-- internal
+	PROCEDURE Get_Form_Changed_Check (						-- internal
 		p_Table_name IN VARCHAR2,
     	p_Unique_Key_Column VARCHAR2 DEFAULT NULL,
     	p_Select_Columns VARCHAR2 DEFAULT NULL,	
 		p_Columns_Limit IN NUMBER DEFAULT 1000,
 		p_View_Mode IN VARCHAR2 DEFAULT 'FORM_VIEW',
-		p_Report_Mode VARCHAR2 DEFAULT 'NO', 			-- YES, NO
+		p_Report_Mode VARCHAR2 DEFAULT 'NO', 				-- YES, NO
     	p_Join_Options VARCHAR2 DEFAULT NULL,
     	p_Parent_Name VARCHAR2 DEFAULT NULL,				-- Parent View or Table name. In View_Mode NAVIGATION_VIEW if set columns from the view are included in the Column list
     	p_Parent_Key_Column VARCHAR2 DEFAULT NULL,			-- Column Name with foreign key to Parent Table
@@ -1932,7 +1934,7 @@ IS
     	p_Unique_Key_Value IN OUT VARCHAR2,
     	p_Error_Message OUT VARCHAR2,
     	p_Rows_Affected OUT NUMBER,
-		p_New_Row IN VARCHAR2 DEFAULT 'NO',				-- YES, NO
+		p_New_Row IN VARCHAR2 DEFAULT 'NO',					-- YES, NO
     	p_Select_Columns VARCHAR2 DEFAULT NULL,	
 		p_Columns_Limit IN NUMBER DEFAULT 1000,
 		p_View_Mode IN VARCHAR2 DEFAULT 'FORM_VIEW',
@@ -1944,7 +1946,7 @@ IS
     	p_Parent_Key_Visible VARCHAR2 DEFAULT 'NO',			-- YES, NO, NULLABLE. Show foreign key column
     	p_Parent_Key_Item IN VARCHAR2 DEFAULT NULL,			-- Name of item with foreign key vale
     	p_Copy_Target_Item IN VARCHAR2 DEFAULT NULL, 		-- Name of item with Target ID for MOVE_ROWS, COPY_ROWS
-    	p_Request IN VARCHAR2, -- SAVE / CREATE / DELETE%, DUPLICATE%, MOVE%, MERGE%, COPY%
+    	p_Request IN VARCHAR2, 								-- SAVE / CREATE / DELETE%, DUPLICATE%, MOVE%, MERGE%, COPY%
     	p_First_Row IN PLS_INTEGER DEFAULT 1,
     	p_Last_Row IN PLS_INTEGER DEFAULT 1,
     	p_Inject_Defaults VARCHAR2 DEFAULT 'NO'
@@ -1954,7 +1956,7 @@ IS
 		p_Table_name IN VARCHAR2,
     	p_Unique_Key_Column IN VARCHAR2 DEFAULT NULL,
     	p_Unique_Key_Value IN OUT NOCOPY VARCHAR2,
-		p_New_Row IN VARCHAR2 DEFAULT 'NO',				-- YES, NO
+		p_New_Row IN VARCHAR2 DEFAULT 'NO',					-- YES, NO
     	p_Select_Columns VARCHAR2 DEFAULT NULL,	
 		p_Columns_Limit IN NUMBER DEFAULT 1000,
 		p_View_Mode IN VARCHAR2 DEFAULT 'FORM_VIEW',
@@ -1966,7 +1968,7 @@ IS
     	p_Parent_Key_Visible VARCHAR2 DEFAULT 'NO',			-- YES, NO, NULLABLE. Show foreign key column
     	p_Parent_Key_Item IN VARCHAR2 DEFAULT NULL,			-- Name of item with foreign key vale
     	p_Copy_Target_Item IN VARCHAR2 DEFAULT NULL, 		-- Name of item with Target ID for MOVE_ROWS, COPY_ROWS
-    	p_Request IN VARCHAR2, -- SAVE / CREATE / DELETE%, DUPLICATE%, MOVE%, MERGE%, COPY%
+    	p_Request IN VARCHAR2, 								-- SAVE / CREATE / DELETE%, DUPLICATE%, MOVE%, MERGE%, COPY%
     	p_First_Row IN PLS_INTEGER DEFAULT 1,
     	p_Last_Row IN PLS_INTEGER DEFAULT 1,
     	p_Inject_Defaults VARCHAR2 DEFAULT 'YES',

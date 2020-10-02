@@ -383,7 +383,8 @@ $END
 					left outer join (SELECT COLUMN_VALUE REPORT_MODE FROM TABLE( data_browser_conf.in_list('NO, YES', ','))
 									) R ON T.VIEW_MODE IN ('RECORD_VIEW', 'FORM_VIEW', 'EXPORT_VIEW')
 					left outer join (SELECT COLUMN_VALUE JOIN_OPTIONS FROM TABLE( data_browser_conf.in_list('K, A, N', ','))
-									) J ON (T.VIEW_MODE IN ('EXPORT_VIEW', 'IMPORT_VIEW') AND (T.VIEW_MODE != 'IMPORT_VIEW' OR J.JOIN_OPTIONS = 'K'))
+									) J ON T.VIEW_MODE IN ('EXPORT_VIEW', 'IMPORT_VIEW') 
+									AND (T.VIEW_MODE != 'IMPORT_VIEW' OR J.JOIN_OPTIONS IN ('K', 'A'))
 					where (v_stat_tbl(ind).COLUMNS_LIMIT < CC.COLUMN_CNT OR v_stat_tbl(ind).COLUMNS_LIMIT = 1000)
 					and (v_stat_tbl(ind).CALC_SUBTOTALS = 'NO' OR (v_stat_tbl(ind).EDIT_MODE = 'NO' AND T.VIEW_MODE = 'NAVIGATION_VIEW'))
 					and (v_stat_tbl(ind).NESTED_LINKS = 'NO' OR T.VIEW_MODE = 'NAVIGATION_VIEW')
@@ -1428,6 +1429,7 @@ $END
 					p_Key_Column => view_cur.LINK_KEY,
 					p_Columns_Limit => view_cur.COLUMNS_LIMIT,
 					p_View_Mode => view_cur.VIEW_MODE,
+					p_Join_Options => view_cur.JOIN_OPTIONS,
 					p_Parent_Name => view_cur.PARENT_NAME,
 					p_Parent_Key_Column => view_cur.PARENT_KEY_COLUMN,
 					p_Parent_Key_Visible => view_cur.PARENT_KEY_VISIBLE,
@@ -1478,6 +1480,7 @@ $END
 					p_View_Mode => view_cur.VIEW_MODE,
 					p_Data_Source => view_cur.DATA_SOURCE,
 					p_Report_Mode => 'YES',
+					p_Join_Options => view_cur.JOIN_OPTIONS,
 					p_Parent_Name => view_cur.PARENT_NAME,
 					p_Parent_Key_Column => view_cur.PARENT_KEY_COLUMN,
 					p_Parent_Key_Visible => view_cur.PARENT_KEY_VISIBLE,
@@ -1508,7 +1511,7 @@ $END
 					p_Unique_Key_Column => view_cur.LINK_KEY,
 					p_Row_Operation => 'MERGE_ROWS',
 					p_Columns_Limit => view_cur.COLUMNS_LIMIT,
-					p_View_Mode => 'IMPORT_VIEW',
+					p_View_Mode => view_cur.VIEW_MODE,
 					p_Data_Source => 'COLLECTION',
 					p_Report_Mode => 'YES',
 					p_Parent_Name => view_cur.PARENT_NAME,
@@ -1533,6 +1536,7 @@ $END
 					p_View_Mode =>  view_cur.VIEW_MODE,
 					p_Data_Source => view_cur.DATA_SOURCE,
 					p_Report_Mode => 'YES',
+					p_Join_Options => view_cur.JOIN_OPTIONS,
 					p_Parent_Name => view_cur.PARENT_NAME,
 					p_Parent_Key_Column => view_cur.PARENT_KEY_COLUMN,
 					p_Parent_Key_Visible => view_cur.PARENT_KEY_VISIBLE,

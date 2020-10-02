@@ -176,7 +176,7 @@ is
 							p_Data_Precision 	=> T.DATA_PRECISION, 
 							p_Data_Scale 		=> T.DATA_SCALE, 
 							p_Char_Length 		=> T.CHAR_LENGTH, 
-							p_Use_Group_Separator => 'Y', 
+							p_Use_Group_Separator => case when v_Data_Format = 'FORM' then 'Y' else 'N' end, 
 							p_Datetime			=> T.IS_DATETIME)
 				end FORMAT_MASK,
 				case when v_View_Mode != 'RECORD_VIEW' and T.IS_NUMBER_YES_NO_COLUMN = 'Y' then
@@ -523,7 +523,7 @@ is
 							p_DATA_PRECISION => LEAST(DATA_PRECISION + 10, 38),
 							p_DATA_SCALE => DATA_SCALE,
 							p_CHAR_LENGTH => CHAR_LENGTH,
-							p_USE_GROUP_SEPARATOR =>  'Y',
+							p_USE_GROUP_SEPARATOR => case when v_Data_Format = 'FORM' then 'Y' else 'N' end,
 							p_USE_TRIM => 'Y',
 							p_DATETIME => 'N'
 						) 
@@ -551,7 +551,7 @@ is
 							p_Data_Precision 	=> A.DATA_PRECISION, 
 							p_Data_Scale 		=> A.DATA_SCALE, 
 							p_Char_Length 		=> A.CHAR_LENGTH, 
-							p_Use_Group_Separator => 'Y', 
+							p_Use_Group_Separator => case when v_Data_Format = 'FORM' then 'Y' else 'N' end, 
 							p_Datetime			=> A.IS_DATETIME
                         ) FORMAT_MASK,
 						E.VIEW_NAME R_VIEW_NAME,
@@ -1153,8 +1153,7 @@ is
 					else
 						'POPUP_FROM_LOV' -- text field with popup list
 					end COLUMN_EXPR_TYPE,
-					data_browser_conf.Get_Field_Length(S.R_COLUMN_NAME,
-							S.R_DATA_TYPE, S.R_DATA_PRECISION, S.R_DATA_SCALE, S.R_CHAR_LENGTH) FIELD_LENGTH,
+					S.FIELD_LENGTH,
 					S.DISPLAY_IN_REPORT,
 					S.R_DATA_TYPE, NULL DATA_TYPE_OWNER, S.R_DATA_PRECISION, S.R_DATA_SCALE, S.R_CHAR_LENGTH,
 					case when S.NULLABLE = 'N' and S.R_NULLABLE = 'N' then 'N' else 'Y' end NULLABLE,
@@ -1213,15 +1212,7 @@ is
 					'' LOV_QUERY,
 					'POPUP_FROM_LOV' -- text field with popup list
 					as COLUMN_EXPR_TYPE,
-					data_browser_conf.Get_Field_Length(
-						p_Column_Name 		=> S.R_COLUMN_NAME,
-						p_Data_Type 		=> S.R_DATA_TYPE, 
-						p_Data_Precision 	=> S.R_DATA_PRECISION, 
-						p_Data_Scale 		=> S.R_DATA_SCALE, 
-						p_Char_Length 		=> S.R_CHAR_LENGTH, 
-						p_Use_Group_Separator => case when v_Data_Format = 'FORM' then 'Y' else 'N' end
-					)
-					AS FIELD_LENGTH,
+					S.FIELD_LENGTH,
 					S.DISPLAY_IN_REPORT,
 					S.R_DATA_TYPE, NULL DATA_TYPE_OWNER, S.R_DATA_PRECISION, S.R_DATA_SCALE, S.R_CHAR_LENGTH,
 					case when S.NULLABLE = 'N' and S.R_NULLABLE = 'N' then 'N' else 'Y' end NULLABLE,
@@ -1354,15 +1345,7 @@ is
 					AS FORMAT_MASK, 
 					'' LOV_QUERY,
 					'DISPLAY_ONLY' COLUMN_EXPR_TYPE,
-					data_browser_conf.Get_Field_Length(
-						p_Column_Name 		=> S.R_COLUMN_NAME,
-						p_Data_Type 		=> S.R_DATA_TYPE, 
-						p_Data_Precision 	=> S.R_DATA_PRECISION, 
-						p_Data_Scale 		=> S.R_DATA_SCALE, 
-						p_Char_Length 		=> S.R_CHAR_LENGTH, 
-						p_Use_Group_Separator => case when v_Data_Format = 'FORM' then 'Y' else 'N' end
-					)
-					FIELD_LENGTH,
+					S.FIELD_LENGTH,
 					S.DISPLAY_IN_REPORT,
 					S.R_DATA_TYPE, NULL DATA_TYPE_OWNER, S.R_DATA_PRECISION, S.R_DATA_SCALE, S.R_CHAR_LENGTH,
 					case when S.NULLABLE = 'N' and S.R_NULLABLE = 'N' then 'N' else 'Y' end NULLABLE,
@@ -1421,7 +1404,7 @@ is
 			) AS VARCHAR2(128)) COLUMN_HEADER,
 			CAST(COLUMN_EXPR AS VARCHAR2(4000)) COLUMN_EXPR,
 			R_DATA_TYPE, R_DATA_PRECISION, R_DATA_SCALE, R_CHAR_LENGTH, 
-			COLUMN_ALIGN,
+			COLUMN_ALIGN, FIELD_LENGTH,
 			R_NULLABLE, R_IS_READONLY,
 			CAST(TABLE_ALIAS AS VARCHAR2(10)) TABLE_ALIAS,
 			CAST(R_TABLE_ALIAS AS VARCHAR2(10)) R_TABLE_ALIAS,
@@ -1514,6 +1497,7 @@ is
 				G.R_DATA_PRECISION,
 				G.R_CHAR_LENGTH,
 				G.COLUMN_ALIGN,
+				G.FIELD_LENGTH,
 				G.R_VIEW_NAME JOIN_VIEW_NAME,
 				case when G.FOREIGN_KEY_COLS IS NOT NULL then
 					case when G.NULLABLE = 'Y' then 'LEFT OUTER ' end || 'JOIN '
@@ -1726,7 +1710,7 @@ is
 			CAST(TABLE_ALIAS AS VARCHAR2(10)) TABLE_ALIAS,
 			CAST(R_TABLE_ALIAS AS VARCHAR2(10)) R_TABLE_ALIAS,
 			R_NULLABLE, R_DATA_TYPE, R_DATA_SCALE, R_DATA_PRECISION, R_CHAR_LENGTH,
-			COLUMN_ALIGN,
+			COLUMN_ALIGN, FIELD_LENGTH,
 			JOIN_VIEW_NAME,
 			CAST( case when JOIN_COND IS NOT NULL then 
 					case when NULLABLE = 'Y' then 'LEFT OUTER ' end || 'JOIN '
@@ -1773,6 +1757,7 @@ is
 					G.R_DATA_PRECISION,
 					G.R_CHAR_LENGTH,
 					G.COLUMN_ALIGN,
+					G.FIELD_LENGTH,
 					G.R_VIEW_NAME JOIN_VIEW_NAME,
 					case when G.FOREIGN_KEY_COLS IS NOT NULL then
 						G.R_VIEW_NAME
@@ -3867,9 +3852,7 @@ $END
 					v_Str := NULL;
 				end if;
 				v_Delimiter := p_Delimiter;
-				if p_View_Mode = 'IMPORT_VIEW' and SUBSTR(g_Describe_Cols_tab(ind).INPUT_ID, 1, 1) = 'C'
-				-- and g_Describe_Cols_tab(ind).COLUMN_EXPR_TYPE != 'HIDDEN' 
-				then
+				if p_View_Mode = 'IMPORT_VIEW' and SUBSTR(g_Describe_Cols_tab(ind).INPUT_ID, 1, 1) = 'C' then
 					v_Map_Count := v_Map_Count + 1;
 					EXIT WHEN v_Map_Count >= data_browser_conf.Get_Collection_Columns_Limit or v_Map_Count >= p_Columns_Limit;
 				elsif p_View_Mode = 'EXPORT_VIEW' and g_Describe_Cols_tab(ind).COLUMN_EXPR_TYPE NOT IN ('HIDDEN', 'ROW_SELECTOR', 'LINK', 'LINK_LIST', 'LINK_ID') then
@@ -4563,7 +4546,6 @@ $END
 								p_Unique_Key_Column=> g_Describe_Cols_tab(ind).REF_COLUMN_NAME, 
 								p_Table_Alias=> g_Describe_Cols_tab(ind).TABLE_ALIAS, 
 								p_View_Mode=> p_View_Mode)
-				    		-- g_Describe_Cols_tab(ind).TABLE_ALIAS || '.' || g_Describe_Cols_tab(ind).REF_COLUMN_NAME
 				    	else
 				    		v_Column_Expr
 				    	end

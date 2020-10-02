@@ -234,7 +234,7 @@ $END
 		p_View_Mode IN VARCHAR2 DEFAULT 'FORM_VIEW',		-- FORM_VIEW, IMPORT_VIEW, EXPORT_VIEW
     	p_Data_Source VARCHAR2 DEFAULT 'TABLE', 			-- NEW_ROWS, TABLE, COLLECTION, MEMORY
 		p_Report_Mode VARCHAR2 DEFAULT 'NO', 				-- YES, NO
-    	p_Join_Options VARCHAR2,
+    	p_Join_Options VARCHAR2 DEFAULT NULL,
     	p_Parent_Name VARCHAR2 DEFAULT NULL,				-- Parent View or Table name. In View_Mode NAVIGATION_VIEW if set columns from the view are included in the Column list
     	p_Parent_Key_Column VARCHAR2 DEFAULT NULL,			-- Column Name with foreign key to Parent Table
     	p_Parent_Key_Visible VARCHAR2 DEFAULT 'NO',			-- YES, NO, NULLABLE. Show foreign key column
