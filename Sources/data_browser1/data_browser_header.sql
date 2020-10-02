@@ -1163,6 +1163,14 @@ IS
     	p_Constraint_Name IN OUT VARCHAR2				-- Parent key
 	);
 
+	PROCEDURE Set_Navigation_Preferences (
+		-- independent --
+		p_Search_Table IN OUT NOCOPY VARCHAR2,
+		p_Table_View_Mode IN VARCHAR2,
+    	p_Constraint_Name IN VARCHAR2,					-- Parent key
+		p_Table_name IN VARCHAR2						-- View or Table name
+	);
+
 	PROCEDURE Get_Report_Preferences (
 		-- independent --
 		p_Table_name IN VARCHAR2,					-- View or Table name
@@ -1232,14 +1240,6 @@ IS
     	p_Order_by IN VARCHAR2,						-- Example : NAME
     	p_Order_Direction IN VARCHAR2,				-- Example : 'ASC' or 'ASC NULLS LAST' or 'DESC' or 'DESC NULLS LAST'
 		p_Control_Break IN VARCHAR2
-	);
-
-	PROCEDURE Set_Report_Preferences (
-		-- independent --
-		p_Search_Table IN OUT NOCOPY VARCHAR2,
-		p_Table_View_Mode IN VARCHAR2,
-    	p_Constraint_Name IN VARCHAR2,					-- Parent key
-		p_Table_name IN VARCHAR2						-- View or Table name
 	);
 
 	PROCEDURE Set_Report_Preferences (
