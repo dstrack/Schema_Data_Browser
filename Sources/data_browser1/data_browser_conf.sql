@@ -369,6 +369,8 @@ IS
 	FUNCTION Translate_Umlaute(p_Text VARCHAR2) RETURN VARCHAR2 DETERMINISTIC;
 	FUNCTION Normalize_Umlaute(p_Text IN VARCHAR2) RETURN VARCHAR2 DETERMINISTIC;
 	FUNCTION Scramble_Umlaute(p_Text IN VARCHAR2) RETURN VARCHAR2;
+	FUNCTION Get_Obfuscate_Call(p_Text IN VARCHAR2) RETURN VARCHAR2;
+	FUNCTION Get_Formated_User_Name(p_Text IN VARCHAR2) RETURN VARCHAR2;
 	FUNCTION Table_Name_To_Header (p_Table_Name VARCHAR2) RETURN VARCHAR2 DETERMINISTIC;
     FUNCTION Compose_Table_Column_Name (
     	p_Table_Name VARCHAR2,
@@ -699,6 +701,8 @@ IS
 		IS_SUMMAND			VARCHAR2(1),
 		IS_VIRTUAL_COLUMN   VARCHAR2(1),
 		IS_DATETIME			VARCHAR2(1),
+		IS_FILE_FOLDER_REF	VARCHAR2(1),
+		IS_FILTER_KEY_COLUMN VARCHAR2(1),
 		FORMAT_MASK 		VARCHAR2(1024),
 		LOV_QUERY			VARCHAR2(32767),
 		COLUMN_ALIGN 		VARCHAR2(10),
@@ -2832,6 +2836,20 @@ $END
 		END LOOP;
 		return TRANSLATE(p_Text, l_ulist1||l_llist1||l_nlist, l_ulist2||l_llist2||l_xlist);
 	END Scramble_Umlaute;
+
+	FUNCTION Get_Obfuscate_Call(p_Text IN VARCHAR2) RETURN VARCHAR2
+	IS
+	PRAGMA UDF;
+	BEGIN
+		return 'Data_Browser_Conf.Scramble_Umlaute(' || p_Text || ')';
+	END Get_Obfuscate_Call;
+
+	FUNCTION Get_Formated_User_Name(p_Text IN VARCHAR2) RETURN VARCHAR2
+	IS
+	PRAGMA UDF;
+	BEGIN
+		return 'INITCAP(' || p_Text || ')';
+	END Get_Formated_User_Name;
 
     FUNCTION Table_Name_To_Header (p_Table_Name VARCHAR2)
     RETURN VARCHAR2 DETERMINISTIC

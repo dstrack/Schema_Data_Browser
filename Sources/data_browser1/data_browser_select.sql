@@ -54,44 +54,52 @@ is
 			end REQUIRED,
 			HAS_HELP_TEXT, HAS_DEFAULT, IS_BLOB, IS_PASSWORD, 
 			IS_AUDIT_COLUMN, IS_OBFUSCATED, IS_UPPER_NAME, 
-			IS_NUMBER_YES_NO_COLUMN, IS_CHAR_YES_NO_COLUMN, IS_REFERENCE, IS_SEARCHABLE_REF, IS_SUMMAND, IS_VIRTUAL_COLUMN, IS_DATETIME,
+			IS_NUMBER_YES_NO_COLUMN, IS_CHAR_YES_NO_COLUMN, IS_REFERENCE, IS_SEARCHABLE_REF, IS_SUMMAND, 
+			IS_VIRTUAL_COLUMN, IS_DATETIME, IS_FILE_FOLDER_REF, IS_FILTER_KEY_COLUMN,
 			FORMAT_MASK, LOV_QUERY,
 			COLUMN_ALIGN, COLUMN_HEADER, COLUMN_EXPR, COLUMN_EXPR_TYPE,
 			FIELD_LENGTH, DISPLAY_IN_REPORT, '' COLUMN_DATA, R_TABLE_NAME, R_VIEW_NAME, R_COLUMN_NAME,
 			REF_TABLE_NAME, REF_VIEW_NAME, REF_COLUMN_NAME, COMMENTS
 		FROM (
-			SELECT HEAD.*,
-				R_TABLE_NAME REF_TABLE_NAME, R_VIEW_NAME REF_VIEW_NAME, R_COLUMN_NAME REF_COLUMN_NAME, '' COMMENTS
+			SELECT COLUMN_NAME, 'A' TABLE_ALIAS, IS_AUDIT_COLUMN, 
+				'N' IS_OBFUSCATED, 'N' IS_UPPER_NAME, 'N' IS_NUMBER_YES_NO_COLUMN, 'N' IS_CHAR_YES_NO_COLUMN, 'N' IS_REFERENCE, IS_SEARCHABLE_REF, 
+				'N' IS_SUMMAND, 'N' IS_VIRTUAL_COLUMN, 'N' IS_DATETIME, 'N' IS_FILE_FOLDER_REF, 'N' IS_FILTER_KEY_COLUMN,
+				-1 COLUMN_ID, POSITION, DATA_TYPE, 0 DATA_PRECISION, 0 DATA_SCALE, CHAR_LENGTH, NULLABLE, 
+				'N' IS_PRIMARY_KEY, 'N' IS_SEARCH_KEY, 'N' IS_FOREIGN_KEY, 'N' IS_DISP_KEY_COLUMN, 'N' CHECK_UNIQUE, 
+				HAS_HELP_TEXT, 'N' HAS_DEFAULT, 'N' IS_BLOB, 'N' IS_PASSWORD, FORMAT_MASK, '' LOV_QUERY,
+				COLUMN_ALIGN, COLUMN_HEADER, COLUMN_EXPR, COLUMN_EXPR_TYPE, FIELD_LENGTH, 'Y' DISPLAY_IN_REPORT,
+				TABLE_NAME R_TABLE_NAME, VIEW_NAME R_VIEW_NAME, R_COLUMN_NAME,
+				TABLE_NAME REF_TABLE_NAME, VIEW_NAME REF_VIEW_NAME, R_COLUMN_NAME REF_COLUMN_NAME, '' COMMENTS
 			FROM (
-				SELECT 'CONTROL_BREAK$' COLUMN_NAME, 'A' TABLE_ALIAS, 'N' IS_AUDIT_COLUMN, 'N' IS_OBFUSCATED, 'N' IS_UPPER_NAME, 'N' IS_NUMBER_YES_NO_COLUMN, 'N' IS_CHAR_YES_NO_COLUMN, 'N' IS_REFERENCE, 'N' IS_SEARCHABLE_REF, 'N' IS_SUMMAND, 'N' IS_VIRTUAL_COLUMN, 'N' IS_DATETIME,
-					-1 COLUMN_ID, 1 POSITION, 'VARCHAR2' DATA_TYPE, 0 DATA_PRECISION, 0 DATA_SCALE,
-					1024 CHAR_LENGTH, 'Y' NULLABLE, 'N' IS_PRIMARY_KEY, 'N' IS_SEARCH_KEY, 'N' IS_FOREIGN_KEY, 'N' IS_DISP_KEY_COLUMN, 'N' CHECK_UNIQUE, 'N' HAS_HELP_TEXT, 'N' HAS_DEFAULT, 'N' IS_BLOB, 'N' IS_PASSWORD, '' FORMAT_MASK, '' LOV_QUERY,
+				SELECT 'CONTROL_BREAK$' COLUMN_NAME, 'N' IS_AUDIT_COLUMN, 'N' IS_SEARCHABLE_REF,
+					1 POSITION, 'VARCHAR2' DATA_TYPE,
+					1024 CHAR_LENGTH, 'Y' NULLABLE, 'N' HAS_HELP_TEXT, '' FORMAT_MASK, 
 					'LEFT' COLUMN_ALIGN, 'Control Break' COLUMN_HEADER, data_browser_conf.Enquote_Literal('.') COLUMN_EXPR,
-					'DISPLAY_ONLY' COLUMN_EXPR_TYPE, 1024 FIELD_LENGTH, 'Y' DISPLAY_IN_REPORT,
-					TABLE_NAME R_TABLE_NAME, VIEW_NAME R_VIEW_NAME, 'CONTROL_BREAK$' R_COLUMN_NAME
-				FROM BROWSER_VIEW
+					'DISPLAY_ONLY' COLUMN_EXPR_TYPE, 1024 FIELD_LENGTH, 
+					'CONTROL_BREAK$' R_COLUMN_NAME
+				FROM SYS.DUAL
 				UNION ALL
-				SELECT 'LINK_ID$' COLUMN_NAME, 'A' TABLE_ALIAS, 'N' IS_AUDIT_COLUMN, 'N' IS_OBFUSCATED, 'N' IS_UPPER_NAME, 'N' IS_NUMBER_YES_NO_COLUMN, 'N' IS_CHAR_YES_NO_COLUMN, 'N' IS_REFERENCE, 'N' IS_SEARCHABLE_REF, 'N' IS_SUMMAND, 'N' IS_VIRTUAL_COLUMN, 'N' IS_DATETIME,
-					-1 COLUMN_ID, 2 POSITION, 'VARCHAR2' DATA_TYPE, 0 DATA_PRECISION, 0 DATA_SCALE,
-					120 CHAR_LENGTH, 'N' NULLABLE, 'N' IS_PRIMARY_KEY, 'N' IS_SEARCH_KEY, 'N' IS_FOREIGN_KEY, 'N' IS_DISP_KEY_COLUMN, 'N' CHECK_UNIQUE, 'Y' HAS_HELP_TEXT, 'N' HAS_DEFAULT, 'N' IS_BLOB, 'N' IS_PASSWORD, '' FORMAT_MASK, '' LOV_QUERY,
+				SELECT 'LINK_ID$' COLUMN_NAME, 'N' IS_AUDIT_COLUMN, 'N' IS_SEARCHABLE_REF,
+					2 POSITION, 'VARCHAR2' DATA_TYPE,
+					120 CHAR_LENGTH, 'N' NULLABLE, 'Y' HAS_HELP_TEXT, '' FORMAT_MASK, 
 					'CENTER' COLUMN_ALIGN, '' COLUMN_HEADER, 
 					data_browser_conf.Get_Link_ID_Expression(p_Unique_Key_Column=> UNIQUE_KEY_COLS, p_Table_Alias=> 'A', p_View_Mode=> v_View_Mode) COLUMN_EXPR,
-					'LINK_ID' COLUMN_EXPR_TYPE, 120 FIELD_LENGTH, 'Y' DISPLAY_IN_REPORT,
-					TABLE_NAME R_TABLE_NAME, VIEW_NAME R_VIEW_NAME, 'LINK_ID$' R_COLUMN_NAME
+					'LINK_ID' COLUMN_EXPR_TYPE, 120 FIELD_LENGTH, 
+					'LINK_ID$' R_COLUMN_NAME
 				FROM BROWSER_VIEW
 				UNION ALL
-				SELECT 'ROW_SELECTOR$' COLUMN_NAME, 'A' TABLE_ALIAS, 'N' IS_AUDIT_COLUMN, 'N' IS_OBFUSCATED, 'N' IS_UPPER_NAME, 'N' IS_NUMBER_YES_NO_COLUMN, 'N' IS_CHAR_YES_NO_COLUMN, 'N' IS_REFERENCE, 'N' IS_SEARCHABLE_REF, 'N' IS_SUMMAND, 'N' IS_VIRTUAL_COLUMN, 'N' IS_DATETIME,
-					-1 COLUMN_ID, 3 POSITION, 'VARCHAR2' DATA_TYPE, 0 DATA_PRECISION, 0 DATA_SCALE,
-					120 CHAR_LENGTH, 'Y' NULLABLE, 'N' IS_PRIMARY_KEY, 'N' IS_SEARCH_KEY, 'N' IS_FOREIGN_KEY, 'N' IS_DISP_KEY_COLUMN, 'N' CHECK_UNIQUE, 'Y' HAS_HELP_TEXT, 'N' HAS_DEFAULT, 'N' IS_BLOB, 'N' IS_PASSWORD, '' FORMAT_MASK, '' LOV_QUERY,
+				SELECT 'ROW_SELECTOR$' COLUMN_NAME, 'N' IS_AUDIT_COLUMN, 'N' IS_SEARCHABLE_REF,
+					3 POSITION, 'VARCHAR2' DATA_TYPE,
+					120 CHAR_LENGTH, 'Y' NULLABLE, 'Y' HAS_HELP_TEXT, '' FORMAT_MASK, 
 					'CENTER' COLUMN_ALIGN, 'Select' COLUMN_HEADER, data_browser_conf.Get_Link_ID_Expression(p_Unique_Key_Column=> UNIQUE_KEY_COLS, p_Table_Alias=> 'A', p_View_Mode=> v_View_Mode) COLUMN_EXPR,
-					'ROW_SELECTOR' COLUMN_EXPR_TYPE, 120 FIELD_LENGTH, 'Y' DISPLAY_IN_REPORT,
-					TABLE_NAME R_TABLE_NAME, VIEW_NAME R_VIEW_NAME, 'ROW_SELECTOR$' R_COLUMN_NAME
+					'ROW_SELECTOR' COLUMN_EXPR_TYPE, 120 FIELD_LENGTH, 
+					'ROW_SELECTOR$' R_COLUMN_NAME
 				FROM BROWSER_VIEW
 				UNION ALL
-				SELECT 'DML$_LOGGING_DATE' COLUMN_NAME, 'A' TABLE_ALIAS, 'Y' IS_AUDIT_COLUMN, 'N' IS_OBFUSCATED, 'N' IS_UPPER_NAME, 'N' IS_NUMBER_YES_NO_COLUMN, 'N' IS_CHAR_YES_NO_COLUMN, 'N' IS_REFERENCE, 'Y' IS_SEARCHABLE_REF, 'N' IS_SUMMAND, 'N' IS_VIRTUAL_COLUMN, 'N' IS_DATETIME,
-					-1 COLUMN_ID, 4 POSITION, 'TIMESTAMP(6) WITH LOCAL TIME ZONE' DATA_TYPE, 0 DATA_PRECISION, 0 DATA_SCALE,
-					120 CHAR_LENGTH, 'N' NULLABLE, 'N' IS_PRIMARY_KEY, 'N' IS_SEARCH_KEY, 'N' IS_FOREIGN_KEY, 'N' IS_DISP_KEY_COLUMN, 'N' CHECK_UNIQUE, 'N' HAS_HELP_TEXT, 'N' HAS_DEFAULT, 'N' IS_BLOB, 'N' IS_PASSWORD,
-					data_browser_conf.Get_Timestamp_Format(p_Export => 'N') FORMAT_MASK, '' LOV_QUERY,
+				SELECT 'DML$_LOGGING_DATE' COLUMN_NAME, 'Y' IS_AUDIT_COLUMN, 'Y' IS_SEARCHABLE_REF,
+					4 POSITION, 'TIMESTAMP(6) WITH LOCAL TIME ZONE' DATA_TYPE,
+					120 CHAR_LENGTH, 'N' NULLABLE, 'N' HAS_HELP_TEXT, 
+					data_browser_conf.Get_Timestamp_Format(p_Export => 'N') FORMAT_MASK, 
 					'CENTER' COLUMN_ALIGN, 'DML Logging Date' COLUMN_HEADER,
 					'TO_CHAR(' 
 					|| case when AUDIT_DATE_COLUMN_NAME IS NOT NULL then 
@@ -101,14 +109,14 @@ is
 						end
 					|| data_browser_conf.enquote_Literal(data_browser_conf.Get_Timestamp_Format(p_Export => 'N'))
 					|| ')' COLUMN_EXPR,
-					'DISPLAY_ONLY' COLUMN_EXPR_TYPE, 120 FIELD_LENGTH, 'Y' DISPLAY_IN_REPORT,
-					TABLE_NAME R_TABLE_NAME, VIEW_NAME R_VIEW_NAME, 'DML$_LOGGING_DATE' R_COLUMN_NAME
+					'DISPLAY_ONLY' COLUMN_EXPR_TYPE, 120 FIELD_LENGTH, 
+					'DML$_LOGGING_DATE' R_COLUMN_NAME
 				FROM BROWSER_VIEW
 				WHERE v_View_Mode = 'HISTORY'
 				UNION ALL
-				SELECT 'DML$_USER_NAME' COLUMN_NAME, 'A' TABLE_ALIAS, 'Y' IS_AUDIT_COLUMN, 'N' IS_OBFUSCATED, 'N' IS_UPPER_NAME, 'N' IS_NUMBER_YES_NO_COLUMN, 'N' IS_CHAR_YES_NO_COLUMN, 'N' IS_REFERENCE, 'Y' IS_SEARCHABLE_REF, 'N' IS_SUMMAND, 'N' IS_VIRTUAL_COLUMN, 'N' IS_DATETIME,
-					-1 COLUMN_ID, 5 POSITION, 'VARCHAR2' DATA_TYPE, 0 DATA_PRECISION, 0 DATA_SCALE,
-					120 CHAR_LENGTH, 'N' NULLABLE, 'N' IS_PRIMARY_KEY, 'N' IS_SEARCH_KEY, 'N' IS_FOREIGN_KEY, 'N' IS_DISP_KEY_COLUMN, 'N' CHECK_UNIQUE, 'N' HAS_HELP_TEXT, 'N' HAS_DEFAULT, 'N' IS_BLOB, 'N' IS_PASSWORD, '' FORMAT_MASK, '' LOV_QUERY,
+				SELECT 'DML$_USER_NAME' COLUMN_NAME, 'Y' IS_AUDIT_COLUMN, 'Y' IS_SEARCHABLE_REF,
+					5 POSITION, 'VARCHAR2' DATA_TYPE,
+					120 CHAR_LENGTH, 'N' NULLABLE, 'N' HAS_HELP_TEXT, '' FORMAT_MASK, 
 					'LEFT' COLUMN_ALIGN, 'DML User Name' COLUMN_HEADER, 
 					'INITCAP(' 
 					|| case when AUDIT_USER_COLUMN_NAME IS NOT NULL then 
@@ -117,20 +125,20 @@ is
 							'A.DML$_USER_NAME'
 						end
 					|| ')' COLUMN_EXPR,
-					'DISPLAY_ONLY' COLUMN_EXPR_TYPE, 120 FIELD_LENGTH, 'Y' DISPLAY_IN_REPORT,
-					TABLE_NAME R_TABLE_NAME, VIEW_NAME R_VIEW_NAME, 'DML$_USER_NAME' R_COLUMN_NAME
+					'DISPLAY_ONLY' COLUMN_EXPR_TYPE, 120 FIELD_LENGTH, 
+					'DML$_USER_NAME' R_COLUMN_NAME
 				FROM BROWSER_VIEW
 				WHERE v_View_Mode = 'HISTORY'
 				UNION ALL
-				SELECT 'DML$_ACTION' COLUMN_NAME, 'A' TABLE_ALIAS, 'Y' IS_AUDIT_COLUMN, 'N' IS_OBFUSCATED, 'N' IS_UPPER_NAME, 'N' IS_NUMBER_YES_NO_COLUMN, 'N' IS_CHAR_YES_NO_COLUMN, 'N' IS_REFERENCE, 'Y' IS_SEARCHABLE_REF, 'N' IS_SUMMAND, 'N' IS_VIRTUAL_COLUMN, 'N' IS_DATETIME,
-					-1 COLUMN_ID, 6 POSITION, 'VARCHAR2' DATA_TYPE, 0 DATA_PRECISION, 0 DATA_SCALE,
-					120 CHAR_LENGTH, 'N' NULLABLE, 'N' IS_PRIMARY_KEY, 'N' IS_SEARCH_KEY, 'N' IS_FOREIGN_KEY, 'N' IS_DISP_KEY_COLUMN, 'N' CHECK_UNIQUE, 'N' HAS_HELP_TEXT, 'N' HAS_DEFAULT, 'N' IS_BLOB, 'N' IS_PASSWORD, '' FORMAT_MASK, '' LOV_QUERY,
+				SELECT 'DML$_ACTION' COLUMN_NAME, 'Y' IS_AUDIT_COLUMN, 'Y' IS_SEARCHABLE_REF,
+					6 POSITION, 'VARCHAR2' DATA_TYPE,
+					120 CHAR_LENGTH, 'N' NULLABLE, 'N' HAS_HELP_TEXT, '' FORMAT_MASK, 
 					'LEFT' COLUMN_ALIGN, 'DML Action' COLUMN_HEADER, q'[apex_lang.lang(case A.DML$_ACTION when 'I' then 'Inserted' when 'U' then 'Updated' when 'D' then 'Deleted'  when 'S' then 'Selected' end)]' COLUMN_EXPR,
-					'DISPLAY_ONLY' COLUMN_EXPR_TYPE, 120 FIELD_LENGTH, 'Y' DISPLAY_IN_REPORT,
-					TABLE_NAME R_TABLE_NAME, VIEW_NAME R_VIEW_NAME, 'DML$_ACTION' R_COLUMN_NAME
-				FROM BROWSER_VIEW
+					'DISPLAY_ONLY' COLUMN_EXPR_TYPE, 120 FIELD_LENGTH, 
+					'DML$_ACTION' R_COLUMN_NAME
+				FROM SYS.DUAL
 				WHERE v_View_Mode = 'HISTORY'
-			) HEAD
+			) HEAD, BROWSER_VIEW
 			UNION ALL
 			SELECT --+ INDEX(S) USE_NL_WITH_INDEX(T)
 				case when E.COLUMN_NAME != T.COLUMN_NAME then
@@ -155,9 +163,17 @@ is
 					then 'N'
 				when (NVL(E.U_MEMBERS, E.R_MEMBERS) = 1 and DBMS_DB_VERSION.VERSION >= 12	-- avoid crashing the runtime process
 				 or E.COLUMN_NAME IS NULL)
-					then 'Y' else 'N' 					-- ==================================
+					then 'Y' else 'N' 
 				end IS_SEARCHABLE_REF,
 				T.IS_SUMMAND, T.IS_VIRTUAL_COLUMN, T.IS_DATETIME,
+				case when E.FOLDER_NAME_COLUMN_NAME IS NOT NULL
+				and E.FOLDER_PARENT_COLUMN_NAME IS NOT NULL then
+					'Y' else 'N' 
+				end IS_FILE_FOLDER_REF, 
+				case when E.PARENT_KEY_COLUMN = v_Parent_Key_Column
+				and E.FILTER_KEY_COLUMN IS NOT NULL then 
+					'Y' else 'N' 
+				end IS_FILTER_KEY_COLUMN,
 				T.COLUMN_ID, 1 POSITION, T.DATA_TYPE, T.DATA_PRECISION, T.DATA_SCALE, T.CHAR_LENGTH,
 				T.NULLABLE, T.IS_PRIMARY_KEY, T.IS_SEARCH_KEY, T.IS_FOREIGN_KEY, 
 				T.IS_DISPLAYED_KEY_COLUMN IS_DISP_KEY_COLUMN, T.CHECK_UNIQUE,
@@ -202,10 +218,7 @@ is
 					)
 				end LOV_QUERY, -- query for popup list of values
 				T.COLUMN_ALIGN,
-				/*data_browser_conf.Column_Name_to_Header(p_Column_Name=>T.COLUMN_NAME, 
-									p_Remove_Extension=> case when E.DISPLAYED_COLUMN_NAMES IS NOT NULL then 'YES' else 'NO' end, 
-									p_Remove_Prefix=>S.COLUMN_PREFIX, p_Is_Upper_Name=>T.IS_UPPER_NAME)*/
-				T.COLUMN_HEADER, -------------------------------------------------------
+				T.COLUMN_HEADER, 
 				case when (T.IS_PRIMARY_KEY = 'Y' 		-- primary key shouldn´t be input field
 							and S.HAS_SCALAR_KEY = 'YES'	-- primary key is managed automatically
 							and E.COLUMN_NAME IS NULL)	-- In View Mode FORM_VIEW foreign keys are popup fields
@@ -235,7 +248,7 @@ is
 						)
 						|| data_browser_conf.NL(4) || ') ' -- display single value 
 					when T.IS_OBFUSCATED = 'Y' then
-						'DATA_BROWSER_CONF.SCRAMBLE_UMLAUTE(A.' || T.COLUMN_NAME || ')'
+						data_browser_conf.Get_Obfuscate_Call('A.' || T.COLUMN_NAME)
 					when v_Data_Format = 'NATIVE'
 					and E.COLUMN_NAME IS NULL then -- for fk columns char conversion is required for control_break expr.
 						case when T.IS_SUMMAND = 'Y' and v_Calc_Totals = 'YES' then 
@@ -250,13 +263,13 @@ is
 					when T.COLUMN_NAME = S.MIME_TYPE_COLUMN_NAME and v_Data_Format NOT IN ('NATIVE', 'CSV') then
 						data_browser_blobs.File_Type_Name_Call(p_Mime_Type_Column_Name => 'A.' || T.COLUMN_NAME)
 					when T.IS_AUDIT_COLUMN = 'Y' and T.CHAR_LENGTH > 0 and v_Data_Format NOT IN ('NATIVE', 'CSV') then
-						'INITCAP(A.' || T.COLUMN_NAME || ')'
+						 data_browser_conf.Get_Formated_User_Name('A.' || T.COLUMN_NAME)
 					when E.COLUMN_NAME IS NULL
 					and T.COLUMN_NAME != NVL(S.ROW_VERSION_COLUMN_NAME, '-')
 					and T.IS_ORDERING_COLUMN = 'N'
 					and T.IS_NUMBER_YES_NO_COLUMN = 'N'
 					and T.IS_CHAR_YES_NO_COLUMN = 'N' then -- normal columns
-						data_browser_conf.Get_ExportColFunction(
+						data_browser_select.Get_ConversionColFunction (
 							p_COLUMN_NAME => case when T.IS_SUMMAND = 'Y' and v_Calc_Totals = 'YES' then 
 												'SUM(A.' || T.COLUMN_NAME || ')'
 											else 'A.' || T.COLUMN_NAME end,
@@ -264,18 +277,18 @@ is
 							p_DATA_PRECISION => T.DATA_PRECISION,
 							p_DATA_SCALE => T.DATA_SCALE,
 							p_CHAR_LENGTH => T.CHAR_LENGTH,
-							p_USE_GROUP_SEPARATOR =>  'Y',
+							p_Data_Format => v_Data_Format,
 							p_USE_TRIM => 'Y', -- trimming of formated numbers is required for input fields.
 							p_DATETIME => T.IS_DATETIME
 						)
 				    else									-- special columns
-						data_browser_conf.Get_ExportColFunction(
+						data_browser_select.Get_ConversionColFunction (
 							p_COLUMN_NAME => 'A.' || T.COLUMN_NAME,
 							p_DATA_TYPE => T.DATA_TYPE,
 							p_DATA_PRECISION => T.DATA_PRECISION,
 							p_DATA_SCALE => T.DATA_SCALE,
 							p_CHAR_LENGTH => T.CHAR_LENGTH,
-							p_USE_GROUP_SEPARATOR =>  'N',
+							p_Data_Format => 'CSV',
 							p_USE_TRIM => 'N',
 							p_DATETIME => T.IS_DATETIME
 						)
@@ -366,6 +379,7 @@ is
 				'N' IS_NUMBER_YES_NO_COLUMN,
 				'N' IS_CHAR_YES_NO_COLUMN,
 				'Y' IS_REFERENCE, 'Y' IS_SEARCHABLE_REF, 'Y' IS_SUMMAND, 'N' IS_VIRTUAL_COLUMN, 'N' IS_DATETIME,
+				'N' IS_FILE_FOLDER_REF, 'N' IS_FILTER_KEY_COLUMN,
 				POSITION + 1000 COLUMN_ID,
 				1 POSITION,
 				'VARCHAR2' DATA_TYPE, 0 DATA_PRECISION, 0 DATA_SCALE, 0 CHAR_LENGTH, NULLABLE,
@@ -410,13 +424,13 @@ is
 					case when v_Data_Format = 'NATIVE' then 
 						S.ROW_COUNT_QUERY
 					else 
-						data_browser_conf.Get_ExportColFunction(
+						data_browser_select.Get_ConversionColFunction (
 							p_Column_Name => S.ROW_COUNT_QUERY,
 							p_Data_Type => DATA_TYPE,
 							p_Data_Precision => LEAST(DATA_PRECISION + 10, 38),
 							p_Data_Scale => DATA_SCALE,
 							p_Char_Length => CHAR_LENGTH,
-							p_Use_Group_Separator =>  'Y',
+							p_Data_Format => v_Data_Format,
 							p_Use_Trim => 'Y',
 							p_Datetime => 'N'
 						) 
@@ -475,6 +489,7 @@ is
 				'N' IS_NUMBER_YES_NO_COLUMN,
 				'N' IS_CHAR_YES_NO_COLUMN,
 				'Y' IS_REFERENCE, 'Y' IS_SEARCHABLE_REF, 'Y' IS_SUMMAND, 'N' IS_VIRTUAL_COLUMN, 'N' IS_DATETIME,
+				'N' IS_FILE_FOLDER_REF, 'N' IS_FILTER_KEY_COLUMN,
 				POSITION + 2000 COLUMN_ID,
 				2 POSITION,
 				S.DATA_TYPE, S.DATA_PRECISION, S.DATA_SCALE, S.CHAR_LENGTH, S.NULLABLE,
@@ -514,20 +529,16 @@ is
 					) COLUMN_HEADER,
 					COLUMN_PREFIX, 
 					DATA_TYPE, DATA_PRECISION, DATA_SCALE, CHAR_LENGTH, IS_DATETIME, NULLABLE, FORMAT_MASK,
-					case when v_Data_Format = 'NATIVE' then 
-						TOTAL_QUERY
-					else
-						data_browser_conf.Get_ExportColFunction(
-							p_COLUMN_NAME => TOTAL_QUERY,
-							p_DATA_TYPE => DATA_TYPE,
-							p_DATA_PRECISION => LEAST(DATA_PRECISION + 10, 38),
-							p_DATA_SCALE => DATA_SCALE,
-							p_CHAR_LENGTH => CHAR_LENGTH,
-							p_USE_GROUP_SEPARATOR => case when v_Data_Format = 'FORM' then 'Y' else 'N' end,
-							p_USE_TRIM => 'Y',
-							p_DATETIME => 'N'
-						) 
-					end COLUMN_EXPR,
+					data_browser_select.Get_ConversionColFunction (
+						p_COLUMN_NAME => TOTAL_QUERY,
+						p_DATA_TYPE => DATA_TYPE,
+						p_DATA_PRECISION => LEAST(DATA_PRECISION + 10, 38),
+						p_DATA_SCALE => DATA_SCALE,
+						p_CHAR_LENGTH => CHAR_LENGTH,
+						p_Data_Format => v_Data_Format,
+						p_USE_TRIM => 'Y',
+						p_DATETIME => 'N'
+					) COLUMN_EXPR,
 					TOTAL_QUERY,
 					R_VIEW_NAME,
 					R_TABLE_NAME,
@@ -620,6 +631,7 @@ is
 				'N' IS_NUMBER_YES_NO_COLUMN,
 				'N' IS_CHAR_YES_NO_COLUMN,
 				'Y' IS_REFERENCE, 'N' IS_SEARCHABLE_REF, 'N' IS_SUMMAND, 'N' IS_VIRTUAL_COLUMN, 'N' IS_DATETIME,
+				'N' IS_FILE_FOLDER_REF, 'N' IS_FILTER_KEY_COLUMN,
 				POSITION + 1000 COLUMN_ID,
 				1 POSITION,
 				'VARCHAR2' DATA_TYPE, 0 DATA_PRECISION, 0 DATA_SCALE, 0 CHAR_LENGTH, NULLABLE,
@@ -789,7 +801,8 @@ is
 				else 'Y'
 			end REQUIRED,
 			HAS_HELP_TEXT, HAS_DEFAULT, IS_BLOB, IS_PASSWORD, IS_AUDIT_COLUMN, IS_OBFUSCATED, IS_UPPER_NAME, 
-			IS_NUMBER_YES_NO_COLUMN, IS_CHAR_YES_NO_COLUMN, IS_REFERENCE, IS_SEARCHABLE_REF, IS_SUMMAND, IS_VIRTUAL_COLUMN, IS_DATETIME,
+			IS_NUMBER_YES_NO_COLUMN, IS_CHAR_YES_NO_COLUMN, IS_REFERENCE, IS_SEARCHABLE_REF, IS_SUMMAND, IS_VIRTUAL_COLUMN, 
+			IS_DATETIME, IS_FILE_FOLDER_REF, IS_FILTER_KEY_COLUMN,
 			FORMAT_MASK, LOV_QUERY, COLUMN_ALIGN, COLUMN_HEADER, COLUMN_EXPR, COLUMN_EXPR_TYPE,
 			FIELD_LENGTH, DISPLAY_IN_REPORT, '' COLUMN_DATA, R_TABLE_NAME, R_VIEW_NAME, R_COLUMN_NAME,
 			REF_TABLE_NAME, REF_VIEW_NAME, REF_COLUMN_NAME, COMMENTS
@@ -797,46 +810,49 @@ is
 			SELECT COLUMN_NAME, TABLE_ALIAS, 
 				data_browser_select.FN_List_Offest(v_Select_Columns, COLUMN_NAME) COLUMN_ORDER,
 				'N' IS_AUDIT_COLUMN, 'N' IS_OBFUSCATED, 'N' IS_UPPER_NAME, 'N' IS_NUMBER_YES_NO_COLUMN, 'N' IS_CHAR_YES_NO_COLUMN, 
-				'N' IS_REFERENCE, 'N' IS_SEARCHABLE_REF, 'N' IS_SUMMAND, 'N' IS_VIRTUAL_COLUMN, 'N' IS_DATETIME,
+				'N' IS_REFERENCE, 'N' IS_SEARCHABLE_REF, 'N' IS_SUMMAND, 'N' IS_VIRTUAL_COLUMN, 
+				'N' IS_DATETIME,  'N' IS_FILE_FOLDER_REF, 'N' IS_FILTER_KEY_COLUMN,
 				COLUMN_ID, 1 R_COLUMN_ID, POSITION, DATA_TYPE, -- Header Columns,
 				0 HAS_COLLECTION_NUM_INDEX, 0 COLLECTION_NUM_INDEX, 
 				0 HAS_COLLECTION_CHAR_INDEX, 0 HAS_COLLECTION_HIDDEN_INDEX, 0 COLLECTION_HIDDEN_INDEX,
-				0 DATA_PRECISION, 0 DATA_SCALE, FIELD_LENGTH CHAR_LENGTH, 'N' NULLABLE, 'N' IS_PRIMARY_KEY, 'N' IS_SEARCH_KEY, 'N' IS_FOREIGN_KEY, 'N' IS_DISP_KEY_COLUMN, 'N' CHECK_UNIQUE,
+				0 DATA_PRECISION, 0 DATA_SCALE, FIELD_LENGTH CHAR_LENGTH, 
+				'N' NULLABLE, 'N' IS_PRIMARY_KEY, 'N' IS_SEARCH_KEY, 'N' IS_FOREIGN_KEY, 'N' IS_DISP_KEY_COLUMN, 'N' CHECK_UNIQUE,
 				'Y' HAS_HELP_TEXT, 'N' HAS_DEFAULT, 'N' IS_BLOB, 'N' IS_PASSWORD, '' FORMAT_MASK, '' LOV_QUERY, COLUMN_ALIGN,
 				COLUMN_HEADER, COLUMN_EXPR, COLUMN_EXPR_TYPE,
-				FIELD_LENGTH, 'Y' DISPLAY_IN_REPORT, R_TABLE_NAME, R_VIEW_NAME, R_COLUMN_NAME,
-				R_TABLE_NAME REF_TABLE_NAME, R_VIEW_NAME REF_VIEW_NAME, R_COLUMN_NAME REF_COLUMN_NAME, '' COMMENTS
+				FIELD_LENGTH, 'Y' DISPLAY_IN_REPORT, 
+				TABLE_NAME R_TABLE_NAME, VIEW_NAME R_VIEW_NAME, R_COLUMN_NAME,
+				TABLE_NAME REF_TABLE_NAME, VIEW_NAME REF_VIEW_NAME, R_COLUMN_NAME REF_COLUMN_NAME, '' COMMENTS
 			FROM (
 				SELECT 'CONTROL_BREAK$' COLUMN_NAME, 'A' TABLE_ALIAS, -1 COLUMN_ID, 1 POSITION, 'VARCHAR2' DATA_TYPE, 'LEFT' COLUMN_ALIGN, 'Control Break' COLUMN_HEADER,
 					'DISPLAY_ONLY' COLUMN_EXPR_TYPE, data_browser_conf.Enquote_Literal('.') COLUMN_EXPR, 1024 FIELD_LENGTH,
-					TABLE_NAME R_TABLE_NAME, VIEW_NAME R_VIEW_NAME, 'CONTROL_BREAK$' R_COLUMN_NAME
-				FROM BROWSER_VIEW
+					'CONTROL_BREAK$' R_COLUMN_NAME
+				FROM SYS.DUAL
 				UNION ALL
 				SELECT 'LINK_ID$' COLUMN_NAME, 'A' TABLE_ALIAS, -1 COLUMN_ID, 2 POSITION, 'VARCHAR2' DATA_TYPE, 'CENTER' COLUMN_ALIGN, '' COLUMN_HEADER,
 					'LINK_ID' COLUMN_EXPR_TYPE, 
 					data_browser_conf.Get_Link_ID_Expression(p_Unique_Key_Column=> UNIQUE_KEY_COLS, p_Table_Alias=> 'A', 
 						p_View_Mode=> 'FORM_VIEW'	-- dont pass hash values to 'edit details' page 32
 					) COLUMN_EXPR, 120 FIELD_LENGTH,
-					TABLE_NAME R_TABLE_NAME, VIEW_NAME R_VIEW_NAME, 'LINK_ID$' R_COLUMN_NAME
+					'LINK_ID$' R_COLUMN_NAME
 				FROM BROWSER_VIEW
 				UNION ALL
 				SELECT 'ROW_SELECTOR$' COLUMN_NAME, 'A' TABLE_ALIAS, -1 COLUMN_ID, 3 POSITION, 'VARCHAR2' DATA_TYPE, 'CENTER' COLUMN_ALIGN, 'Select' COLUMN_HEADER,
 					'ROW_SELECTOR' COLUMN_EXPR_TYPE, data_browser_conf.Get_Link_ID_Expression(p_Unique_Key_Column=> UNIQUE_KEY_COLS, p_Table_Alias=> 'A', p_View_Mode=> v_View_Mode) COLUMN_EXPR, 120 FIELD_LENGTH,
-					TABLE_NAME R_TABLE_NAME, VIEW_NAME R_VIEW_NAME, 'ROW_SELECTOR$' R_COLUMN_NAME
+					'ROW_SELECTOR$' R_COLUMN_NAME
 				FROM BROWSER_VIEW
 				UNION ALL
 				SELECT 'IMPORTJOB_ID$' COLUMN_NAME, 'A' TABLE_ALIAS, -1 COLUMN_ID, 4 POSITION, 'NUMBER' DATA_TYPE, 'RIGHT' COLUMN_ALIGN, 'Importjob_Id' COLUMN_HEADER,
 					'DISPLAY_ONLY' COLUMN_EXPR_TYPE, 'data_browser_select.Current_Job_ID' COLUMN_EXPR, 10 FIELD_LENGTH,
-					TABLE_NAME R_TABLE_NAME, VIEW_NAME R_VIEW_NAME, '' R_COLUMN_NAME
-				FROM BROWSER_VIEW
+					'' R_COLUMN_NAME
+				FROM SYS.DUAL
 				WHERE v_View_Mode = 'IMPORT_VIEW'
 				UNION ALL
 				SELECT 'LINE_NO$' COLUMN_NAME, '' TABLE_ALIAS, -1 COLUMN_ID, 5 POSITION, 'NUMBER' DATA_TYPE, 'RIGHT' COLUMN_ALIGN, 'Line_No' COLUMN_HEADER,
 					'DISPLAY_ONLY' COLUMN_EXPR_TYPE, 'ROWNUM' COLUMN_EXPR, 10 FIELD_LENGTH,
-					TABLE_NAME R_TABLE_NAME, VIEW_NAME R_VIEW_NAME, '' R_COLUMN_NAME
-				FROM BROWSER_VIEW
+					'' R_COLUMN_NAME
+				FROM SYS.DUAL
 				WHERE v_View_Mode = 'IMPORT_VIEW'
-			)
+			) HEAD, BROWSER_VIEW
 			UNION ALL
 			SELECT IMP_COLUMN_NAME
 				|| case when COUNT(*) OVER (PARTITION BY IMP_COLUMN_NAME) > 1
@@ -845,7 +861,8 @@ is
 				TABLE_ALIAS,
 				NULLIF(data_browser_select.FN_List_Offest(v_Select_Columns, IMP_COLUMN_NAME), 0) COLUMN_ORDER,
 				IS_AUDIT_COLUMN, IS_OBFUSCATED, IS_UPPER_NAME, IS_NUMBER_YES_NO_COLUMN, IS_CHAR_YES_NO_COLUMN, 
-				IS_REFERENCE, IS_SEARCHABLE_REF, IS_SUMMAND, IS_VIRTUAL_COLUMN, IS_DATETIME,
+				IS_REFERENCE, IS_SEARCHABLE_REF, IS_SUMMAND, IS_VIRTUAL_COLUMN, 
+				IS_DATETIME, IS_FILE_FOLDER_REF, IS_FILTER_KEY_COLUMN,
 				COLUMN_ID, R_COLUMN_ID, POSITION, DATA_TYPE,
 				-----------------------------------------
 				data_browser_select.Field_Has_NInput_ID(
@@ -894,6 +911,14 @@ is
 						then 'N' else 'Y'
 					end IS_SEARCHABLE_REF,
 					T.IS_SUMMAND, T.IS_VIRTUAL_COLUMN, T.IS_DATETIME,
+					case when E.FOLDER_NAME_COLUMN_NAME IS NOT NULL
+					and E.FOLDER_PARENT_COLUMN_NAME IS NOT NULL then
+						'Y' else 'N' 
+					end IS_FILE_FOLDER_REF, 
+					case when E.PARENT_KEY_COLUMN = v_Parent_Key_Column
+					and E.FILTER_KEY_COLUMN = T.COLUMN_NAME then 
+						'Y' else 'N' 
+					end IS_FILTER_KEY_COLUMN,
 					T.COLUMN_ID, 
 					E.FK_COLUMN_ID R_COLUMN_ID, 
 					T.POSITION,
@@ -912,7 +937,7 @@ is
 						T.DATA_DEFAULT
 						-- data_browser_conf.Get_ColumnDefaultText (p_Table_Name => T.TABLE_NAME, p_Owner => T.TABLE_OWNER, p_Column_Name => T.COLUMN_NAME)
 					when T.IS_OBFUSCATED = 'Y' then
-						'DATA_BROWSER_CONF.SCRAMBLE_UMLAUTE(A.' || T.COLUMN_NAME || ')'
+						data_browser_conf.Get_Obfuscate_Call('A.' || T.COLUMN_NAME)
 					when T.IS_PRIMARY_KEY = 'Y' 		-- primary key shouldn´t be a input field
 					and T.IS_DISPLAYED_KEY_COLUMN = 'N' -- field is invisible
 					and S.HAS_SCALAR_KEY = 'YES' then	-- primary key is managed automatically
@@ -920,18 +945,17 @@ is
 					when T.COLUMN_NAME = S.MIME_TYPE_COLUMN_NAME and v_Data_Format NOT IN ('NATIVE', 'CSV') then
 						data_browser_blobs.File_Type_Name_Call(p_Mime_Type_Column_Name => 'A.' || T.COLUMN_NAME)
 					when T.IS_AUDIT_COLUMN = 'Y' and T.CHAR_LENGTH > 0 and v_Data_Format NOT IN ('NATIVE', 'CSV') then
-						'INITCAP(A.' || T.COLUMN_NAME || ')'
+						data_browser_conf.Get_Formated_User_Name('A.' || T.COLUMN_NAME)
 					when E.COLUMN_NAME IS NULL 
 					and T.COLUMN_NAME != NVL(S.ROW_VERSION_COLUMN_NAME, '-')
-					and T.IS_ORDERING_COLUMN = 'N'
-					and v_Data_Format != 'NATIVE' then
-						data_browser_conf.Get_ExportColFunction(
+					and T.IS_ORDERING_COLUMN = 'N' then
+						data_browser_select.Get_ConversionColFunction (
 							p_Column_Name => 'A.' || T.COLUMN_NAME,
 							p_Data_Type => T.DATA_TYPE,
 							p_Data_Precision => T.DATA_PRECISION,
 							p_Data_Scale => T.DATA_SCALE,
 							p_Char_Length => T.CHAR_LENGTH,
-							p_Use_Group_Separator => case when v_Data_Format = 'FORM' then 'Y' else 'N' end,
+							p_Data_Format => v_Data_Format,
 							p_Use_Trim => 'Y',
 							p_Datetime => T.IS_DATETIME
 						) 
@@ -1022,6 +1046,11 @@ is
 					end IS_REFERENCE,
 					'Y' IS_SEARCHABLE_REF,
 					'N' IS_SUMMAND, 'N' IS_VIRTUAL_COLUMN, 'N' IS_DATETIME,
+					S.IS_FILE_FOLDER_REF, 
+					case when F.PARENT_KEY_COLUMN = v_Parent_Key_Column
+					and F.FILTER_KEY_COLUMN IS NOT NULL then 
+						'Y' else 'N' 
+					end IS_FILTER_KEY_COLUMN,
 					S.COLUMN_ID, S.R_COLUMN_ID, S.POSITION,
 					data_browser_conf.Compose_Column_Name(
 						p_First_Name=> data_browser_conf.Normalize_Column_Name(
@@ -1114,25 +1143,24 @@ is
 						then 'N' else 'Y'
 					end IS_SEARCHABLE_REF,
 					'N' IS_SUMMAND, 'N' IS_VIRTUAL_COLUMN, null IS_DATETIME,
+					S.IS_FILE_FOLDER_REF, 
+					case when E.PARENT_KEY_COLUMN = v_Parent_Key_Column
+					and E.FILTER_KEY_COLUMN = S.R_COLUMN_NAME then 
+						'Y' else 'N' 
+					end IS_FILTER_KEY_COLUMN,
 					S.COLUMN_ID, S.R_COLUMN_ID, S.POSITION, S.IMP_COLUMN_NAME,
 					S.COLUMN_ALIGN,
 					S.COLUMN_HEADER,
 					S.COLUMN_PREFIX,
-					case 
-					when E.COLUMN_NAME IS NULL
-					and v_Data_Format != 'NATIVE' then
-						data_browser_conf.Get_ExportColFunction(
-							p_Column_Name => S.TABLE_ALIAS || '.' || S.R_COLUMN_NAME,
-							p_Data_Type => S.R_DATA_TYPE,
-							p_Data_Precision => S.R_DATA_PRECISION,
-							p_Data_Scale => S.R_DATA_SCALE,
-							p_Char_Length => S.R_CHAR_LENGTH,
-							p_Use_Group_Separator => case when v_Data_Format = 'FORM' then 'Y' else 'N' end,
-							p_Use_Trim => 'Y'
-						)
-					else
-						S.TABLE_ALIAS || '.' || S.R_COLUMN_NAME
-					end COLUMN_EXPR,
+					data_browser_select.Get_ConversionColFunction (
+						p_Column_Name => S.TABLE_ALIAS || '.' || S.R_COLUMN_NAME,
+						p_Data_Type => S.R_DATA_TYPE,
+						p_Data_Precision => S.R_DATA_PRECISION,
+						p_Data_Scale => S.R_DATA_SCALE,
+						p_Char_Length => S.R_CHAR_LENGTH,
+						p_Data_Format => case when E.COLUMN_NAME IS NULL then 'NATIVE' else v_Data_Format end,
+						p_Use_Trim => 'Y'
+					) COLUMN_EXPR,
 					S.HAS_HELP_TEXT,
 					S.HAS_DEFAULT,
 					S.IS_BLOB,
@@ -1192,6 +1220,7 @@ is
 						then 'N' else 'Y'
 					end IS_SEARCHABLE_REF,
 					'N' IS_SUMMAND, 'N' IS_VIRTUAL_COLUMN, null IS_DATETIME,
+					S.IS_FILE_FOLDER_REF, 'N' IS_FILTER_KEY_COLUMN,
 					S.COLUMN_ID, S.R_COLUMN_ID, S.POSITION, S.IMP_COLUMN_NAME,
 					S.COLUMN_ALIGN,
 					S.COLUMN_HEADER,
@@ -1227,7 +1256,7 @@ is
 					S.R_VIEW_NAME REF_VIEW_NAME, 
 					S.R_COLUMN_NAME REF_COLUMN_NAME,
 					'' COMMENTS
-				FROM TABLE(data_browser_select.FN_Pipe_browser_q_refs(v_View_Name)) S
+				FROM TABLE(data_browser_select.FN_Pipe_browser_q_refs(v_View_Name, v_Data_Format)) S
 				LEFT OUTER JOIN JOIN_OPTIONS J ON S.TABLE_ALIAS = J.TABLE_ALIAS
 				WHERE S.VIEW_NAME = v_View_Name
 				AND S.PARENT_KEY_COLUMN IS NULL -- column is hidden because its content can be deduced from the references FILTER_KEY_COLUMN
@@ -1256,24 +1285,27 @@ is
 						then 'N' else 'Y'
 					end IS_SEARCHABLE_REF,
 					'N' IS_SUMMAND, 'N' IS_VIRTUAL_COLUMN, null IS_DATETIME,
+					case when E.FOLDER_NAME_COLUMN_NAME IS NOT NULL
+					and E.FOLDER_PARENT_COLUMN_NAME IS NOT NULL then
+						'Y' else 'N' 
+					end IS_FILE_FOLDER_REF, 
+					case when E.PARENT_KEY_COLUMN = v_Parent_Key_Column
+					and E.FILTER_KEY_COLUMN = S.R_COLUMN_NAME then 
+						'Y' else 'N' 
+					end IS_FILTER_KEY_COLUMN,
 					S.COLUMN_ID, S.R_COLUMN_ID, S.POSITION, S.IMP_COLUMN_NAME,
 					S.COLUMN_ALIGN,
 					S.COLUMN_HEADER,
 					S.COLUMN_PREFIX,
-					case when E.COLUMN_NAME IS  NULL 
-					and v_Data_Format != 'NATIVE' then
-						data_browser_conf.Get_ExportColFunction(
-							p_Column_Name => S.TABLE_ALIAS || '.' || S.R_COLUMN_NAME,
-							p_Data_Type => S.R_DATA_TYPE,
-							p_Data_Precision => S.R_DATA_PRECISION,
-							p_Data_Scale => S.R_DATA_SCALE,
-							p_Char_Length => S.R_CHAR_LENGTH,
-							p_Use_Group_Separator => case when v_Data_Format = 'FORM' then 'Y' else 'N' end,
-							p_Use_Trim => 'Y'
-						) 
-					else
-						S.TABLE_ALIAS || '.' || S.R_COLUMN_NAME
-					end COLUMN_EXPR,
+					data_browser_select.Get_ConversionColFunction (
+						p_Column_Name => S.TABLE_ALIAS || '.' || S.R_COLUMN_NAME,
+						p_Data_Type => S.R_DATA_TYPE,
+						p_Data_Precision => S.R_DATA_PRECISION,
+						p_Data_Scale => S.R_DATA_SCALE,
+						p_Char_Length => S.R_CHAR_LENGTH,
+						p_Data_Format => case when E.COLUMN_NAME IS NULL then 'NATIVE' else v_Data_Format end,
+						p_Use_Trim => 'Y'
+					) COLUMN_EXPR,
 					S.HAS_HELP_TEXT,
 					s.HAS_DEFAULT,
 					S.IS_BLOB,
@@ -1325,6 +1357,7 @@ is
 						then 'N' else 'Y'
 					end IS_SEARCHABLE_REF,
 					'N' IS_SUMMAND, 'N' IS_VIRTUAL_COLUMN, null IS_DATETIME,
+					'N' IS_FILE_FOLDER_REF, 'N' IS_FILTER_KEY_COLUMN,
 					S.COLUMN_ID, S.R_COLUMN_ID, S.POSITION,
 					S.IMP_COLUMN_NAME IMP_COLUMN_NAME,
 					S.COLUMN_ALIGN,
@@ -1360,7 +1393,7 @@ is
 					S.R_VIEW_NAME REF_VIEW_NAME, 
 					S.R_COLUMN_NAME REF_COLUMN_NAME,
 					S.COMMENTS
-				FROM TABLE(data_browser_select.FN_Pipe_browser_qc_refs(v_View_Name)) S
+				FROM TABLE(data_browser_select.FN_Pipe_browser_qc_refs(v_View_Name, v_Data_Format)) S
 				JOIN JOIN_OPTIONS J ON S.TABLE_ALIAS = J.TABLE_ALIAS
 				WHERE S.VIEW_NAME = v_View_Name
 				AND (J.COLUMNS_INCLUDED = 'A')
@@ -1375,13 +1408,43 @@ is
 		)
     	ORDER BY COLUMN_ORDER, IS_AUDIT_COLUMN, COLUMN_ID, R_COLUMN_ID, POSITION;
 
+
+    FUNCTION Get_ConversionColFunction (
+        p_Column_Name VARCHAR2,
+        p_Data_Type VARCHAR2,
+        p_Data_Precision NUMBER,
+        p_Data_Scale NUMBER,
+        p_Char_Length NUMBER,
+        p_Data_Format VARCHAR2 DEFAULT 'FORM',
+        p_Use_Trim VARCHAR2 DEFAULT 'Y',	-- trim leading spaces from formated numbers; trim text to limit
+        p_Datetime VARCHAR2 DEFAULT NULL 	-- Y,N
+    ) RETURN VARCHAR2 DETERMINISTIC
+    IS
+	PRAGMA UDF;
+	BEGIN
+		if p_Data_Format != 'NATIVE' then
+			return data_browser_conf.Get_ExportColFunction (
+				p_Column_Name => p_Column_Name,
+				p_Data_Type => p_Data_Type,
+				p_Data_Precision => p_Data_Precision,
+				p_Data_Scale => p_Data_Scale,
+				p_Char_Length => p_Char_Length,
+				p_Use_Group_Separator => case when p_Data_Format = 'FORM' then 'Y' else 'N' end,
+				p_Use_Trim => p_Use_Trim,
+				p_Datetime => p_Datetime
+			);
+		else
+			return p_Column_Name;
+		end if;
+    END Get_ConversionColFunction;
+
 	/*
 	List of displayed column names for each user table foreign key target tables.
 	The columns names match a pattern in the list of Reference Description Cols configuration list
 	or the column names are members of unique key definitions
 	or the column names are displayed columns of second level foreign keys of composite primary keys.
 	*/
-	FUNCTION FN_Pipe_browser_qc_refs (p_View_Name VARCHAR2)
+	FUNCTION FN_Pipe_browser_qc_refs (p_View_Name VARCHAR2, p_Data_Format VARCHAR2 DEFAULT 'FORM')
 	RETURN data_browser_select.tab_data_browser_qc_refs PIPELINED
 	IS
         CURSOR keys_cur (v_View_Name VARCHAR2)
@@ -1464,23 +1527,23 @@ is
 				AS COLUMN_HEADER,
 				case when G.R_COLUMN_NAME IS NULL then 'No description columns found. (Q)' end WARNING_MSG,
 				case when G.R_COLUMN_NAME IS NOT NULL then
-					data_browser_conf.Get_ExportColFunction(
+					data_browser_select.Get_ConversionColFunction (
 						p_Column_Name => data_browser_conf.Concat_List(F.TABLE_ALIAS, G.TABLE_ALIAS, '_') || '.' || G.R_COLUMN_NAME,
 						p_Data_Type => G.R_DATA_TYPE,
 						p_Data_Precision => G.R_DATA_PRECISION,
 						p_Data_Scale => G.R_DATA_SCALE,
 						p_Char_Length => G.R_CHAR_LENGTH,
-						p_Use_Group_Separator =>  'N',
+						p_Data_Format => p_Data_Format,
 						p_Use_Trim => 'Y'
 					)
 				else
-					data_browser_conf.Get_ExportColFunction(
+					data_browser_select.Get_ConversionColFunction (
 						p_Column_Name => data_browser_conf.Concat_List(F.TABLE_ALIAS, G.TABLE_ALIAS, '_') || '.' || G.R_PRIMARY_KEY_COLS,
 						p_Data_Type => G.R_DATA_TYPE,
 						p_Data_Precision => G.R_DATA_PRECISION,
 						p_Data_Scale => G.R_DATA_SCALE,
 						p_Char_Length => G.R_CHAR_LENGTH,
-						p_Use_Group_Separator =>  'N',
+						p_Data_Format => 'CSV',
 						p_Use_Trim => 'Y'
 					)
 				end COLUMN_EXPR,
@@ -1521,7 +1584,7 @@ is
 		) FC 
 		where not exists (
 			select 1 
-			from TABLE(data_browser_select.FN_Pipe_browser_q_refs(FC.VIEW_NAME)) F
+			from TABLE(data_browser_select.FN_Pipe_browser_q_refs(FC.VIEW_NAME, p_Data_Format)) F
 			where F.VIEW_NAME = FC.VIEW_NAME
 			and F.FOREIGN_KEY_COLS = FC.COLUMN_NAME 
 			and F.COLUMN_ID = FC.COLUMN_ID
@@ -1654,7 +1717,7 @@ is
 	or the column names are members of unique key definitions
 	or the column names are displayed columns of second level foreign keys of composite primary keys.
 	*/
-	FUNCTION FN_Pipe_browser_q_refs (p_View_Name VARCHAR2)
+	FUNCTION FN_Pipe_browser_q_refs (p_View_Name VARCHAR2, p_Data_Format VARCHAR2 DEFAULT 'FORM')
 	RETURN data_browser_select.tab_data_browser_q_refs PIPELINED
 	IS
         CURSOR keys_cur (v_View_Name VARCHAR2)
@@ -1769,23 +1832,23 @@ is
 							p_Right_Columns=>G.FOREIGN_KEY_COLS, p_Right_Alias=> F.TABLE_ALIAS)
 					end JOIN_COND,
 					case when G.R_COLUMN_NAME IS NOT NULL then
-						data_browser_conf.Get_ExportColFunction(
+						data_browser_select.Get_ConversionColFunction (
 							p_Column_Name => data_browser_conf.Concat_List(F.TABLE_ALIAS, G.TABLE_ALIAS, '_') || '.' || G.R_COLUMN_NAME,
 							p_Data_Type => G.R_DATA_TYPE,
 							p_Data_Precision => G.R_DATA_PRECISION,
 							p_Data_Scale => G.R_DATA_SCALE,
 							p_Char_Length => G.R_CHAR_LENGTH,
-							p_Use_Group_Separator =>  'N',
+							p_Data_Format => p_Data_Format,
 							p_Use_Trim => 'Y'
 						)
 					else
-						data_browser_conf.Get_ExportColFunction(
+						data_browser_select.Get_ConversionColFunction (
 							p_Column_Name => data_browser_conf.Concat_List(F.TABLE_ALIAS, G.TABLE_ALIAS, '_') || '.' || G.R_PRIMARY_KEY_COLS,
 							p_Data_Type => G.R_DATA_TYPE,
 							p_Data_Precision => G.R_DATA_PRECISION,
 							p_Data_Scale => G.R_DATA_SCALE,
 							p_Char_Length => G.R_CHAR_LENGTH,
-							p_Use_Group_Separator =>  'N',
+							p_Data_Format => 'CSV',
 							p_Use_Trim => 'Y'
 						)
 					end COLUMN_EXPR,
@@ -2627,19 +2690,16 @@ is
 			FROM (
 				SELECT
 					VIEW_NAME, COLUMN_NAME, POSITION, NULLABLE,
-					case when R_VIEW_NAME IS NULL -- Simple Column - formated date and numbers
-						then data_browser_conf.Get_ExportColFunction(
-								p_Column_Name => TABLE_ALIAS || COLUMN_NAME,
-								p_Data_Type => DATA_TYPE,
-								p_Data_Precision => DATA_PRECISION,
-								p_Data_Scale => DATA_SCALE,
-								p_Char_Length => CHAR_LENGTH,
-								p_Use_Group_Separator =>  'N',
-								p_Use_Trim => 'Y',
-								p_Datetime => IS_DATETIME
-							)
-						else TABLE_ALIAS || COLUMN_NAME -- Joined Column
-					end C_COLUMN_EXPR,
+					data_browser_select.Get_ConversionColFunction (
+						p_Column_Name => TABLE_ALIAS || COLUMN_NAME,
+						p_Data_Type => DATA_TYPE,
+						p_Data_Precision => DATA_PRECISION,
+						p_Data_Scale => DATA_SCALE,
+						p_Char_Length => CHAR_LENGTH,
+						p_Data_Format => case when R_VIEW_NAME IS NULL then 'FORM' else 'NATIVE' end,
+						p_Use_Trim => 'Y',
+						p_Datetime => IS_DATETIME
+					) C_COLUMN_EXPR,
 					TABLE_ALIAS,
 					R_VIEW_NAME, R_PRIMARY_KEY_COLS,
 					R_TABLE_ALIAS,
@@ -3519,19 +3579,16 @@ $END
 			FROM (
 				SELECT
 					VIEW_NAME, COLUMN_NAME, POSITION, NULLABLE,
-					case when R_VIEW_NAME IS NULL -- Simple Column - formated date and numbers
-						then data_browser_conf.Get_ExportColFunction(
-								p_Column_Name => TABLE_ALIAS || COLUMN_NAME,
-								p_Data_Type => DATA_TYPE,
-								p_Data_Precision => DATA_PRECISION,
-								p_Data_Scale => DATA_SCALE,
-								p_Char_Length => CHAR_LENGTH,
-								p_Use_Group_Separator =>  'N',
-								p_Use_Trim => 'Y',
-								p_Datetime => IS_DATETIME
-							)
-						else TABLE_ALIAS || COLUMN_NAME -- Joined Column
-					end C_COLUMN_EXPR,
+					data_browser_select.Get_ConversionColFunction (
+						p_Column_Name => TABLE_ALIAS || COLUMN_NAME,
+						p_Data_Type => DATA_TYPE,
+						p_Data_Precision => DATA_PRECISION,
+						p_Data_Scale => DATA_SCALE,
+						p_Char_Length => CHAR_LENGTH,
+						p_Data_Format => case when R_VIEW_NAME IS NULL then 'FORM' else 'NATIVE' end,
+						p_Use_Trim => 'Y',
+						p_Datetime => IS_DATETIME
+					) C_COLUMN_EXPR,
 					TABLE_ALIAS,
 					R_VIEW_NAME, R_PRIMARY_KEY_COLS,
 					R_TABLE_ALIAS,

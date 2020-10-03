@@ -95,7 +95,7 @@ IS
 	);
 	TYPE tab_data_browser_qc_refs IS TABLE OF rec_data_browser_qc_refs;
 
-	FUNCTION FN_Pipe_browser_qc_refs (p_View_Name VARCHAR2)
+	FUNCTION FN_Pipe_browser_qc_refs (p_View_Name VARCHAR2, p_Data_Format VARCHAR2 DEFAULT 'FORM')
 	RETURN data_browser_select.tab_data_browser_qc_refs PIPELINED;
 
 	TYPE rec_data_browser_fc_refs IS RECORD (
@@ -199,7 +199,7 @@ IS
 	);
 	TYPE tab_data_browser_q_refs IS TABLE OF rec_data_browser_q_refs;
 
-	FUNCTION FN_Pipe_browser_q_refs (p_View_Name VARCHAR2)
+	FUNCTION FN_Pipe_browser_q_refs (p_View_Name VARCHAR2, p_Data_Format VARCHAR2 DEFAULT 'FORM')
 	RETURN data_browser_select.tab_data_browser_q_refs PIPELINED;
 
 
@@ -245,6 +245,17 @@ IS
 		POSITION2					NUMBER
 	);
 	TYPE tab_table_imp_fk IS TABLE OF rec_table_imp_fk;
+
+    FUNCTION Get_ConversionColFunction (
+        p_Column_Name VARCHAR2,
+        p_Data_Type VARCHAR2,
+        p_Data_Precision NUMBER,
+        p_Data_Scale NUMBER,
+        p_Char_Length NUMBER,
+        p_Data_Format VARCHAR2 DEFAULT 'FORM',
+        p_Use_Trim VARCHAR2 DEFAULT 'Y',	-- trim leading spaces from formated numbers; trim text to limit
+        p_Datetime VARCHAR2 DEFAULT NULL 	-- Y,N
+    ) RETURN VARCHAR2 DETERMINISTIC;
 
 	FUNCTION FN_Pipe_table_imp_fk1 (p_Table_Name VARCHAR2)
 	RETURN data_browser_select.tab_table_imp_fk PIPELINED;
