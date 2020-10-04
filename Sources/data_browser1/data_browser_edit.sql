@@ -2069,38 +2069,6 @@ $END
 		return 'apex_application.g_f' || LPAD( p_Idx, 2, '0') || ' (' || v_Array_Offset || ')';
 	end;
 
-	FUNCTION Evaluate_Item_Ref (
-		p_Column_Ref VARCHAR2,
-		p_Column_Name VARCHAR2 DEFAULT NULL
-	) RETURN VARCHAR2
-	IS
-$IF DBMS_DB_VERSION.VERSION >= 12 $THEN
-	PRAGMA UDF;
-$END
-        v_Statement		VARCHAR2(256);
-		v_Result		VARCHAR2(4000);
-	begin
-		v_Statement :=
-		   'begin :b := ' || p_Column_Ref || '; end;';
-		EXECUTE IMMEDIATE v_Statement USING OUT v_Result;
-		return v_Result;
-	exception
-	when no_data_found then
-		return NULL;
-$IF data_browser_conf.g_use_exceptions $THEN
-	when others then
-		$IF data_browser_conf.g_debug $THEN
-			apex_debug.info(
-				p_message => 'data_browser_edit.Evaluate_Item_Ref (%s) check exists : failed with : %s',
-				p0 => v_Statement,
-				p1 => SQLERRM,
-				p_max_length => 3500
-			);
-		$END
-		raise;
-$END
-	end Evaluate_Item_Ref;
-
 	FUNCTION Check_Item_Ref (
 		p_Column_Ref VARCHAR2,
 		p_Column_Name VARCHAR2
@@ -2838,8 +2806,7 @@ $END
 							when p_Data_Source IN ('NEW_ROWS', 'COLLECTION')
 							and (T.R_VIEW_NAME = p_Table_name and T.REF_COLUMN_NAME = p_Parent_Key_Column
 							   or  T.REF_VIEW_NAME = p_Parent_Name and T.REF_COLUMN_NAME = p_Parent_Key_Column 
-							   		--and E.FILTER_KEY_COLUMN = T.REF_COLUMN_NAME
-							   		and T.IS_FILTER_KEY_COLUMN = 'Y'
+							   		and E.FILTER_KEY_COLUMN = T.REF_COLUMN_NAME
 							) and p_Parent_Key_Item IS NOT NULL then -- passed in default value for foreign key column from p_Parent_Key_Item.
 								case when T.DATA_DEFAULT IS NOT NULL then
 									'NVL(V(' || DBMS_ASSERT.ENQUOTE_LITERAL(p_Parent_Key_Item) || '), ' || T.DATA_DEFAULT || ')' 
@@ -2885,13 +2852,12 @@ $END
 							then 1 else 0 end ROW_FACTOR,
 						TRUNC((APEX_ITEM_IDX-1) / data_browser_conf.Get_Apex_Item_Limit) + 1 ROW_OFFSET, -- Usage:  ROW_FACTOR * (ROWNUM - 1) + ROW_OFFSET
 						APEX_ITEM_CNT,
-						/*case  when E.FOLDER_NAME_COLUMN_NAME IS NOT NULL
+						case  when E.FOLDER_NAME_COLUMN_NAME IS NOT NULL
 						and E.FOLDER_PARENT_COLUMN_NAME IS NOT NULL then
 							'Y' else 'N' 
-						end IS_FILE_FOLDER_REF*/
-						T.IS_FILE_FOLDER_REF
+						end IS_FILE_FOLDER_REF
 				FROM (
-					SELECT --+ USE_NL_WITH_INDEX(D)
+					SELECT 
 						B.COLUMN_NAME, B.TABLE_ALIAS, B.COLUMN_ID, B.COLUMN_ORDER, B.POSITION, B.INPUT_ID, B.DATA_TYPE,
 						B.DATA_PRECISION, B.DATA_SCALE, B.CHAR_LENGTH, B.NULLABLE, 
 						B.IS_PRIMARY_KEY, B.IS_SEARCH_KEY, B.IS_FOREIGN_KEY, B.IS_DISP_KEY_COLUMN,
@@ -2903,7 +2869,7 @@ $END
 						B.IS_AUDIT_COLUMN, B.IS_OBFUSCATED, B.IS_UPPER_NAME,
 						B.IS_NUMBER_YES_NO_COLUMN, B.IS_CHAR_YES_NO_COLUMN, 
 						B.IS_REFERENCE, B.IS_SEARCHABLE_REF, B.IS_SUMMAND, B.IS_VIRTUAL_COLUMN, 
-						B.IS_DATETIME, B.IS_FILE_FOLDER_REF, B.IS_FILTER_KEY_COLUMN,
+						B.IS_DATETIME, 
 						NVL(D.CHECK_UNIQUE, 'N') CHECK_UNIQUE,
 						B.FORMAT_MASK,
 						case when B.COLUMN_EXPR_TYPE IN ( 'NUMBER', 'TEXT' )
@@ -2988,7 +2954,7 @@ $END
 					LEFT OUTER JOIN MVDATA_BROWSER_CHECKS_DEFS D ON D.VIEW_NAME = B.R_VIEW_NAME AND D.COLUMN_NAME = B.R_COLUMN_NAME AND D.CONS_COLS_COUNT = 1
 					WHERE NOT(IS_AUDIT_COLUMN = 'Y' and p_Exclude_Audit_Columns = 'YES')
 				) T
-				-- LEFT OUTER JOIN MVDATA_BROWSER_REFERENCES E ON T.R_VIEW_NAME = E.VIEW_NAME AND T.R_COLUMN_NAME = E.COLUMN_NAME
+				LEFT OUTER JOIN MVDATA_BROWSER_REFERENCES E ON T.R_VIEW_NAME = E.VIEW_NAME AND T.R_COLUMN_NAME = E.COLUMN_NAME
 			)
 			ORDER BY COLUMN_ORDER, IS_AUDIT_COLUMN, COLUMN_ID, POSITION;
     	v_Max_Apex_Item_Idx NUMBER := 1;
@@ -3897,7 +3863,7 @@ $END
 				S.FOLDER_CONTAINER_COLUMN_NAME,
 				case when p_Data_Source = 'COLLECTION' then
 					'p_cur.' || FC.INPUT_ID
-				else
+				when FC.APEX_ITEM_IDX IS NOT NULL then
 					data_browser_edit.Get_Apex_Item_Call (
 						p_Idx 			=> FC.APEX_ITEM_IDX,
 						p_Row_Factor	=> FC.ROW_FACTOR,

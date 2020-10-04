@@ -1742,11 +1742,6 @@ IS
     	p_Row_Number	NUMBER DEFAULT 1
 	) RETURN VARCHAR2;
 
-	FUNCTION Evaluate_Item_Ref (
-		p_Column_Ref VARCHAR2,
-		p_Column_Name VARCHAR2 DEFAULT NULL
-	) RETURN VARCHAR2;
-
 	FUNCTION Check_Item_Ref (
 		p_Column_Ref VARCHAR2,
 		p_Column_Name VARCHAR2
