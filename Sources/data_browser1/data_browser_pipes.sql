@@ -713,9 +713,9 @@ IS
 				DENSE_RANK() OVER (PARTITION BY A.TABLE_NAME, A.TABLE_OWNER 
 					ORDER BY MATCHING DESC, -- key has name matiching columns
 						HAS_SCALAR_KEY ASC, -- key is not a number
+						CONSTRAINT_TYPE DESC, -- key is not the primary key
 						HAS_NULLABLE ASC,	-- key has fewer nullable columns
 						U_MEMBERS DESC, 	-- key has more members
-						CONSTRAINT_TYPE DESC, -- key is not the primary key
 						U_CONSTRAINT_NAME ASC) RANK
 			FROM (
 				SELECT DISTINCT TABLE_NAME, TABLE_OWNER, COLUMN_NAME, POSITION, NULLABLE, DATA_TYPE, DATA_PRECISION, DATA_SCALE, CHAR_LENGTH, 
