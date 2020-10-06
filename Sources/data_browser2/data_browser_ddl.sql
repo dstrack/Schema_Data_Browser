@@ -1794,7 +1794,7 @@ $END
 					SELECT COLUMN_VALUE, INSTR(COLUMN_VALUE,';') S_OFFSET FROM apex_string.split(:a, ':')
 				)
 			) B ON B.VIEW_NAME = A.VIEW_NAME AND B.COLUMN_NAME = C.COLUMN_NAME
-			where A.NUM_ROWS = C.NUM_DISTINCT 
+			where NVL(C.NUM_NULLS, 0) = 0
 			and C.NULLABLE = 'Y'
 			and C.VIRTUAL_COLUMN = 'NO'
 		)

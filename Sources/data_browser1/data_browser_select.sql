@@ -2723,7 +2723,7 @@ is
 								p_Level				=> PA.Call_Level + 1
 							) || RPAD(' ', p_Indent + PA.Call_Level*4) || ')'
 						-- with levels > 1 error ORA-06502: PL/SQL: numerischer oder Wertefehler: Bulk Bind: Truncated Bind
-						when G.R_VIEW_NAME IS NOT NULL and PA.Call_Level = 1 
+						when G.R_VIEW_NAME IS NOT NULL and PA.Call_Level <= 2 
 						and F.IS_FILE_FOLDER_REF = 'N' then
 							'(' || data_browser_select.Key_Values_Path_Query (
 								p_Table_Name		=> G.R_VIEW_NAME,
@@ -3201,7 +3201,7 @@ $END
 				p_Folder_Par_Col_Name	=> v_Folder_Parent_Column_Name,
 				p_Folder_Name_Col_Name => v_Folder_Name_Column_Name,
 				p_Folder_Cont_Col_Name => v_Folder_Cont_Col_Name,
-				p_Folder_Cont_Alias => v_Table_Alias,
+				p_Folder_Cont_Alias => null,
 				p_View_Mode => 'FORM_VIEW',
 				p_Filter_Cond => v_filter,
 				p_Order_by => NVL(v_Ordering_Column_Name, '1')

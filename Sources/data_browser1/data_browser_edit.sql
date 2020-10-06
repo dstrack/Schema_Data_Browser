@@ -3983,8 +3983,17 @@ $END
         v_Stat 				CLOB;
         v_Result_PLSQL		CLOB;
         v_Str 				VARCHAR2(32767);
-    	v_Procedure_Name VARCHAR2(50);
+    	v_Procedure_Name 	VARCHAR2(50);
+		v_Unique_Key_Column MVDATA_BROWSER_VIEWS.SEARCH_KEY_COLS%TYPE;
     begin
+		if p_Unique_Key_Column IS NULL then
+			SELECT SEARCH_KEY_COLS
+			INTO v_Unique_Key_Column
+			FROM MVDATA_BROWSER_VIEWS
+			WHERE VIEW_NAME = p_Table_Name;
+		else
+			v_Unique_Key_Column := p_Unique_Key_Column;
+		end if;
 		data_browser_conf.Get_Import_Parameter( v_Compare_Case_Insensitive, v_Search_Keys_Unique, v_Insert_Foreign_Keys);
 		if p_DML_Command = 'LOOKUP' then 
 			v_Insert_Foreign_Keys := 'NO';
@@ -4053,7 +4062,7 @@ $END
 						end APEX_ITEM_CALL
 					from table (data_browser_edit.Get_Form_Edit_Cursor (
 							p_Table_Name => p_Table_name,
-							p_Unique_Key_Column => p_Unique_Key_Column,
+							p_Unique_Key_Column => v_Unique_Key_Column,
 							p_Select_Columns => p_Select_Columns,
 							p_Columns_Limit => p_Columns_Limit,
 							p_View_Mode => p_View_Mode,
@@ -4076,7 +4085,7 @@ $END
 							p_Row_Offset	=> c_cur.ROW_OFFSET
 					);
 				end if;
-				if c_cur.IS_SEARCH_KEY = 'Y' and (c_cur.R_COLUMN_NAME = p_Unique_Key_Column OR p_Unique_Key_Column IS NULL) then
+				if c_cur.IS_SEARCH_KEY = 'Y' and (c_cur.R_COLUMN_NAME = v_Unique_Key_Column OR v_Unique_Key_Column IS NULL) then
 					v_Init_Key_Stat := 'v_Key_Value := ' || c_cur.APEX_ITEM_CALL || ';' || chr(10);
 				end if;
 			end loop;
@@ -4315,7 +4324,7 @@ $END
 			v_Value_Exists := case when p_Use_Empty_Columns = 'YES' then 'YES'
 								else data_browser_edit.Check_Item_Ref (c_cur.APEX_ITEM_REF, c_cur.COLUMN_NAME) end;
 			exit when v_Value_Exists = 'UNKNOWN';
-            if c_cur.IS_SEARCH_KEY = 'N' -- or c_cur.COLUMN_NAME != NVL(p_Unique_Key_Column, '-') 
+            if c_cur.IS_SEARCH_KEY = 'N' 
             then
 				if c_cur.COLUMN_NAME = data_browser_conf.Get_MD5_Column_Name || v_Check_Column_Idx then
 					if DBMS_LOB.GETLENGTH(v_Check_Column_List) > 0 then
@@ -4339,8 +4348,6 @@ $END
 					v_Column_Expr := case
 						when data_browser_edit.FN_Change_Check_Use_Column(c_cur.COLUMN_EXPR_TYPE) = 'YES' then
 							c_cur.TABLE_ALIAS || '.' || c_cur.R_COLUMN_NAME
-						--when c_cur.IS_PASSWORD = 'Y' then -- this is wrong because the source are column refs and not form fields
-						--	'NULL' -- password fields are rendered empty
 						else
 							c_cur.COLUMN_EXPR
 					end;
