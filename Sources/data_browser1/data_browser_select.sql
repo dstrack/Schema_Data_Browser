@@ -141,14 +141,14 @@ is
 			) HEAD, BROWSER_VIEW
 			UNION ALL
 			SELECT --+ INDEX(S) USE_NL_WITH_INDEX(T)
-				case when E.COLUMN_NAME != T.COLUMN_NAME then
+				/*case when E.COLUMN_NAME IS NOT NULL then -- problems with PARENT_KEY_COLUMN
 					data_browser_conf.Compose_Column_Name(
 						p_First_Name=> data_browser_conf.Normalize_Column_Name(T.COLUMN_NAME)
-						, p_Second_Name => data_browser_conf.Normalize_Table_Name(E.R_VIEW_NAME)
-						, p_Deduplication=>'YES', p_Max_Length=>29)
+						, p_Second_Name => 'LOV', p_Max_Length=>29)
 				else 
 					T.COLUMN_NAME
-				end COLUMN_NAME,
+				end COLUMN_NAME,*/
+				T.COLUMN_NAME,
 				'A' TABLE_ALIAS, 
 				T.IS_AUDIT_COLUMN, T.IS_OBFUSCATED, T.IS_UPPER_NAME, 
 				T.IS_NUMBER_YES_NO_COLUMN, T.IS_CHAR_YES_NO_COLUMN,
@@ -238,7 +238,7 @@ is
 							p_Active_Data_Type	=> E.ACTIVE_LOV_DATA_TYPE,
 							p_Order_by			=> null -- not needed
 						)
-						|| data_browser_conf.NL(4) || ') ' -- display single value 
+						|| data_browser_conf.NL(4) || ')' -- display single value 
 					when T.IS_OBFUSCATED = 'Y' then
 						data_browser_conf.Get_Obfuscate_Call('A.' || T.COLUMN_NAME)
 					when v_Data_Format = 'NATIVE'
@@ -330,8 +330,7 @@ is
 					T.FIELD_LENGTH -- (including group separator)
 				end FIELD_LENGTH,
 				case 
-					when -- v_View_Mode IN ('NAVIGATION_VIEW', 'NESTED_VIEW') and 
-							(E.R_VIEW_NAME = v_Parent_Name AND E.COLUMN_NAME = NVL(v_Parent_Key_Column, E.COLUMN_NAME))
+					when E.R_VIEW_NAME = v_Parent_Name AND E.COLUMN_NAME = NVL(v_Parent_Key_Column, E.COLUMN_NAME)
 							--the fk columns are hidden items by default for NAVIGATION_VIEW, NESTED_VIEW because the rows a grouped by the column 
 							--the control-break displays the fk column labels
 						then 'Y'
@@ -388,7 +387,7 @@ is
 									p_Remove_Prefix=>S.COLUMN_PREFIX, 
 									p_Is_Upper_Name=>data_browser_pattern.Match_Upper_Names_Columns(COLUMN_HEADER)
 								)
-					, p_Second_Name => Apex_lang.lang('Count'), p_Delimiter=>'-'
+					, p_Second_Name => Apex_lang.lang('Count'), p_Delimiter=>' - '
 				) COLUMN_HEADER,
 				FORMATED_ROW_COUNT_QUERY COLUMN_EXPR,
 				'LINK' COLUMN_EXPR_TYPE, 1024 FIELD_LENGTH,
@@ -405,7 +404,7 @@ is
 					data_browser_conf.Compose_Column_Name(
 						p_First_Name=> data_browser_conf.Compose_Column_Name(
 							p_First_Name=> data_browser_conf.Normalize_Table_Name(p_Table_Name => S.R_VIEW_NAME)
-							, p_Second_Name => data_browser_conf.Normalize_Column_Name(S.R_COLUMN_NAME)
+							, p_Second_Name => data_browser_conf.Normalize_Column_Name(S.R_COLUMN_NAME) 
 							, p_Deduplication=>'YES', p_Max_Length=>29)
 						, p_Second_Name => 'COUNT', p_Deduplication=>'NO', p_Max_Length=>29
 					) COLUMN_NAME,
@@ -435,7 +434,7 @@ is
 				FROM ( -- counter column for each foreign key referencing the current row.
 					SELECT --+ INDEX(S) USE_NL_WITH_INDEX(A)
 						DENSE_RANK() OVER (PARTITION BY E.R_VIEW_NAME ORDER BY E.TABLE_NAME, E.COLUMN_NAME) POSITION,
-						data_browser_conf.Reference_Column_Name (
+						data_browser_conf.Reference_Column_Header (
 							p_Column_Name => E.COLUMN_NAME,
 							p_Remove_Prefix => S.COLUMN_PREFIX,
 							p_View_Name => E.VIEW_NAME,
@@ -538,7 +537,7 @@ is
                    SELECT 
 						DENSE_RANK() OVER (PARTITION BY E.R_VIEW_NAME ORDER BY E.TABLE_NAME, E.COLUMN_NAME) POSITION,
 						DENSE_RANK() OVER (PARTITION BY E.VIEW_NAME, A.COLUMN_NAME ORDER BY E.TABLE_ALIAS) RANKING,
-						data_browser_conf.Reference_Column_Name (
+						data_browser_conf.Reference_Column_Header (
 							p_Column_Name => E.COLUMN_NAME,
 							p_Remove_Prefix => S.COLUMN_PREFIX,
 							p_View_Name => E.VIEW_NAME,
@@ -638,7 +637,7 @@ is
 								p_Remove_Prefix=>S.COLUMN_PREFIX, 
 								p_Is_Upper_Name=>data_browser_pattern.Match_Upper_Names_Columns(COLUMN_HEADER)
 							)
-						, p_Second_Name => Apex_lang.lang('Links'), p_Delimiter=>'-'
+						, p_Second_Name => Apex_lang.lang('Links'), p_Delimiter=>' - '
 				) COLUMN_HEADER,
 				data_browser_select.Child_Link_List_Query (
 					p_Table_Name  => CHILD_VIEW,
@@ -702,7 +701,7 @@ is
 				FROM (
 					SELECT --+ INDEX(S) USE_NL_WITH_INDEX(A)
 						DENSE_RANK() OVER (PARTITION BY E.R_VIEW_NAME ORDER BY E.TABLE_NAME, E.COLUMN_NAME) POSITION,
-						data_browser_conf.Reference_Column_Name (
+						data_browser_conf.Reference_Column_Header (
 							p_Column_Name => E.COLUMN_NAME,
 							p_Remove_Prefix => S.COLUMN_PREFIX,
 							p_View_Name => E.VIEW_NAME,
@@ -1528,17 +1527,6 @@ is
 				G.COLUMN_ALIGN,
 				G.FIELD_LENGTH,
 				G.R_VIEW_NAME JOIN_VIEW_NAME,
-				case when G.FOREIGN_KEY_COLS IS NOT NULL then
-					case when G.NULLABLE = 'Y' then 'LEFT OUTER ' end || 'JOIN '
-					|| SYS_CONTEXT('USERENV', 'CURRENT_SCHEMA') || '.'
-					|| G.R_VIEW_NAME
-					|| ' ' || data_browser_conf.Concat_List(F.TABLE_ALIAS, G.TABLE_ALIAS, '_')
-					|| ' ON ' 
-					--|| data_browser_conf.Concat_List(F.TABLE_ALIAS, G.TABLE_ALIAS, '_') || '.' || G.R_PRIMARY_KEY_COLS || ' = ' || F.TABLE_ALIAS || '.' || G.FOREIGN_KEY_COLS
-					|| data_browser_conf.Get_Join_Expression(
-						p_Left_Columns=>G.R_PRIMARY_KEY_COLS, p_Left_Alias=> data_browser_conf.Concat_List(F.TABLE_ALIAS, G.TABLE_ALIAS, '_'),
-						p_Right_Columns=>G.FOREIGN_KEY_COLS, p_Right_Alias=> F.TABLE_ALIAS)
-				end JOIN_CLAUSE,
 				G.HAS_HELP_TEXT, G.HAS_DEFAULT, G.IS_BLOB, G.IS_PASSWORD, G.IS_AUDIT_COLUMN, G.DISPLAY_IN_REPORT,
 				F.IS_DISPLAYED_KEY_COLUMN,
 				F.R_VIEW_NAME J_VIEW_NAME,
@@ -1683,7 +1671,7 @@ is
 	or the column names are members of unique key definitions
 	or the column names are displayed columns of second level foreign keys of composite primary keys.
 	*/
-	FUNCTION FN_Pipe_browser_q_refs (p_View_Name VARCHAR2, p_Data_Format VARCHAR2 DEFAULT 'FORM')
+	FUNCTION FN_Pipe_browser_q_refs (p_View_Name VARCHAR2, p_Data_Format VARCHAR2 DEFAULT 'FORM', p_Include_Schema VARCHAR2 DEFAULT 'NO')
 	RETURN data_browser_select.tab_data_browser_q_refs PIPELINED
 	IS
         CURSOR keys_cur (v_View_Name VARCHAR2)
@@ -1741,17 +1729,11 @@ is
 			R_NULLABLE, R_DATA_TYPE, R_DATA_SCALE, R_DATA_PRECISION, R_CHAR_LENGTH,
 			COLUMN_ALIGN, FIELD_LENGTH,
 			JOIN_VIEW_NAME,
-			CAST( case when JOIN_COND IS NOT NULL then 
-					case when NULLABLE = 'Y' then 'LEFT OUTER ' end || 'JOIN '
-					|| JOIN_COND
-				end
-			AS VARCHAR2(1024)) JOIN_CLAUSE,
-			CAST(case when JOIN_COND IS NOT NULL then 
-					case when NULLABLE = 'Y' then 'LEFT OUTER ' end || 'JOIN '
-					|| SYS_CONTEXT('USERENV', 'CURRENT_SCHEMA') || '.'
-					|| JOIN_COND
-				end
-			AS VARCHAR2(1024)) JOIN_CLAUSE_EXPL,
+			case when JOIN_COND IS NOT NULL then 
+				case when NULLABLE = 'Y' then 'LEFT OUTER ' end || 'JOIN '
+				|| data_browser_select.FN_Table_Prefix
+				|| JOIN_COND
+			end JOIN_CLAUSE,
 			CAST(COLUMN_EXPR AS VARCHAR2(1024)) COLUMN_EXPR,
 			COLUMN_NAME, HAS_HELP_TEXT, HAS_DEFAULT, IS_BLOB, IS_PASSWORD,
 			IS_AUDIT_COLUMN, IS_READONLY, DISPLAY_IN_REPORT, 
@@ -1792,7 +1774,6 @@ is
 						G.R_VIEW_NAME
 						|| ' ' || data_browser_conf.Concat_List(F.TABLE_ALIAS, G.TABLE_ALIAS, '_')
 						|| ' ON ' 
-						-- || data_browser_conf.Concat_List(F.TABLE_ALIAS, G.TABLE_ALIAS, '_') || '.' || G.R_PRIMARY_KEY_COLS || ' = ' || F.TABLE_ALIAS || '.' || G.FOREIGN_KEY_COLS
 						|| data_browser_conf.Get_Join_Expression(
 							p_Left_Columns=>G.R_PRIMARY_KEY_COLS, p_Left_Alias=> data_browser_conf.Concat_List(F.TABLE_ALIAS, G.TABLE_ALIAS, '_'),
 							p_Right_Columns=>G.FOREIGN_KEY_COLS, p_Right_Alias=> F.TABLE_ALIAS)
@@ -2836,7 +2817,8 @@ is
 						v_From_Clause := v_From_Clause
 						|| NL(p_Indent + (p_Level-1)*4) 
 						|| case when v_out_tab(ind).NULLABLE = 'Y' then ' LEFT OUTER' end
-						|| ' JOIN ' || v_out_tab(ind).R_VIEW_NAME || ' ' || v_out_tab(ind).R_TABLE_ALIAS
+						|| ' JOIN ' || data_browser_select.FN_Table_Prefix
+						|| v_out_tab(ind).R_VIEW_NAME || ' ' || v_out_tab(ind).R_TABLE_ALIAS
 						|| ' ON ' || v_out_tab(ind).R_TABLE_ALIAS || '.' || v_out_tab(ind).R_PRIMARY_KEY_COLS || ' = ' || v_out_tab(ind).C_COLUMN_EXPR;
 					end if;
 				else
@@ -3078,6 +3060,9 @@ $END
 		|| 	'SELECT ' || data_browser_conf.Enquote_Name_Required(p_Search_Key_Col) || ', SYS_CONNECT_BY_PATH(TRANSLATE(' 
 		||  data_browser_conf.Enquote_Name_Required(p_Folder_Name_Col_Name) || q'[, '/', '-'), '/') PATH]' || NL(8)
 		||  'FROM (SELECT ' || data_browser_conf.Enquote_Name_Required(p_Search_Key_Col) || ', '
+		|| case when p_Folder_Cont_Col_Name IS NOT NULL and p_Folder_Cont_Alias IS NULL then 
+			data_browser_conf.Enquote_Name_Required(p_Folder_Cont_Col_Name) || ', '
+		end
 		|| data_browser_conf.Enquote_Name_Required(p_Folder_Par_Col_Name) || ', '
 		|| data_browser_conf.Enquote_Name_Required(p_Folder_Name_Col_Name) || NL(12)
 		|| 	'FROM ' || data_browser_select.FN_Table_Prefix || data_browser_conf.Enquote_Name_Required(p_Table_Name) 
@@ -3093,6 +3078,12 @@ $END
 		|| ') START WITH ' || data_browser_conf.Enquote_Name_Required(p_Folder_Par_Col_Name) || ' IS NULL' || NL(8)
 		|| 	'CONNECT BY ' || data_browser_conf.Enquote_Name_Required(p_Folder_Par_Col_Name) 
 		|| ' = PRIOR ' || data_browser_conf.Enquote_Name_Required(p_Search_Key_Col) || NL(6)
+		|| case when p_Folder_Cont_Col_Name IS NOT NULL and p_Folder_Cont_Alias IS NULL then 
+			'  AND ' || data_browser_conf.Enquote_Name_Required(p_Folder_Cont_Col_Name)
+			|| ' = PRIOR ' 
+			|| data_browser_conf.Enquote_Name_Required(p_Folder_Cont_Col_Name)
+			|| NL(6)
+		end
 		|| case when p_Search_Value IS NULL and p_Order_by IS NOT NULL then 
 			'  ORDER SIBLINGS BY ' || data_browser_conf.Enquote_Name_Required(p_Folder_Name_Col_Name) || NL(6)
 		end
@@ -3129,6 +3120,9 @@ $END
 		|| 	'SELECT ' || data_browser_conf.Enquote_Name_Required(p_Search_Key_Col) || ', SYS_CONNECT_BY_PATH(TRANSLATE(' 
 		||  data_browser_conf.Enquote_Name_Required(p_Folder_Name_Col_Name) || q'[, '/', '-'), '/') PATH]' || NL(12+p_Level*4)
 		|| 	'FROM (SELECT ' || data_browser_conf.Enquote_Name_Required(p_Search_Key_Col) || ', ' 
+		|| case when p_Folder_Cont_Col_Name IS NOT NULL and p_Folder_Cont_Alias IS NULL then 
+			data_browser_conf.Enquote_Name_Required(p_Folder_Cont_Col_Name) || ', '
+		end
 		||  data_browser_conf.Enquote_Name_Required(p_Folder_Par_Col_Name) || ', '
 		||  data_browser_conf.Enquote_Name_Required(p_Folder_Name_Col_Name) || NL(16+p_Level*4)
 		|| 	'FROM ' || data_browser_select.FN_Table_Prefix || data_browser_conf.Enquote_Name_Required(p_Table_Name)
@@ -3143,6 +3137,12 @@ $END
 		||  ') START WITH ' || data_browser_conf.Enquote_Name_Required(p_Folder_Par_Col_Name) || ' IS NULL' || NL(12+p_Level*4)
 		|| 	'CONNECT BY ' || data_browser_conf.Enquote_Name_Required(p_Folder_Par_Col_Name) 
 		|| ' = PRIOR ' || data_browser_conf.Enquote_Name_Required(p_Search_Key_Col) || NL(8+p_Level*4)
+		|| case when p_Folder_Cont_Col_Name IS NOT NULL and p_Folder_Cont_Alias IS NULL then 
+			'  AND ' || data_browser_conf.Enquote_Name_Required(p_Folder_Cont_Col_Name)
+			|| ' = PRIOR ' 
+			|| data_browser_conf.Enquote_Name_Required(p_Folder_Cont_Col_Name)
+			|| NL(8+p_Level*4)
+		end
 		|| ') WHERE PATH = ' || p_Search_Path;
 		return v_Query;
 	end Key_Path_Lookup_Query;
@@ -3654,7 +3654,8 @@ $END
 					if (ind = 1 or v_out_tab(ind).R_TABLE_ALIAS != v_out_tab(ind - 1).R_TABLE_ALIAS) then
 						v_From_Clause := v_From_Clause
 						|| case when v_out_tab(ind).NULLABLE = 'Y' then ' LEFT OUTER' end
-						|| ' JOIN ' || v_out_tab(ind).R_VIEW_NAME || ' ' || v_out_tab(ind).R_TABLE_ALIAS
+						|| ' JOIN ' || data_browser_select.FN_Table_Prefix
+						|| v_out_tab(ind).R_VIEW_NAME || ' ' || v_out_tab(ind).R_TABLE_ALIAS
 						|| ' ON ' || v_out_tab(ind).R_TABLE_ALIAS || '.' || v_out_tab(ind).R_PRIMARY_KEY_COLS || ' = ' || v_out_tab(ind).C_COLUMN_EXPR;
 					end if;
 				else
@@ -4430,13 +4431,14 @@ $END
 				v_Control_Break := FN_Terminate_List(REPLACE(p_Control_Break, ', ', ':'));
 				for ind in 1 .. g_Describe_Cols_tab.count loop
 					v_Column_Expr := FN_Terminate_List(g_Describe_Cols_tab(ind).COLUMN_NAME);
-					if INSTR(v_Control_Break, v_Column_Expr) > 0 then
+					if INSTR(v_Control_Break, v_Column_Expr) > 0 and g_Describe_Cols_tab(ind).TABLE_ALIAS = 'A' then
+						v_Column_Expr := 'A.' || g_Describe_Cols_tab(ind).R_COLUMN_NAME;
 						if v_Ctrl_Break_First IS NULL then 
-							v_Ctrl_Break_First := 'A.'||g_Describe_Cols_tab(ind).R_COLUMN_NAME;
+							v_Ctrl_Break_First := v_Column_Expr;
 						end if;
 						v_Ctrl_Break_Expr := data_browser_conf.Concat_List(v_Ctrl_Break_Expr, g_Describe_Cols_tab(ind).COLUMN_EXPR, 
 											'||'|| data_browser_conf.Enquote_Literal(data_browser_conf.Get_Rec_Desc_Delimiter)||'||');
-						v_Ctrl_Break_List := data_browser_conf.Concat_List(v_Ctrl_Break_List, 'A.'||g_Describe_Cols_tab(ind).R_COLUMN_NAME);
+						v_Ctrl_Break_List := data_browser_conf.Concat_List(v_Ctrl_Break_List, v_Column_Expr);
 					end if;
 				end loop;
 				if v_Ctrl_Break_Expr IS NOT NULL then 
@@ -4448,6 +4450,8 @@ $END
 		end if;
 		if v_Ctrl_Break_List IS NULL then 
 			v_Ctrl_Break_List := v_Unique_Key_Expr;
+		end if;
+		if v_Ctrl_Break_First IS NULL then 
 			v_Ctrl_Break_First := v_Unique_Key_Expr;
 		end if;
     	v_Str := 'SELECT ' || CM(p_Comments) || NL(4);

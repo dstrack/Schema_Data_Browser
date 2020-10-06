@@ -21,7 +21,8 @@ IS
 		p_Table_Name VARCHAR2,
 		p_As_Of_Timestamp VARCHAR2 DEFAULT 'NO',
 		p_Join_Options VARCHAR2 DEFAULT NULL,
-		p_Include_Schema VARCHAR2 DEFAULT 'YES'
+		p_Include_Schema VARCHAR2 DEFAULT 'YES',
+		p_List_Excluded VARCHAR2 DEFAULT 'NO'
 	) RETURN data_browser_conf.tab_describe_joins PIPELINED;
     g_detail_joins_tab		data_browser_conf.tab_describe_joins;
 	g_detail_joins_md5 		VARCHAR2(300) := 'X';
@@ -175,7 +176,6 @@ IS
 		FIELD_LENGTH		NUMBER,
 		JOIN_VIEW_NAME 		VARCHAR2(128),
 		JOIN_CLAUSE			VARCHAR2(1024),
-		JOIN_CLAUSE_EXPL	VARCHAR2(1024),
 		COLUMN_EXPR			VARCHAR2(1024),
 		COLUMN_NAME			VARCHAR2(128),		
 		HAS_HELP_TEXT		CHAR(1),
@@ -199,7 +199,7 @@ IS
 	);
 	TYPE tab_data_browser_q_refs IS TABLE OF rec_data_browser_q_refs;
 
-	FUNCTION FN_Pipe_browser_q_refs (p_View_Name VARCHAR2, p_Data_Format VARCHAR2 DEFAULT 'FORM')
+	FUNCTION FN_Pipe_browser_q_refs (p_View_Name VARCHAR2, p_Data_Format VARCHAR2 DEFAULT 'FORM', p_Include_Schema VARCHAR2 DEFAULT 'NO')
 	RETURN data_browser_select.tab_data_browser_q_refs PIPELINED;
 
 

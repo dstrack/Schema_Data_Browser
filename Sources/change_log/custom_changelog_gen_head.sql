@@ -17,38 +17,7 @@ AS
 -- Calculate additional parameter for custom_changelog.AddLog. The mapping of table columns
 -- to parameter names of a direct reference column for the function call to custom_changelog.AddLog is calculated
 SELECT S_TABLE_NAME, S_COLUMN_NAME, T_TABLE_NAME, T_COLUMN_NAME, T_CHANGELOG_NAME, CONSTRAINT_TYPE, DELETE_RULE
-FROM (
-    SELECT DISTINCT B.TABLE_NAME S_TABLE_NAME, CAST(B.COLUMN_NAME AS VARCHAR2(128)) S_COLUMN_NAME, D.TABLE_NAME T_TABLE_NAME, C.COLUMN_NAME T_COLUMN_NAME,
-        'CUSTOM_REF_ID' || T.R T_CHANGELOG_NAME,
-        A.CONSTRAINT_TYPE, A.DELETE_RULE,
-        DENSE_RANK() OVER (PARTITION BY B.TABLE_NAME, D.TABLE_NAME, C.COLUMN_NAME ORDER BY B.COLUMN_NAME) C_RANK
-    FROM USER_CONSTRAINTS A
-    , USER_CONS_COLUMNS B
-    , USER_CONS_COLUMNS D
-    , (SELECT CAST(N.COLUMN_VALUE AS VARCHAR2(128)) TABLE_NAME, ROWNUM R FROM TABLE( changelog_conf.in_list(custom_changelog.Get_ChangeLogFKeyTables, ',') ) N) T
-    , (SELECT CAST(N.COLUMN_VALUE AS VARCHAR2(128)) COLUMN_NAME, ROWNUM R  FROM TABLE( changelog_conf.in_list(custom_changelog.Get_ChangeLogFKeyColumns, ',') ) N) C
-    WHERE A.CONSTRAINT_NAME = B.CONSTRAINT_NAME     -- column of foreign key source
-    AND A.R_CONSTRAINT_NAME = D.CONSTRAINT_NAME   -- column of foreign key target
-    AND D.TABLE_NAME = T.TABLE_NAME
-    AND T.R = C.R -- same position in the list
-    AND A.CONSTRAINT_TYPE = 'R'
-    AND B.COLUMN_NAME <> changelog_conf.Get_ColumnWorkspace
-    AND B.TABLE_NAME <> D.TABLE_NAME -- no recursive connection
-    UNION ALL
-    SELECT DISTINCT B.TABLE_NAME S_TABLE_NAME, CAST(B.COLUMN_NAME AS VARCHAR2(128)) S_COLUMN_NAME, T.TABLE_NAME T_TABLE_NAME, C.COLUMN_NAME T_COLUMN_NAME,
-        'CUSTOM_REF_ID' || T.R T_CHANGELOG_NAME,
-        A.CONSTRAINT_TYPE, A.DELETE_RULE,
-        1 C_RANK
-    FROM USER_CONSTRAINTS A
-    , USER_CONS_COLUMNS B
-    , (SELECT CAST(N.COLUMN_VALUE AS VARCHAR2(128)) TABLE_NAME, ROWNUM R FROM TABLE( changelog_conf.in_list(custom_changelog.Get_ChangeLogFKeyTables, ',') ) N) T
-    , (SELECT CAST(N.COLUMN_VALUE AS VARCHAR2(128)) COLUMN_NAME, ROWNUM R  FROM TABLE( changelog_conf.in_list(custom_changelog.Get_ChangeLogFKeyColumns, ',') ) N) C
-    WHERE A.CONSTRAINT_NAME = B.CONSTRAINT_NAME     -- column of primary key source
-    AND B.TABLE_NAME = T.TABLE_NAME
-    AND T.R = C.R -- same position in the list
-    AND A.CONSTRAINT_TYPE = 'P'
-) -- only one column for each table reference
-WHERE C_RANK = 1
+FROM table (changelog_conf.FN_Pipe_Changelog_References)
 ;
 
 ALTER  TABLE MVCHANGELOG_REFERENCES ADD

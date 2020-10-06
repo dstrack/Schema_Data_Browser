@@ -18,7 +18,13 @@ limitations under the License.
 CREATE OR REPLACE PACKAGE BODY data_browser_joins
 is
 	-- generate from clause to access user tables with resolved foreign key connections
-	CURSOR Describe_Joins_cur( v_View_Name varchar2, v_As_Of_Timestamp varchar2, v_Join_Options varchar2, v_Include_Schema varchar2)
+	CURSOR Describe_Joins_cur( 
+		v_View_Name varchar2, 
+		v_As_Of_Timestamp varchar2, 
+		v_Join_Options varchar2, 
+		v_Include_Schema varchar2,
+		v_List_Excluded varchar2
+	)
 	IS
 		WITH JOIN_OPTIONS AS ( -- decode join options from v_Join_Options. Example : 'B;K:C;K:D;N'
 			select /*+ CARDINALITY(10) */ SUBSTR(COLUMN_VALUE, 1, OFFSET1-1) TABLE_ALIAS, -- B, C, D, E ...
@@ -51,6 +57,7 @@ is
 				R_TABLE_NAME,
 				R_VIEW_NAME,
 				J_VIEW_NAME,
+				FOREIGN_KEY_COLS,
 				CAST(R_COLUMN_NAME AS VARCHAR2(128)) R_COLUMN_NAME,
 				COLUMN_PREFIX,
 				CAST(TABLE_ALIAS AS VARCHAR2(10)) TABLE_ALIAS,
@@ -66,6 +73,7 @@ is
 					G.R_TABLE_NAME,
 					G.R_VIEW_NAME,
 					G.VIEW_NAME J_VIEW_NAME,
+					G.FOREIGN_KEY_COLS,
 					F.TABLE_ALIAS,
 					data_browser_conf.Concat_List(F.TABLE_ALIAS, G.TABLE_ALIAS, '_') R_TABLE_ALIAS,
 					G.R_VIEW_NAME JOIN_VIEW_NAME,
@@ -122,7 +130,8 @@ is
 				JOIN_VIEW_NAME,
 				COLUMN_ID, 1 POSITION, MATCHING, COLUMNS_INCLUDED, TABLE_ALIAS,
 				R_TABLE_NAME,
-				data_browser_conf.Column_Name_to_Header(p_Column_Name => COLUMN_NAME, p_Remove_Extension => 'YES', p_Remove_Prefix => COLUMN_PREFIX) 
+				'A.'
+				||data_browser_conf.Column_Name_to_Header(p_Column_Name => COLUMN_NAME, p_Remove_Extension => 'NO', p_Remove_Prefix => COLUMN_PREFIX) 
 				|| '->' ||
 				data_browser_conf.Table_Name_To_Header(R_TABLE_NAME) TABLE_HEADER,
 				'A_REFS' SOURCE_INFO
@@ -139,8 +148,8 @@ is
 					|| ' ON ' 
 					|| data_browser_conf.Get_Join_Expression(
 						p_Left_Columns=>S.R_PRIMARY_KEY_COLS, p_Left_Alias=> S.TABLE_ALIAS,
-						p_Right_Columns=>S.COLUMN_NAME, p_Right_Alias=> 'A') 
-					JOIN_CLAUSE,
+						p_Right_Columns=>S.COLUMN_NAME, p_Right_Alias=> 'A'
+					) JOIN_CLAUSE,
 					S.R_VIEW_NAME JOIN_VIEW_NAME,
 					S.FK_COLUMN_ID COLUMN_ID,
 					case when S.DISPLAYED_COLUMN_NAMES IS NULL then 0 else 1 end MATCHING,
@@ -151,27 +160,27 @@ is
 				JOIN MVDATA_BROWSER_VIEWS T ON T.VIEW_NAME = S.VIEW_NAME
 				LEFT OUTER JOIN JOIN_OPTIONS J ON S.TABLE_ALIAS = J.TABLE_ALIAS
 				WHERE T.VIEW_NAME = v_View_Name
-				AND (J.COLUMNS_INCLUDED IN ('A','K') OR J.COLUMNS_INCLUDED IS NULL)
+				AND (J.COLUMNS_INCLUDED IN ('A','K') OR J.COLUMNS_INCLUDED IS NULL OR v_List_Excluded = 'YES')
 				-- avoid joins for file folder path 
 				AND (S.COLUMN_NAME != T.FOLDER_PARENT_COLUMN_NAME OR T.FOLDER_PARENT_COLUMN_NAME IS NULL)
 			)
 			UNION ALL -- foreign keys with unique columns and second level foreign keys
 			SELECT DISTINCT --+ INDEX(S)
 				S.COLUMN_NAME, S.COLUMN_PREFIX,
-				case when v_Include_Schema = 'YES' then 
-					S.JOIN_CLAUSE_EXPL
-				else 
-					S.JOIN_CLAUSE
-				end JOIN_CLAUSE, 
+				S.JOIN_CLAUSE, 
 				S.JOIN_VIEW_NAME,
 				S.COLUMN_ID, 2 POSITION, 1 MATCHING,
 				NVL(J.COLUMNS_INCLUDED, 'K') COLUMNS_INCLUDED,
 				S.R_TABLE_ALIAS TABLE_ALIAS,
 				S.R_TABLE_NAME,
-				data_browser_conf.Table_Name_To_Header(S.J_VIEW_NAME) || '->' ||
+				S.TABLE_ALIAS
+				||'.'
+				--||data_browser_conf.Table_Name_To_Header(S.J_VIEW_NAME) 
+				||data_browser_conf.Column_Name_to_Header(p_Column_Name => FOREIGN_KEY_COLS, p_Remove_Extension => 'NO', p_Remove_Prefix => COLUMN_PREFIX)
+				|| '->' ||
 				data_browser_conf.Table_Name_To_Header(S.R_VIEW_NAME) TABLE_HEADER,
 				'Q_REFS' SOURCE_INFO
-			FROM  TABLE(data_browser_select.FN_Pipe_browser_q_refs(v_View_Name)) S
+			FROM  TABLE(data_browser_select.FN_Pipe_browser_q_refs(p_View_Name => v_View_Name, p_Include_Schema => v_Include_Schema)) S
 			LEFT OUTER JOIN JOIN_OPTIONS J ON S.TABLE_ALIAS = J.TABLE_ALIAS
 			WHERE S.VIEW_NAME = v_View_Name
 			AND S.JOIN_CLAUSE IS NOT NULL
@@ -187,8 +196,11 @@ is
 				J.COLUMNS_INCLUDED,
 				S.R_TABLE_ALIAS TABLE_ALIAS,
 				S.R_TABLE_NAME,
-				data_browser_conf.Table_Name_To_Header(S.J_VIEW_NAME) || '->' ||
-				data_browser_conf.Table_Name_To_Header(S.R_VIEW_NAME) TABLE_HEADER,
+				S.TABLE_ALIAS
+				||'.'
+				||data_browser_conf.Column_Name_to_Header(p_Column_Name => FOREIGN_KEY_COLS, p_Remove_Extension => 'NO', p_Remove_Prefix => COLUMN_PREFIX)
+				||'->' 
+				||data_browser_conf.Table_Name_To_Header(S.R_VIEW_NAME) TABLE_HEADER,
 				'QC_REFS' SOURCE_INFO
 			FROM BROWSER_QC_REFS S
 			JOIN JOIN_OPTIONS J ON S.TABLE_ALIAS = J.TABLE_ALIAS
@@ -202,7 +214,8 @@ is
 		p_Table_Name VARCHAR2,
 		p_As_Of_Timestamp VARCHAR2 DEFAULT 'NO',
 		p_Join_Options VARCHAR2 DEFAULT NULL,
-		p_Include_Schema VARCHAR2 DEFAULT 'YES'
+		p_Include_Schema VARCHAR2 DEFAULT 'YES',
+		p_List_Excluded VARCHAR2 DEFAULT 'NO'
 	) RETURN data_browser_conf.tab_describe_joins PIPELINED
 	IS
 $IF DBMS_DB_VERSION.VERSION >= 12 $THEN
@@ -212,11 +225,11 @@ $END
 		v_joins_md5			VARCHAR2(300);
 		v_is_cached			VARCHAR2(10);
 	BEGIN
-		v_joins_md5	 := wwv_flow_item.md5 (p_Table_Name, p_As_Of_Timestamp, p_Join_Options, p_Include_Schema);
 		if p_Join_Options IS NOT NULL then
+			v_joins_md5	 := wwv_flow_item.md5 (p_Table_Name, p_As_Of_Timestamp, p_Join_Options, p_Include_Schema, p_List_Excluded);
 			v_is_cached	 := case when g_detail_joins_md5 != v_joins_md5 then 'load' else 'cached!' end;
 			if v_is_cached != 'cached!' then
-				OPEN Describe_Joins_cur (v_Table_Name, p_As_Of_Timestamp, p_Join_Options, p_Include_Schema);
+				OPEN Describe_Joins_cur (v_Table_Name, p_As_Of_Timestamp, p_Join_Options, p_Include_Schema, p_List_Excluded);
 				FETCH Describe_Joins_cur BULK COLLECT INTO g_detail_joins_tab;
 				CLOSE Describe_Joins_cur;
 				g_detail_joins_md5 := v_joins_md5;
@@ -226,9 +239,10 @@ $END
 				pipe row (g_detail_joins_tab(ind));
 			END LOOP;
 		else
+			v_joins_md5	 := wwv_flow_item.md5 (p_Table_Name, p_As_Of_Timestamp, p_Include_Schema);
 			v_is_cached	 := case when g_record_joins_md5 != v_joins_md5 then 'load' else 'cached!' end;
 			if v_is_cached != 'cached!' then
-				OPEN Describe_Joins_cur (v_Table_Name, p_As_Of_Timestamp, p_Join_Options, p_Include_Schema);
+				OPEN Describe_Joins_cur (v_Table_Name, p_As_Of_Timestamp, NULL, p_Include_Schema, p_List_Excluded);
 				FETCH Describe_Joins_cur BULK COLLECT INTO g_record_joins_tab;
 				CLOSE Describe_Joins_cur;
 				g_record_joins_md5 := v_joins_md5;
@@ -283,7 +297,7 @@ $END
 				p_idx => data_browser_conf.Get_Joins_Option_Index,
 				p_value => NVL(J.COLUMNS_INCLUDED, 'K'),
 				 p_list_values => APEX_LANG.LANG('Natural Keys') ||';K,' ||
-								 APEX_LANG.LANG('All') || ';A,' ||
+								 APEX_LANG.LANG('All Columns') || ';A,' ||
 								 APEX_LANG.LANG('None') || ';N',
 				p_item_id => 'f' || LPAD(data_browser_conf.Get_Joins_Option_Index, 2, '0') || '_' || ROWNUM,
 				p_attributes => q'[onChange="apex.submit('GO')"]',
@@ -291,7 +305,8 @@ $END
 			) COLUMNS_INCLUDED
 		FROM table(data_browser_joins.Get_Detail_Table_Joins_Cursor(
 			p_Table_Name =>	 p_Table_Name,
-			p_Join_Options => p_Join_Options
+			p_Join_Options => p_Join_Options,
+			p_List_Excluded => 'YES'
 		)) S
 		LEFT OUTER JOIN JOIN_OPTIONS J ON S.TABLE_ALIAS = J.TABLE_ALIAS
 		WHERE S.TABLE_ALIAS != 'A'

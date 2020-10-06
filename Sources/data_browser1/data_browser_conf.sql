@@ -396,7 +396,7 @@ IS
     	p_Max_Length NUMBER DEFAULT 30
     ) RETURN VARCHAR2 DETERMINISTIC;
 
-    FUNCTION Reference_Column_Name (
+    FUNCTION Reference_Column_Header (
     	p_Column_Name VARCHAR2,
     	p_Remove_Prefix VARCHAR2,
     	p_View_Name VARCHAR2,
@@ -2753,7 +2753,7 @@ $END
 		end if;
 		v_Result := TRIM('_' FROM v_Result);
 		if p_Remove_Extension = 'YES' then
-			v_Result2 := v_Result;
+			v_Result2 := '_' || v_Result;
 			for c_idx IN 1..g_Key_Column_Ext_Field_Array.count loop
 				v_Result2 := REGEXP_REPLACE(v_Result2, g_Key_Column_Ext_Field_Array(c_idx), '\1\2'); -- remove ending _ID2
 			end loop;
@@ -2915,11 +2915,11 @@ $END
         v_Half_Length CONSTANT INTEGER := FLOOR(p_Max_Length / 2);
     BEGIN
     	if p_Deduplication = 'YES' then
-    	    if p_First_Name = p_Second_Name OR p_Second_Name IS NULL then
+    	    if INSTR(p_First_Name, p_Second_Name) = 1 OR p_Second_Name IS NULL then
     			RETURN RTRIM(SUBSTR(p_First_Name, 1, p_Max_Length), '_');
-    		elsif p_First_Name = p_Second_Name OR p_First_Name IS NULL then
+    		elsif INSTR(p_Second_Name, p_First_Name) = 1  OR p_First_Name IS NULL then
     			RETURN RTRIM(SUBSTR(p_Second_Name, 1, p_Max_Length), '_');
-    		end if;
+    		end if;    		
     	else
     	    if p_Second_Name IS NULL then
     			RETURN RTRIM(SUBSTR(p_First_Name, 1, p_Max_Length), '_');
@@ -2931,7 +2931,7 @@ $END
     	   ||  RTRIM(SUBSTR(p_Second_Name, 1, GREATEST(v_Half_Length, p_Max_Length - 1 - LENGTH(p_First_Name))), '_');
     END Compose_Column_Name;
 
-    FUNCTION Reference_Column_Name (
+    FUNCTION Reference_Column_Header (
     	p_Column_Name VARCHAR2,
     	p_Remove_Prefix VARCHAR2,
     	p_View_Name VARCHAR2,
@@ -2955,7 +2955,7 @@ $END
 							p_Remove_Extension => 'YES', 
 							p_Remove_Prefix => p_Remove_Prefix)
 		end;
-	END Reference_Column_Name;
+	END Reference_Column_Header;
 
 	FUNCTION Get_Name_Part (
 		p_Name IN VARCHAR2,
