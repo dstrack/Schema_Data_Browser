@@ -66,7 +66,7 @@ FROM TABLE (data_browser_utl.Get_Detail_View_Column_Cursor(
 
 -- problem: the javascript init code is not executed on refresh of the region
 CREATE OR REPLACE VIEW VDATA_BROWSER_FILTER_CONDS (
-	SEQ_ID, Field, Operator, Expresson, Active, Remove, Add_Filter
+	SEQ_ID, Field, Operator, Expression, Active, Remove, Add_Filter
 )
 AS
 with col_info_q as (
