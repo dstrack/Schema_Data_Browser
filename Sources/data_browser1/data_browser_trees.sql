@@ -67,7 +67,6 @@ IS
 		from MVDATA_BROWSER_DESCRIPTIONS T, 
 			MVDATA_BROWSER_REFERENCES S
 		where S.VIEW_NAME = S.R_VIEW_NAME -- recursion 
-		and S.FOLDER_PARENT_COLUMN_NAME IS NULL -- not useful for folders
 		and T.VIEW_NAME = S.VIEW_NAME     
 		and (T.IS_ADMIN_TABLE = 'N' or v_App_Developer_Mode = 'YES' and data_browser_conf.Get_Admin_Enabled = 'Y')
 	), r_list as (
@@ -80,7 +79,6 @@ IS
 			R.COLUMN_NAME, R.CONSTRAINT_NAME, R.NUM_ROWS, R.FOLDER_NAME_COLUMN_NAME, R.FOLDER_PARENT_COLUMN_NAME
 		from MVDATA_BROWSER_REFERENCES R -- recursion 
 		where R.VIEW_NAME = R.R_VIEW_NAME
-		and R.FOLDER_PARENT_COLUMN_NAME IS NULL -- not useful for folders
 	)
 	SELECT  /*+ RESULT_CACHE */
 		STATUS, 

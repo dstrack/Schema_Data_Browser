@@ -383,7 +383,8 @@ CREATE OR REPLACE PACKAGE BODY import_utl IS
 										p_Char_Length 		=> T.CHAR_LENGTH,
 										p_Use_Group_Separator => case when v_Data_Format = 'FORM' then 'Y' else 'N' end
 									), 
-									p_Use_Group_Separator => case when v_Data_Format = 'FORM' then 'Y' else 'N' end 
+									p_Use_Group_Separator => case when v_Data_Format = 'FORM' then 'Y' else 'N' end,
+									p_use_NLS_params => case when v_Data_Format = 'FORM' then 'N' else 'Y' end
 								)
 							end
 						else ':new.' || 'LINK_ID$'
@@ -448,8 +449,10 @@ CREATE OR REPLACE PACKAGE BODY import_utl IS
 							p_Char_Length 		=> T.CHAR_LENGTH,
 							p_Use_Group_Separator => 'Y'
 						), 
-						p_Use_Group_Separator => 'Y' )
-						|| ' ' || T.COLUMN_NAME, ', ')
+						p_Use_Group_Separator => 'Y',
+						p_use_NLS_params => case when v_Data_Format = 'FORM' then 'N' else 'Y' end
+					)
+					|| ' ' || T.COLUMN_NAME, ', ')
 					WITHIN GROUP (ORDER BY T.COLUMN_ID) || chr(10)
 				|| '    FROM '
 				|| S.SHORT_NAME || '_IMP)'  FROM_CHECK_EXPR,

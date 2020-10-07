@@ -390,7 +390,8 @@ $END
 							p_DATA_TYPE 	=> DATA_TYPE,
 							p_DATA_SCALE 	=> DATA_SCALE,
 							p_FORMAT_MASK 	=> FORMAT_MASK,
-							p_USE_GROUP_SEPARATOR => v_Use_Group_Separator
+							p_USE_GROUP_SEPARATOR => v_Use_Group_Separator,
+							p_use_NLS_params => case when p_Data_Source = 'COLLECTION' then 'Y' else 'N' end
 						)
 					end
 				end UNIQUE_QUERY,
@@ -404,7 +405,8 @@ $END
 						p_DATA_TYPE 	=> DATA_TYPE,
 						p_DATA_SCALE 	=> DATA_SCALE,
 						p_FORMAT_MASK 	=> FORMAT_MASK,
-						p_USE_GROUP_SEPARATOR => v_Use_Group_Separator
+						p_USE_GROUP_SEPARATOR => v_Use_Group_Separator,
+						p_use_NLS_params => case when p_Data_Source = 'COLLECTION' then 'Y' else 'N' end
 					)
 					|| ' ' || R_COLUMN_NAME || ' FROM DUAL) WHERE ' 
 					|| case when p_Data_Source = 'COLLECTION' and IS_NUMBER_YES_NO_COLUMN = 'Y' then 
@@ -443,7 +445,8 @@ $END
 						p_DATA_TYPE 	=>  c_cur.DATA_TYPE,
 						p_DATA_SCALE 	=>  c_cur.DATA_SCALE,
 						p_FORMAT_MASK 	=>  c_cur.FORMAT_MASK,
-						p_USE_GROUP_SEPARATOR => v_Use_Group_Separator
+						p_USE_GROUP_SEPARATOR => v_Use_Group_Separator,
+						p_use_NLS_params => case when p_Data_Source = 'COLLECTION' then 'Y' else 'N' end
 					)
 					|| ';' || chr(10);
 			elsif c_cur.UNIQUE_QUERY IS NOT NULL OR c_cur.CHECK_QUERY IS NOT NULL then
@@ -599,7 +602,8 @@ $END
 								p_DATA_TYPE 	=> DATA_TYPE,
 								p_DATA_SCALE 	=> DATA_SCALE,
 								p_FORMAT_MASK 	=> FORMAT_MASK,
-								p_USE_GROUP_SEPARATOR => v_Use_Group_Separator
+								p_USE_GROUP_SEPARATOR => v_Use_Group_Separator,
+								p_use_NLS_params => case when p_Data_Source = 'COLLECTION' then 'Y' else 'N' end
 							)
 							|| case when T.KEY_REQUIRED = 'N' then
 								' OR ' || COLUMN_NAME
@@ -619,7 +623,8 @@ $END
 							p_DATA_TYPE 	=> DATA_TYPE,
 							p_DATA_SCALE 	=> DATA_SCALE,
 							p_FORMAT_MASK 	=> FORMAT_MASK,
-							p_USE_GROUP_SEPARATOR => v_Use_Group_Separator
+							p_USE_GROUP_SEPARATOR => v_Use_Group_Separator,
+							p_use_NLS_params => case when p_Data_Source = 'COLLECTION' then 'Y' else 'N' end
 						)
 						|| ' ' || R_COLUMN_NAME
 						, ', '
@@ -1492,7 +1497,8 @@ $END
 						p_DATA_TYPE 	=> DATA_TYPE,
 						p_DATA_SCALE 	=> DATA_SCALE,
 						p_FORMAT_MASK 	=> FORMAT_MASK,
-						p_USE_GROUP_SEPARATOR => v_Use_Group_Separator
+						p_USE_GROUP_SEPARATOR => v_Use_Group_Separator,
+						p_use_NLS_params => 'N'
 					)
 				end UNIQUE_QUERY,
 				case when CHECK_CONDITION IS NOT NULL then
@@ -1502,7 +1508,8 @@ $END
 						p_Data_Type 	=> DATA_TYPE,
 						p_Data_Scale 	=> DATA_SCALE,
 						p_Format_Mask 	=> FORMAT_MASK,
-						p_Use_Group_Separator => v_Use_Group_Separator
+						p_Use_Group_Separator => v_Use_Group_Separator,
+						p_use_NLS_params => 'N'
 					)
 					|| ' ' || R_COLUMN_NAME || ' FROM DUAL) WHERE ' || CHECK_CONDITION
 				end CHECK_QUERY
@@ -2742,7 +2749,9 @@ $END
 							p_Format_Mask	=> FORMAT_MASK,
 							p_LOV_Query		=> case when COLUMN_EXPR_TYPE = 'POPUP_FROM_LOV' and (IS_FILE_FOLDER_REF = 'N' or LOV_QUERY IS NULL) then 
 														'select distinct ' || COLUMN_EXPR || ' d, ' || COLUMN_EXPR || ' r'
-														|| ' from ' || data_browser_conf.Enquote_Name_Required(REF_VIEW_NAME) || ' ' || TABLE_ALIAS 
+														|| ' from ' 
+														|| data_browser_select.FN_Table_Prefix
+														|| data_browser_conf.Enquote_Name_Required(REF_VIEW_NAME) || ' ' || TABLE_ALIAS 
 														|| ' order by 1'
 													when COLUMN_EXPR_TYPE = 'POPUP_FROM_LOV' and IS_FILE_FOLDER_REF = 'Y' and LOV_QUERY IS NOT NULL then 
 														LOV_QUERY
@@ -3706,7 +3715,8 @@ $END
 								p_Data_Scale 		=> T.R_DATA_SCALE,
 								p_Char_Length 		=> T.R_CHAR_LENGTH
 							),
-							p_Use_Group_Separator => 'Y'
+							p_Use_Group_Separator => 'Y',
+							p_use_NLS_params => 'Y'
 						)
 						, ', ') WITHIN GROUP (ORDER BY R_COLUMN_ID, POSITION)
 					|| ') RETURNING (' || T.R_PRIMARY_KEY_COLS || ') INTO ' 
@@ -3783,7 +3793,8 @@ $END
 										p_Data_Precision 	=> T.R_DATA_PRECISION,
 										p_Data_Scale 		=> T.R_DATA_SCALE,
 										p_Char_Length 		=> T.R_CHAR_LENGTH
-									)
+									),
+									p_use_NLS_params => 'N'
 								)
 						, ', ') WITHIN GROUP (ORDER BY R_COLUMN_ID, POSITION)
 					|| ') RETURNING (' || T.R_PRIMARY_KEY_COLS || ') INTO ' || T.D_REF || ';' 
@@ -4961,7 +4972,9 @@ $END
 								p_Data_Type => c_cur.DATA_TYPE, 
 								p_Data_Scale => c_cur.DATA_SCALE, 
 								p_Format_Mask => c_cur.FORMAT_MASK, 
-								p_Use_Group_Separator => 'Y' )
+								p_Use_Group_Separator => 'Y',
+								p_use_NLS_params => 'Y'
+							)
 					end,
 					p_Is_Virtual_Column => c_cur.IS_VIRTUAL_COLUMN
 				);
@@ -5311,12 +5324,15 @@ $END
 						then c_cur.APEX_ITEM_CALL
 					when c_cur.COLUMN_EXPR_TYPE = 'TEXT_EDITOR'
 						then data_browser_blobs.Get_Clob_from_form_call(c_cur.APEX_ITEM_CALL, c_cur.DATA_TYPE)
-					else data_browser_conf.Get_Char_to_Type_Expr(
-						p_Element => c_cur.APEX_ITEM_CALL, 
-						p_Data_Type => c_cur.DATA_TYPE, 
-						p_Data_Scale => c_cur.DATA_SCALE, 
-						p_Format_Mask => c_cur.FORMAT_MASK, 
-						p_Use_Group_Separator => v_Use_Group_Separator )
+					else 
+						data_browser_conf.Get_Char_to_Type_Expr(
+							p_Element => c_cur.APEX_ITEM_CALL, 
+							p_Data_Type => c_cur.DATA_TYPE, 
+							p_Data_Scale => c_cur.DATA_SCALE, 
+							p_Format_Mask => c_cur.FORMAT_MASK, 
+							p_Use_Group_Separator => v_Use_Group_Separator,
+							p_use_NLS_params => case when p_Data_Source = 'COLLECTION' then 'Y' else 'N' end
+						)
 				end;
 			v_Insert_Ref := v_Column_Expr;
 			if v_Apex_Item_Rows_Call IS NULL 

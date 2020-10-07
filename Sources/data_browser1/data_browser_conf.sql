@@ -425,15 +425,16 @@ IS
     )
     RETURN VARCHAR2 DETERMINISTIC;
 
-    FUNCTION Get_ExportColFunction(
+    FUNCTION Get_ExportColFunction (
         p_Column_Name VARCHAR2,
         p_Data_Type VARCHAR2,
         p_Data_Precision NUMBER,
         p_Data_Scale NUMBER,
         p_Char_Length NUMBER,
         p_Use_Group_Separator VARCHAR2 DEFAULT 'N',
-        p_Use_Trim VARCHAR2 DEFAULT 'Y',
-        p_Datetime VARCHAR2 DEFAULT NULL -- Y,N
+        p_Use_Trim VARCHAR2 DEFAULT 'Y',	-- trim leading spaces from formated numbers; trim text to limit
+        p_Datetime VARCHAR2 DEFAULT NULL, 	-- Y,N
+        p_use_NLS_params VARCHAR2 DEFAULT 'Y'
     ) RETURN VARCHAR2 DETERMINISTIC;
 
     FUNCTION Get_Field_Length (
@@ -463,7 +464,8 @@ IS
         p_Data_Type VARCHAR2,
         p_Data_Scale NUMBER,
         p_Format_Mask VARCHAR2,
-        p_Use_Group_Separator VARCHAR2 DEFAULT 'N'
+        p_Use_Group_Separator VARCHAR2 DEFAULT 'N',
+        p_use_NLS_params VARCHAR2 DEFAULT 'Y'
     ) RETURN VARCHAR2 DETERMINISTIC;
 
 	FUNCTION Build_Condition (
@@ -2993,14 +2995,21 @@ $END
 
 
 	FUNCTION Int_Use_Goup_Separator(
+		p_Data_Precision NUMBER,
 		p_Data_Scale NUMBER,
 		p_Use_Group_Separator VARCHAR2 DEFAULT 'Y')
 	RETURN VARCHAR2 DETERMINISTIC
 	IS
+    	v_Data_Precision CONSTANT PLS_INTEGER := NVL(p_Data_Precision, numbers_utl.g_Default_Data_Precision);
     	v_Data_Scale CONSTANT PLS_INTEGER := NVL(p_Data_Scale, numbers_utl.g_Default_Data_Scale);
 	BEGIN
-    	RETURN case when p_Use_Group_Separator = 'Y'
-			and ((v_Data_Scale > 0 and g_Decimal_Goup_Separator = 'YES')
+		if p_Use_Group_Separator = 'N' then 
+			return 'N';
+		end if;
+		if v_Data_Precision - v_Data_Scale < 4 then -- small number less than 1000 
+			return 'N';
+		end if;
+    	RETURN case when ((v_Data_Scale > 0 and g_Decimal_Goup_Separator = 'YES')
 			  or (v_Data_Scale = 0 and g_Integer_Goup_Separator = 'YES'))
 				then 'Y' else 'N' 
 		end;
@@ -3021,7 +3030,7 @@ $END
 		RETURN numbers_utl.Get_Number_Format_Mask (
 			p_Data_Precision => p_Data_Precision,
 			p_Data_Scale => p_Data_Scale,
-			p_Use_Group_Separator => Int_Use_Goup_Separator( p_Data_Scale, p_Use_Group_Separator),
+			p_Use_Group_Separator => Int_Use_Goup_Separator(p_Data_Precision, p_Data_Scale, p_Use_Group_Separator),
 			p_Export => p_Export,
 			p_Use_Trim => p_Use_Trim
 		);
@@ -3073,7 +3082,8 @@ $END
         p_Char_Length NUMBER,
         p_Use_Group_Separator VARCHAR2 DEFAULT 'N',
         p_Use_Trim VARCHAR2 DEFAULT 'Y',	-- trim leading spaces from formated numbers; trim text to limit
-        p_Datetime VARCHAR2 DEFAULT NULL 	-- Y,N
+        p_Datetime VARCHAR2 DEFAULT NULL, 	-- Y,N
+        p_use_NLS_params VARCHAR2 DEFAULT 'Y'
     ) RETURN VARCHAR2 DETERMINISTIC
     IS
 	PRAGMA UDF;
@@ -3081,6 +3091,7 @@ $END
 		v_Column_Name VARCHAR2(128);
 		v_Trimset VARCHAR2(10);
 		v_Export_Text_Limit PLS_INTEGER;
+		v_Use_Group_Separator VARCHAR2(10);
 		v_Format_Mask VARCHAR2(1024);
 		v_Result VARCHAR2(1024);
 	BEGIN
@@ -3091,28 +3102,37 @@ $END
 			else
 				v_Is_DateTime := (p_Datetime = 'Y');
 			end if;
+		else 
+			v_Use_Group_Separator := Int_Use_Goup_Separator(p_Data_Precision, p_Data_Scale, p_Use_Group_Separator);
 		end if;
 		
         case
-        when p_Data_Type = 'NUMBER' AND p_Data_Precision IS NULL and p_Data_Scale IS NULL and p_Use_Group_Separator = 'Y' then 
+        when p_Data_Type = 'NUMBER' AND p_Data_Precision IS NULL and p_Data_Scale IS NULL and v_Use_Group_Separator = 'Y' then 
         	v_Result := 'FN_NUMBER_TO_CHAR(' || p_Column_Name || ')';
-        when p_Data_Type = 'NUMBER' AND (p_Data_Scale > 0 or Int_Use_Goup_Separator( p_Data_Scale, p_Use_Group_Separator) = 'Y') then
-        	v_Format_Mask := Get_Number_Format_Mask(p_Data_Precision, p_Data_Scale, p_Use_Group_Separator, p_Export => 'Y', p_Use_Trim => 'N');
+        when p_Data_Type = 'NUMBER' AND (p_Data_Scale > 0 or v_Use_Group_Separator = 'Y') then
+        	v_Format_Mask := Get_Number_Format_Mask(p_Data_Precision, p_Data_Scale, v_Use_Group_Separator, p_Export => 'Y', p_Use_Trim => 'N');
             v_Result := 'TO_CHAR(' || p_Column_Name || ', '
             || Enquote_Literal(v_Format_Mask)
-            || ', ' || Get_Export_NumChars || ')';
+            || case when p_use_NLS_params = 'Y' then ', ' || Get_Export_NumChars end
+            || ')';
 			if p_Use_Trim = 'Y' then 
 				v_Result := 'LTRIM(' || v_Result || ')';
 			end if;
         when p_Data_Type = 'NUMBER' AND NULLIF(p_Data_Scale, 0) IS NULL then
-            v_Result := 'TO_CHAR(' || p_Column_Name || ', '
-            || Enquote_Literal('TM9')
-            || ', ' || Get_Export_NumChars || ')';
+        	if p_Data_Precision < 4 then 
+        		v_Result := 'TO_CHAR(' || p_Column_Name || ')';
+        	else
+				v_Result := 'TO_CHAR(' || p_Column_Name || ', '
+				|| Enquote_Literal('TM9')
+				|| case when p_use_NLS_params = 'Y' then ', ' || Get_Export_NumChars end
+				|| ')';
+            end if;
         when p_Data_Type = 'FLOAT' then
-            v_Format_Mask := Get_Number_Format_Mask(numbers_utl.g_Default_Data_Precision, numbers_utl.g_Default_Data_Scale, p_Use_Group_Separator, p_Export => 'Y', p_Use_Trim => p_Use_Trim);
+            v_Format_Mask := Get_Number_Format_Mask(numbers_utl.g_Default_Data_Precision, numbers_utl.g_Default_Data_Scale, v_Use_Group_Separator, p_Export => 'Y', p_Use_Trim => p_Use_Trim);
             v_Result := 'TO_CHAR(' || p_Column_Name || ', '
             || Enquote_Literal(v_Format_Mask)
-            || ', ' || Get_Export_NumChars || ')';
+            || case when p_use_NLS_params = 'Y' then ', ' || Get_Export_NumChars end
+            || ')';
         when p_Data_Type = 'RAW' then
             v_Result := 'RAWTOHEX(' || p_Column_Name || ')';
         when p_Data_type = 'BLOB' then
@@ -3121,12 +3141,14 @@ $END
             v_Result := 'TO_CHAR(' 
             || p_Column_Name
             -- || case when p_Use_Trim = 'Y' then 'GREATEST(' || p_Column_Name || q'[, DATE '0001-01-01')]' else p_Column_Name end 
-            || ', ' || Enquote_Literal(Get_Export_DateTime_Format) || ')';	-- avoid display of dates that can not be processed.
+            || ', ' || Enquote_Literal(Get_Export_DateTime_Format) 
+            || ')';	-- avoid display of dates that can not be processed.
         when p_Data_Type = 'DATE' then
             v_Result := 'TO_CHAR(' 
             || p_Column_Name
             -- || case when p_Use_Trim = 'Y' then 'GREATEST(' || p_Column_Name || q'[, DATE '0001-01-01')]' else p_Column_Name end
-            || ', ' || Enquote_Literal(Get_Export_Date_Format) || ')';	-- avoid display of dates that can not be processed.
+            || ', ' || Enquote_Literal(Get_Export_Date_Format) 
+            || ')';	-- avoid display of dates that can not be processed.
         when p_Data_Type LIKE 'TIMESTAMP%' and v_Is_DateTime then
             v_Result := 'TO_CHAR(CAST(' || p_Column_Name || ' AS DATE), ' || Enquote_Literal(Get_Export_DateTime_Format) || ')';
         when p_Data_Type LIKE 'TIMESTAMP%' then
@@ -3251,11 +3273,12 @@ $END
         p_Data_Type VARCHAR2,
         p_Data_Scale NUMBER,
         p_Format_Mask VARCHAR2,
-        p_Use_Group_Separator VARCHAR2 DEFAULT 'N'
+        p_Use_Group_Separator VARCHAR2 DEFAULT 'N',
+        p_use_NLS_params VARCHAR2 DEFAULT 'Y'
     ) RETURN VARCHAR2 DETERMINISTIC
     IS
 	PRAGMA UDF;
-        v_Format_Mask CONSTANT VARCHAR2(255) := -- NULLIF(p_Format_Mask, 'TM9'); 
+        v_Format_Mask CONSTANT VARCHAR2(255) := 
         	case when p_Format_Mask = 'TM9' 
 				then Get_Number_Format_Mask(numbers_utl.g_Default_Data_Precision, numbers_utl.g_Default_Data_Scale, p_Use_Group_Separator => 'Y', p_Export => 'Y')
 				else p_Format_Mask
@@ -3268,12 +3291,12 @@ $END
 			when p_Data_Type = 'NUMBER' and (p_Data_Scale > 0 or p_Use_Group_Separator = 'Y') and v_Format_Mask IS NOT NULL then
 				'FN_TO_NUMBER(' || p_Element
 				|| ', ' || Enquote_Literal(v_Format_Mask)
-				|| ', ' || Get_Export_NumChars
+				|| case when p_use_NLS_params = 'Y' then ', ' || Get_Export_NumChars end
 				|| ')'
 			when p_Data_Type = 'FLOAT' and v_Format_Mask IS NOT NULL then
 				'FN_TO_NUMBER(' || p_Element
 				|| ', ' || Enquote_Literal(v_Format_Mask)
-				|| ', ' || Get_Export_NumChars
+				|| case when p_use_NLS_params = 'Y' then ', ' || Get_Export_NumChars end
 				|| ')'
 			when p_Data_Type IN ('NUMBER', 'FLOAT') then
 				'TO_NUMBER(' || p_Element || ')'
@@ -3376,7 +3399,8 @@ $END
 							p_Char_Length 		=> p_Char_Length,
 							p_Use_Group_Separator => p_Use_Group_Separator
 						),
-						p_Use_Group_Separator => p_Use_Group_Separator
+						p_Use_Group_Separator => p_Use_Group_Separator,
+						p_use_NLS_params => case when p_Data_Source = 'COLLECTION' then 'Y' else 'N' end
 					)
             end;
     END Get_Compare_Case_Insensitive;

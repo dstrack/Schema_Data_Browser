@@ -1133,7 +1133,7 @@ is
 						p_Data_Precision => S.R_DATA_PRECISION,
 						p_Data_Scale => S.R_DATA_SCALE,
 						p_Char_Length => S.R_CHAR_LENGTH,
-						p_Data_Format => case when E.COLUMN_NAME IS NULL then 'NATIVE' else v_Data_Format end,
+						p_Data_Format => case when E.COLUMN_NAME IS NULL then v_Data_Format else 'CSV' end,
 						p_Use_Trim => 'Y'
 					) COLUMN_EXPR,
 					S.HAS_HELP_TEXT,
@@ -1269,7 +1269,7 @@ is
 						p_Data_Precision => S.R_DATA_PRECISION,
 						p_Data_Scale => S.R_DATA_SCALE,
 						p_Char_Length => S.R_CHAR_LENGTH,
-						p_Data_Format => case when E.COLUMN_NAME IS NULL then 'NATIVE' else v_Data_Format end,
+						p_Data_Format => case when E.COLUMN_NAME IS NULL then v_Data_Format else 'CSV' end,
 						p_Use_Trim => 'Y'
 					) COLUMN_EXPR,
 					S.HAS_HELP_TEXT,
@@ -1394,9 +1394,10 @@ is
 				p_Data_Precision => p_Data_Precision,
 				p_Data_Scale => p_Data_Scale,
 				p_Char_Length => p_Char_Length,
-				p_Use_Group_Separator => case when p_Data_Format = 'FORM' then 'Y' else 'N' end,
+				p_Use_Group_Separator => case when p_Data_Format IN ('FORM', 'HTML') then 'Y' else 'N' end,
 				p_Use_Trim => p_Use_Trim,
-				p_Datetime => p_Datetime
+				p_Datetime => p_Datetime,
+				p_use_NLS_params => case when p_Data_Format IN ('FORM', 'HTML') then 'N' else 'Y' end
 			);
 		else
 			return p_Column_Name;
@@ -2643,7 +2644,7 @@ is
 						p_Data_Precision => DATA_PRECISION,
 						p_Data_Scale => DATA_SCALE,
 						p_Char_Length => CHAR_LENGTH,
-						p_Data_Format => case when R_VIEW_NAME IS NULL then 'FORM' else 'NATIVE' end,
+						p_Data_Format => case when R_VIEW_NAME IS NULL then 'FORM' else 'CSV' end,
 						p_Use_Trim => 'Y',
 						p_Datetime => IS_DATETIME
 					) C_COLUMN_EXPR,
@@ -3551,7 +3552,7 @@ $END
 						p_Data_Precision => DATA_PRECISION,
 						p_Data_Scale => DATA_SCALE,
 						p_Char_Length => CHAR_LENGTH,
-						p_Data_Format => case when R_VIEW_NAME IS NULL then 'FORM' else 'NATIVE' end,
+						p_Data_Format => case when R_VIEW_NAME IS NULL then 'FORM' else 'CSV' end,
 						p_Use_Trim => 'Y',
 						p_Datetime => IS_DATETIME
 					) C_COLUMN_EXPR,
@@ -4121,6 +4122,7 @@ $END
 				if p_Data_Source = 'TABLE' then
 					if p_Data_Format IN ('FORM', 'HTML')
 					and g_Describe_Cols_tab(ind).COLUMN_EXPR_TYPE IN ('TEXT', 'POPUP_FROM_LOV', 'DISPLAY_AND_SAVE') 
+					and g_Describe_Cols_tab(ind).CHAR_LENGTH > 0 -- only text columns
 					and p_Edit_Mode = 'NO' then
 						v_Column_Expr := 'APEX_ESCAPE.HTML(' || v_Column_Expr || ')';	-- bugfix for XSS vulnerability reported by joel.kallman@oracle.com on 11.06.2020
 					end if;
@@ -4467,6 +4469,7 @@ $END
 				if p_Data_Source = 'TABLE' 
 				and p_Data_Format IN ('FORM', 'HTML')
 				and g_Describe_Cols_tab(ind).COLUMN_EXPR_TYPE IN ('TEXT', 'POPUP_FROM_LOV', 'DISPLAY_AND_SAVE') 
+				and g_Describe_Cols_tab(ind).CHAR_LENGTH > 0 -- only text columns
 				and p_Edit_Mode = 'NO' then
 					v_Column_Expr := 'APEX_ESCAPE.HTML(' || v_Column_Expr || ')';	-- bugfix for XSS vulnerability reported by joel.kallman@oracle.com on 11.06.2020
 				end if;
