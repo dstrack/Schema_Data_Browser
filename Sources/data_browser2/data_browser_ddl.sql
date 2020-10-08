@@ -456,7 +456,8 @@ CREATE OR REPLACE PACKAGE BODY data_browser_ddl IS
 			for v_RunNo in 1..9 loop
 				SELECT COUNT(*) INTO v_Count
 				FROM SYS.USER_CONSTRAINTS 
-				WHERE CONSTRAINT_NAME = v_Constraint_Name||NULLIF(v_RunNo, 0);
+				WHERE CONSTRAINT_NAME = v_Constraint_Name||NULLIF(v_RunNo, 0)
+				AND OWNER = SYS_CONTEXT('USERENV', 'CURRENT_SCHEMA');
 				exit when v_Count = 0; 
 			end loop;
 			v_Constraint_Name := v_Constraint_Name || NULLIF(v_RunNo, 0);

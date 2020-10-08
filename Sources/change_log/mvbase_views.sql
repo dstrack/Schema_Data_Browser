@@ -304,7 +304,7 @@ FROM (
         FROM SYS.USER_CONSTRAINTS A, MVBASE_ALTER_UNIQUEKEYS P, MVBASE_ALTER_UNIQUEKEYS B, MVBASE_VIEWS FV
         WHERE A.R_CONSTRAINT_NAME = P.CONSTRAINT_NAME -- reference target
         AND A.TABLE_NAME = B.TABLE_NAME
-        AND A.TABLE_NAME = FV.TABLE_NAME(+) -- initially the view does not exist
+        AND A.TABLE_NAME = FV.TABLE_NAME(+) AND A.OWNER = FV.OWNER (+)-- initially the view does not exist
         AND A.CONSTRAINT_TYPE = 'R'
         AND A.STATUS = 'ENABLED'
         AND P.CONSTRAINT_TYPE IN ('P', 'U')
