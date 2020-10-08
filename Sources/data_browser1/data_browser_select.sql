@@ -505,9 +505,15 @@ is
 							, p_Deduplication=>'YES', p_Max_Length=>29)
 						, p_Second_Name => 'TOTAL', p_Deduplication=>'NO', p_Max_Length=>29
 					) COLUMN_NAME,
-					data_browser_conf.Compose_Column_Name(
-						p_First_Name=> COLUMN_HEADER
-						, p_Second_Name => S.COLUMN_NAME, p_Deduplication=>'YES', p_Max_Length=>128
+					data_browser_conf.Column_Name_to_Header(
+						p_Column_Name => data_browser_conf.Compose_Column_Name(
+							p_First_Name=> COLUMN_HEADER
+							, p_Second_Name => S.COLUMN_NAME
+							, p_Deduplication=>'YES', p_Max_Length=>128
+						),
+						p_Remove_Extension => 'YES', 
+						p_Remove_Prefix => S.COLUMN_PREFIX,
+						p_Is_Upper_Name => data_browser_pattern.Match_Upper_Names_Columns(S.COLUMN_NAME)
 					) COLUMN_HEADER,
 					COLUMN_PREFIX, 
 					DATA_TYPE, DATA_PRECISION, DATA_SCALE, CHAR_LENGTH, IS_DATETIME, NULLABLE, FORMAT_MASK,
@@ -893,12 +899,15 @@ is
 					T.POSITION,
 					T.COLUMN_NAME IMP_COLUMN_NAME,
 					T.COLUMN_ALIGN,
-					case when T.IS_FOREIGN_KEY = 'Y'
-						then data_browser_conf.Column_Name_to_Header(p_Column_Name=> T.COLUMN_NAME, p_Remove_Extension=>'NO', 
-									p_Remove_Prefix=>S.COLUMN_PREFIX, 
-									p_Is_Upper_Name=>T.IS_UPPER_NAME
-								)
-						else T.COLUMN_HEADER
+					case when T.IS_FOREIGN_KEY = 'Y' then 
+						data_browser_conf.Column_Name_to_Header(
+							p_Column_Name=> T.COLUMN_NAME, 
+							p_Remove_Extension=>'NO', 
+							p_Remove_Prefix=>S.COLUMN_PREFIX, 
+							p_Is_Upper_Name=>T.IS_UPPER_NAME
+						)
+					else 
+						T.COLUMN_HEADER
 					end COLUMN_HEADER,
 					S.COLUMN_PREFIX,
 					case 
@@ -1310,7 +1319,7 @@ is
 					end IS_SEARCHABLE_REF,
 					'N' IS_SUMMAND, 'N' IS_VIRTUAL_COLUMN, null IS_DATETIME,
 					S.COLUMN_ID, S.R_COLUMN_ID, S.POSITION,
-					S.IMP_COLUMN_NAME IMP_COLUMN_NAME,
+					S.IMP_COLUMN_NAME,
 					S.COLUMN_ALIGN,
 					S.COLUMN_HEADER,
 					S.COLUMN_PREFIX,

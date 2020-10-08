@@ -666,7 +666,7 @@ FROM (
 							p_Remove_Prefix => S.COLUMN_PREFIX),
 						data_browser_conf.Normalize_Table_Name(p_Table_Name => F.R_VIEW_NAME))
 					, C.COLUMN_NAME
-					, 'NO', 29)
+					, p_Deduplication => 'NO', p_Max_Length => 29)
 			else 
 				data_browser_conf.Normalize_Column_Name(
 					p_Column_Name => T.COLUMN_NAME ,
@@ -688,7 +688,7 @@ FROM (
 								p_Remove_Prefix => S.COLUMN_PREFIX),
 							data_browser_conf.Normalize_Table_Name(p_Table_Name => F.R_VIEW_NAME))
 						, C.COLUMN_NAME
-						, 'NO', 128)
+						, p_Deduplication => 'YES', p_Max_Length => 128)
 				end
 			else 
 				data_browser_conf.Normalize_Column_Name(
