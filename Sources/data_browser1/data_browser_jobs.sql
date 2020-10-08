@@ -1300,7 +1300,6 @@ $END
 		return v_Job_State;
 	END Get_User_Job_State_Peek;
 
-
 	FUNCTION Get_User_Job_State1 (
     	p_context  	IN binary_integer DEFAULT FN_Scheduler_Context
     )
@@ -1457,9 +1456,15 @@ $END
 		v_Job_Name 	USER_SCHEDULER_JOBS.JOB_NAME%TYPE := SUBSTR(data_browser_jobs.Get_Job_Name_Prefix || p_Job_Name, 1, 17);
 		v_Time_Range CONSTANT NUMBER := (1 / 24 / 60 * 2); --  2 minutes
 		v_Short_Range CONSTANT NUMBER := (1 / 24 / 60 / 60 * 5); --  5 seconds
-
         CURSOR jobs_cur2
         IS
+        	with job_stats_q as (
+				select SUBSTR(JOB_NAME, 1, 17) JOB_NAME, NVL(AVG((((DATE '0001-01-01') + RUN_DURATION)-(DATE '0001-01-01'))), 120) Estimated_Time
+				from USER_SCHEDULER_JOB_RUN_DETAILS 
+				where STATUS = 'SUCCEEDED'
+				and ACTUAL_START_DATE > SYSDATE-2
+				GROUP BY SUBSTR(JOB_NAME, 1, 17)
+        	)
 			SELECT	DISTINCT
 					S.SID, S.SERIAL#, S.SOFAR, S.TOTALWORK, S.CONTEXT, S.START_TIME, 
 					S.LAST_UPDATE_TIME, S.MESSAGE, S.TIME_REMAINING, S.ELAPSED_TIME, S.PERCENT, S.STATE,
@@ -1481,12 +1486,12 @@ $END
 							CAST(A.START_DATE AS DATE) START_TIME, 
                             CAST((A.START_DATE + B.ELAPSED_TIME)AS DATE) LAST_UPDATE_TIME, 
 							A.COMMENTS MESSAGE, 
-							(DATE '0001-01-01'+ Estimated_Time) - B.ELAPSED_TIME TIME_REMAINING, 
+							(DATE '0001-01-01'+ NVL(S.Estimated_Time * 1.2, v_Time_Range)) - B.ELAPSED_TIME TIME_REMAINING, 
 							DATE '0001-01-01'+B.ELAPSED_TIME ELAPSED_TIME,
-							A.STATE, A.JOB_NAME, Estimated_Time
+							A.STATE, A.JOB_NAME, NVL(S.Estimated_Time * 1.2, v_Time_Range) Estimated_Time
 					FROM USER_SCHEDULER_JOBS A
-					JOIN USER_SCHEDULER_RUNNING_JOBS B ON A.JOB_NAME = B.JOB_NAME,
-                    (select v_Time_Range Estimated_Time from dual) par
+					JOIN USER_SCHEDULER_RUNNING_JOBS B ON A.JOB_NAME = B.JOB_NAME
+					LEFT OUTER JOIN job_stats_q S ON S.JOB_NAME = SUBSTR(B.JOB_NAME, 1, 17)
 					WHERE A.JOB_NAME LIKE v_Job_Name || '%'
 					ORDER BY START_TIME DESC
 				) WHERE ROWNUM <= 10

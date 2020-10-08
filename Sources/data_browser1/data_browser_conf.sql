@@ -953,6 +953,7 @@ $END
 	g_Base_Table_Prefix_Field_Array apex_t_varchar2 := apex_t_varchar2();
 	g_Base_Table_Ext_Field_Array apex_t_varchar2 := apex_t_varchar2();
 	g_Key_Column_Ext_Field_Array apex_t_varchar2 := apex_t_varchar2();
+	g_Key_Column_Ext_Pat_Array  apex_t_varchar2 := apex_t_varchar2();
 	g_Edit_Tables_Array 		apex_t_varchar2 := apex_t_varchar2();
 	g_Admin_Tables_Array 		apex_t_varchar2 := apex_t_varchar2();
 	g_Data_Deduction_Array 		apex_t_varchar2 := apex_t_varchar2();
@@ -1115,8 +1116,9 @@ $END
 		g_Base_Table_Ext_Field_Array := apex_string.split(REPLACE(g_Base_Table_Ext, '$', '\$'), ',');
 		g_Base_Table_Prefix_Field_Array := apex_string.split(REPLACE(g_Base_Table_Prefix, '$', '\$'), ',');
 		g_Key_Column_Ext_Field_Array := apex_string.split(g_Key_Column_Ext, ',');
-		for c_idx IN 1..g_Key_Column_Ext_Field_Array.count loop
-			g_Key_Column_Ext_Field_Array(c_idx) := '(.*)' || REPLACE(g_Key_Column_Ext_Field_Array(c_idx), '$', '\$') || '(\d*)$'; -- remove ending _ID2
+		g_Key_Column_Ext_Pat_Array := apex_string.split(g_Key_Column_Ext, ',');
+		for c_idx IN 1..g_Key_Column_Ext_Pat_Array.count loop
+			g_Key_Column_Ext_Pat_Array(c_idx) := '(.*)' || REPLACE(g_Key_Column_Ext_Pat_Array(c_idx), '$', '\$') || '(\d*)$'; -- remove ending _ID2
 		end loop;
 		g_Edit_Tables_Array := apex_string.split(REPLACE(v_Edit_Tables_Pattern,'_','\_'), ',');
 		g_Admin_Tables_Array := apex_string.split(REPLACE(v_Admin_Tables_Pattern,'_','\_'), ',');
@@ -2770,7 +2772,9 @@ $END
 		if p_Remove_Extension = 'YES' then
 			v_Result2 := '_' || v_Result;
 			for c_idx IN 1..g_Key_Column_Ext_Field_Array.count loop
-				v_Result2 := REGEXP_REPLACE(v_Result2, g_Key_Column_Ext_Field_Array(c_idx), '\1\2'); -- remove ending _ID2
+				if INSTR(v_Result2, g_Key_Column_Ext_Field_Array(c_idx)) > 1 then
+					v_Result2 := REGEXP_REPLACE(v_Result2, g_Key_Column_Ext_Pat_Array(c_idx), '\1\2'); -- remove ending _ID2
+				end if;
 			end loop;
 			v_Result := TRIM('_' FROM v_Result2);
 		end if;
