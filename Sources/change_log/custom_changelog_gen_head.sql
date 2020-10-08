@@ -91,7 +91,8 @@ create or replace PACKAGE custom_changelog_gen IS
 	FUNCTION NL(p_Indent PLS_INTEGER) RETURN VARCHAR2 DETERMINISTIC;
 	PROCEDURE MView_Refresh (
 		p_MView_Name VARCHAR2,
-		p_Dependent_MViews VARCHAR2 DEFAULT NULL
+		p_Dependent_MViews VARCHAR2 DEFAULT NULL,
+		p_LAST_DDL_TIME USER_OBJECTS.LAST_DDL_TIME%TYPE DEFAULT NULL
 	);
     PROCEDURE Refresh_MViews (
     	p_context  				IN binary_integer DEFAULT NVL(MOD(NV('APP_SESSION'), POWER(2,31)), 0),

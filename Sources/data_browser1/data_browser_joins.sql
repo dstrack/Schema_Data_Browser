@@ -45,7 +45,6 @@ is
 				SELECT VIEW_NAME, FOREIGN_KEY_COLS COLUMN_NAME, COLUMN_ID, NULLABLE,
 					R_PRIMARY_KEY_COLS, R_CONSTRAINT_TYPE,
 					R_VIEW_NAME, R_TABLE_NAME, R_COLUMN_NAME, COLUMN_PREFIX,
-					-- data_browser_conf.Sequence_To_Table_Alias(DENSE_RANK() OVER (PARTITION BY TABLE_NAME ORDER BY COLUMN_ID)) 
 					TABLE_ALIAS    
 				FROM TABLE (data_browser_select.FN_Pipe_browser_fc_refs(v_View_Name)) 
 			) T

@@ -108,6 +108,7 @@ IS
 		R_COLUMN_ID			NUMBER,
 		POSITION			NUMBER,
 		FOREIGN_KEY_COLS	VARCHAR2(128),
+		NORM_COLUMN_NAME	VARCHAR2(128),
 		R_PRIMARY_KEY_COLS	VARCHAR2(512),
 		R_CONSTRAINT_TYPE	VARCHAR2(1),
 		R_VIEW_NAME			VARCHAR2(128),
@@ -1061,12 +1062,12 @@ IS
 
 	PROCEDURE Get_Default_Order_by (					-- External : Default for Get_Record_View_Query
 		p_Table_name IN VARCHAR2,
-    	p_Unique_Key_Column VARCHAR2 DEFAULT NULL,
+    	p_Unique_Key_Column IN VARCHAR2 DEFAULT NULL,
 		p_Columns_Limit IN NUMBER DEFAULT 1000,
 		p_View_Mode IN VARCHAR2 DEFAULT 'FORM_VIEW',	-- FORM_VIEW, RECORD_VIEW, NAVIGATION_VIEW, NESTED_VIEW, IMPORT_VIEW, EXPORT_VIEW
-    	p_Parent_Name VARCHAR2 DEFAULT NULL,			-- Parent View or Table name
-    	p_Parent_Key_Column VARCHAR2 DEFAULT NULL,		-- Column Name with foreign key to Parent Table
-    	p_Parent_Key_Visible VARCHAR2 DEFAULT 'NO',        -- YES, NO, NULLABLE. Show foreign key column in View_Mode FORM_VIEW
+    	p_Parent_Name IN VARCHAR2 DEFAULT NULL,			-- Parent View or Table name
+    	p_Parent_Key_Column IN VARCHAR2 DEFAULT NULL,	-- Column Name with foreign key to Parent Table
+    	p_Parent_Key_Visible IN VARCHAR2 DEFAULT 'NO',  -- YES, NO, NULLABLE. Show foreign key column in View_Mode FORM_VIEW
     	p_Order_By OUT VARCHAR2,
     	p_Control_Break OUT VARCHAR2,
 		p_Order_By_Hdr OUT VARCHAR2,
@@ -1083,7 +1084,7 @@ IS
     	p_Parent_Key_Visible VARCHAR2 DEFAULT 'NO'		-- YES, NO, NULLABLE. Show foreign key column in View_Mode FORM_VIEW
 	) RETURN VARCHAR2;
 
-	FUNCTION Get_Default_Order_by_Cursor (						-- External : Default for Get_Record_View_Query
+	FUNCTION Get_Default_Order_by_Cursor (				-- External : Default for Get_Record_View_Query
 		p_Table_name IN VARCHAR2,
     	p_Unique_Key_Column VARCHAR2 DEFAULT NULL,
 		p_Columns_Limit IN NUMBER DEFAULT 1000,

@@ -383,11 +383,7 @@ is
 				ROW_COUNT_QUERY LOV_QUERY,
 				'CENTER' COLUMN_ALIGN,
 				data_browser_conf.Concat_List(
-					p_First_Name=> data_browser_conf.Column_Name_to_Header(p_Column_Name=>COLUMN_HEADER, p_Remove_Extension=>'YES', 
-									p_Remove_Prefix=>S.COLUMN_PREFIX, 
-									p_Is_Upper_Name=>data_browser_pattern.Match_Upper_Names_Columns(COLUMN_HEADER)
-								)
-					, p_Second_Name => Apex_lang.lang('Count'), p_Delimiter=>' - '
+					p_First_Name=> COLUMN_HEADER, p_Second_Name => Apex_lang.lang('Count'), p_Delimiter=>' - '
 				) COLUMN_HEADER,
 				FORMATED_ROW_COUNT_QUERY COLUMN_EXPR,
 				'LINK' COLUMN_EXPR_TYPE, 1024 FIELD_LENGTH,
@@ -491,10 +487,7 @@ is
 				FORMAT_MASK,
 				TOTAL_QUERY LOV_QUERY,
 				'RIGHT' COLUMN_ALIGN,
-				data_browser_conf.Column_Name_to_Header(p_Column_Name=>COLUMN_HEADER, p_Remove_Extension=>'YES', 
-								p_Remove_Prefix=> S.COLUMN_PREFIX, 
-								p_Is_Upper_Name=> data_browser_pattern.Match_Upper_Names_Columns(COLUMN_HEADER)
-				) COLUMN_HEADER,
+				COLUMN_HEADER,
 				COLUMN_EXPR,
 				'DISPLAY_ONLY' COLUMN_EXPR_TYPE, 40 FIELD_LENGTH,
 				case when v_View_Mode IN ('NAVIGATION_VIEW', 'NESTED_VIEW') then 
@@ -513,7 +506,7 @@ is
 						, p_Second_Name => 'TOTAL', p_Deduplication=>'NO', p_Max_Length=>29
 					) COLUMN_NAME,
 					data_browser_conf.Compose_Column_Name(
-						p_First_Name=> REFERENCE_COLUMN_NAME
+						p_First_Name=> COLUMN_HEADER
 						, p_Second_Name => S.COLUMN_NAME, p_Deduplication=>'YES', p_Max_Length=>128
 					) COLUMN_HEADER,
 					COLUMN_PREFIX, 
@@ -542,7 +535,7 @@ is
 							p_Remove_Prefix => S.COLUMN_PREFIX,
 							p_View_Name => E.VIEW_NAME,
 							p_R_View_Name => E.R_VIEW_NAME
-						) REFERENCE_COLUMN_NAME, 
+						) COLUMN_HEADER, 
 						E.R_VIEW_NAME VIEW_NAME, A.COLUMN_NAME,
 						A.DATA_TYPE, A.DATA_PRECISION, A.DATA_SCALE, A.CHAR_LENGTH, A.IS_DATETIME, A.NULLABLE, A.COMMENTS,
 						data_browser_conf.Get_Col_Format_Mask(
@@ -632,13 +625,7 @@ is
 				'' FORMAT_MASK,
 				'' LOV_QUERY,
 				'LEFT' COLUMN_ALIGN,
-				data_browser_conf.Concat_List(
-						p_First_Name=> data_browser_conf.Column_Name_to_Header(p_Column_Name=>COLUMN_HEADER, p_Remove_Extension=>'YES', 
-								p_Remove_Prefix=>S.COLUMN_PREFIX, 
-								p_Is_Upper_Name=>data_browser_pattern.Match_Upper_Names_Columns(COLUMN_HEADER)
-							)
-						, p_Second_Name => Apex_lang.lang('Links'), p_Delimiter=>' - '
-				) COLUMN_HEADER,
+				COLUMN_HEADER,
 				data_browser_select.Child_Link_List_Query (
 					p_Table_Name  => CHILD_VIEW,
 					p_Display_Col_Names  => DISPLAYED_COLUMN_NAMES,
@@ -668,7 +655,9 @@ is
 							, p_Deduplication=>'YES', p_Max_Length=>29)
 						, p_Second_Name => 'LINK', p_Deduplication=>'NO', p_Max_Length=>29
 					) COLUMN_NAME,
-					REFERENCE_COLUMN_NAME COLUMN_HEADER,
+					data_browser_conf.Concat_List(
+							p_First_Name=> COLUMN_HEADER, p_Second_Name => Apex_lang.lang('Links'), p_Delimiter=>' - '
+					) COLUMN_HEADER,
 					COLUMN_PREFIX,
 					NULLABLE,
 					'PAR.TARGET1||'
@@ -706,7 +695,7 @@ is
 							p_Remove_Prefix => S.COLUMN_PREFIX,
 							p_View_Name => E.VIEW_NAME,
 							p_R_View_Name => E.R_VIEW_NAME
-						) REFERENCE_COLUMN_NAME, 
+						) COLUMN_HEADER, 
 						E.R_VIEW_NAME VIEW_NAME,
 						E.R_PRIMARY_KEY_COLS COLUMN_NAME,
 						A.NULLABLE,
@@ -1034,11 +1023,8 @@ is
 					) IMP_COLUMN_NAME,
 					S.COLUMN_ALIGN,
 					data_browser_conf.Concat_List(
-						p_First_Name=> data_browser_conf.Column_Name_to_Header(p_Column_Name=> T.COLUMN_HEADER, p_Remove_Extension=>'YES', 
-								p_Remove_Prefix=>S.COLUMN_PREFIX, 
-								p_Is_Upper_Name=>T.IS_UPPER_NAME
-							)
-						, p_Second_Name => Apex_lang.lang('Path'), p_Delimiter=>'-'
+						p_First_Name=> T.COLUMN_HEADER
+						, p_Second_Name => Apex_lang.lang('Path'), p_Delimiter=>' - '
 					) COLUMN_HEADER,
 					S.COLUMN_PREFIX,
 					'(' || -- Display folder path
@@ -1418,25 +1404,21 @@ is
 		-- find qualified unique key for target table of foreign key reference
 		SELECT VIEW_NAME, TABLE_NAME, COLUMN_NAME, COLUMN_ID, NULLABLE, POSITION,
 			R_VIEW_NAME, R_TABLE_NAME,
-			CAST(R_COLUMN_NAME AS VARCHAR2(128)) R_COLUMN_NAME,
+			R_COLUMN_NAME,
 			R_COLUMN_ID,
-			IMP_COLUMN_NAME
-			|| 	case when COUNT(*) OVER (PARTITION BY TABLE_NAME, IMP_COLUMN_NAME) > 1
-				then DENSE_RANK() OVER (PARTITION BY TABLE_NAME, IMP_COLUMN_NAME ORDER BY TABLE_ALIAS, COLUMN_ID, R_COLUMN_ID, POSITION) -- run_no
-			end
-			AS IMP_COLUMN_NAME,
+			IMP_COLUMN_NAME,
 			COLUMN_PREFIX, IS_UPPER_NAME,
-			CAST(data_browser_conf.Column_Name_to_Header(
+			data_browser_conf.Column_Name_to_Header(
 				p_Column_Name => COLUMN_HEADER, 
 				p_Remove_Extension => 'NO', 
 				p_Is_Upper_Name => IS_UPPER_NAME
-			) AS VARCHAR2(128)) COLUMN_HEADER,
-			CAST(COLUMN_EXPR AS VARCHAR2(4000)) COLUMN_EXPR,
+			) COLUMN_HEADER,
+			COLUMN_EXPR,
 			R_DATA_TYPE, R_DATA_PRECISION, R_DATA_SCALE, R_CHAR_LENGTH, 
 			COLUMN_ALIGN, FIELD_LENGTH,
 			R_NULLABLE, R_IS_READONLY,
-			CAST(TABLE_ALIAS AS VARCHAR2(10)) TABLE_ALIAS,
-			CAST(R_TABLE_ALIAS AS VARCHAR2(10)) R_TABLE_ALIAS,
+			TABLE_ALIAS,
+			R_TABLE_ALIAS,
 			HAS_HELP_TEXT, HAS_DEFAULT, IS_BLOB, IS_PASSWORD, IS_AUDIT_COLUMN,
 			DISPLAY_IN_REPORT, IS_DISPLAYED_KEY_COLUMN,
 			COMMENTS
@@ -1447,72 +1429,29 @@ is
 				F.R_COLUMN_ID,
 				F.POSITION+G.R_COLUMN_ID/10000 POSITION,
 				NVL(G.R_COLUMN_NAME, G.R_PRIMARY_KEY_COLS) R_COLUMN_NAME,
-				CAST(case when G.R_COLUMN_NAME IS NOT NULL then -- good --
-						data_browser_conf.Compose_Column_Name(
-							p_First_Name=> data_browser_conf.Normalize_Column_Name(
-								p_Column_Name => F.COLUMN_NAME, p_Remove_Prefix => F.COLUMN_PREFIX),
-							p_Second_Name => data_browser_conf.Compose_Column_Name(
-								p_First_Name=> data_browser_conf.Normalize_Column_Name(
-									p_Column_Name => F.R_COLUMN_NAME, p_Remove_Prefix => F.COLUMN_PREFIX)
-								, p_Second_Name => G.R_COLUMN_NAME
-								, p_Deduplication=>'YES', p_Max_Length=>29)
-							, p_Deduplication=>'NO', p_Max_Length=>29)
-					else
-						data_browser_conf.Compose_Column_Name(
-							p_First_Name=> data_browser_conf.Normalize_Column_Name(
-								p_Column_Name => F.COLUMN_NAME, p_Remove_Prefix => F.COLUMN_PREFIX),
-							p_Second_Name => data_browser_conf.Compose_Column_Name(
-								p_First_Name=> data_browser_conf.Normalize_Column_Name(p_Column_Name => F.R_COLUMN_NAME, p_Remove_Prefix => F.COLUMN_PREFIX)
-								, p_Second_Name => G.R_PRIMARY_KEY_COLS
-								, p_Deduplication=>'YES', p_Max_Length=>29)
-							, p_Deduplication=>'NO', p_Max_Length=>29)
-					end AS VARCHAR2(32))
-				AS IMP_COLUMN_NAME,
+				data_browser_conf.Compose_3Column_Names(
+					p_First_Name => F.NORM_COLUMN_NAME,
+					p_Second_Name => G.NORM_COLUMN_NAME,
+					p_Third_Name => NVL(G.R_COLUMN_NAME, G.R_PRIMARY_KEY_COLS),
+					p_Max_Length => 29)		
+				IMP_COLUMN_NAME,
 				F.COLUMN_PREFIX, G.IS_UPPER_NAME,
-				CAST(case when G.R_COLUMN_NAME IS NOT NULL then
-						data_browser_conf.Compose_Column_Name(
-							p_First_Name=> data_browser_conf.Normalize_Column_Name(
-								p_Column_Name => F.COLUMN_NAME, p_Remove_Prefix => F.COLUMN_PREFIX),
-							p_Second_Name => data_browser_conf.Compose_Column_Name(
-								p_First_Name=> data_browser_conf.Normalize_Column_Name(
-									p_Column_Name => F.R_COLUMN_NAME, p_Remove_Prefix => F.COLUMN_PREFIX)
-								, p_Second_Name => G.R_COLUMN_NAME
-								, p_Deduplication=>'YES', p_Max_Length=>128)
-							, p_Deduplication=>'NO', p_Max_Length=>128)
-					else
-						data_browser_conf.Compose_Column_Name(
-							p_First_Name=> data_browser_conf.Normalize_Column_Name(
-								p_Column_Name => F.COLUMN_NAME, p_Remove_Prefix => F.COLUMN_PREFIX),
-							p_Second_Name => data_browser_conf.Compose_Column_Name(
-								p_First_Name=> data_browser_conf.Normalize_Column_Name(
-									p_Column_Name => F.R_COLUMN_NAME, p_Remove_Prefix => F.COLUMN_PREFIX)
-								, p_Second_Name => G.R_PRIMARY_KEY_COLS
-								, p_Deduplication=>'YES', p_Max_Length=>128)
-							, p_Deduplication=>'NO', p_Max_Length=>128)
-					end AS VARCHAR2(128))
-				AS COLUMN_HEADER,
+				data_browser_conf.Compose_3Column_Names(
+					p_First_Name => F.NORM_COLUMN_NAME,
+					p_Second_Name => G.NORM_COLUMN_NAME,
+					p_Third_Name => NVL(G.R_COLUMN_NAME, G.R_PRIMARY_KEY_COLS),
+					p_Max_Length => 128)		
+				COLUMN_HEADER,
 				case when G.R_COLUMN_NAME IS NULL then 'No description columns found. (Q)' end WARNING_MSG,
-				case when G.R_COLUMN_NAME IS NOT NULL then
-					data_browser_select.Get_ConversionColFunction (
-						p_Column_Name => data_browser_conf.Concat_List(F.TABLE_ALIAS, G.TABLE_ALIAS, '_') || '.' || G.R_COLUMN_NAME,
-						p_Data_Type => G.R_DATA_TYPE,
-						p_Data_Precision => G.R_DATA_PRECISION,
-						p_Data_Scale => G.R_DATA_SCALE,
-						p_Char_Length => G.R_CHAR_LENGTH,
-						p_Data_Format => p_Data_Format,
-						p_Use_Trim => 'Y'
-					)
-				else
-					data_browser_select.Get_ConversionColFunction (
-						p_Column_Name => data_browser_conf.Concat_List(F.TABLE_ALIAS, G.TABLE_ALIAS, '_') || '.' || G.R_PRIMARY_KEY_COLS,
-						p_Data_Type => G.R_DATA_TYPE,
-						p_Data_Precision => G.R_DATA_PRECISION,
-						p_Data_Scale => G.R_DATA_SCALE,
-						p_Char_Length => G.R_CHAR_LENGTH,
-						p_Data_Format => 'CSV',
-						p_Use_Trim => 'Y'
-					)
-				end COLUMN_EXPR,
+				data_browser_select.Get_ConversionColFunction (
+					p_Column_Name => data_browser_conf.Concat_List(F.TABLE_ALIAS, G.TABLE_ALIAS, '_') || '.' || NVL(G.R_COLUMN_NAME, G.R_PRIMARY_KEY_COLS),
+					p_Data_Type => G.R_DATA_TYPE,
+					p_Data_Precision => G.R_DATA_PRECISION,
+					p_Data_Scale => G.R_DATA_SCALE,
+					p_Char_Length => G.R_CHAR_LENGTH,
+					p_Data_Format => case when G.R_COLUMN_NAME IS NOT NULL then p_Data_Format else 'CSV' end,
+					p_Use_Trim => 'Y'
+				) COLUMN_EXPR,
 				F.NULLABLE,
 				F.COLUMN_NAME FOREIGN_KEY_COLS,
 				G.R_VIEW_NAME,
@@ -1573,20 +1512,16 @@ is
         CURSOR keys_cur (v_View_Name VARCHAR2)
         IS
 		SELECT
-			VIEW_NAME, TABLE_NAME, COLUMN_NAME, COLUMN_ID, NULLABLE, R_COLUMN_ID, POSITION,
-			COLUMN_NAME FOREIGN_KEY_COLS,
+			VIEW_NAME, TABLE_NAME, FK_COLUMN_NAME COLUMN_NAME, COLUMN_ID, NULLABLE, R_COLUMN_ID, POSITION,
+			FOREIGN_KEY_COLS, NORM_COLUMN_NAME,
 			R_PRIMARY_KEY_COLS, R_CONSTRAINT_TYPE, R_VIEW_NAME, R_TABLE_NAME, R_COLUMN_NAME, 
-			IMP_COLUMN_NAME
-			|| case when COUNT(*) OVER (PARTITION BY TABLE_NAME, IMP_COLUMN_NAME) > 1
-				then DENSE_RANK() OVER (PARTITION BY TABLE_NAME, IMP_COLUMN_NAME ORDER BY COLUMN_ID, R_COLUMN_ID) -- run_no
-			end
-			AS IMP_COLUMN_NAME,
+			IMP_COLUMN_NAME,
 			COLUMN_PREFIX, IS_UPPER_NAME,
-			CAST(data_browser_conf.Column_Name_to_Header(
+			data_browser_conf.Column_Name_to_Header(
 				p_Column_Name => COLUMN_HEADER, 
 				p_Remove_Extension => 'NO', 
 				p_Is_Upper_Name => IS_UPPER_NAME
-			) AS VARCHAR2(128)) COLUMN_HEADER,
+			) COLUMN_HEADER,
 			COLUMN_ALIGN, FIELD_LENGTH, HAS_HELP_TEXT, HAS_DEFAULT,
 			IS_BLOB, IS_PASSWORD, IS_AUDIT_COLUMN, IS_NUMBER_YES_NO_COLUMN, IS_CHAR_YES_NO_COLUMN,
 			DISPLAY_IN_REPORT, IS_DISPLAYED_KEY_COLUMN,
@@ -1594,25 +1529,28 @@ is
 			NULLABLE R_NULLABLE, COMMENTS, R_CHECK_UNIQUE, R_IS_READONLY,
 			CAST(TABLE_ALIAS AS VARCHAR2(10)) TABLE_ALIAS
 		FROM (
-			SELECT F.VIEW_NAME, F.TABLE_NAME, F.FOREIGN_KEY_COLS COLUMN_NAME, F.FK_COLUMN_ID COLUMN_ID, F.FK_NULLABLE NULLABLE,
+			SELECT F.VIEW_NAME, F.TABLE_NAME, F.FOREIGN_KEY_COLS, F.FK_COLUMN_NAME, F.NORM_COLUMN_NAME,
+				F.FK_COLUMN_ID COLUMN_ID, F.FK_NULLABLE NULLABLE,
 				F.R_PRIMARY_KEY_COLS, F.R_CONSTRAINT_TYPE, -- F.CONSTRAINT_NAME,
 				F.R_VIEW_NAME, F.R_TABLE_NAME,
 				T.COLUMN_NAME R_COLUMN_NAME,
 				T.COLUMN_ID*10000 R_COLUMN_ID, 
 				T.COLUMN_ID*10000+NVL(F.FK_COLUMN_ID,0)*100 POSITION,
-				CAST(data_browser_conf.Compose_Column_Name(
-					p_First_Name=> NVL(data_browser_conf.Normalize_Column_Name(p_Column_Name => F.FOREIGN_KEY_COLS, p_Remove_Prefix => S.COLUMN_PREFIX),
-										data_browser_conf.Normalize_Table_Name(p_Table_Name => F.R_VIEW_NAME))
-					, p_Second_Name => T.COLUMN_NAME, p_Deduplication=>'YES', p_Max_Length=>29)
-					AS VARCHAR2(32))
-				AS IMP_COLUMN_NAME,
+				data_browser_conf.Compose_FK_Column_Table_Name (
+					p_First_Name => F.NORM_COLUMN_NAME,
+					p_Second_Name => T.NORM_COLUMN_NAME,
+					p_Table_Name => F.R_VIEW_NAME,
+					p_Remove_Prefix => S.COLUMN_PREFIX,
+					p_Max_Length => 29
+				) IMP_COLUMN_NAME,
 				S.COLUMN_PREFIX, T.IS_UPPER_NAME,
-				CAST(data_browser_conf.Compose_Column_Name(
-					p_First_Name=>  NVL(data_browser_conf.Normalize_Column_Name(p_Column_Name => F.FOREIGN_KEY_COLS, p_Remove_Prefix => S.COLUMN_PREFIX),
-										data_browser_conf.Normalize_Table_Name(p_Table_Name => F.R_VIEW_NAME))
-					, p_Second_Name => T.COLUMN_NAME, p_Deduplication=>'YES', p_Max_Length=>128)
-					AS VARCHAR2(128))
-				AS COLUMN_HEADER,
+				data_browser_conf.Compose_FK_Column_Table_Name (
+					p_First_Name => F.NORM_COLUMN_NAME,
+					p_Second_Name => T.NORM_COLUMN_NAME,
+					p_Table_Name => F.R_VIEW_NAME,
+					p_Remove_Prefix => S.COLUMN_PREFIX,
+					p_Max_Length => 128
+				) COLUMN_HEADER,
 				T.COLUMN_ALIGN,
 				T.FIELD_LENGTH,
 				T.HAS_HELP_TEXT,
@@ -1646,7 +1584,7 @@ is
 			select 1 
 			from MVDATA_BROWSER_F_REFS F
 			where F.VIEW_NAME = FC.VIEW_NAME
-			and F.FOREIGN_KEY_COLS = FC.COLUMN_NAME 
+			and F.FOREIGN_KEY_COLS = FC.FOREIGN_KEY_COLS 
 			and F.COLUMN_ID = FC.COLUMN_ID
 			and F.R_VIEW_NAME = FC.R_VIEW_NAME
 			and F.R_COLUMN_NAME = FC.R_COLUMN_NAME
@@ -1710,23 +1648,18 @@ is
 			AND DELETE_RULE = 'CASCADE'
 		)
 		SELECT VIEW_NAME, TABLE_NAME,
-			IMP_COLUMN_NAME
-			|| case when COUNT(*) OVER (PARTITION BY TABLE_NAME, IMP_COLUMN_NAME) > 1
-				then DENSE_RANK() OVER (PARTITION BY TABLE_NAME, IMP_COLUMN_NAME ORDER BY COLUMN_ID, R_COLUMN_ID, POSITION) -- run_no
-			end
-			AS IMP_COLUMN_NAME, 
+			IMP_COLUMN_NAME, 
 			COLUMN_PREFIX, IS_UPPER_NAME,
-			CAST(data_browser_conf.Column_Name_to_Header(
+			data_browser_conf.Column_Name_to_Header(
 				p_Column_Name => COLUMN_HEADER, 
 				p_Remove_Extension => 'NO', 
-				p_Remove_Prefix => COLUMN_PREFIX, 
 				p_Is_Upper_Name => IS_UPPER_NAME
-			) AS VARCHAR2(128)) COLUMN_HEADER,
+			) COLUMN_HEADER,
 			WARNING_MSG,
 			PRIMARY_KEY_COLS, SEARCH_KEY_COLS, SHORT_NAME, COLUMN_ID, R_COLUMN_ID, POSITION, R_COLUMN_NAME, NULLABLE,
 			FOREIGN_KEY_COLS, R_PRIMARY_KEY_COLS, R_CONSTRAINT_TYPE, R_VIEW_NAME, R_TABLE_NAME,
-			CAST(TABLE_ALIAS AS VARCHAR2(10)) TABLE_ALIAS,
-			CAST(R_TABLE_ALIAS AS VARCHAR2(10)) R_TABLE_ALIAS,
+			TABLE_ALIAS,
+			R_TABLE_ALIAS,
 			R_NULLABLE, R_DATA_TYPE, R_DATA_SCALE, R_DATA_PRECISION, R_CHAR_LENGTH,
 			COLUMN_ALIGN, FIELD_LENGTH,
 			JOIN_VIEW_NAME,
@@ -1735,13 +1668,13 @@ is
 				|| data_browser_select.FN_Table_Prefix
 				|| JOIN_COND
 			end JOIN_CLAUSE,
-			CAST(COLUMN_EXPR AS VARCHAR2(1024)) COLUMN_EXPR,
+			COLUMN_EXPR,
 			COLUMN_NAME, HAS_HELP_TEXT, HAS_DEFAULT, IS_BLOB, IS_PASSWORD,
 			IS_AUDIT_COLUMN, IS_READONLY, DISPLAY_IN_REPORT, 
 			IS_DISPLAYED_KEY_COLUMN, IS_REFERENCE,
 			HAS_NULLABLE, U_CONSTRAINT_NAME, U_MEMBERS, U_MATCHING,
 			J_VIEW_NAME,
-			CAST(J_COLUMN_NAME AS VARCHAR2(128)) J_COLUMN_NAME,
+			J_COLUMN_NAME,
 			IS_FILE_FOLDER_REF,
 			FILTER_KEY_COLUMN, PARENT_KEY_COLUMN
 		FROM (
@@ -1779,65 +1712,45 @@ is
 							p_Left_Columns=>G.R_PRIMARY_KEY_COLS, p_Left_Alias=> data_browser_conf.Concat_List(F.TABLE_ALIAS, G.TABLE_ALIAS, '_'),
 							p_Right_Columns=>G.FOREIGN_KEY_COLS, p_Right_Alias=> F.TABLE_ALIAS)
 					end JOIN_COND,
-					case when G.R_COLUMN_NAME IS NOT NULL then
-						data_browser_select.Get_ConversionColFunction (
-							p_Column_Name => data_browser_conf.Concat_List(F.TABLE_ALIAS, G.TABLE_ALIAS, '_') || '.' || G.R_COLUMN_NAME,
-							p_Data_Type => G.R_DATA_TYPE,
-							p_Data_Precision => G.R_DATA_PRECISION,
-							p_Data_Scale => G.R_DATA_SCALE,
-							p_Char_Length => G.R_CHAR_LENGTH,
-							p_Data_Format => p_Data_Format,
-							p_Use_Trim => 'Y'
-						)
-					else
-						data_browser_select.Get_ConversionColFunction (
-							p_Column_Name => data_browser_conf.Concat_List(F.TABLE_ALIAS, G.TABLE_ALIAS, '_') || '.' || G.R_PRIMARY_KEY_COLS,
-							p_Data_Type => G.R_DATA_TYPE,
-							p_Data_Precision => G.R_DATA_PRECISION,
-							p_Data_Scale => G.R_DATA_SCALE,
-							p_Char_Length => G.R_CHAR_LENGTH,
-							p_Data_Format => 'CSV',
-							p_Use_Trim => 'Y'
-						)
-					end COLUMN_EXPR,
-					CAST(case when G.U_MEMBERS = 1 and F.VIEW_NAME != G.R_VIEW_NAME then
+					data_browser_select.Get_ConversionColFunction (
+						p_Column_Name => data_browser_conf.Concat_List(F.TABLE_ALIAS, G.TABLE_ALIAS, '_') || '.' || NVL(G.R_COLUMN_NAME, G.R_PRIMARY_KEY_COLS),
+						p_Data_Type => G.R_DATA_TYPE,
+						p_Data_Precision => G.R_DATA_PRECISION,
+						p_Data_Scale => G.R_DATA_SCALE,
+						p_Char_Length => G.R_CHAR_LENGTH,
+						p_Data_Format => case when G.R_COLUMN_NAME IS NOT NULL then p_Data_Format else 'CSV' end,
+						p_Use_Trim => 'Y'
+					) COLUMN_EXPR,
+					case when G.U_MEMBERS = 1 and F.VIEW_NAME != G.R_VIEW_NAME then
 							data_browser_conf.Compose_Column_Name(
-								p_First_Name=> data_browser_conf.Normalize_Column_Name(
-									p_Column_Name => F.FOREIGN_KEY_COLS, p_Remove_Prefix => F.COLUMN_PREFIX),
-								p_Second_Name => data_browser_conf.Normalize_Column_Name(
-									p_Column_Name => F.R_COLUMN_NAME, p_Remove_Prefix => F.COLUMN_PREFIX)
-								, p_Deduplication=>'NO', p_Max_Length=>29) -- avoid duplicatate names in recursive relations
+								p_First_Name => F.NORM_COLUMN_NAME,
+								p_Second_Name => G.NORM_COLUMN_NAME,
+								p_Deduplication => 'NO', 
+								p_Max_Length => 29
+							)
 						else
-							data_browser_conf.Compose_Column_Name(
-								p_First_Name=> data_browser_conf.Normalize_Column_Name(
-									p_Column_Name => F.FOREIGN_KEY_COLS, p_Remove_Prefix => F.COLUMN_PREFIX), 
-								p_Second_Name=> data_browser_conf.Compose_Column_Name(
-									p_First_Name=> data_browser_conf.Normalize_Column_Name(
-										p_Column_Name => F.R_COLUMN_NAME, p_Remove_Prefix => F.COLUMN_PREFIX)
-									, p_Second_Name=> NVL(G.R_COLUMN_NAME, G.R_PRIMARY_KEY_COLS)
-									, p_Deduplication=>'NO', p_Max_Length=>29)
-								, p_Deduplication=>'NO', p_Max_Length=>29)
-						end AS VARCHAR2(32))
+							data_browser_conf.Compose_3Column_Names(
+								p_First_Name => F.NORM_COLUMN_NAME,
+								p_Second_Name => G.NORM_COLUMN_NAME,
+								p_Third_Name => NVL(G.R_COLUMN_NAME, G.R_PRIMARY_KEY_COLS),
+								p_Max_Length => 29)		
+						end 
 					AS IMP_COLUMN_NAME,
 					F.COLUMN_PREFIX, G.IS_UPPER_NAME,
-					CAST(case when G.U_MEMBERS = 1 and F.VIEW_NAME != G.R_VIEW_NAME then -- simple column name when only one member is displayed
+					case when G.U_MEMBERS = 1 and F.VIEW_NAME != G.R_VIEW_NAME then -- simple column name when only one member is displayed
 							data_browser_conf.Compose_Column_Name(
-								p_First_Name=> data_browser_conf.Normalize_Column_Name(
-									p_Column_Name => F.FOREIGN_KEY_COLS, p_Remove_Prefix => F.COLUMN_PREFIX),
-								p_Second_Name => data_browser_conf.Normalize_Column_Name(
-									p_Column_Name => F.R_COLUMN_NAME, p_Remove_Prefix => F.COLUMN_PREFIX)
-								, p_Deduplication=>'NO', p_Max_Length=>128)
+								p_First_Name => F.NORM_COLUMN_NAME,
+								p_Second_Name => G.NORM_COLUMN_NAME,
+								p_Deduplication => 'NO', 
+								p_Max_Length => 128
+							)
 						else
-							data_browser_conf.Compose_Column_Name(
-								p_First_Name=> data_browser_conf.Normalize_Column_Name(
-									p_Column_Name => F.FOREIGN_KEY_COLS, p_Remove_Prefix => F.COLUMN_PREFIX), 
-								p_Second_Name=> data_browser_conf.Compose_Column_Name(
-									p_First_Name=> data_browser_conf.Normalize_Column_Name(
-										p_Column_Name => F.R_COLUMN_NAME, p_Remove_Prefix => F.COLUMN_PREFIX)
-									, p_Second_Name=> NVL(G.R_COLUMN_NAME, G.R_PRIMARY_KEY_COLS)
-									, p_Deduplication=>'NO', p_Max_Length=>128)
-								, p_Deduplication=>'NO', p_Max_Length=>128)
-						end AS VARCHAR2(128))
+							data_browser_conf.Compose_3Column_Names(
+								p_First_Name => F.NORM_COLUMN_NAME,
+								p_Second_Name => G.NORM_COLUMN_NAME,
+								p_Third_Name => NVL(G.R_COLUMN_NAME, G.R_PRIMARY_KEY_COLS),
+								p_Max_Length => 128)		
+						end 
 					AS COLUMN_HEADER,
 					G.HAS_HELP_TEXT, G.HAS_DEFAULT, G.IS_BLOB, G.IS_PASSWORD,
 					G.IS_AUDIT_COLUMN, G.IS_READONLY, G.DISPLAY_IN_REPORT,

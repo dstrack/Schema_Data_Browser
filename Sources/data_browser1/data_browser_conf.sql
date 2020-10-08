@@ -363,8 +363,7 @@ IS
     FUNCTION Normalize_Column_Name (
     	p_Column_Name VARCHAR2,
     	p_Remove_Extension VARCHAR2 DEFAULT 'YES',
-    	p_Remove_Prefix VARCHAR2 DEFAULT NULL,
-    	p_Check_Keywords VARCHAR2 DEFAULT 'NO'
+    	p_Remove_Prefix VARCHAR2 DEFAULT NULL
     ) RETURN VARCHAR2 DETERMINISTIC;
 	FUNCTION Translate_Umlaute(p_Text VARCHAR2) RETURN VARCHAR2 DETERMINISTIC;
 	FUNCTION Normalize_Umlaute(p_Text IN VARCHAR2) RETURN VARCHAR2 DETERMINISTIC;
@@ -393,6 +392,21 @@ IS
     	p_First_Name VARCHAR2,
     	p_Second_Name VARCHAR2,
     	p_Deduplication VARCHAR2 DEFAULT 'NO',
+    	p_Max_Length NUMBER DEFAULT 30
+    ) RETURN VARCHAR2 DETERMINISTIC;
+
+    FUNCTION Compose_3Column_Names (
+    	p_First_Name VARCHAR2,
+    	p_Second_Name VARCHAR2,
+    	p_Third_Name VARCHAR2,
+    	p_Max_Length NUMBER DEFAULT 30
+    ) RETURN VARCHAR2 DETERMINISTIC;
+
+    FUNCTION Compose_FK_Column_Table_Name (
+    	p_First_Name VARCHAR2,
+    	p_Second_Name VARCHAR2,
+    	p_Table_Name VARCHAR2,
+    	p_Remove_Prefix VARCHAR2,
     	p_Max_Length NUMBER DEFAULT 30
     ) RETURN VARCHAR2 DETERMINISTIC;
 
@@ -2740,8 +2754,7 @@ $END
     FUNCTION Normalize_Column_Name (
     	p_Column_Name VARCHAR2,
     	p_Remove_Extension VARCHAR2 DEFAULT 'YES',
-    	p_Remove_Prefix VARCHAR2 DEFAULT NULL,
-    	p_Check_Keywords VARCHAR2 DEFAULT 'NO'
+    	p_Remove_Prefix VARCHAR2 DEFAULT NULL
     ) RETURN VARCHAR2 DETERMINISTIC
     IS
 	PRAGMA UDF;
@@ -2760,9 +2773,6 @@ $END
 				v_Result2 := REGEXP_REPLACE(v_Result2, g_Key_Column_Ext_Field_Array(c_idx), '\1\2'); -- remove ending _ID2
 			end loop;
 			v_Result := TRIM('_' FROM v_Result2);
-		end if;
-		if p_Check_Keywords = 'YES' and INSTR(g_keywords, ':'||v_Result||':') > 0 then -- check that the result is not an keyword.
-			v_Result := p_Column_Name;					-- undo any changes. alternative Enquote_Name
 		end if;
 		return v_Result;
 	END Normalize_Column_Name;
@@ -2896,8 +2906,7 @@ $END
 		v_Column_Name := Normalize_Column_Name(
 			p_Column_Name => p_Column_Name,
 			p_Remove_Extension => p_Remove_Extension,
-			p_Remove_Prefix => p_Remove_Prefix,
-			p_Check_Keywords => 'NO'
+			p_Remove_Prefix => p_Remove_Prefix
 		);
 		if p_Is_Upper_Name IN ('YES', 'Y') then
 			RETURN Translate_Umlaute(UPPER(REPLACE(v_Column_Name, '_', ' ')));
@@ -2933,6 +2942,42 @@ $END
     	   ||  RTRIM(SUBSTR(p_Second_Name, 1, GREATEST(v_Half_Length, p_Max_Length - 1 - LENGTH(p_First_Name))), '_');
     END Compose_Column_Name;
 
+    FUNCTION Compose_3Column_Names (
+    	p_First_Name VARCHAR2,
+    	p_Second_Name VARCHAR2,
+    	p_Third_Name VARCHAR2,
+    	p_Max_Length NUMBER DEFAULT 30
+    ) RETURN VARCHAR2 DETERMINISTIC
+    IS
+	PRAGMA UDF;
+	BEGIN
+		return data_browser_conf.Compose_Column_Name(
+			p_First_Name => p_First_Name
+			, p_Second_Name=> data_browser_conf.Compose_Column_Name(
+				p_First_Name => p_Second_Name,
+				p_Second_Name => p_Third_Name,
+				p_Deduplication => 'YES', p_Max_Length => p_Max_Length)
+			, p_Deduplication=>'NO', p_Max_Length=> p_Max_Length);
+    END Compose_3Column_Names;
+
+    FUNCTION Compose_FK_Column_Table_Name (
+    	p_First_Name VARCHAR2,
+    	p_Second_Name VARCHAR2,
+    	p_Table_Name VARCHAR2,
+    	p_Remove_Prefix VARCHAR2,
+    	p_Max_Length NUMBER DEFAULT 30
+    ) RETURN VARCHAR2 DETERMINISTIC
+    IS
+	PRAGMA UDF;
+	BEGIN
+		return data_browser_conf.Compose_Column_Name (
+			p_First_Name => NVL(p_First_Name, data_browser_conf.Normalize_Table_Name(p_Table_Name => p_Table_Name)),
+			p_Second_Name => p_Second_Name,
+			p_Deduplication => 'YES',
+			p_Max_Length => p_Max_Length
+		);
+    END Compose_FK_Column_Table_Name;
+
     FUNCTION Reference_Column_Header (
     	p_Column_Name VARCHAR2,
     	p_Remove_Prefix VARCHAR2,
@@ -2955,7 +3000,9 @@ $END
 			then ' - ' || data_browser_conf.Column_Name_to_Header(
 							p_Column_Name => p_Column_Name, 
 							p_Remove_Extension => 'YES', 
-							p_Remove_Prefix => p_Remove_Prefix)
+							p_Remove_Prefix => p_Remove_Prefix,
+							p_Is_Upper_Name => data_browser_pattern.Match_Upper_Names_Columns(p_Column_Name)
+						)
 		end;
 	END Reference_Column_Header;
 

@@ -153,9 +153,8 @@ $END
 		FROM (
 			SELECT MAX(LAST_DDL_TIME) LAST_DDL_TIME
 			FROM USER_OBJECTS A
-			WHERE A.OBJECT_TYPE = 'TABLE'
-			OR (A.OBJECT_TYPE = 'PACKAGE'
-			AND A.OBJECT_NAME IN ('CUSTOM_CHANGELOG', 'CHANGELOG_CONF'))
+			WHERE A.OBJECT_TYPE IN ('TABLE', 'PACKAGE BODY')
+			AND (A.OBJECT_NAME IN ('CUSTOM_CHANGELOG', 'CHANGELOG_CONF') OR A.OBJECT_TYPE = 'TABLE')
 			UNION ALL
 			SELECT MAX(LAST_MODIFIED_AT) LAST_DDL_TIME
 			FROM CHANGE_LOG_CONFIG A
@@ -170,7 +169,8 @@ $END
 
 	PROCEDURE MView_Refresh (
 		p_MView_Name VARCHAR2,
-		p_Dependent_MViews VARCHAR2 DEFAULT NULL
+		p_Dependent_MViews VARCHAR2 DEFAULT NULL,
+		p_LAST_DDL_TIME USER_OBJECTS.LAST_DDL_TIME%TYPE DEFAULT NULL
 	)
 	IS
 		v_LAST_DDL_TIME USER_OBJECTS.LAST_DDL_TIME%TYPE;
@@ -185,7 +185,11 @@ $END
 		FROM USER_MVIEWS
 		WHERE MVIEW_NAME = p_MView_Name
 		;
-		v_LAST_DDL_TIME := Get_Last_DDL_Time(p_Dependent_MViews);
+		if p_LAST_DDL_TIME IS NOT NULL then 
+			v_LAST_DDL_TIME := p_LAST_DDL_TIME;
+		else
+			v_LAST_DDL_TIME := Get_Last_DDL_Time(p_Dependent_MViews);
+		end if;
 		/*if v_COMPILE_STATE = 'NEEDS_COMPILE' then 
 			v_Statement := 'ALTER MATERIALIZED VIEW ' || DBMS_ASSERT.ENQUOTE_NAME(p_MView_Name) || ' COMPILE';
 			EXECUTE IMMEDIATE v_Statement;
@@ -211,19 +215,26 @@ $END
         v_Steps  		constant binary_integer := 8;
 		v_Schema_Name	VARCHAR2(40) := SYS_CONTEXT('USERENV', 'CURRENT_SCHEMA');
 		v_workspace_id 	NUMBER;
+		v_LAST_DDL_TIME USER_OBJECTS.LAST_DDL_TIME%TYPE;
     BEGIN
     	if p_Start_Step<=v_Steps then
         	Set_Process_Infos(v_rindex, v_slno, v_Proc_Name, p_context, v_Steps, 0, 'steps');
+        	v_LAST_DDL_TIME := Get_Last_DDL_Time;
 		end if;
 		for v_Step in p_Start_Step..v_Steps loop
 			case v_Step 
-				when 1 then MView_Refresh('MVBASE_UNIQUE_KEYS'); -- used for history views
-				when 2 then MView_Refresh('MVBASE_ALTER_UNIQUEKEYS', 'MVBASE_UNIQUE_KEYS'); -- used for history views
-				when 3 then MView_Refresh('MVBASE_FOREIGNKEYS', 'MVBASE_ALTER_UNIQUEKEYS');
-				when 4 then MView_Refresh('MVBASE_VIEWS', 'MVBASE_ALTER_UNIQUEKEYS');
-				when 5 then MView_Refresh('MVBASE_VIEW_FOREIGN_KEYS', 'MVBASE_FOREIGNKEYS');
-				when 6 then MView_Refresh('MVBASE_REFERENCES', 'MVBASE_FOREIGNKEYS,MVBASE_VIEW_FOREIGN_KEYS'); 
-				when 7 then MView_Refresh('MVCHANGELOG_REFERENCES'); 
+				when 1 then MView_Refresh(p_MView_Name => 'MVBASE_UNIQUE_KEYS', p_LAST_DDL_TIME => v_LAST_DDL_TIME); -- used for history views
+				when 2 then MView_Refresh(p_MView_Name => 'MVBASE_ALTER_UNIQUEKEYS', p_LAST_DDL_TIME => v_LAST_DDL_TIME); -- used for history views
+							-- Dependent MViews: 'MVBASE_UNIQUE_KEYS'
+				when 3 then MView_Refresh(p_MView_Name => 'MVBASE_FOREIGNKEYS', p_LAST_DDL_TIME => v_LAST_DDL_TIME);
+							-- Dependent MViews: 'MVBASE_ALTER_UNIQUEKEYS'
+				when 4 then MView_Refresh(p_MView_Name => 'MVBASE_VIEWS', p_LAST_DDL_TIME => v_LAST_DDL_TIME);
+							-- Dependent MViews: 'MVBASE_ALTER_UNIQUEKEYS'
+				when 5 then MView_Refresh(p_MView_Name => 'MVBASE_VIEW_FOREIGN_KEYS', p_LAST_DDL_TIME => v_LAST_DDL_TIME);
+							-- Dependent MViews: 'MVBASE_FOREIGNKEYS'
+				when 6 then MView_Refresh(p_MView_Name => 'MVBASE_REFERENCES', p_LAST_DDL_TIME => v_LAST_DDL_TIME); 
+							-- Dependent MViews: 'MVBASE_FOREIGNKEYS,MVBASE_VIEW_FOREIGN_KEYS'
+				when 7 then MView_Refresh(p_MView_Name => 'MVCHANGELOG_REFERENCES', p_LAST_DDL_TIME => v_LAST_DDL_TIME); 
 				when 8 then custom_changelog.Changelog_Tables_Init('MVBASE_VIEWS');
 				-- foreign keys --
 				else null;
