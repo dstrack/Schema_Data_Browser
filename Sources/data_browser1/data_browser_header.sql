@@ -1598,6 +1598,7 @@ IS
     	p_Parent_Name VARCHAR2 DEFAULT NULL,				-- Parent View or Table name. In View_Mode NAVIGATION_VIEW if set columns from the view are included in the Column list
     	p_Parent_Key_Column VARCHAR2 DEFAULT NULL,			-- Column Name with foreign key to Parent Table
     	p_Parent_Key_Visible VARCHAR2 DEFAULT 'NO',			-- YES, NO, NULLABLE. Show foreign key column
+    	p_Parent_Key_Item VARCHAR2 DEFAULT NULL,
 		p_Use_Empty_Columns VARCHAR2 DEFAULT 'NO'
 	) RETURN CLOB;
 
@@ -1614,6 +1615,7 @@ IS
     	p_Parent_Name   VARCHAR2 DEFAULT NULL,				-- Parent View or Table name. In View_Mode NAVIGATION_VIEW if set columns from the view are included in the Column list
     	p_Parent_Key_Column VARCHAR2 DEFAULT NULL,			-- Column Name with foreign key to Parent Table
     	p_Parent_Key_Visible VARCHAR2 DEFAULT 'NO',			-- YES, NO, NULLABLE. Show foreign key column
+    	p_Parent_Key_Item VARCHAR2 DEFAULT NULL,
 		p_Use_Empty_Columns VARCHAR2 DEFAULT 'NO'
 	) RETURN VARCHAR2;
 
@@ -1859,6 +1861,7 @@ IS
     	p_Parent_Name VARCHAR2 DEFAULT NULL,				-- Parent View or Table name. In View_Mode NAVIGATION_VIEW if set columns from the view are included in the Column list
     	p_Parent_Key_Column VARCHAR2 DEFAULT NULL,			-- Column Name with foreign key to Parent Table
     	p_Parent_Key_Visible VARCHAR2 DEFAULT 'NO',			-- YES, NO, NULLABLE. Show foreign key column
+    	p_Parent_Key_Item VARCHAR2 DEFAULT NULL,
 		p_DML_Command VARCHAR2 DEFAULT 'UPDATE',			-- INSERT, UPDATE, LOOKUP
 		p_Row_Number NUMBER DEFAULT 1,
 		p_Use_Empty_Columns VARCHAR2 DEFAULT 'YES',
@@ -1877,6 +1880,7 @@ IS
     	p_Parent_Name VARCHAR2 DEFAULT NULL,				-- Parent View or Table name. In View_Mode NAVIGATION_VIEW if set columns from the view are included in the Column list
     	p_Parent_Key_Column VARCHAR2 DEFAULT NULL,			-- Column Name with foreign key to Parent Table
     	p_Parent_Key_Visible VARCHAR2 DEFAULT 'NO',			-- YES, NO, NULLABLE. Show foreign key column
+    	p_Parent_Key_Item VARCHAR2 DEFAULT NULL,
 		p_DML_Command VARCHAR2 DEFAULT 'UPDATE',			-- INSERT, UPDATE, LOOKUP
 		p_Row_Number NUMBER DEFAULT 1,
 		p_Use_Empty_Columns VARCHAR2 DEFAULT 'YES',
@@ -1890,6 +1894,7 @@ IS
     	p_Select_Columns VARCHAR2 DEFAULT NULL,	
 		p_Columns_Limit IN NUMBER DEFAULT 1000,
 		p_View_Mode IN VARCHAR2 DEFAULT 'FORM_VIEW',
+		p_Data_Source VARCHAR2 DEFAULT 'TABLE', 			-- NEW_ROWS, TABLE, COLLECTION, MEMORY
 		p_Report_Mode VARCHAR2 DEFAULT 'NO', 				-- YES, NO
     	p_Join_Options VARCHAR2 DEFAULT NULL,
     	p_Parent_Name VARCHAR2 DEFAULT NULL,				-- Parent View or Table name. In View_Mode NAVIGATION_VIEW if set columns from the view are included in the Column list

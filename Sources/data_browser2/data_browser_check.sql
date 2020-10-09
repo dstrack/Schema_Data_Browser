@@ -971,6 +971,7 @@ $END
 						p_Parent_Name => view_cur.PARENT_NAME,
 						p_Parent_Key_Column => view_cur.PARENT_KEY_COLUMN,
 						p_Parent_Key_Visible => view_cur.PARENT_KEY_VISIBLE,
+						p_Parent_Key_Item => 'P30_PARENT_KEY_ID',
 						p_Use_Empty_Columns => 'YES'
 					);
 					if v_Stat IS NOT NULL then
@@ -1034,6 +1035,7 @@ $END
 						p_Parent_Name => view_cur.PARENT_NAME,
 						p_Parent_Key_Column => view_cur.PARENT_KEY_COLUMN,
 						p_Parent_Key_Visible => view_cur.PARENT_KEY_VISIBLE,
+						p_Parent_Key_Item => 'P30_PARENT_KEY_ITEM',
 						p_DML_Command => 'UPDATE',
 						p_Use_Empty_Columns => 'YES'
 					);
@@ -1450,6 +1452,7 @@ $END
 					p_Parent_Name => view_cur.PARENT_NAME,
 					p_Parent_Key_Column => view_cur.PARENT_KEY_COLUMN,
 					p_Parent_Key_Visible => view_cur.PARENT_KEY_VISIBLE,
+					p_Parent_Key_Item => 'P30_PARENT_KEY_ITEM',
 					p_DML_Command => 'UPDATE',
 					p_Use_Empty_Columns => 'YES'
 				);
@@ -1464,6 +1467,7 @@ $END
 						p_Parent_Name => view_cur.PARENT_NAME,
 						p_Parent_Key_Column => view_cur.PARENT_KEY_COLUMN,
 						p_Parent_Key_Visible => view_cur.PARENT_KEY_VISIBLE,
+						p_Parent_Key_Item => 'P30_PARENT_KEY_ITEM',
 						p_DML_Command => 'UPDATE',
 						p_Use_Empty_Columns => 'YES'
 					);
@@ -1499,6 +1503,7 @@ $END
 						p_Parent_Name => view_cur.PARENT_NAME,
 						p_Parent_Key_Column => view_cur.PARENT_KEY_COLUMN,
 						p_Parent_Key_Visible => view_cur.PARENT_KEY_VISIBLE,
+						p_Parent_Key_Item => 'P30_PARENT_KEY_ID',
 						p_Use_Empty_Columns => 'YES'
 					);
 				end if;

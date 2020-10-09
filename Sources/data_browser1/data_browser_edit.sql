@@ -238,6 +238,7 @@ $END
     	p_Parent_Name VARCHAR2 DEFAULT NULL,				-- Parent View or Table name. In View_Mode NAVIGATION_VIEW if set columns from the view are included in the Column list
     	p_Parent_Key_Column VARCHAR2 DEFAULT NULL,			-- Column Name with foreign key to Parent Table
     	p_Parent_Key_Visible VARCHAR2 DEFAULT 'NO',			-- YES, NO, NULLABLE. Show foreign key column
+    	p_Parent_Key_Item VARCHAR2 DEFAULT NULL,
 		p_Use_Empty_Columns VARCHAR2 DEFAULT 'NO'
 	) RETURN CLOB
 	IS
@@ -284,11 +285,13 @@ $END
 				p_Select_Columns => p_Select_Columns,
 				p_Columns_Limit => p_Columns_Limit,
 				p_View_Mode => p_View_Mode,
+				p_Data_Source => p_Data_Source,
 				p_Report_Mode => p_Report_Mode,
 				p_Join_Options => p_Join_Options,
 				p_Parent_Name => p_Parent_Name,
 				p_Parent_Key_Column => p_Parent_Key_Column,
 				p_Parent_Key_Visible => p_Parent_Key_Visible,
+				p_Parent_Key_Item => p_Parent_Key_Item,
 				p_Use_Empty_Columns => p_Use_Empty_Columns,
 				p_Changed_Check_Condition => v_Changed_Check_Condition,
 				p_Changed_Check_Plsql => v_Changed_Check_Plsql
@@ -337,7 +340,8 @@ $END
 						p_Data_Source => p_Data_Source,
 						p_Parent_Name => p_Parent_Name,
 						p_Parent_Key_Column => p_Parent_Key_Column,
-						p_Parent_Key_Visible => p_Parent_Key_Visible
+						p_Parent_Key_Visible => p_Parent_Key_Visible,
+						p_Parent_Key_Item => p_Parent_Key_Item
 					)
 				)
 			), REFERENCES_Q AS (
@@ -676,7 +680,8 @@ $END
 						p_Data_Source => p_Data_Source,
 						p_Parent_Name => p_Parent_Name,
 						p_Parent_Key_Column => p_Parent_Key_Column,
-						p_Parent_Key_Visible => p_Parent_Key_Visible
+						p_Parent_Key_Visible => p_Parent_Key_Visible,
+						p_Parent_Key_Item => p_Parent_Key_Item
 					)) A,
 					( select S.VIEW_NAME, S.CONSTRAINT_NAME,
 							REGEXP_REPLACE(S.CHECK_CONDITION, '\s+', chr(32)) CHECK_CONDITION,
@@ -917,6 +922,7 @@ $END
     	p_Parent_Name   VARCHAR2 DEFAULT NULL,				-- Parent View or Table name. In View_Mode NAVIGATION_VIEW if set columns from the view are included in the Column list
     	p_Parent_Key_Column VARCHAR2 DEFAULT NULL,			-- Column Name with foreign key to Parent Table
     	p_Parent_Key_Visible VARCHAR2 DEFAULT 'NO',			-- YES, NO, NULLABLE. Show foreign key column
+    	p_Parent_Key_Item VARCHAR2 DEFAULT NULL,
 		p_Use_Empty_Columns VARCHAR2 DEFAULT 'NO'
 	) RETURN VARCHAR2
 	IS
@@ -936,6 +942,7 @@ $END
 			p_Parent_Name => p_Parent_Name,
 			p_Parent_Key_Column => p_Parent_Key_Column,
 			p_Parent_Key_Visible => p_Parent_Key_Visible,
+			p_Parent_Key_Item => p_Parent_Key_Item,
 			p_Use_Empty_Columns => p_Use_Empty_Columns
 		);
 		$IF data_browser_conf.g_debug $THEN
@@ -1229,6 +1236,7 @@ $END
 			p_Parent_Name => p_Parent_Name,
 			p_Parent_Key_Column => p_Parent_Key_Column,
 			p_Parent_Key_Visible => p_Parent_Key_Visible,
+			p_Parent_Key_Item => p_Parent_Key_Item,
 			p_DML_Command => 'LOOKUP',
 			p_Use_Empty_Columns => 'YES',
 			p_Exec_Phase => 1
@@ -1244,6 +1252,7 @@ $END
 			p_Parent_Name => p_Parent_Name,
 			p_Parent_Key_Column => p_Parent_Key_Column,
 			p_Parent_Key_Visible => p_Parent_Key_Visible,
+			p_Parent_Key_Item => p_Parent_Key_Item,
 			p_Use_Empty_Columns => 'YES',
 			p_DML_Command => 'LOOKUP',
 			p_Exec_Phase => 2
@@ -1261,6 +1270,7 @@ $END
 			p_Parent_Name => p_Parent_Name,
 			p_Parent_Key_Column => p_Parent_Key_Column,
 			p_Parent_Key_Visible => p_Parent_Key_Visible,
+			p_Parent_Key_Item => p_Parent_Key_Item,
 			p_Use_Empty_Columns => 'YES'
 		);
 		data_browser_edit.Get_Import_Description (
@@ -3032,8 +3042,9 @@ $END
 			v_Md5_Row_Factor := TRUNC((g_Describe_Edit_Cols_tab(1).APEX_ITEM_CNT-1) / data_browser_conf.Get_Apex_Item_Limit) + 1;
 			$IF data_browser_conf.g_debug $THEN
 				apex_debug.message(
-					p_message => 'data_browser_edit.Get_Form_Edit_Cursor (v_Md5_Row_Factor =>%s)',
-					p0 => v_Md5_Row_Factor
+					p_message => 'data_browser_edit.Get_Form_Edit_Cursor (v_Md5_Row_Factor =>%s) is_cached : %s',
+					p0 => v_Md5_Row_Factor,
+					p1 => v_is_cached
 				);
 			$END
 			v_Column_Count := 0;
@@ -3523,6 +3534,7 @@ $END
     	p_Parent_Name VARCHAR2 DEFAULT NULL,				-- Parent View or Table name. In View_Mode NAVIGATION_VIEW if set columns from the view are included in the Column list
     	p_Parent_Key_Column VARCHAR2 DEFAULT NULL,			-- Column Name with foreign key to Parent Table
     	p_Parent_Key_Visible VARCHAR2 DEFAULT 'NO',			-- YES, NO, NULLABLE. Show foreign key column
+    	p_Parent_Key_Item VARCHAR2 DEFAULT NULL,
 		p_DML_Command VARCHAR2 DEFAULT 'UPDATE',			-- INSERT, UPDATE, LOOKUP
 		p_Row_Number NUMBER DEFAULT 1,
 		p_Use_Empty_Columns VARCHAR2 DEFAULT 'YES',
@@ -3554,7 +3566,8 @@ $END
 					p_Data_Source => p_Data_Source,
 					p_Parent_Name => p_Parent_Name,
 					p_Parent_Key_Column => p_Parent_Key_Column,
-					p_Parent_Key_Visible => p_Parent_Key_Visible
+					p_Parent_Key_Visible => p_Parent_Key_Visible,
+					p_Parent_Key_Item => p_Parent_Key_Item
 				)
 			) E
 			WHERE (E.TABLE_ALIAS != 'A' OR E.TABLE_ALIAS IS NULL OR E.COLUMN_EXPR_TYPE = 'HIDDEN')
@@ -4082,7 +4095,8 @@ $END
 							p_Data_Source => p_Data_Source,
 							p_Parent_Name => p_Parent_Name,
 							p_Parent_Key_Column => p_Parent_Key_Column,
-							p_Parent_Key_Visible => p_Parent_Key_Visible
+							p_Parent_Key_Visible => p_Parent_Key_Visible,
+							p_Parent_Key_Item => p_Parent_Key_Item
 						)
 					)
 					where APEX_ITEM_REF IS NOT NULL
@@ -4196,6 +4210,7 @@ $END
     	p_Parent_Name VARCHAR2 DEFAULT NULL,				-- Parent View or Table name. In View_Mode NAVIGATION_VIEW if set columns from the view are included in the Column list
     	p_Parent_Key_Column VARCHAR2 DEFAULT NULL,			-- Column Name with foreign key to Parent Table
     	p_Parent_Key_Visible VARCHAR2 DEFAULT 'NO',			-- YES, NO, NULLABLE. Show foreign key column
+    	p_Parent_Key_Item VARCHAR2 DEFAULT NULL,
 		p_DML_Command VARCHAR2 DEFAULT 'UPDATE',			-- INSERT, UPDATE, LOOKUP
 		p_Row_Number NUMBER DEFAULT 1,
 		p_Use_Empty_Columns VARCHAR2 DEFAULT 'YES',
@@ -4218,6 +4233,7 @@ $END
 			p_Parent_Name => p_Parent_Name,
 			p_Parent_Key_Column => p_Parent_Key_Column,
 			p_Parent_Key_Visible => p_Parent_Key_Visible,
+			p_Parent_Key_Item => p_Parent_Key_Item,
 			p_DML_Command => p_DML_Command,
 			p_Row_Number => p_Row_Number,
 			p_Use_Empty_Columns => p_Use_Empty_Columns,
@@ -4265,13 +4281,14 @@ $IF data_browser_conf.g_use_exceptions $THEN
 $END
 	end Validate_Form_Foreign_Keys;
 
-	PROCEDURE Get_Form_Changed_Check (					-- internal
+	PROCEDURE Get_Form_Changed_Check (						-- internal
 		p_Table_name IN VARCHAR2,
     	p_Unique_Key_Column VARCHAR2 DEFAULT NULL,
     	p_Select_Columns VARCHAR2 DEFAULT NULL,	
 		p_Columns_Limit IN NUMBER DEFAULT 1000,
 		p_View_Mode IN VARCHAR2 DEFAULT 'FORM_VIEW',
-		p_Report_Mode VARCHAR2 DEFAULT 'NO', 			-- YES, NO
+		p_Data_Source VARCHAR2 DEFAULT 'TABLE', 			-- NEW_ROWS, TABLE, COLLECTION, MEMORY
+		p_Report_Mode VARCHAR2 DEFAULT 'NO', 				-- YES, NO
     	p_Join_Options VARCHAR2 DEFAULT NULL,
     	p_Parent_Name VARCHAR2 DEFAULT NULL,				-- Parent View or Table name. In View_Mode NAVIGATION_VIEW if set columns from the view are included in the Column list
     	p_Parent_Key_Column VARCHAR2 DEFAULT NULL,			-- Column Name with foreign key to Parent Table
@@ -4322,6 +4339,7 @@ $END
 					p_View_Mode => p_View_Mode,
 					p_Report_Mode => p_Report_Mode,
 					p_Join_Options => p_Join_Options,
+					p_Data_Source => p_Data_Source,
 					p_Parent_Name => p_Parent_Name,
 					p_Parent_Key_Column => p_Parent_Key_Column,
 					p_Parent_Key_Visible => p_Parent_Key_Visible,
@@ -5305,7 +5323,7 @@ $END
 					p_View_Mode => p_View_Mode,
 					p_Report_Mode => p_Report_Mode,
 					p_Join_Options => p_Join_Options,
-					p_Data_Source => case when v_Row_Op = 'INSERT' then 'NEW_ROWS' else 'TABLE' end,
+					p_Data_Source => p_Data_Source, --case when v_Row_Op = 'INSERT' then 'NEW_ROWS' else 'TABLE' end,
 					p_Parent_Name => p_Parent_Name,
 					p_Parent_Key_Column => p_Parent_Key_Column,
 					p_Parent_Key_Visible => v_Parent_Key_Visible,
@@ -5464,6 +5482,7 @@ $END
 				p_Select_Columns => p_Select_Columns,
 				p_Columns_Limit => p_Columns_Limit,
 				p_View_Mode => p_View_Mode,
+				p_Data_Source => p_Data_Source,
 				p_Report_Mode => p_Report_Mode,
 				p_Join_Options => p_Join_Options,
 				p_Parent_Name => p_Parent_Name,
@@ -5912,6 +5931,7 @@ $END
 					p_Parent_Name => p_Parent_Name,
 					p_Parent_Key_Column => p_Parent_Key_Column,
 					p_Parent_Key_Visible => p_Parent_Key_Visible,
+					p_Parent_Key_Item => p_Parent_Key_Item,
 					p_DML_Command => 'INSERT',
 					p_Use_Empty_Columns => 'YES',
 					p_Exec_Phase => 1
@@ -5927,6 +5947,7 @@ $END
 					p_Parent_Name => p_Parent_Name,
 					p_Parent_Key_Column => p_Parent_Key_Column,
 					p_Parent_Key_Visible => p_Parent_Key_Visible,
+					p_Parent_Key_Item => p_Parent_Key_Item,
 					p_Use_Empty_Columns => 'YES',
 					p_DML_Command => 'INSERT',
 					p_Exec_Phase => 2
@@ -5945,6 +5966,7 @@ $END
 					p_Parent_Name => p_Parent_Name,
 					p_Parent_Key_Column => p_Parent_Key_Column,
 					p_Parent_Key_Visible => p_Parent_Key_Visible,
+					p_Parent_Key_Item => p_Parent_Key_Item,
 					p_Use_Empty_Columns => 'YES'
 				);
 				$IF data_browser_conf.g_debug $THEN
