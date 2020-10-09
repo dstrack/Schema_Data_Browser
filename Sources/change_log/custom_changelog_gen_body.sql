@@ -170,7 +170,7 @@ $END
 	PROCEDURE MView_Refresh (
 		p_MView_Name VARCHAR2,
 		p_Dependent_MViews VARCHAR2 DEFAULT NULL,
-		p_LAST_DDL_TIME USER_OBJECTS.LAST_DDL_TIME%TYPE DEFAULT NULL
+		p_LAST_DDL_TIME IN OUT USER_OBJECTS.LAST_DDL_TIME%TYPE
 	)
 	IS
 		v_LAST_DDL_TIME USER_OBJECTS.LAST_DDL_TIME%TYPE;
@@ -198,12 +198,23 @@ $END
 		if v_LAST_DDL_TIME > v_LAST_REFRESH_DATE OR v_LAST_REFRESH_DATE IS NULL 
 		or v_STALENESS IN ('NEEDS_COMPILE', 'UNUSABLE') then
 			DBMS_MVIEW.REFRESH(p_MView_Name);
+			p_LAST_DDL_TIME := SYSDATE;
 			DBMS_OUTPUT.PUT_LINE('-- Refreshed ' || p_MView_Name || ' Compile State: ' || v_COMPILE_STATE || ' Staleness: ' || v_STALENESS);
 		else
 			DBMS_OUTPUT.PUT_LINE('-- skipped ' || p_MView_Name || ' Compile State: ' || v_COMPILE_STATE || ' Staleness: ' || v_STALENESS);
 		end if;
 	END MView_Refresh;
 
+	PROCEDURE MView_Refresh (
+		p_MView_Name VARCHAR2,
+		p_Dependent_MViews VARCHAR2 DEFAULT NULL
+	)
+    IS
+		v_LAST_DDL_TIME USER_OBJECTS.LAST_DDL_TIME%TYPE;
+    BEGIN
+		MView_Refresh(p_MView_Name, p_Dependent_MViews, v_LAST_DDL_TIME);
+	eND MView_Refresh;
+	
     PROCEDURE Refresh_MViews (
     	p_context  				IN binary_integer DEFAULT NVL(MOD(NV('APP_SESSION'), POWER(2,31)), 0),
     	p_Start_Step 			IN binary_integer DEFAULT 1
