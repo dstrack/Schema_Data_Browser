@@ -2555,30 +2555,34 @@ is
 			then 'YES' else 'NO' end;
 		CURSOR Display_Values_cur
 		IS
-			SELECT COLUMN_NAME, POSITION, NULLABLE, C_COLUMN_EXPR, TABLE_ALIAS,
+			SELECT COLUMN_NAME, POSITION, R_POSITION, NULLABLE, C_COLUMN_EXPR, TABLE_ALIAS,
 				R_VIEW_NAME, R_PRIMARY_KEY_COLS, R_TABLE_ALIAS, R_COLUMN_NAMES
 			FROM (
 				SELECT
-					VIEW_NAME, COLUMN_NAME, POSITION, NULLABLE,
+					VIEW_NAME, COLUMN_NAME, 
+					POSITION, 
+					MAX(R_POSITION) R_POSITION,
+					NULLABLE,
 					data_browser_select.Get_ConversionColFunction (
 						p_Column_Name => TABLE_ALIAS || COLUMN_NAME,
 						p_Data_Type => DATA_TYPE,
 						p_Data_Precision => DATA_PRECISION,
 						p_Data_Scale => DATA_SCALE,
 						p_Char_Length => CHAR_LENGTH,
-						p_Data_Format => case when R_VIEW_NAME IS NULL then 'FORM' else 'CSV' end,
+						p_Data_Format => case when R_VIEW_NAME IS NULL then 'FORM' else 'NATIVE' end,
 						p_Use_Trim => 'Y',
 						p_Datetime => IS_DATETIME
 					) C_COLUMN_EXPR,
 					TABLE_ALIAS,
 					R_VIEW_NAME, R_PRIMARY_KEY_COLS,
 					R_TABLE_ALIAS,
-					LISTAGG( case when R_SUB_QUERY IS NOT NULL then R_SUB_QUERY
-								  when R_COLUMN_NAME is not null then -- R_TABLE_ALIAS || '.' || R_COLUMN_NAME 
+					LISTAGG( case when R_SUB_QUERY IS NOT NULL then 
+									R_SUB_QUERY
+								  when R_COLUMN_NAME is not null then 
 								  	data_browser_conf.Get_Foreign_Key_Expression(p_Foreign_Key_Column=>R_COLUMN_NAME, p_Table_Alias=> R_TABLE_ALIAS)
 								  end
 							, Group_Delimiter)
-						WITHIN GROUP (ORDER BY POSITION, R_COLUMN_ID
+						WITHIN GROUP (ORDER BY POSITION, R_POSITION
 					) R_COLUMN_NAMES -- all description columns of one foreign key
 				FROM (
 					WITH PARAM AS (
@@ -2614,7 +2618,7 @@ is
 						and (C.COLUMN_VALUE != PA.Exclude_Col_Name or PA.Display_Col_Names = PA.Exclude_Col_Name  or PA.Exclude_Col_Name IS NULL)
 					)
 					SELECT --+ USE_NL_WITH_INDEX(C) USE_NL_WITH_INDEX(F) USE_NL_WITH_INDEX(G)
-						C.VIEW_NAME, T.COLUMN_NAME, T.POSITION, F.R_COLUMN_ID, C.NULLABLE,
+						C.VIEW_NAME, T.COLUMN_NAME, T.POSITION, F.R_POSITION, C.NULLABLE,
 						C.DATA_TYPE, C.DATA_PRECISION, C.DATA_SCALE, C.CHAR_LENGTH, C.IS_DATETIME,
 						F.R_VIEW_NAME, F.R_PRIMARY_KEY_COLS, F.R_COLUMN_NAME,
 						case when COUNT(F.R_VIEW_NAME) OVER (PARTITION BY C.VIEW_NAME) > 0
@@ -2667,7 +2671,7 @@ is
 								p_Active_Data_Type => G.ACTIVE_LOV_DATA_TYPE,
 								p_Order_by			=> null,
 								p_Level 			=> PA.Call_Level + 1
-							) || data_browser_conf.NL(p_Indent + PA.Call_Level*4) || ') -- recursive query '
+							) || data_browser_conf.NL(p_Indent + PA.Call_Level*4) || ')'
 							|| data_browser_conf.NL(p_Indent + PA.Call_Level*4)
 						end R_SUB_QUERY,
 						PA.Group_Delimiter
@@ -2687,7 +2691,7 @@ is
 					DATA_TYPE, DATA_PRECISION, DATA_SCALE, CHAR_LENGTH, IS_DATETIME,
 					R_VIEW_NAME, R_PRIMARY_KEY_COLS, R_TABLE_ALIAS, R_SUB_QUERY, Group_Delimiter
 			) T
-			ORDER BY VIEW_NAME, POSITION;
+			ORDER BY VIEW_NAME, POSITION, R_POSITION;
 
 		TYPE View_Cols_Tab IS TABLE OF Display_Values_cur%ROWTYPE;
 		v_out_tab 			View_Cols_Tab;
