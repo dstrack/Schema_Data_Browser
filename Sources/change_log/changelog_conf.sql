@@ -135,15 +135,6 @@ IS
 	);
 	TYPE tab_unique_keys IS TABLE OF rec_unique_keys;
 	
-	TYPE rec_table_cols IS RECORD (
-		TABLE_NAME                    VARCHAR2(128), 
-		OWNER                   	  VARCHAR2(128), 
-		COLUMN_NAME               	  VARCHAR2(128), 
-		COLUMN_ID					  NUMBER,
-		DATA_TYPE					  VARCHAR2(128)
-	);
-	TYPE tab_table_cols IS TABLE OF rec_table_cols;
-		
 	TYPE rec_base_unique_keys IS RECORD (
 		TABLE_NAME                    VARCHAR2(128), 
 		TABLE_OWNER                   VARCHAR2(128), 
@@ -279,9 +270,6 @@ IS
 	FUNCTION FN_Pipe_views_triggers (
 		p_Table_Name VARCHAR2 DEFAULT NULL
 	) RETURN changelog_conf.tab_views_triggers PIPELINED;
-
-	FUNCTION FN_Pipe_table_cols 
-	RETURN changelog_conf.tab_table_cols PIPELINED;
 
 	FUNCTION FN_Pipe_unique_keys
 	RETURN changelog_conf.tab_unique_keys PIPELINED;
@@ -1022,53 +1010,12 @@ IS
         END IF;
 	END FN_Pipe_views_triggers;
 
-	FUNCTION FN_Pipe_table_cols
-	RETURN changelog_conf.tab_table_cols PIPELINED
-	IS
-        CURSOR keys_cur
-        IS
-			SELECT C.TABLE_NAME, C.OWNER, C.COLUMN_NAME, C.COLUMN_ID, C.DATA_TYPE
-			FROM SYS.ALL_TAB_COLS C
-			WHERE C.HIDDEN_COLUMN = 'NO'
-			AND C.OWNER NOT IN ('SYS', 'SYSTEM', 'SYSAUX', 'CTXSYS', 'MDSYS', 'OUTLN');
-
-        CURSOR user_keys_cur
-        IS
-			SELECT C.TABLE_NAME, SYS_CONTEXT('USERENV', 'CURRENT_SCHEMA') OWNER, C.COLUMN_NAME, C.COLUMN_ID, C.DATA_TYPE
-			FROM SYS.USER_TAB_COLS C
-			WHERE C.HIDDEN_COLUMN = 'NO';
-        v_in_rows tab_table_cols;
-	BEGIN
-		if g_Include_External_Objects = 'YES' then 
-			OPEN keys_cur;
-			FETCH keys_cur BULK COLLECT INTO v_in_rows;
-			CLOSE keys_cur;
-        else 
-			OPEN user_keys_cur;
-			FETCH user_keys_cur BULK COLLECT INTO v_in_rows;
-			CLOSE user_keys_cur;  
-        end if;
-		FOR ind IN 1 .. v_in_rows.COUNT LOOP
-			pipe row (v_in_rows(ind));
-		END LOOP;
-	exception
-	  when others then
-	    if keys_cur%ISOPEN then
-			CLOSE keys_cur;
-		end if;
-	    if user_keys_cur%ISOPEN then
-			CLOSE user_keys_cur;
-		end if;
-		raise;
-	END FN_Pipe_table_cols;
-
-
 	FUNCTION FN_Pipe_unique_keys 
 	RETURN changelog_conf.tab_unique_keys PIPELINED
 	IS
         CURSOR keys_cur
         IS
-			SELECT /*+ RESULT_CACHE */
+			SELECT /*+ RESULT_CACHE USE_MERGE(B C D) */
 				C.TABLE_NAME, C.OWNER TABLE_OWNER, C.CONSTRAINT_NAME, B.CONSTRAINT_TYPE, C.COLUMN_NAME, C.POSITION,
 				D.DATA_DEFAULT DEFAULT_TEXT,
 				D.COLUMN_ID, D.DATA_TYPE, D.NULLABLE, D.DATA_PRECISION, D.DATA_SCALE, 
@@ -1084,7 +1031,7 @@ IS
 			AND B.OWNER NOT IN ('SYS', 'SYSTEM', 'SYSAUX', 'CTXSYS', 'MDSYS', 'OUTLN');
         CURSOR user_keys_cur
         IS
-			SELECT /*+ RESULT_CACHE */
+			SELECT /*+ RESULT_CACHE USE_MERGE(B C D) */
 				C.TABLE_NAME, C.OWNER TABLE_OWNER, C.CONSTRAINT_NAME, B.CONSTRAINT_TYPE, C.COLUMN_NAME, C.POSITION,
 				D.DATA_DEFAULT DEFAULT_TEXT,
 				D.COLUMN_ID, D.DATA_TYPE, D.NULLABLE, D.DATA_PRECISION, D.DATA_SCALE, 
@@ -1158,7 +1105,7 @@ IS
 	IS
         CURSOR keys_cur
         IS
-			SELECT /*+ RESULT_CACHE */
+			SELECT /*+ RESULT_CACHE USE_MERGE(B C D) */
 				B.TABLE_NAME, B.TABLE_OWNER, SUBSTR(C.INDEX_NAME, 1, 27) || '_IC' CONSTRAINT_NAME, 'U' CONSTRAINT_TYPE, C.COLUMN_NAME, C.COLUMN_POSITION POSITION,
 				D.DATA_DEFAULT DEFAULT_TEXT,
 				D.COLUMN_ID, D.DATA_TYPE, D.NULLABLE, D.DATA_PRECISION, D.DATA_SCALE, 
@@ -1177,7 +1124,7 @@ IS
 			AND C.TABLE_OWNER NOT IN ('SYS', 'SYSTEM', 'SYSAUX', 'CTXSYS', 'MDSYS', 'OUTLN');
         CURSOR user_keys_cur
         IS
-			SELECT  /*+ RESULT_CACHE */
+			SELECT  /*+ RESULT_CACHE USE_MERGE(B C D) */
 				B.TABLE_NAME, B.TABLE_OWNER, 
 				SUBSTR(C.INDEX_NAME, 1, 27) || '_IC' CONSTRAINT_NAME, 'U' CONSTRAINT_TYPE, C.COLUMN_NAME, C.COLUMN_POSITION POSITION,
 				D.DATA_DEFAULT DEFAULT_TEXT,
@@ -1198,6 +1145,9 @@ IS
         v_exclude_cols_pattern VARCHAR2(4000);
 		v_exclude_cols_Array apex_t_varchar2;
 	BEGIN
+		if g_Use_Change_Log IS NULL then
+			return; -- not initialised (during create mview)
+		end if;
 		v_exclude_cols_pattern := changelog_conf.Concat_List(changelog_conf.Get_ColumnWorkspace_List, changelog_conf.Get_ColumnDeletedMark_List);
 		v_exclude_cols_Array := apex_string.split(REPLACE(v_exclude_cols_pattern,'_','\_'), ',');
 		if g_Include_External_Objects = 'YES' then 
