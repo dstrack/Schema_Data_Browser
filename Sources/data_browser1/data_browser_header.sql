@@ -204,9 +204,11 @@ IS
     g_q_ref_cols_tab		data_browser_select.tab_data_browser_q_refs;
 	g_q_ref_cols_md5 		VARCHAR2(300) := 'X';
 
-	FUNCTION FN_Pipe_browser_q_refs (p_View_Name VARCHAR2, p_Data_Format VARCHAR2 DEFAULT 'FORM', p_Include_Schema VARCHAR2 DEFAULT 'NO')
-	RETURN data_browser_select.tab_data_browser_q_refs PIPELINED;
-
+	FUNCTION FN_Pipe_browser_q_refs (
+		p_View_Name VARCHAR2, 
+		p_Data_Format VARCHAR2 DEFAULT 'FORM', 
+		p_Include_Schema VARCHAR2 DEFAULT data_browser_conf.Get_Include_Query_Schema
+	) RETURN data_browser_select.tab_data_browser_q_refs PIPELINED;
 
 	TYPE rec_table_imp_fk IS RECORD (
 		VIEW_NAME					VARCHAR2(128),

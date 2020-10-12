@@ -3606,10 +3606,7 @@ $END
 					S.R_VIEW_NAME 		D_VIEW_NAME,
 					S.IMP_COLUMN_NAME
 				FROM MVDATA_BROWSER_F_REFS S, TABLE(data_browser_select.FN_Pipe_browser_q_refs(
-					p_View_Name => S.VIEW_NAME,
-					p_Data_Format => 'FORM',
-					p_Include_Schema => data_browser_conf.Get_Include_Query_Schema
-				)) Q 
+					p_View_Name => S.VIEW_NAME, p_Data_Format => 'FORM')) Q 
                 -- , (SELECT 'SALES' p_Table_name, 'NO' p_As_Of_Timestamp FROM DUAL ) PAR
 				where Q.VIEW_NAME = S.VIEW_NAME
 					and Q.FOREIGN_KEY_COLS = S.FOREIGN_KEY_COLS

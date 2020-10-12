@@ -211,10 +211,7 @@ is
 				end LOV_QUERY, -- query for popup list of values
 				T.COLUMN_ALIGN,
 				T.COLUMN_HEADER, 
-				case when (T.IS_PRIMARY_KEY = 'Y' 		-- primary key shouldn´t be input field
-							and S.HAS_SCALAR_KEY = 'YES'	-- primary key is managed automatically
-							and E.COLUMN_NAME IS NULL)	-- In View Mode FORM_VIEW foreign keys are popup fields
-						or T.IS_IGNORED = 'Y'
+				case when T.IS_IGNORED = 'Y'
 						or T.COLUMN_NAME = S.ROW_VERSION_COLUMN_NAME then -- hidden column
 							'A.' || T.COLUMN_NAME
 					when v_View_Mode != 'RECORD_VIEW' and E.DISPLAYED_COLUMN_NAMES IS NOT NULL then
@@ -724,6 +721,20 @@ is
 		)
 		ORDER BY COLUMN_ORDER, IS_AUDIT_COLUMN, COLUMN_ID, POSITION;
 	--------------------------------------------------------------------------------------
+	/*
+	simple_cols: all simple col with alias A. 
+		FK cols are HIDDEN fields.
+	f_refs: all 1. level natural key columns of direct references from table A => alias B. 
+		FK cols are HIDDEN fields. (join options A, K)
+	q_refs: all 2. level natural key columns of indirect references from frefs => alias B_A. 
+		FK cols are excluded fields. (join options A, K)
+
+	fc_refs: all 1. level table columns of direct references from table A => alias B. 
+		FK cols are HIDDEN fields. (join options A)
+	qc_refs: all 2. level table columns of indirect references from frefs => alias B_A. 
+		FK cols are excluded fields. (join options A)
+	------------------------------------------------------------------------------------------	
+	*/
 	CURSOR Describe_Imp_Cols_cur (
 		v_View_Name VARCHAR2, 				-- Table Name or View Name of master table
 		v_Unique_Key_Column VARCHAR2,		-- Unique Key Column or NULL. Used to build a Link_ID_Expression
@@ -876,7 +887,7 @@ is
 				COLUMN_EXPR, COLUMN_EXPR_TYPE, FIELD_LENGTH, DISPLAY_IN_REPORT,
 				R_TABLE_NAME, R_VIEW_NAME, R_COLUMN_NAME, 
 				REF_TABLE_NAME, REF_VIEW_NAME, REF_COLUMN_NAME, COMMENTS
-			FROM ( -- main table - select column list
+			FROM ( -- main table - simple_cols: all simple col with alias A. 
 				SELECT --+ INDEX(S) USE_NL_WITH_INDEX(T)
 					T.VIEW_NAME,
 					T.COLUMN_NAME,
@@ -1100,8 +1111,8 @@ is
 				WHERE S.VIEW_NAME = v_View_Name
 				AND F.FOLDER_PARENT_COLUMN_NAME IS NOT NULL 
 				AND S.IS_FILE_FOLDER_REF = 'Y'
-				---------------------------------------------------------------
-				UNION ALL -- select column list: foreign key target displayed columns (1. Level)
+				UNION ALL -- f_refs: all 1. level natural key columns of direct references from table A => alias B.
+							--------------------------------------------------------------
 				SELECT DISTINCT --+ INDEX(S)
 					S.VIEW_NAME, S.IMP_COLUMN_NAME COLUMN_NAME, 
 					S.TABLE_ALIAS,
@@ -1167,11 +1178,13 @@ is
 					'' COMMENTS
 				FROM MVDATA_BROWSER_F_REFS S
 				LEFT OUTER JOIN MVDATA_BROWSER_REFERENCES E ON S.R_VIEW_NAME = E.VIEW_NAME AND S.R_COLUMN_NAME = E.COLUMN_NAME
-				LEFT OUTER JOIN JOIN_OPTIONS J ON S.TABLE_ALIAS = J.TABLE_ALIAS
+				--LEFT OUTER 
+				JOIN JOIN_OPTIONS J ON S.TABLE_ALIAS = J.TABLE_ALIAS
 				WHERE S.VIEW_NAME = v_View_Name
 				AND S.R_COLUMN_ID IS NOT NULL	
 				AND S.IS_FILE_FOLDER_REF = 'N'
-				AND (J.COLUMNS_INCLUDED IN ('A', 'K') OR v_Join_Options IS NULL) 
+				AND (J.COLUMNS_INCLUDED IN ('A', 'K'))
+				--AND (J.COLUMNS_INCLUDED IN ('A', 'K') OR v_Join_Options IS NULL) 
 				AND data_browser_select.FN_Filter_Parent_Key(
 					p_Parent_Key_Visible => v_Parent_Key_Visible,
 					p_Parent_Name 		=> v_Parent_Name,
@@ -1179,7 +1192,8 @@ is
 					p_Ref_View_Name 	=> S.R_VIEW_NAME,
 					p_R_Column_Name 	=> S.FOREIGN_KEY_COLS
 				) = 'NO'
-				UNION ALL -- select column list: foreign key columns (2. Level)
+				UNION ALL -- q_refs: all 2. level natural key columns of indirect references from frefs => alias B_A. 
+							--------------------------------------------------------------
 				SELECT DISTINCT --+ INDEX(S)
 					S.VIEW_NAME, S.FOREIGN_KEY_COLS COLUMN_NAME,
 					S.R_TABLE_ALIAS TABLE_ALIAS,
@@ -1225,14 +1239,12 @@ is
 					S.R_VIEW_NAME REF_VIEW_NAME, 
 					S.R_COLUMN_NAME REF_COLUMN_NAME,
 					'' COMMENTS
-				FROM TABLE(data_browser_select.FN_Pipe_browser_q_refs(p_View_Name => v_View_Name,
-					p_Data_Format => v_Data_Format,
-					p_Include_Schema => data_browser_conf.Get_Include_Query_Schema)) S
-				LEFT OUTER JOIN JOIN_OPTIONS J ON S.TABLE_ALIAS = J.TABLE_ALIAS
+				FROM TABLE(data_browser_select.FN_Pipe_browser_q_refs(p_View_Name => v_View_Name, p_Data_Format => v_Data_Format)) S
+				JOIN JOIN_OPTIONS J ON S.TABLE_ALIAS = J.TABLE_ALIAS
 				WHERE S.VIEW_NAME = v_View_Name
 				AND S.PARENT_KEY_COLUMN IS NULL -- column is hidden because its content can be deduced from the references FILTER_KEY_COLUMN
 				AND S.IS_FILE_FOLDER_REF = 'N'
-				AND (J.COLUMNS_INCLUDED IN ('A', 'K') OR v_Join_Options IS NULL)
+				AND (J.COLUMNS_INCLUDED IN ('A', 'K'))
 				AND NOT EXISTS (-- no foreign key columns
 					SELECT 1
 					FROM MVDATA_BROWSER_REFERENCES E
@@ -1246,7 +1258,8 @@ is
 					p_R_Column_Name 	=> S.COLUMN_NAME
 				) = 'NO'
 				---------------------------------------------------------------
-				UNION ALL -- All columns of referenced tables
+				UNION ALL -- fc_refs: all 1. level table columns of direct references from table A => alias B.
+							--------------------------------------------------------------
 				SELECT DISTINCT S.VIEW_NAME, S.COLUMN_NAME, 
 					S.TABLE_ALIAS,
 					S.IS_AUDIT_COLUMN, 'N' IS_OBFUSCATED, 'N' IS_UPPER_NAME,
@@ -1310,7 +1323,8 @@ is
 				WHERE S.VIEW_NAME = v_View_Name
 				AND (J.COLUMNS_INCLUDED = 'A')
 				AND data_browser_conf.Check_Data_Deduction(S.R_COLUMN_NAME) = 'NO'
-				UNION ALL
+				UNION ALL -- qc_refs: all 2. level table columns of indirect references from frefs => alias B_A. 
+							--------------------------------------------------------------
 				SELECT DISTINCT S.VIEW_NAME, S.COLUMN_NAME,
 					S.R_TABLE_ALIAS TABLE_ALIAS,
 					S.IS_AUDIT_COLUMN, 'N' IS_OBFUSCATED, 'N' IS_UPPER_NAME,
@@ -1484,10 +1498,7 @@ is
 		) FC 
 		where not exists (
 			select 1 
-			from TABLE(data_browser_select.FN_Pipe_browser_q_refs(
-				p_View_Name => FC.VIEW_NAME,
-				p_Data_Format => p_Data_Format,
-				p_Include_Schema => data_browser_conf.Get_Include_Query_Schema)) F
+			from TABLE(data_browser_select.FN_Pipe_browser_q_refs(p_View_Name => FC.VIEW_NAME, p_Data_Format => p_Data_Format)) F
 			where F.VIEW_NAME = FC.VIEW_NAME
 			and F.FOREIGN_KEY_COLS = FC.COLUMN_NAME 
 			and F.COLUMN_ID = FC.COLUMN_ID
@@ -1624,8 +1635,11 @@ is
 	or the column names are members of unique key definitions
 	or the column names are displayed columns of second level foreign keys of composite primary keys.
 	*/
-	FUNCTION FN_Pipe_browser_q_refs (p_View_Name VARCHAR2, p_Data_Format VARCHAR2 DEFAULT 'FORM', p_Include_Schema VARCHAR2 DEFAULT 'NO')
-	RETURN data_browser_select.tab_data_browser_q_refs PIPELINED
+	FUNCTION FN_Pipe_browser_q_refs (
+		p_View_Name VARCHAR2, 
+		p_Data_Format VARCHAR2 DEFAULT 'FORM', 
+		p_Include_Schema VARCHAR2 DEFAULT data_browser_conf.Get_Include_Query_Schema
+	) RETURN data_browser_select.tab_data_browser_q_refs PIPELINED
 	IS
         CURSOR keys_cur (v_View_Name VARCHAR2, v_Data_Format VARCHAR2, v_Include_Schema VARCHAR2)
         IS -- find qualified unique key for target table of foreign key reference
@@ -1888,11 +1902,7 @@ is
 			SUM(case when Q.U_MEMBERS = 1 THEN 1 else 0 end ) OVER (PARTITION BY Q.TABLE_NAME, Q.FOREIGN_KEY_COLS) HAS_SIMPLE_UNIQUE,
 			case when Q.IS_REFERENCE = 'N' then 0 else 1 end HAS_FOREIGN_KEY,
 			Q.U_CONSTRAINT_NAME, Q.U_MEMBERS, 1 POSITION2
-		FROM MVDATA_BROWSER_F_REFS S, TABLE(data_browser_select.FN_Pipe_browser_q_refs(
-			p_View_Name => S.VIEW_NAME,
-			p_Data_Format => p_Data_Format,
-			p_Include_Schema => data_browser_conf.Get_Include_Query_Schema		
-		)) Q 
+		FROM MVDATA_BROWSER_F_REFS S, TABLE(data_browser_select.FN_Pipe_browser_q_refs(p_View_Name => S.VIEW_NAME, p_Data_Format => p_Data_Format)) Q 
         -- , (SELECT 'SALES' p_Table_name, 'NO' p_As_Of_Timestamp FROM DUAL ) PAR
 		where Q.VIEW_NAME = S.VIEW_NAME
 			and Q.FOREIGN_KEY_COLS = S.FOREIGN_KEY_COLS

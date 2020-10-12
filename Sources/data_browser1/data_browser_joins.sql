@@ -32,22 +32,6 @@ is
 			from (
 				select INSTR(COLUMN_VALUE, ';') OFFSET1, COLUMN_VALUE from TABLE( data_browser_conf.in_list(v_Join_Options, ':')) N
 			)
-		), BROWSER_FC_REFS AS (
-			SELECT
-				VIEW_NAME, 
-				COLUMN_NAME, 
-				COLUMN_ID, NULLABLE,
-				R_VIEW_NAME, 
-				R_TABLE_NAME, R_COLUMN_NAME, 
-				COLUMN_PREFIX,
-				CAST(TABLE_ALIAS AS VARCHAR2(10)) TABLE_ALIAS
-			FROM (
-				SELECT VIEW_NAME, FOREIGN_KEY_COLS COLUMN_NAME, COLUMN_ID, NULLABLE,
-					R_PRIMARY_KEY_COLS, R_CONSTRAINT_TYPE,
-					R_VIEW_NAME, R_TABLE_NAME, R_COLUMN_NAME, COLUMN_PREFIX,
-					TABLE_ALIAS    
-				FROM TABLE (data_browser_select.FN_Pipe_browser_fc_refs(v_View_Name)) 
-			) T
 		), BROWSER_QC_REFS AS (
 			 -- find qualified unique key for target table of foreign key reference
 			SELECT VIEW_NAME, 
@@ -65,7 +49,7 @@ is
 				CAST(JOIN_CLAUSE AS VARCHAR2(1024)) JOIN_CLAUSE
 			FROM (
 				SELECT DISTINCT F.VIEW_NAME,
-					F.COLUMN_NAME,
+					F.FOREIGN_KEY_COLS COLUMN_NAME,
 					F.COLUMN_ID,
 					NVL(G.R_COLUMN_NAME, G.R_PRIMARY_KEY_COLS) R_COLUMN_NAME,
 					F.COLUMN_PREFIX,
@@ -77,7 +61,8 @@ is
 					data_browser_conf.Concat_List(F.TABLE_ALIAS, G.TABLE_ALIAS, '_') R_TABLE_ALIAS,
 					G.R_VIEW_NAME JOIN_VIEW_NAME,
 					case when G.FOREIGN_KEY_COLS IS NOT NULL then
-						case when (F.NULLABLE = 'Y' OR G.NULLABLE = 'Y') then 'LEFT OUTER ' end || 'JOIN '
+						case when (F.NULLABLE = 'Y' OR G.NULLABLE = 'Y') then 'LEFT OUTER ' end 
+						|| 'JOIN '
 						|| case when v_Include_Schema = 'YES' then 
 							SYS_CONTEXT('USERENV', 'CURRENT_SCHEMA') || '.'
 						end 
@@ -88,7 +73,7 @@ is
 							p_Left_Columns=>G.R_PRIMARY_KEY_COLS, p_Left_Alias=> data_browser_conf.Concat_List(F.TABLE_ALIAS, G.TABLE_ALIAS, '_'),
 							p_Right_Columns=>G.FOREIGN_KEY_COLS, p_Right_Alias=> F.TABLE_ALIAS) 
 					end JOIN_CLAUSE
-				FROM BROWSER_FC_REFS F
+				FROM TABLE (data_browser_select.FN_Pipe_browser_fc_refs(v_View_Name)) F
 				JOIN MVDATA_BROWSER_F_REFS G ON G.VIEW_NAME = F.R_VIEW_NAME AND G.FOREIGN_KEY_COLS = F.R_COLUMN_NAME
 			)
 		)
@@ -133,7 +118,7 @@ is
 				||data_browser_conf.Column_Name_to_Header(p_Column_Name => COLUMN_NAME, p_Remove_Extension => 'NO', p_Remove_Prefix => COLUMN_PREFIX) 
 				|| '->' ||
 				data_browser_conf.Table_Name_To_Header(R_TABLE_NAME) TABLE_HEADER,
-				'A_REFS' SOURCE_INFO
+				'F_REFS' SOURCE_INFO
 			FROM (
 				SELECT --+ INDEX(T) USE_NL_WITH_INDEX(S)
 					DISTINCT S.COLUMN_NAME, -- foreign key column.
@@ -164,7 +149,7 @@ is
 				AND (S.COLUMN_NAME != T.FOLDER_PARENT_COLUMN_NAME OR T.FOLDER_PARENT_COLUMN_NAME IS NULL)
 			)
 			UNION ALL -- foreign keys with unique columns and second level foreign keys
-			SELECT DISTINCT --+ INDEX(S)
+			SELECT DISTINCT 
 				S.COLUMN_NAME, S.COLUMN_PREFIX,
 				S.JOIN_CLAUSE, 
 				S.JOIN_VIEW_NAME,
@@ -174,12 +159,11 @@ is
 				S.R_TABLE_NAME,
 				S.TABLE_ALIAS
 				||'.'
-				--||data_browser_conf.Table_Name_To_Header(S.J_VIEW_NAME) 
 				||data_browser_conf.Column_Name_to_Header(p_Column_Name => FOREIGN_KEY_COLS, p_Remove_Extension => 'NO', p_Remove_Prefix => COLUMN_PREFIX)
 				|| '->' ||
 				data_browser_conf.Table_Name_To_Header(S.R_VIEW_NAME) TABLE_HEADER,
 				'Q_REFS' SOURCE_INFO
-			FROM  TABLE(data_browser_select.FN_Pipe_browser_q_refs(p_View_Name => v_View_Name, p_Include_Schema => v_Include_Schema)) S
+			FROM  TABLE(data_browser_select.FN_Pipe_browser_q_refs(p_View_Name => v_View_Name, p_Data_Format => 'FORM', p_Include_Schema => v_Include_Schema)) S
 			LEFT OUTER JOIN JOIN_OPTIONS J ON S.TABLE_ALIAS = J.TABLE_ALIAS
 			WHERE S.VIEW_NAME = v_View_Name
 			AND S.JOIN_CLAUSE IS NOT NULL
@@ -187,7 +171,7 @@ is
 			AND S.IS_FILE_FOLDER_REF = 'N'
 			AND (J.COLUMNS_INCLUDED IN ('A','K') OR J.COLUMNS_INCLUDED IS NULL)
 			UNION ALL
-			SELECT DISTINCT --+ INDEX(S)
+			SELECT DISTINCT 
 				S.COLUMN_NAME, S.COLUMN_PREFIX,
 				S.JOIN_CLAUSE, 
 				S.JOIN_VIEW_NAME,
