@@ -213,9 +213,9 @@ $END
 		v_LAST_DDL_TIME USER_OBJECTS.LAST_DDL_TIME%TYPE;
     BEGIN
 		MView_Refresh(p_MView_Name, p_Dependent_MViews, v_LAST_DDL_TIME);
-	eND MView_Refresh;
+	END MView_Refresh;
 	
-    PROCEDURE Refresh_MViews (
+   PROCEDURE Refresh_MViews (
     	p_context  				IN binary_integer DEFAULT NVL(MOD(NV('APP_SESSION'), POWER(2,31)), 0),
     	p_Start_Step 			IN binary_integer DEFAULT 1
     )
@@ -223,35 +223,54 @@ $END
         v_rindex 		binary_integer := dbms_application_info.set_session_longops_nohint;
         v_slno   		binary_integer;
         v_Proc_Name 	VARCHAR2(128) := 'Refresh snapshots for history views';
+        v_Start_Step  	constant binary_integer := nvl(p_Start_Step, 1);
         v_Steps  		constant binary_integer := 8;
-		v_Schema_Name	VARCHAR2(40) := SYS_CONTEXT('USERENV', 'CURRENT_SCHEMA');
-		v_workspace_id 	NUMBER;
-		v_LAST_DDL_TIME USER_OBJECTS.LAST_DDL_TIME%TYPE;
+		v_Statement 	VARCHAR2(1000);
     BEGIN
-    	if p_Start_Step<=v_Steps then
-        	Set_Process_Infos(v_rindex, v_slno, v_Proc_Name, p_context, v_Steps, 0, 'steps');
-        	v_LAST_DDL_TIME := Get_Last_DDL_Time;
-		end if;
-		for v_Step in p_Start_Step..v_Steps loop
-			case v_Step 
-				when 1 then MView_Refresh(p_MView_Name => 'MVBASE_UNIQUE_KEYS', p_LAST_DDL_TIME => v_LAST_DDL_TIME); -- used for history views
-				when 2 then MView_Refresh(p_MView_Name => 'MVBASE_ALTER_UNIQUEKEYS', p_LAST_DDL_TIME => v_LAST_DDL_TIME); -- used for history views
-							-- Dependent MViews: 'MVBASE_UNIQUE_KEYS'
-				when 3 then MView_Refresh(p_MView_Name => 'MVBASE_FOREIGNKEYS', p_LAST_DDL_TIME => v_LAST_DDL_TIME);
-							-- Dependent MViews: 'MVBASE_ALTER_UNIQUEKEYS'
-				when 4 then MView_Refresh(p_MView_Name => 'MVBASE_VIEWS', p_LAST_DDL_TIME => v_LAST_DDL_TIME);
-							-- Dependent MViews: 'MVBASE_ALTER_UNIQUEKEYS'
-				when 5 then MView_Refresh(p_MView_Name => 'MVBASE_VIEW_FOREIGN_KEYS', p_LAST_DDL_TIME => v_LAST_DDL_TIME);
-							-- Dependent MViews: 'MVBASE_FOREIGNKEYS'
-				when 6 then MView_Refresh(p_MView_Name => 'MVBASE_REFERENCES', p_LAST_DDL_TIME => v_LAST_DDL_TIME); 
-							-- Dependent MViews: 'MVBASE_FOREIGNKEYS,MVBASE_VIEW_FOREIGN_KEYS'
-				when 7 then MView_Refresh(p_MView_Name => 'MVCHANGELOG_REFERENCES', p_LAST_DDL_TIME => v_LAST_DDL_TIME); 
-				when 8 then custom_changelog.Changelog_Tables_Init('MVBASE_VIEWS');
-				-- foreign keys --
-				else null;
-			end case;
-			Set_Process_Infos(v_rindex, v_slno, v_Proc_Name, p_context, v_Steps, v_Step, 'steps');
+       	Set_Process_Infos(v_rindex, v_slno, v_Proc_Name, p_context, v_Steps, 0, 'steps');
+		for v_cur in (
+			SELECT MVIEW_NAME, OWNER, LAST_REFRESH_DATE, 
+					STALENESS, REFRESH_METHOD, COMPILE_STATE, STEP, LAST_DDL_TIME
+			FROM (
+				SELECT A.MVIEW_NAME, A.OWNER, MIN(A.LAST_REFRESH_DATE) OVER () LAST_REFRESH_DATE, 
+					A.STALENESS, A.REFRESH_METHOD, A.COMPILE_STATE, B.STEP + 1 STEP, C.LAST_DDL_TIME
+				FROM SYS.USER_MVIEWS A
+				, (SELECT COLUMN_VALUE MVIEW_NAME, ROWNUM STEP FROM apex_string.split(
+					'MVBASE_UNIQUE_KEYS,MVBASE_ALTER_UNIQUEKEYS,MVBASE_FOREIGNKEYS,MVBASE_VIEWS,'
+					||'MVBASE_VIEW_FOREIGN_KEYS,MVBASE_REFERENCES,MVCHANGELOG_REFERENCES,',','
+				)) B 
+				, (
+					SELECT
+					MAX (LAST_DDL_TIME) LAST_DDL_TIME
+					FROM (
+						SELECT MAX(LAST_DDL_TIME) LAST_DDL_TIME
+						FROM SYS.USER_OBJECTS A
+						WHERE A.OBJECT_TYPE IN ('TABLE', 'PACKAGE BODY')
+						AND (A.OBJECT_NAME IN ('CHANGELOG_CONF', 'CUSTOM_CHANGELOG') OR A.OBJECT_TYPE = 'TABLE')
+						UNION ALL
+						SELECT MAX(LAST_MODIFIED_AT) LAST_DDL_TIME
+						FROM CHANGE_LOG_CONFIG A
+					)
+				) C
+				WHERE A.MVIEW_NAME = B.MVIEW_NAME
+			) WHERE STEP >= v_Start_Step
+		) loop 
+			if v_cur.LAST_DDL_TIME > v_cur.LAST_REFRESH_DATE 
+			or v_cur.LAST_REFRESH_DATE IS NULL
+			or v_cur.STALENESS = 'UNUSABLE' then
+				DBMS_MVIEW.REFRESH(v_cur.Owner || '.' || v_cur.MView_Name);
+				DBMS_OUTPUT.PUT_LINE('-- Refreshed ' || v_cur.MView_Name || ' Compile State: ' || v_cur.COMPILE_STATE || ' Staleness: ' || v_cur.STALENESS);
+			elsif v_cur.COMPILE_STATE IN ('NEEDS_COMPILE', 'COMPILATION_ERROR') then 
+				v_Statement := 'ALTER MATERIALIZED VIEW ' || DBMS_ASSERT.ENQUOTE_NAME(v_cur.Owner) || '.' || DBMS_ASSERT.ENQUOTE_NAME(v_cur.MView_Name) || ' COMPILE';
+				EXECUTE IMMEDIATE v_Statement;
+				DBMS_OUTPUT.PUT_LINE('-- Compiled ' || v_cur.MView_Name || ' Compile State: ' || v_cur.COMPILE_STATE || ' Staleness: ' || v_cur.STALENESS);
+			else
+				DBMS_OUTPUT.PUT_LINE('-- Skipped ' || v_cur.MView_Name || ' Compile State: ' || v_cur.COMPILE_STATE || ' Staleness: ' || v_cur.STALENESS);
+			end if;
+			Set_Process_Infos(v_rindex, v_slno, v_Proc_Name, p_context, v_Steps-v_Start_Step, v_cur.Step-v_Start_Step, 'steps');
         end loop;
+		custom_changelog.Changelog_Tables_Init('MVBASE_VIEWS');
+		Set_Process_Infos(v_rindex, v_slno, v_Proc_Name, p_context, v_Steps, v_Steps, 'steps');
         DBMS_OUTPUT.PUT_LINE('-- Done --');
 	exception
 	  when others then

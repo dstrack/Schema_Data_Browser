@@ -121,7 +121,11 @@ CREATE OR REPLACE PACKAGE BODY import_utl IS
 					Q.TABLE_ALIAS 		TABLE_ALIAS, 
 					S.R_VIEW_NAME 		D_VIEW_NAME,
 					S.IMP_COLUMN_NAME
-				FROM MVDATA_BROWSER_F_REFS S, TABLE(data_browser_select.FN_Pipe_browser_q_refs(S.VIEW_NAME)) Q
+				FROM MVDATA_BROWSER_F_REFS S, TABLE(data_browser_select.FN_Pipe_browser_q_refs(
+					p_View_Name => S.VIEW_NAME,
+					p_Data_Format => v_Data_Format,
+					p_Include_Schema => 'NO'
+				)) Q
 				where Q.VIEW_NAME = S.VIEW_NAME
 					and Q.FOREIGN_KEY_COLS = S.FOREIGN_KEY_COLS
 					and Q.TABLE_ALIAS = S.TABLE_ALIAS
@@ -261,7 +265,7 @@ CREATE OR REPLACE PACKAGE BODY import_utl IS
 						R_COLUMN_ID, R_COLUMN_NAME, R_NULLABLE, R_DATA_TYPE, R_DATA_PRECISION, R_DATA_SCALE, 
 						R_CHAR_LENGTH, TABLE_ALIAS, IMP_COLUMN_NAME, JOIN_CLAUSE, HAS_NULLABLE, HAS_SIMPLE_UNIQUE, 
 						HAS_FOREIGN_KEY, U_CONSTRAINT_NAME, U_MEMBERS, POSITION2		
-					FROM TABLE(data_browser_select.FN_Pipe_table_imp_fk2 (v_Table_Name, import_utl.Get_As_Of_Timestamp))
+					FROM TABLE(data_browser_select.FN_Pipe_table_imp_fk2 (v_Table_Name, import_utl.Get_As_Of_Timestamp, p_Data_Format))
 					UNION ALL
 					-- 1. level foreign keys
 					SELECT VIEW_NAME, TABLE_NAME, SEARCH_KEY_COLS, SHORT_NAME, COLUMN_NAME, 
@@ -1275,7 +1279,7 @@ CREATE OR REPLACE PACKAGE BODY import_utl IS
         || 'v_row ' || v_Table_Name || '%ROWTYPE;' || chr(10);
         for c_cur in (
             SELECT DISTINCT 'v_' || D_REF || ' ' || R_VIEW_NAME || '.' || R_PRIMARY_KEY_COLS || '%TYPE;' SQL_TEXT
-            FROM TABLE (data_browser_select.FN_Pipe_table_imp_FK2(v_Table_Name, import_utl.Get_As_Of_Timestamp))
+            FROM TABLE (data_browser_select.FN_Pipe_table_imp_FK2(v_Table_Name, import_utl.Get_As_Of_Timestamp, p_Data_Format))
             ORDER BY 1
         ) loop
             v_Str := RPAD(' ', 4) || c_cur.SQL_TEXT || chr(10);

@@ -1028,7 +1028,7 @@ is
 					data_browser_conf.Compose_Column_Name(
 						p_First_Name=> data_browser_conf.Normalize_Column_Name(
 							p_Column_Name => T.COLUMN_NAME, p_Remove_Prefix => S.COLUMN_PREFIX),
-						p_Second_Name => apex_lang.lang('PATH')
+						p_Second_Name => 'PATH'
 					) IMP_COLUMN_NAME,
 					S.COLUMN_ALIGN,
 					data_browser_conf.Concat_List(
@@ -1225,7 +1225,9 @@ is
 					S.R_VIEW_NAME REF_VIEW_NAME, 
 					S.R_COLUMN_NAME REF_COLUMN_NAME,
 					'' COMMENTS
-				FROM TABLE(data_browser_select.FN_Pipe_browser_q_refs(v_View_Name, v_Data_Format)) S
+				FROM TABLE(data_browser_select.FN_Pipe_browser_q_refs(p_View_Name => v_View_Name,
+					p_Data_Format => v_Data_Format,
+					p_Include_Schema => data_browser_conf.Get_Include_Query_Schema)) S
 				LEFT OUTER JOIN JOIN_OPTIONS J ON S.TABLE_ALIAS = J.TABLE_ALIAS
 				WHERE S.VIEW_NAME = v_View_Name
 				AND S.PARENT_KEY_COLUMN IS NULL -- column is hidden because its content can be deduced from the references FILTER_KEY_COLUMN
@@ -1358,11 +1360,6 @@ is
 				WHERE S.VIEW_NAME = v_View_Name
 				AND (J.COLUMNS_INCLUDED = 'A')
 				AND data_browser_conf.Check_Data_Deduction(S.R_COLUMN_NAME) = 'NO'
-				AND NOT EXISTS (-- no foreign key columns
-					SELECT 1
-					FROM MVDATA_BROWSER_REFERENCES E
-					WHERE S.R_VIEW_NAME = E.VIEW_NAME AND S.R_COLUMN_NAME = E.COLUMN_NAME
-				)
 			)
 			WHERE VIEW_NAME = v_View_Name
 		)
@@ -1487,7 +1484,10 @@ is
 		) FC 
 		where not exists (
 			select 1 
-			from TABLE(data_browser_select.FN_Pipe_browser_q_refs(FC.VIEW_NAME, p_Data_Format)) F
+			from TABLE(data_browser_select.FN_Pipe_browser_q_refs(
+				p_View_Name => FC.VIEW_NAME,
+				p_Data_Format => p_Data_Format,
+				p_Include_Schema => data_browser_conf.Get_Include_Query_Schema)) F
 			where F.VIEW_NAME = FC.VIEW_NAME
 			and F.FOREIGN_KEY_COLS = FC.COLUMN_NAME 
 			and F.COLUMN_ID = FC.COLUMN_ID
@@ -1495,6 +1495,11 @@ is
 			and F.R_COLUMN_NAME = FC.R_COLUMN_NAME
 			and F.TABLE_ALIAS = FC.TABLE_ALIAS
 			and F.R_TABLE_ALIAS = FC.R_TABLE_ALIAS
+		)
+		AND NOT EXISTS (-- no foreign key columns
+			SELECT 1
+			FROM MVDATA_BROWSER_REFERENCES E
+			WHERE FC.R_VIEW_NAME = E.VIEW_NAME AND FC.R_COLUMN_NAME = E.COLUMN_NAME
 		);
 
         v_in_rows tab_data_browser_qc_refs;
@@ -1622,7 +1627,7 @@ is
 	FUNCTION FN_Pipe_browser_q_refs (p_View_Name VARCHAR2, p_Data_Format VARCHAR2 DEFAULT 'FORM', p_Include_Schema VARCHAR2 DEFAULT 'NO')
 	RETURN data_browser_select.tab_data_browser_q_refs PIPELINED
 	IS
-        CURSOR keys_cur (v_View_Name VARCHAR2)
+        CURSOR keys_cur (v_View_Name VARCHAR2, v_Data_Format VARCHAR2, v_Include_Schema VARCHAR2)
         IS -- find qualified unique key for target table of foreign key reference
 		WITH FOREIGN_KEY_PARENTS AS (
 			-- For each foreign key column of a table x a list of candidate parent keys source columns from 
@@ -1656,7 +1661,8 @@ is
 			AND PARENT_DELETE_RULE = 'CASCADE' AND PARENT_NULLABLE = 'N' -- referenced table is container 
 			AND DELETE_RULE = 'CASCADE'
 		)
-		SELECT VIEW_NAME, TABLE_NAME,
+		SELECT /*+ RESULT_CACHE */
+			VIEW_NAME, TABLE_NAME,
 			IMP_COLUMN_NAME, 
 			COLUMN_PREFIX, IS_UPPER_NAME,
 			data_browser_conf.Column_Name_to_Header(
@@ -1674,7 +1680,9 @@ is
 			JOIN_VIEW_NAME,
 			case when JOIN_COND IS NOT NULL then 
 				case when NULLABLE = 'Y' then 'LEFT OUTER ' end || 'JOIN '
-				|| data_browser_select.FN_Table_Prefix
+				|| case when v_Include_Schema = 'YES' then 
+					SYS_CONTEXT('USERENV', 'CURRENT_SCHEMA') || '.'
+				end
 				|| JOIN_COND
 			end JOIN_CLAUSE,
 			COLUMN_EXPR,
@@ -1727,7 +1735,7 @@ is
 						p_Data_Precision => G.R_DATA_PRECISION,
 						p_Data_Scale => G.R_DATA_SCALE,
 						p_Char_Length => G.R_CHAR_LENGTH,
-						p_Data_Format => case when G.R_COLUMN_NAME IS NOT NULL then p_Data_Format else 'CSV' end,
+						p_Data_Format => case when G.R_COLUMN_NAME IS NOT NULL then v_Data_Format else 'CSV' end,
 						p_Use_Trim => 'Y'
 					) COLUMN_EXPR,
 					case when G.U_MEMBERS = 1 and F.VIEW_NAME != G.R_VIEW_NAME then
@@ -1780,17 +1788,20 @@ is
 				AND F.VIEW_NAME = v_View_Name
 			);
 
-        v_in_rows tab_data_browser_q_refs;
+    	v_q_ref_cols_md5 	VARCHAR2(300);
+        v_is_cached			VARCHAR2(10);
 	BEGIN
-		OPEN keys_cur(p_View_Name);
-		LOOP
-			FETCH keys_cur BULK COLLECT INTO v_in_rows LIMIT 100;
-			EXIT WHEN v_in_rows.COUNT = 0;
-			FOR ind IN 1 .. v_in_rows.COUNT LOOP
-				pipe row (v_in_rows(ind));
-			END LOOP;
+		v_q_ref_cols_md5 := wwv_flow_item.md5 (p_View_Name, p_Data_Format, p_Include_Schema);
+		v_is_cached	:= case when g_q_ref_cols_md5 != v_q_ref_cols_md5 then 'load' else 'cached!' end;
+		if v_is_cached != 'cached!' then
+			OPEN keys_cur(p_View_Name, p_Data_Format, p_Include_Schema);
+			FETCH keys_cur BULK COLLECT INTO g_q_ref_cols_tab;
+			CLOSE keys_cur;
+			g_q_ref_cols_md5 := v_q_ref_cols_md5;
+		end if;
+		FOR ind IN 1 .. g_q_ref_cols_tab.COUNT LOOP
+			pipe row (g_q_ref_cols_tab(ind));
 		END LOOP;
-		CLOSE keys_cur;
 	END FN_Pipe_browser_q_refs;
 
 	FUNCTION FN_Pipe_table_imp_fk1 (p_Table_Name VARCHAR2)
@@ -1842,7 +1853,8 @@ is
 
 	FUNCTION FN_Pipe_table_imp_fk2 (
 		p_Table_Name VARCHAR2,
-		p_As_Of_Timestamp VARCHAR2 DEFAULT 'NO'
+		p_As_Of_Timestamp VARCHAR2 DEFAULT 'NO',
+		p_Data_Format VARCHAR2 DEFAULT 'FORM'
 	)
 	RETURN data_browser_select.tab_table_imp_fk PIPELINED
 	IS
@@ -1876,7 +1888,11 @@ is
 			SUM(case when Q.U_MEMBERS = 1 THEN 1 else 0 end ) OVER (PARTITION BY Q.TABLE_NAME, Q.FOREIGN_KEY_COLS) HAS_SIMPLE_UNIQUE,
 			case when Q.IS_REFERENCE = 'N' then 0 else 1 end HAS_FOREIGN_KEY,
 			Q.U_CONSTRAINT_NAME, Q.U_MEMBERS, 1 POSITION2
-		FROM MVDATA_BROWSER_F_REFS S, TABLE(data_browser_select.FN_Pipe_browser_q_refs(S.VIEW_NAME)) Q 
+		FROM MVDATA_BROWSER_F_REFS S, TABLE(data_browser_select.FN_Pipe_browser_q_refs(
+			p_View_Name => S.VIEW_NAME,
+			p_Data_Format => p_Data_Format,
+			p_Include_Schema => data_browser_conf.Get_Include_Query_Schema		
+		)) Q 
         -- , (SELECT 'SALES' p_Table_name, 'NO' p_As_Of_Timestamp FROM DUAL ) PAR
 		where Q.VIEW_NAME = S.VIEW_NAME
 			and Q.FOREIGN_KEY_COLS = S.FOREIGN_KEY_COLS

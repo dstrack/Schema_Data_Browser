@@ -3175,7 +3175,6 @@ $END
         	else
 				v_Result := 'TO_CHAR(' || p_Column_Name || ', '
 				|| Enquote_Literal('TM9')
-				|| case when p_use_NLS_params = 'Y' then ', ' || Get_Export_NumChars end
 				|| ')';
             end if;
         when p_Data_Type = 'FLOAT' then

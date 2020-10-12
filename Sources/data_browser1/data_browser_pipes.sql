@@ -109,20 +109,6 @@ IS
 	);
 	TYPE tab_unique_ref_columns IS TABLE OF rec_unique_ref_columns;
 
-	TYPE rec_foreign_key_columns IS RECORD (
-		TABLE_NAME              	VARCHAR2(128), 
-		TABLE_OWNER                 VARCHAR2(128), 
-		CONSTRAINT_NAME				VARCHAR2(128),
-		COLUMN_NAME               	VARCHAR2(128), 
-		POSITION					NUMBER,
-		COLUMN_ID					NUMBER,
-		NULLABLE					VARCHAR2(1),
-		DELETE_RULE					VARCHAR2(20),
-		R_CONSTRAINT_NAME			VARCHAR2(128),
-		R_OWNER						VARCHAR2(128)
-	);
-	TYPE tab_foreign_key_columns IS TABLE OF rec_foreign_key_columns;
-
 	TYPE rec_sys_objects IS RECORD (
 		OBJECT_ID                     NUMBER, 
 		OBJECT_TYPE                   VARCHAR2(30), 
@@ -201,9 +187,6 @@ IS
 
 	FUNCTION FN_Pipe_Unique_Ref_Columns
 	RETURN data_browser_pipes.tab_unique_ref_columns PIPELINED;
-
-	FUNCTION FN_Pipe_Foreign_Key_Columns
-	RETURN data_browser_pipes.tab_foreign_key_columns PIPELINED;
 
 	FUNCTION FN_Pipe_Sys_Objects(p_Include_External_Objects VARCHAR2 DEFAULT 'NO')
 	RETURN data_browser_pipes.tab_sys_objects PIPELINED;
@@ -780,71 +763,6 @@ IS
 		END LOOP;
 		CLOSE all_cols_cur;  
 	END FN_Pipe_Unique_Ref_Columns;
-
-
-	FUNCTION FN_Pipe_Foreign_Key_Columns
-	RETURN data_browser_pipes.tab_foreign_key_columns PIPELINED
-	IS
-		PRAGMA UDF;
-		CURSOR all_objects_cur
-		IS 	
-		SELECT /*+ RESULT_CACHE USE_MERGE(F FC SC) */
-			F.TABLE_NAME, F.OWNER, F.CONSTRAINT_NAME, FC.COLUMN_NAME, FC.POSITION, 
-			SC.COLUMN_ID, SC.NULLABLE, F.DELETE_RULE, F.R_CONSTRAINT_NAME, F.R_OWNER
-		FROM SYS.USER_CONSTRAINTS F 
-		JOIN SYS.USER_CONS_COLUMNS FC ON F.OWNER = FC.OWNER AND F.CONSTRAINT_NAME = FC.CONSTRAINT_NAME AND F.TABLE_NAME = FC.TABLE_NAME
-		JOIN SYS.USER_TAB_COLS SC ON SC.TABLE_NAME = F.TABLE_NAME AND SC.COLUMN_NAME = FC.COLUMN_NAME AND SC.HIDDEN_COLUMN = 'NO' 
-		AND F.CONSTRAINT_TYPE = 'R'
-		AND F.OWNER = SYS_CONTEXT('USERENV', 'CURRENT_SCHEMA') 
-		UNION ALL
-		SELECT 
-			F.TABLE_NAME, F.OWNER, F.CONSTRAINT_NAME, FC.COLUMN_NAME, FC.POSITION, 
-			SC.COLUMN_ID, SC.NULLABLE, F.DELETE_RULE, F.R_CONSTRAINT_NAME, F.R_OWNER
-		FROM SYS.ALL_CONSTRAINTS F 
-		JOIN SYS.ALL_CONS_COLUMNS FC ON F.OWNER = FC.OWNER AND F.CONSTRAINT_NAME = FC.CONSTRAINT_NAME AND F.TABLE_NAME = FC.TABLE_NAME
-		JOIN SYS.ALL_TAB_COLS SC ON SC.TABLE_NAME = F.TABLE_NAME AND SC.COLUMN_NAME = FC.COLUMN_NAME AND SC.OWNER = F.OWNER AND SC.HIDDEN_COLUMN = 'NO' 
-        join SYS.ALL_TAB_PRIVS G on F.TABLE_NAME = G.TABLE_NAME AND F.OWNER = G.GRANTOR 
-		where F.CONSTRAINT_TYPE = 'R'
-		and G.TYPE = 'TABLE'
-		and G.GRANTEE IN ('PUBLIC', SYS_CONTEXT('USERENV', 'CURRENT_SCHEMA'));
-
-		CURSOR user_objects_cur
-		IS 	
-		SELECT /*+ RESULT_CACHE USE_MERGE(F FC SC) */
-			F.TABLE_NAME, F.OWNER, F.CONSTRAINT_NAME, FC.COLUMN_NAME, FC.POSITION, 
-			SC.COLUMN_ID, SC.NULLABLE, F.DELETE_RULE, F.R_CONSTRAINT_NAME, F.R_OWNER
-		FROM SYS.USER_CONSTRAINTS F 
-		JOIN SYS.USER_CONS_COLUMNS FC ON F.OWNER = FC.OWNER AND F.CONSTRAINT_NAME = FC.CONSTRAINT_NAME AND F.TABLE_NAME = FC.TABLE_NAME
-		JOIN SYS.USER_TAB_COLS SC ON SC.TABLE_NAME = F.TABLE_NAME AND SC.COLUMN_NAME = FC.COLUMN_NAME AND SC.HIDDEN_COLUMN = 'NO' 
-		AND F.CONSTRAINT_TYPE = 'R'
-		AND F.OWNER = SYS_CONTEXT('USERENV', 'CURRENT_SCHEMA') ;
-
-		v_in_rows tab_foreign_key_columns;
-	BEGIN
-		if changelog_conf.Get_Include_External_Objects = 'YES' then 
-			OPEN all_objects_cur;
-			LOOP
-				FETCH all_objects_cur
-				BULK COLLECT INTO v_in_rows LIMIT g_fetch_limit;
-				EXIT WHEN v_in_rows.COUNT = 0;
-				FOR ind IN 1 .. v_in_rows.COUNT LOOP
-					pipe row (v_in_rows(ind));
-				END LOOP;
-			END LOOP;
-			CLOSE all_objects_cur;  
-		else
-			OPEN user_objects_cur;
-			LOOP
-				FETCH user_objects_cur
-				BULK COLLECT INTO v_in_rows LIMIT g_fetch_limit;
-				EXIT WHEN v_in_rows.COUNT = 0;
-				FOR ind IN 1 .. v_in_rows.COUNT LOOP
-					pipe row (v_in_rows(ind));
-				END LOOP;
-			END LOOP;
-			CLOSE user_objects_cur;  
-		end if;
-	END FN_Pipe_Foreign_Key_Columns;
 
 
 	FUNCTION FN_Pipe_Sys_Objects(p_Include_External_Objects VARCHAR2 DEFAULT 'NO')

@@ -200,6 +200,10 @@ IS
 	);
 	TYPE tab_data_browser_q_refs IS TABLE OF rec_data_browser_q_refs;
 
+	-- result cache
+    g_q_ref_cols_tab		data_browser_select.tab_data_browser_q_refs;
+	g_q_ref_cols_md5 		VARCHAR2(300) := 'X';
+
 	FUNCTION FN_Pipe_browser_q_refs (p_View_Name VARCHAR2, p_Data_Format VARCHAR2 DEFAULT 'FORM', p_Include_Schema VARCHAR2 DEFAULT 'NO')
 	RETURN data_browser_select.tab_data_browser_q_refs PIPELINED;
 
@@ -263,7 +267,8 @@ IS
 
 	FUNCTION FN_Pipe_table_imp_fk2 (
 		p_Table_Name VARCHAR2,
-		p_As_Of_Timestamp VARCHAR2 DEFAULT 'NO'
+		p_As_Of_Timestamp VARCHAR2 DEFAULT 'NO',
+		p_Data_Format VARCHAR2 DEFAULT 'FORM'
 	)
 	RETURN data_browser_select.tab_table_imp_fk PIPELINED;
 

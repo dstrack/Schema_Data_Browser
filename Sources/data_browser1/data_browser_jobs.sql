@@ -457,7 +457,7 @@ IS
 		if p_LAST_DDL_TIME > v_LAST_REFRESH_DATE OR v_LAST_REFRESH_DATE IS NULL 
 		or v_STALENESS IN ('NEEDS_COMPILE', 'UNUSABLE') then
 			DBMS_MVIEW.REFRESH(p_Owner || '.' || p_MView_Name);
-			p_LAST_DDL_TIME := sYSDATe;
+			p_LAST_DDL_TIME := SYSDATE;
 			DBMS_OUTPUT.PUT_LINE('-- Refreshed ' || p_MView_Name || ' Compile State: ' || v_COMPILE_STATE || ' Staleness: ' || v_STALENESS);
 		else
 			DBMS_OUTPUT.PUT_LINE('-- skipped ' || p_MView_Name || ' Compile State: ' || v_COMPILE_STATE || ' Staleness: ' || v_STALENESS);
@@ -516,50 +516,55 @@ IS
         v_slno   		binary_integer;
         v_Start_Step  	constant binary_integer := nvl(p_Start_Step, g_Refresh_MViews_Start_Unique);
         v_Steps  		constant binary_integer := 11;
-		v_LAST_DDL_TIME USER_OBJECTS.LAST_DDL_TIME%TYPE;
+		v_Statement 	VARCHAR2(1000);
     BEGIN
         Set_Process_Infos(v_rindex, v_slno, g_Refresh_MViews_Proc_Name, p_context, v_Steps-v_Start_Step, 0, 'steps');
-		for v_Step in p_Start_Step..v_Steps loop
-			case v_Step 
-				when 1 then 
-					-- detect deleted tables 
-					if data_browser_jobs.Has_Stale_ChangeLog_Views = 'YES' then 
-						data_browser_jobs.Touch_Configuration;
-					end if;
-					v_LAST_DDL_TIME := Get_Last_DDL_Time(p_Owner);
-				when 2 then MView_Refresh(p_MView_Name => 'MVBASE_UNIQUE_KEYS', 
-										p_Owner => p_Owner, p_LAST_DDL_TIME => v_LAST_DDL_TIME);
-				when 3 then MView_Refresh(p_MView_Name => 'MVDATA_BROWSER_VIEWS', 
-										-- Dependent MViews: 'MVBASE_UNIQUE_KEYS'
-										p_Owner => p_Owner, p_LAST_DDL_TIME => v_LAST_DDL_TIME);
-				when 4 then MView_Refresh(p_MView_Name => 'MVDATA_BROWSER_D_REFS', 
-										p_Owner => p_Owner, p_LAST_DDL_TIME => v_LAST_DDL_TIME);
-				-- foreign keys --
-				when 5 then MView_Refresh(p_MView_Name => 'MVDATA_BROWSER_FKEYS', 
-										-- Dependent MViews: 'MVDATA_BROWSER_VIEWS', 
-										p_Owner => p_Owner, p_LAST_DDL_TIME => v_LAST_DDL_TIME);
-				when 6 then MView_Refresh(p_MView_Name => 'MVDATA_BROWSER_U_REFS', 
-										-- Dependent MViews: 'MVDATA_BROWSER_VIEWS', 
-										p_Owner => p_Owner, p_LAST_DDL_TIME => v_LAST_DDL_TIME);
-				when 7 then MView_Refresh(p_MView_Name => 'MVDATA_BROWSER_DESCRIPTIONS', 
-										-- Dependent MViews: 'MVDATA_BROWSER_VIEWS,MVDATA_BROWSER_D_REFS,MVDATA_BROWSER_U_REFS'
-										p_Owner => p_Owner, p_LAST_DDL_TIME => v_LAST_DDL_TIME);
-				when 8 then MView_Refresh(p_MView_Name => 'MVDATA_BROWSER_CHECKS_DEFS', 
-										-- Dependent MViews: 'MVDATA_BROWSER_VIEWS,MVDATA_BROWSER_FKEYS,MVDATA_BROWSER_DESCRIPTIONS'
-										p_Owner => p_Owner, p_LAST_DDL_TIME => v_LAST_DDL_TIME);
-				when 9 then MView_Refresh(p_MView_Name => 'MVDATA_BROWSER_F_REFS', 
-										-- Dependent MViews: 'MVDATA_BROWSER_VIEWS,MVDATA_BROWSER_FKEYS,MVDATA_BROWSER_D_REFS,MVDATA_BROWSER_U_REFS,MVDATA_BROWSER_DESCRIPTIONS'
-										p_Owner => p_Owner, p_LAST_DDL_TIME => v_LAST_DDL_TIME);
-				-- columns projections --
-				when 10 then MView_Refresh(p_MView_Name => 'MVDATA_BROWSER_REFERENCES', 
-										-- Dependent MViews: 'MVDATA_BROWSER_VIEWS,MVDATA_BROWSER_FKEYS,MVDATA_BROWSER_U_REFS,MVDATA_BROWSER_D_REFS'
-										p_Owner => p_Owner, p_LAST_DDL_TIME => v_LAST_DDL_TIME);
-				when 11 then MView_Refresh(p_MView_Name => 'MVDATA_BROWSER_SIMPLE_COLS', 
-										-- Dependent MViews: 'MVDATA_BROWSER_VIEWS,MVDATA_BROWSER_DESCRIPTIONS,MVDATA_BROWSER_CHECKS_DEFS'
-										p_Owner => p_Owner, p_LAST_DDL_TIME => v_LAST_DDL_TIME);
-				else null;
-			end case;
-			Set_Process_Infos(v_rindex, v_slno, g_Refresh_MViews_Proc_Name, p_context, v_Steps-v_Start_Step, v_Step-v_Start_Step, 'steps');
+		-- detect deleted tables 
+		if v_Start_Step = g_Refresh_MViews_Start_Unique 
+		and data_browser_jobs.Has_Stale_ChangeLog_Views = 'YES' then 
+			data_browser_jobs.Touch_Configuration;
+		end if;
+		for v_cur in (
+			SELECT MVIEW_NAME, OWNER, LAST_REFRESH_DATE, 
+					STALENESS, REFRESH_METHOD, COMPILE_STATE, STEP, LAST_DDL_TIME
+			FROM (
+				SELECT A.MVIEW_NAME, A.OWNER, MIN(A.LAST_REFRESH_DATE) OVER () LAST_REFRESH_DATE, 
+					A.STALENESS, A.REFRESH_METHOD, A.COMPILE_STATE, B.STEP + 1 STEP, C.LAST_DDL_TIME
+				FROM SYS.USER_MVIEWS A
+				, (SELECT COLUMN_VALUE MVIEW_NAME, ROWNUM STEP FROM apex_string.split(
+					'MVBASE_UNIQUE_KEYS,MVDATA_BROWSER_VIEWS,MVDATA_BROWSER_D_REFS,MVDATA_BROWSER_FKEYS,'
+					||'MVDATA_BROWSER_U_REFS,MVDATA_BROWSER_DESCRIPTIONS,MVDATA_BROWSER_CHECKS_DEFS,'
+					||'MVDATA_BROWSER_F_REFS,MVDATA_BROWSER_REFERENCES,MVDATA_BROWSER_SIMPLE_COLS',','
+				)) B 
+				, (
+					SELECT
+					MAX (LAST_DDL_TIME) LAST_DDL_TIME
+					FROM (
+						SELECT MAX(LAST_DDL_TIME) LAST_DDL_TIME
+						FROM SYS.USER_OBJECTS A
+						WHERE A.OBJECT_TYPE IN ('TABLE', 'PACKAGE BODY')
+						AND (A.OBJECT_NAME IN ('CHANGELOG_CONF', 'DATA_BROWSER_CONF') OR A.OBJECT_TYPE = 'TABLE')
+						UNION ALL
+						SELECT MAX(LAST_MODIFIED_AT) LAST_DDL_TIME
+						FROM DATA_BROWSER_CONFIG A
+					)
+				) C
+				WHERE A.MVIEW_NAME = B.MVIEW_NAME
+			) WHERE STEP >= v_Start_Step
+		) loop 
+			if v_cur.LAST_DDL_TIME > v_cur.LAST_REFRESH_DATE 
+			OR v_cur.LAST_REFRESH_DATE IS NULL
+			or v_cur.STALENESS = 'UNUSABLE' then
+				DBMS_MVIEW.REFRESH(v_cur.Owner || '.' || v_cur.MView_Name);
+				DBMS_OUTPUT.PUT_LINE('-- Refreshed ' || v_cur.MView_Name || ' Compile State: ' || v_cur.COMPILE_STATE || ' Staleness: ' || v_cur.STALENESS);
+			elsif v_cur.COMPILE_STATE IN ('NEEDS_COMPILE', 'COMPILATION_ERROR') then 
+				v_Statement := 'ALTER MATERIALIZED VIEW ' || DBMS_ASSERT.ENQUOTE_NAME(v_cur.Owner) || '.' || DBMS_ASSERT.ENQUOTE_NAME(v_cur.MView_Name) || ' COMPILE';
+				EXECUTE IMMEDIATE v_Statement;
+				DBMS_OUTPUT.PUT_LINE('-- Compiled ' || v_cur.MView_Name || ' Compile State: ' || v_cur.COMPILE_STATE || ' Staleness: ' || v_cur.STALENESS);
+			else
+				DBMS_OUTPUT.PUT_LINE('-- Skipped ' || v_cur.MView_Name || ' Compile State: ' || v_cur.COMPILE_STATE || ' Staleness: ' || v_cur.STALENESS);
+			end if;
+			Set_Process_Infos(v_rindex, v_slno, g_Refresh_MViews_Proc_Name, p_context, v_Steps-v_Start_Step, v_cur.Step-v_Start_Step, 'steps');
         end loop;
         DBMS_OUTPUT.PUT_LINE('-- Done --');
 	exception
