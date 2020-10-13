@@ -2705,8 +2705,8 @@ is
 					JOIN MVDATA_BROWSER_SIMPLE_COLS C ON C.COLUMN_NAME = T.COLUMN_NAME
 					JOIN MVDATA_BROWSER_VIEWS S ON S.VIEW_NAME = C.VIEW_NAME
 					LEFT OUTER JOIN MVDATA_BROWSER_REFERENCES R ON R.VIEW_NAME = C.VIEW_NAME AND R.COLUMN_NAME = T.COLUMN_NAME 
-					LEFT OUTER JOIN MVDATA_BROWSER_F_REFS F ON F.VIEW_NAME = R.VIEW_NAME AND F.FOREIGN_KEY_COLS = R.COLUMN_NAME
-						AND F.R_COLUMN_NAME IS NOT NULL-- foreign key with description columns
+					LEFT OUTER JOIN MVDATA_BROWSER_F_REFS F ON F.VIEW_NAME = R.VIEW_NAME AND F.FOREIGN_KEY_COLS = R.COLUMN_NAME 
+						AND (F.R_COLUMN_NAME != R.FILTER_KEY_COLUMN OR R.FILTER_KEY_COLUMN IS NULL)
 						AND (F.IS_FILE_FOLDER_REF = 'N' OR S.FOLDER_PARENT_COLUMN_NAME = F.R_COLUMN_NAME)
 					LEFT OUTER JOIN MVDATA_BROWSER_REFERENCES G ON G.VIEW_NAME = F.R_VIEW_NAME AND G.COLUMN_NAME = F.R_COLUMN_NAME
 					WHERE C.VIEW_NAME = PA.Table_Name
@@ -3120,12 +3120,16 @@ $END
 		v_Folder_Name_Column_Name   MVDATA_BROWSER_DESCRIPTIONS.FOLDER_NAME_COLUMN_NAME%TYPE;
 		v_Folder_Cont_Col_Name		MVDATA_BROWSER_DESCRIPTIONS.FOLDER_CONTAINER_COLUMN_NAME%TYPE;
 		v_Table_Alias				MVDATA_BROWSER_REFERENCES.TABLE_ALIAS%TYPE;
+		v_Parent_Key_Column			MVDATA_BROWSER_REFERENCES.PARENT_KEY_COLUMN%TYPE;
+		v_Filter_Key_Column			MVDATA_BROWSER_REFERENCES.FILTER_KEY_COLUMN%TYPE;
 	begin
 		if p_Table_Name IS NOT NULL and p_Parent_Table IS NOT NULL and p_Parent_Key_Column IS NOT NULL then 
 			SELECT E.R_PRIMARY_KEY_COLS, E.DISPLAYED_COLUMN_NAMES, E.ACTIVE_LOV_COLUMN_NAME, E.ACTIVE_LOV_DATA_TYPE, E.ORDERING_COLUMN_NAME,
-				S.FOLDER_PARENT_COLUMN_NAME, S.FOLDER_NAME_COLUMN_NAME, S.FOLDER_CONTAINER_COLUMN_NAME, E.TABLE_ALIAS
+				S.FOLDER_PARENT_COLUMN_NAME, S.FOLDER_NAME_COLUMN_NAME, S.FOLDER_CONTAINER_COLUMN_NAME, E.TABLE_ALIAS,
+				E.PARENT_KEY_COLUMN, E.FILTER_KEY_COLUMN
 			INTO v_Foreign_Key_Columns, v_Displayed_Column_Names, v_Active_Lov_Column_Name, v_Active_Lov_Data_Type, v_Ordering_Column_Name,
-				v_Folder_Parent_Column_Name, v_Folder_Name_Column_Name, v_Folder_Cont_Col_Name, v_Table_Alias
+				v_Folder_Parent_Column_Name, v_Folder_Name_Column_Name, v_Folder_Cont_Col_Name, v_Table_Alias,
+				v_Parent_Key_Column, v_Filter_Key_Column
 			FROM MVDATA_BROWSER_DESCRIPTIONS S
 			JOIN MVDATA_BROWSER_REFERENCES E ON S.VIEW_NAME = E.R_VIEW_NAME 
 			WHERE E.VIEW_NAME = p_Table_Name
@@ -3148,7 +3152,7 @@ $END
 				p_Display_Col_Names => v_Displayed_Column_Names,
 				p_Search_Key_Col => v_Foreign_Key_Columns,
 				p_Search_Value => NULL,
-				p_Exclude_Col_Name => NULL,
+				p_Exclude_Col_Name => case when v_Parent_Key_Column = p_Parent_Key_Column then v_Filter_Key_Column end,
 				p_Active_Col_Name	=> v_Active_Lov_Column_Name,
 				p_Active_Data_Type	=> v_Active_Lov_Data_Type,
 				p_Folder_Par_Col_Name	=> v_Folder_Parent_Column_Name,

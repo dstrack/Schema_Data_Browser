@@ -226,13 +226,17 @@ $END
         v_Start_Step  	constant binary_integer := nvl(p_Start_Step, 1);
         v_Steps  		constant binary_integer := 8;
 		v_Statement 	VARCHAR2(1000);
+		v_Refreshed_Cnt NUMBER := 0;
     BEGIN
        	Set_Process_Infos(v_rindex, v_slno, v_Proc_Name, p_context, v_Steps, 0, 'steps');
 		for v_cur in (
-			SELECT MVIEW_NAME, OWNER, LAST_REFRESH_DATE, 
-					STALENESS, REFRESH_METHOD, COMPILE_STATE, STEP, LAST_DDL_TIME
+			SELECT MVIEW_NAME, OWNER, 
+					STALENESS, REFRESH_METHOD, COMPILE_STATE, STEP, 
+					LAST_REFRESH_DATE, LAST_DDL_TIME
 			FROM (
-				SELECT A.MVIEW_NAME, A.OWNER, MIN(A.LAST_REFRESH_DATE) OVER () LAST_REFRESH_DATE, 
+				SELECT A.MVIEW_NAME, A.OWNER, A.LAST_REFRESH_DATE,
+						MIN(A.LAST_REFRESH_DATE) OVER () MIN_LAST_REFRESH_DATE, 
+						MAX(A.LAST_REFRESH_DATE) OVER () MAX_LAST_REFRESH_DATE, 
 					A.STALENESS, A.REFRESH_METHOD, A.COMPILE_STATE, B.STEP, C.LAST_DDL_TIME
 				FROM SYS.USER_MVIEWS A
 				, (SELECT COLUMN_VALUE MVIEW_NAME, ROWNUM STEP FROM apex_string.split(
@@ -254,12 +258,15 @@ $END
 				) C
 				WHERE A.MVIEW_NAME = B.MVIEW_NAME
 			) WHERE STEP >= v_Start_Step
+			ORDER BY STEP 
 		) loop 
 			if v_cur.LAST_DDL_TIME > v_cur.LAST_REFRESH_DATE 
 			or v_cur.LAST_REFRESH_DATE IS NULL
-			or v_cur.STALENESS = 'UNUSABLE' then
+			or v_cur.STALENESS = 'UNUSABLE'
+			or v_Refreshed_Cnt > 0 then
 				DBMS_MVIEW.REFRESH(v_cur.Owner || '.' || v_cur.MView_Name);
-				DBMS_OUTPUT.PUT_LINE('-- Refreshed ' || v_cur.MView_Name || ' Compile State: ' || v_cur.COMPILE_STATE || ' Staleness: ' || v_cur.STALENESS);
+				v_Refreshed_Cnt := v_Refreshed_Cnt + 1;
+				DBMS_OUTPUT.PUT_LINE('-- Refreshed ' || v_cur.Owner || '.' || v_cur.MView_Name || ' Compile State: ' || v_cur.COMPILE_STATE || ' Staleness: ' || v_cur.STALENESS);
 			elsif v_cur.COMPILE_STATE IN ('NEEDS_COMPILE', 'COMPILATION_ERROR') then 
 				v_Statement := 'ALTER MATERIALIZED VIEW ' || DBMS_ASSERT.ENQUOTE_NAME(v_cur.Owner) || '.' || DBMS_ASSERT.ENQUOTE_NAME(v_cur.MView_Name) || ' COMPILE';
 				EXECUTE IMMEDIATE v_Statement;
@@ -267,7 +274,7 @@ $END
 			else
 				DBMS_OUTPUT.PUT_LINE('-- Skipped ' || v_cur.MView_Name || ' Compile State: ' || v_cur.COMPILE_STATE || ' Staleness: ' || v_cur.STALENESS);
 			end if;
-			Set_Process_Infos(v_rindex, v_slno, v_Proc_Name, p_context, v_Steps-v_Start_Step, v_cur.Step-v_Start_Step, 'steps');
+			Set_Process_Infos(v_rindex, v_slno, v_Proc_Name, p_context, v_Steps-v_Start_Step, v_cur.Step-v_Start_Step+1, 'steps');
         end loop;
 		custom_changelog.Changelog_Tables_Init('MVBASE_VIEWS');
 		Set_Process_Infos(v_rindex, v_slno, v_Proc_Name, p_context, v_Steps, v_Steps, 'steps');

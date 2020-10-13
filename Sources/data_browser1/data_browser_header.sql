@@ -1137,6 +1137,7 @@ IS
 	FUNCTION Get_Report_Description (	-- Heading for Report
 		p_Table_name IN VARCHAR2,
 		p_Parent_Name IN VARCHAR2 DEFAULT NULL,
+    	p_Parent_Key_Column IN VARCHAR2 DEFAULT NULL,		-- Column Name with foreign key to Parent Table
 		p_View_Mode IN VARCHAR2,
 		p_Search_Key_Col IN VARCHAR2 DEFAULT NULL,
 		p_Search_Value IN VARCHAR2 DEFAULT NULL
@@ -1145,6 +1146,7 @@ IS
 	FUNCTION Get_Report_Description (	-- Heading for Report
 		p_Table_name IN VARCHAR2,
 		p_Parent_Name IN VARCHAR2,
+    	p_Parent_Key_Column IN VARCHAR2 DEFAULT NULL,		-- Column Name with foreign key to Parent Table
 		p_Search_Value IN VARCHAR2,
 		p_Search_Key_Col IN VARCHAR2 DEFAULT NULL,
 		p_Report_ID IN VARCHAR2  DEFAULT NULL

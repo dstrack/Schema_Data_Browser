@@ -517,6 +517,7 @@ IS
         v_Start_Step  	constant binary_integer := nvl(p_Start_Step, g_Refresh_MViews_Start_Unique);
         v_Steps  		constant binary_integer := 11;
 		v_Statement 	VARCHAR2(1000);
+		v_Refreshed_Cnt NUMBER := 0;
     BEGIN
         Set_Process_Infos(v_rindex, v_slno, g_Refresh_MViews_Proc_Name, p_context, v_Steps-v_Start_Step, 0, 'steps');
 		-- detect deleted tables 
@@ -525,10 +526,13 @@ IS
 			data_browser_jobs.Touch_Configuration;
 		end if;
 		for v_cur in (
-			SELECT MVIEW_NAME, OWNER, LAST_REFRESH_DATE, 
-					STALENESS, REFRESH_METHOD, COMPILE_STATE, STEP, LAST_DDL_TIME
+			SELECT MVIEW_NAME, OWNER, 
+					STALENESS, REFRESH_METHOD, COMPILE_STATE, STEP, 
+					LAST_REFRESH_DATE, LAST_DDL_TIME
 			FROM (
-				SELECT A.MVIEW_NAME, A.OWNER, MIN(A.LAST_REFRESH_DATE) OVER () LAST_REFRESH_DATE, 
+				SELECT A.MVIEW_NAME, A.OWNER, A.LAST_REFRESH_DATE,
+					MIN(A.LAST_REFRESH_DATE) OVER () MIN_LAST_REFRESH_DATE, 
+					MAX(A.LAST_REFRESH_DATE) OVER () MAX_LAST_REFRESH_DATE, 
 					A.STALENESS, A.REFRESH_METHOD, A.COMPILE_STATE, B.STEP + 1 STEP, C.LAST_DDL_TIME
 				FROM SYS.USER_MVIEWS A
 				, (SELECT COLUMN_VALUE MVIEW_NAME, ROWNUM STEP FROM apex_string.split(
@@ -551,12 +555,15 @@ IS
 				) C
 				WHERE A.MVIEW_NAME = B.MVIEW_NAME
 			) WHERE STEP >= v_Start_Step
+			ORDER BY STEP 
 		) loop 
 			if v_cur.LAST_DDL_TIME > v_cur.LAST_REFRESH_DATE 
 			OR v_cur.LAST_REFRESH_DATE IS NULL
-			or v_cur.STALENESS = 'UNUSABLE' then
+			or v_cur.STALENESS = 'UNUSABLE'
+			or v_Refreshed_Cnt > 0 then
 				DBMS_MVIEW.REFRESH(v_cur.Owner || '.' || v_cur.MView_Name);
-				DBMS_OUTPUT.PUT_LINE('-- Refreshed ' || v_cur.MView_Name || ' Compile State: ' || v_cur.COMPILE_STATE || ' Staleness: ' || v_cur.STALENESS);
+				v_Refreshed_Cnt := v_Refreshed_Cnt + 1;
+				DBMS_OUTPUT.PUT_LINE('-- Refreshed ' || v_cur.Owner || '.' || v_cur.MView_Name || ' Compile State: ' || v_cur.COMPILE_STATE || ' Staleness: ' || v_cur.STALENESS);
 			elsif v_cur.COMPILE_STATE IN ('NEEDS_COMPILE', 'COMPILATION_ERROR') then 
 				v_Statement := 'ALTER MATERIALIZED VIEW ' || DBMS_ASSERT.ENQUOTE_NAME(v_cur.Owner) || '.' || DBMS_ASSERT.ENQUOTE_NAME(v_cur.MView_Name) || ' COMPILE';
 				EXECUTE IMMEDIATE v_Statement;
@@ -1222,9 +1229,9 @@ $END
 				DBMS_OUTPUT.PUT_LINE('-- Refreshed stats for ' || v_in_recs(ind).TABLE_NAME);
 		        Set_Process_Infos(v_rindex, v_slno, g_Ref_Tree_View_Proc_Name, p_context, v_Steps, ind, 'tables');
 			END LOOP;
-			DBMS_MVIEW.REFRESH('MVDATA_BROWSER_REFERENCES');
-			Set_Process_Infos(v_rindex, v_slno, g_Ref_Tree_View_Proc_Name, p_context, v_Steps, v_Steps - 1, 'tables');
 			DBMS_MVIEW.REFRESH('MVDATA_BROWSER_DESCRIPTIONS');
+			Set_Process_Infos(v_rindex, v_slno, g_Ref_Tree_View_Proc_Name, p_context, v_Steps, v_Steps - 1, 'tables');
+			DBMS_MVIEW.REFRESH('MVDATA_BROWSER_REFERENCES');
 		END IF;
         Set_Process_Infos(v_rindex, v_slno, g_Ref_Tree_View_Proc_Name, p_context, v_Steps, v_Steps, 'tables');
 	exception

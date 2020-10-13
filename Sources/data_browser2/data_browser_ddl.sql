@@ -445,6 +445,7 @@ CREATE OR REPLACE PACKAGE BODY data_browser_ddl IS
 	) RETURN VARCHAR2
 	is
 		v_Constraint_Name VARCHAR2(128);
+		v_Unique_Constraint_Name VARCHAR2(128);
 		v_Count NUMBER;
 		v_RunNo NUMBER;
 	begin
@@ -454,13 +455,14 @@ CREATE OR REPLACE PACKAGE BODY data_browser_ddl IS
 					p_Table_Name, 'UN'
 				);
 			for v_RunNo in 1..9 loop
+				v_Unique_Constraint_Name := v_Constraint_Name||NULLIF(v_RunNo, 0);
 				SELECT COUNT(*) INTO v_Count
 				FROM SYS.USER_CONSTRAINTS 
-				WHERE CONSTRAINT_NAME = v_Constraint_Name||NULLIF(v_RunNo, 0)
+				WHERE CONSTRAINT_NAME = v_Unique_Constraint_Name
 				AND OWNER = SYS_CONTEXT('USERENV', 'CURRENT_SCHEMA');
 				exit when v_Count = 0; 
 			end loop;
-			v_Constraint_Name := v_Constraint_Name || NULLIF(v_RunNo, 0);
+			v_Constraint_Name := v_Unique_Constraint_Name;
 		else 
 			v_Constraint_Name := p_Constraint_Name;
 		end if;
