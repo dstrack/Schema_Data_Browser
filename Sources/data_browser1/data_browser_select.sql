@@ -2612,17 +2612,19 @@ is
 					) R_COLUMN_NAMES -- all description columns of one foreign key
 				FROM (
 					WITH PARAM AS (
-						 /* SELECT 'SW_FILES' Table_Name,
-							'SW_FOLDERS_ID, FILE_NAME' Display_Col_Names,
-							'ID' 	Search_Key_Col,
-							NULL 	Exclude_Col_Name,
-							'FORM_VIEW'	View_Mode,
-							'YES' 	Alias_Required,
-							'L1' 	Alias_Prefix, 
-							' - '	Group_Delimiter,
-							1		Call_Level,
-                            4       P_INDENT
-						FROM DUAL */
+					/*	SELECT TABLE_NAME Table_Name,
+								DISPLAYED_COLUMN_NAMES Display_Col_Names,
+								SEARCH_KEY_COLS Search_Key_Col,
+								NULL 	Exclude_Col_Name,
+								'FORM_VIEW'	View_Mode,
+								'YES' 	Alias_Required,
+								'L1' 	Alias_Prefix, 
+								' - '	Group_Delimiter,
+								1		Call_Level,
+								4       P_INDENT
+						FROM MVDATA_BROWSER_DESCRIPTIONS
+						WHERE TABLE_NAME = 'SW_FILES'
+					*/
 						SELECT p_Table_Name Table_Name,
 							p_Display_Col_Names Display_Col_Names,
 							p_Search_Key_Col 	Search_Key_Col,
@@ -2659,12 +2661,12 @@ is
 						-- info columns
 						S.FILE_FOLDER_COLUMN_NAME, R.FOLDER_NAME_COLUMN_NAME, R.FOLDER_PARENT_COLUMN_NAME, F.IS_FILE_FOLDER_REF,
 						case 
-						when F.IS_FILE_FOLDER_REF = 'Y' AND S.FOLDER_PARENT_COLUMN_NAME = F.R_COLUMN_NAME then 
+						when F.IS_FILE_FOLDER_REF = 'Y' AND R.FOLDER_PARENT_COLUMN_NAME = F.R_COLUMN_NAME then 
 							'(' || data_browser_select.Key_Path_Query (
 								p_Table_Name    	=> S.VIEW_NAME,
 								p_Search_Key_Col    => S.PRIMARY_KEY_COLS,
 								p_Search_Value    	=> null,
-								p_Folder_Par_Col_Name  => S.FOLDER_PARENT_COLUMN_NAME,
+								p_Folder_Par_Col_Name  => R.FOLDER_PARENT_COLUMN_NAME,
 								p_Folder_Name_Col_Name => S.FOLDER_NAME_COLUMN_NAME,
 								p_Folder_Cont_Col_Name => R.FOLDER_CONTAINER_COLUMN_NAME,
 								p_Folder_Cont_Alias => 'L' || PA.Call_Level,
@@ -2707,7 +2709,7 @@ is
 					LEFT OUTER JOIN MVDATA_BROWSER_REFERENCES R ON R.VIEW_NAME = C.VIEW_NAME AND R.COLUMN_NAME = T.COLUMN_NAME 
 					LEFT OUTER JOIN MVDATA_BROWSER_F_REFS F ON F.VIEW_NAME = R.VIEW_NAME AND F.FOREIGN_KEY_COLS = R.COLUMN_NAME 
 						AND (F.R_COLUMN_NAME != R.FILTER_KEY_COLUMN OR R.FILTER_KEY_COLUMN IS NULL)
-						AND (F.IS_FILE_FOLDER_REF = 'N' OR S.FOLDER_PARENT_COLUMN_NAME = F.R_COLUMN_NAME)
+						AND (F.IS_FILE_FOLDER_REF = 'N' OR R.FOLDER_PARENT_COLUMN_NAME = F.R_COLUMN_NAME)
 					LEFT OUTER JOIN MVDATA_BROWSER_REFERENCES G ON G.VIEW_NAME = F.R_VIEW_NAME AND G.COLUMN_NAME = F.R_COLUMN_NAME
 					WHERE C.VIEW_NAME = PA.Table_Name
                     AND (F.R_COLUMN_NAME IS NULL OR PA.Exclude_Col_Name IS NULL OR F.R_COLUMN_NAME != PA.Exclude_Col_Name )
@@ -3186,49 +3188,34 @@ $END
 	is
 		v_filter 					VARCHAR2(32767);
 		v_query 					VARCHAR2(32767);
-		v_Unique_Key_Column  		MVDATA_BROWSER_DESCRIPTIONS.SEARCH_KEY_COLS%TYPE;
-		v_Displayed_Column_Names   	MVDATA_BROWSER_DESCRIPTIONS.DISPLAYED_COLUMN_NAMES%TYPE;
-		v_Active_Lov_Column_Name   	MVDATA_BROWSER_DESCRIPTIONS.ACTIVE_LOV_COLUMN_NAME%TYPE;
-		v_Active_Lov_Data_Type  	MVDATA_BROWSER_DESCRIPTIONS.ACTIVE_LOV_DATA_TYPE%TYPE;
-		v_Ordering_Column_Name   	MVDATA_BROWSER_DESCRIPTIONS.ORDERING_COLUMN_NAME%TYPE;
-		v_Folder_Parent_Column_Name MVDATA_BROWSER_DESCRIPTIONS.FOLDER_PARENT_COLUMN_NAME%TYPE;
-		v_Folder_Name_Column_Name   MVDATA_BROWSER_DESCRIPTIONS.FOLDER_NAME_COLUMN_NAME%TYPE;
-		v_Folder_Cont_Col_Name		MVDATA_BROWSER_DESCRIPTIONS.FOLDER_CONTAINER_COLUMN_NAME%TYPE;
 	begin
 		if p_Table_Name IS NOT NULL then 
-			SELECT SEARCH_KEY_COLS, DISPLAYED_COLUMN_NAMES, ACTIVE_LOV_COLUMN_NAME, ACTIVE_LOV_DATA_TYPE, ORDERING_COLUMN_NAME,
-				FOLDER_PARENT_COLUMN_NAME, FOLDER_NAME_COLUMN_NAME, FOLDER_CONTAINER_COLUMN_NAME
-			INTO v_Unique_Key_Column, v_Displayed_Column_Names, v_Active_Lov_Column_Name, v_Active_Lov_Data_Type, v_Ordering_Column_Name,
-				v_Folder_Parent_Column_Name, v_Folder_Name_Column_Name, v_Folder_Cont_Col_Name
-			FROM MVDATA_BROWSER_DESCRIPTIONS
-			WHERE VIEW_NAME = p_Table_Name;
-			if p_Parent_Key_Column IS NOT NULL and p_Parent_Key_Item IS NOT NULL
+			if p_Parent_Key_Column IS NOT NULL 
+			and p_Parent_Key_Item IS NOT NULL
 			and V(p_Parent_Key_Item) IS NOT NULL then
 				v_filter := 'L1.' || p_Parent_Key_Column
 				|| ' = NVL(V(' || DBMS_ASSERT.ENQUOTE_LITERAL(p_Parent_Key_Item) || '), L1.' || p_Parent_Key_Column || ')';
 			end if;
-			if p_Filter_Cond IS NOT NULL then
-				if v_filter IS NOT NULL then
-					v_filter := v_filter || ' AND ' || p_Filter_Cond;
-				else 
-					v_filter := p_Filter_Cond;
-				end if;
-			end if;
-			v_query := data_browser_select.Key_Values_Path_Query(
-				p_Table_Name => p_Table_Name,
-				p_Display_Col_Names => v_Displayed_Column_Names,
-				p_Search_Key_Col => v_Unique_Key_Column,
-				p_Search_Value => NULL,
-				p_Exclude_Col_Name => case when V(p_Parent_Key_Item) IS NOT NULL then p_Parent_Key_Column end, -- only exclude when the value is known
-				p_Active_Col_Name	=> v_Active_Lov_Column_Name,
-				p_Active_Data_Type	=> v_Active_Lov_Data_Type,
-				p_Folder_Par_Col_Name	=> v_Folder_Parent_Column_Name,
-				p_Folder_Name_Col_Name => v_Folder_Name_Column_Name,
-				p_Folder_Cont_Col_Name => v_Folder_Cont_Col_Name,
-				p_View_Mode => 'FORM_VIEW',
-				p_Filter_Cond => v_filter,
-				p_Order_by => COALESCE(p_Order_by, v_Ordering_Column_Name, '1')
-			);
+			v_filter := data_browser_conf.Concat_List(p_First_Name=> p_Filter_Cond, p_Second_Name => v_filter, p_Delimiter=> ' AND ');
+			SELECT
+				data_browser_select.Key_Values_Path_Query(
+					p_Table_Name => VIEW_NAME,
+					p_Display_Col_Names => DISPLAYED_COLUMN_NAMES,
+					p_Search_Key_Col => SEARCH_KEY_COLS,
+					p_Search_Value => NULL,
+					p_Exclude_Col_Name => case when V(p_Parent_Key_Item) IS NOT NULL then p_Parent_Key_Column end, -- only exclude when the value is known
+					p_Active_Col_Name	=> ACTIVE_LOV_COLUMN_NAME,
+					p_Active_Data_Type	=> ACTIVE_LOV_DATA_TYPE,
+					p_Folder_Par_Col_Name	=> FOLDER_PARENT_COLUMN_NAME,
+					p_Folder_Name_Col_Name => FOLDER_NAME_COLUMN_NAME,
+					p_Folder_Cont_Col_Name => FOLDER_CONTAINER_COLUMN_NAME,
+					p_View_Mode => 'FORM_VIEW',
+					p_Filter_Cond => v_filter,
+					p_Order_by => COALESCE(p_Order_by, ORDERING_COLUMN_NAME, '1')
+				) LOV_QUERY
+			INTO v_query
+			FROM MVDATA_BROWSER_DESCRIPTIONS
+			WHERE VIEW_NAME = p_Table_Name;
 			return v_query;
 		else
 			return 'select null d, null r from dual';
