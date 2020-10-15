@@ -2053,7 +2053,8 @@ $END
 	PRAGMA UDF;
 	BEGIN
 		if REGEXP_SUBSTR(p_Text, '([[:alpha:]][[:alnum:]|_]+)') != p_Text
-		or INSTR(g_keywords, ':'||p_Text||':') > 0 then 
+		-- or INSTR(g_keywords, ':'||p_Text||':') > 0 
+		then 
 			return DBMS_ASSERT.ENQUOTE_NAME (str => p_Text, capitalize => FALSE);
 		else
 			return p_Text;
