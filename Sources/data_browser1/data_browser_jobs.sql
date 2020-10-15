@@ -713,12 +713,16 @@ IS
     	p_Application_ID NUMBER DEFAULT NV('APP_ID')
     )
 	IS
+		v_Owner APEX_APPLICATIONS.OWNER%TYPE;
 	BEGIN 
 $IF data_browser_jobs.g_Use_App_Preferences $THEN
+		select OWNER into v_Owner
+		from APEX_APPLICATIONS 
+		where APPLICATION_ID = p_Application_ID;
 		APEX_UTIL.SET_PREFERENCE(
 			p_preference => g_App_Setting_publish_Date||p_Application_ID, 
 			p_value => TO_CHAR(SYSDATE, g_CtxTimestampFormat),
-			p_user => SYS_CONTEXT('USERENV', 'CURRENT_SCHEMA')
+			p_user => v_Owner
 		);
 $ELSE
 		UPDATE DATA_BROWSER_CONFIG SET TRANSLATIONS_PUBLISHED_DATE = LOCALTIMESTAMP
@@ -732,11 +736,15 @@ $END
     ) RETURN DATE 
 	IS
 		v_Published_Date DATA_BROWSER_CONFIG.TRANSLATIONS_PUBLISHED_DATE%TYPE;
+		v_Owner APEX_APPLICATIONS.OWNER%TYPE;
 	BEGIN 
 $IF data_browser_jobs.g_Use_App_Preferences $THEN
+		select OWNER into v_Owner
+		from APEX_APPLICATIONS 
+		where APPLICATION_ID = p_Application_ID;
 		v_Published_Date := TO_DATE(APEX_UTIL.GET_PREFERENCE(
 				p_preference => g_App_Setting_publish_Date||p_Application_ID, 
-				p_user => SYS_CONTEXT('USERENV', 'CURRENT_SCHEMA')
+				p_user => v_Owner
 			), g_CtxTimestampFormat);
 $ELSE
 		SELECT TRANSLATIONS_PUBLISHED_DATE 

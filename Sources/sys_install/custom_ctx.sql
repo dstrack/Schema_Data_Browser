@@ -170,14 +170,9 @@ CREATE OR REPLACE PACKAGE BODY custom_keys.set_custom_ctx IS
 	IS
 		v_Count			PLS_INTEGER;
 	BEGIN
-		select count(*)
-		into v_Count
-		from APEX_APPLICATION_ITEMS
-		where APPLICATION_ID = V('APP_ID')
-		and ITEM_NAME = p_Item_Name;
-		if v_Count > 0 then
-			APEX_UTIL.SET_SESSION_STATE(p_Item_Name, p_Item_Value);
-		end if;	
+		APEX_UTIL.SET_SESSION_STATE(p_Item_Name, p_Item_Value);
+	EXCEPTION WHEN OTHERS THEN
+		NULL;
 	END;
 	
 	PROCEDURE Set_Default_Workspace (

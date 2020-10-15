@@ -1602,6 +1602,9 @@ IS
         v_in_rows stat_tbl;
         v_row rec_table_columns;
 	BEGIN
+		if g_Use_Change_Log IS NULL then
+			return; -- not initialised (during create mview)
+		end if;
 		OPEN user_keys_cur;
 		 LOOP
 			FETCH user_keys_cur BULK COLLECT INTO v_in_rows LIMIT 500;
@@ -1666,6 +1669,9 @@ IS
 
 		v_in_rows tab_foreign_key_columns;
 	BEGIN
+		if g_Use_Change_Log IS NULL then
+			return; -- not initialised (during create mview)
+		end if;
 		if changelog_conf.Get_Include_External_Objects = 'YES' then 
 			OPEN all_objects_cur;
 			LOOP

@@ -998,8 +998,6 @@ $END
 	g_Compare_Return_Style2  	CONSTANT VARCHAR2(300)  := 'background-color:MediumSeaGreen;box-shadow: 0px 0px 10px 6px MediumSeaGreen;';
 	g_Compare_Return_Style3  	CONSTANT VARCHAR2(300)  := 'background-color:Coral;box-shadow: 0px 0px 10px 6px Coral;';
 	g_Errors_Return_Style 		CONSTANT VARCHAR2(300)  := 'background-color:Moccasin;box-shadow: 0px 0px 10px 6px Moccasin;';
-	-- the constant keyword list is derived from the following quer: select LISTAGG(KEYWORD, ':') WITHIN GROUP (ORDER BY KEYWORD) from V$RESERVED_WORDS where RESERVED = 'Y' and KEYwORD BETWEEN 'A' AND 'ZZ';
-	g_keywords					CONSTANT VARCHAR2(1024) := ':ALL:ALTER:AND:ANY:AS:ASC:BETWEEN:BY:CHAR:CHECK:CLUSTER:COMPRESS:CONNECT:CREATE:DATE:DECIMAL:DEFAULT:DELETE:DESC:DISTINCT:DROP:ELSE:EXCLUSIVE:EXISTS:FLOAT:FOR:FROM:GRANT:GROUP:HAVING:IDENTIFIED:IN:INDEX:INSERT:INTEGER:INTERSECT:INTO:IS:LIKE:LOCK:LONG:MINUS:MODE:NOCOMPRESS:NOT:NOWAIT:NULL:NUMBER:OF:ON:OPTION:OR:ORDER:PCTFREE:PRIOR:PUBLIC:RAW:RENAME:RESOURCE:REVOKE:SELECT:SET:SHARE:SIZE:SMALLINT:START:SYNONYM:TABLE:THEN:TO:TRIGGER:UNION:UNIQUE:UPDATE:VALUES:VARCHAR:VARCHAR2:VIEW:WHERE:WITH:';
 	g_Get_ChangLog_Query_Call 	VARCHAR2(2000)  := 'custom_changelog_gen.ChangeLog_Pivot_Query(p_Table_Name => :a, p_Convert_Data_Types => :b, p_Compact_Queries => :c)';
 	g_ChangLog_Enabled_Call 	VARCHAR2(2000) 	:= 'custom_changelog_gen.Changelog_Is_Active(p_Table_Name => :a)';
 
@@ -2053,7 +2051,6 @@ $END
 	PRAGMA UDF;
 	BEGIN
 		if REGEXP_SUBSTR(p_Text, '([[:alpha:]][[:alnum:]|_]+)') != p_Text
-		-- or INSTR(g_keywords, ':'||p_Text||':') > 0 
 		then 
 			return DBMS_ASSERT.ENQUOTE_NAME (str => p_Text, capitalize => FALSE);
 		else

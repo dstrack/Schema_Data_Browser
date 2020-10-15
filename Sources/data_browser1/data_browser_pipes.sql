@@ -390,6 +390,9 @@ IS
 			);
         v_in_rows tab_table_unique_keys;
 	BEGIN
+		if changelog_conf.get_Use_Change_Log IS NULL then
+			return; -- not initialised (during create mview)
+		end if;
 		if changelog_conf.Get_Include_External_Objects = 'YES' then 
 			OPEN keys_cur;
 			LOOP
@@ -512,6 +515,9 @@ IS
 			);
         v_in_rows tab_base_mapping_views;
 	BEGIN
+		if changelog_conf.get_Use_Change_Log IS NULL then
+			return; -- not initialised (during create mview)
+		end if;
 		if changelog_conf.Get_Include_External_Objects = 'YES' then 
 			OPEN views_cur;
 			LOOP
@@ -624,6 +630,9 @@ IS
         v_in_rows stat_tbl;
         v_row rec_table_columns;
 	BEGIN
+		if changelog_conf.get_Use_Change_Log IS NULL then
+			return; -- not initialised (during create mview)
+		end if;
 		if changelog_conf.Get_Include_External_Objects = 'YES' then 
 			OPEN all_cols_cur;
 			LOOP
@@ -841,6 +850,9 @@ IS
 
 		v_in_rows tab_table_numrows;
 	BEGIN
+		if changelog_conf.get_Use_Change_Log IS NULL then
+			return; -- not initialised (during create mview)
+		end if;
 		if changelog_conf.Get_Include_External_Objects = 'YES' then 
 			OPEN all_objects_cur;
 			LOOP

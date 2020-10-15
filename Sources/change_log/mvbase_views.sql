@@ -406,7 +406,8 @@ DESCRIPTION_KEYS AS ( -- find columns that match a name in g_ReferenceDescriptio
         FROM (SELECT ROWNUM RN, COLUMN_VALUE COLUMN_PATTERN
             FROM TABLE( changelog_conf.in_list(changelog_conf.Get_ReferenceDescriptionCols, ','))
         ) N
-        , SYS.USER_TAB_COLUMNS D WHERE D.COLUMN_NAME LIKE N.COLUMN_PATTERN ESCAPE '\'
+        , TABLE (changelog_conf.FN_Pipe_Table_Columns) D 
+        WHERE D.COLUMN_NAME LIKE N.COLUMN_PATTERN ESCAPE '\'
 		AND changelog_conf.Match_Column_Pattern(D.COLUMN_NAME, changelog_conf.Get_ColumnWorkspace_List) = 'NO'
 		AND changelog_conf.Match_Column_Pattern(D.COLUMN_NAME, changelog_conf.Get_ColumnDeletedMark_List) = 'NO'
 		AND changelog_conf.Match_Column_Pattern(D.COLUMN_NAME, changelog_conf.Get_ColumnCreateUser_List) = 'NO'
@@ -460,7 +461,7 @@ FROM (
 	WHERE F.VIEW_NAME = S.VIEW_NAME AND S.EXCLUDED_TABLE = 'NO'
 	AND F.R_VIEW_NAME = D.VIEW_NAME AND D.EXCLUDED_TABLE = 'NO'
 ) F
-, SYS.USER_TAB_COLUMNS T
+, table (changelog_conf.FN_Pipe_Table_Columns) T
 , DESCRIPTION_KEYS C
 , UNIQUE_KEYS U
 WHERE F.TABLE_NAME = T.TABLE_NAME AND F.FOREIGN_KEY_COLS = T.COLUMN_NAME -- only use foreign keys with single column
