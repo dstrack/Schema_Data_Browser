@@ -1743,6 +1743,9 @@ IS
 
         v_in_rows tab_changelog_references;
 	BEGIN
+		if g_Use_Change_Log IS NULL then
+			return; -- not initialised (during create mview)
+		end if;
 		OPEN user_keys_cur;
 		FETCH user_keys_cur BULK COLLECT INTO v_in_rows;
 		CLOSE user_keys_cur;  
