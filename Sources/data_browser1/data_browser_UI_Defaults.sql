@@ -113,7 +113,7 @@ $IF data_browser_specs.g_update_apex_tables $THEN
         c.display_as_tab_form, -- POPUP,TEXT_FROM_LOV
         c.display_in_report, -- Y/N
         c.display_as_report, -- ESCAPE_SC
-        c.form_attribute_01, -- NOT_ENTERABLE
+        c.form_attribute_01, -- POPUP
         c.form_attribute_02, -- FIRST_ROWSET
         c.form_attribute_03,
         c.lov_query
@@ -313,7 +313,7 @@ $IF data_browser_specs.g_update_apex_tables $THEN
 					display_as_form = 'NATIVE_POPUP_LOV',
 					display_as_tab_form = 'POPUP',
 					display_as_report = 'ESCAPE_SC',
-					form_attribute_01 = 'NOT_ENTERABLE',
+					form_attribute_01 = 'POPUP',
 					form_attribute_02 = 'FIRST_ROWSET',
 					form_attribute_03 = NULL
 				where table_name = v_Table_Name
@@ -575,6 +575,13 @@ $END
 				|| '  p_label => %s,' || chr(10),
 				p0 => data_browser_conf.Enquote_Literal(v_out_tab(ind).LABEL)
 			);
+			if v_out_tab(ind).HELP_TEXT IS NOT NULL then 
+				v_Str := v_Str || apex_string.format (
+					p_message => '  p_help_text => %s,' || chr(10),
+					p0 => data_browser_conf.enquote_literal(v_out_tab(ind).HELP_TEXT)
+				);
+			end if;
+
 			if v_out_tab(ind).FORMAT_MASK IS NOT NULL then 
 				v_Str := v_Str || apex_string.format (
 					p_message => '  p_mask_form => %s,' || chr(10),
@@ -596,7 +603,7 @@ $END
 					|| '  p_form_attribute_02 => %s,' || chr(10) 
 					|| '  p_display_as_tab_form => %s,' || chr(10),
 					p0 => dbms_assert.enquote_literal('NATIVE_POPUP_LOV'),
-					p1 => dbms_assert.enquote_literal('NOT_ENTERABLE'),
+					p1 => dbms_assert.enquote_literal('POPUP'),
 					p2 => dbms_assert.enquote_literal('FIRST_ROWSET'),
 					p3 => dbms_assert.enquote_literal('POPUP'),
 					p_max_length => 30000
