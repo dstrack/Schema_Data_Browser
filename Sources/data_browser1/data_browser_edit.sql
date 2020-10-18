@@ -5324,7 +5324,7 @@ $END
 					p_View_Mode => p_View_Mode,
 					p_Report_Mode => p_Report_Mode,
 					p_Join_Options => p_Join_Options,
-					p_Data_Source => p_Data_Source, --case when v_Row_Op = 'INSERT' then 'NEW_ROWS' else 'TABLE' end,
+					p_Data_Source => p_Data_Source, 
 					p_Parent_Name => p_Parent_Name,
 					p_Parent_Key_Column => p_Parent_Key_Column,
 					p_Parent_Key_Visible => v_Parent_Key_Visible,
