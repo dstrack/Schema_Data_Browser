@@ -935,7 +935,7 @@ is
 						data_browser_blobs.File_Type_Name_Call(p_Mime_Type_Column_Name => 'A.' || T.COLUMN_NAME)
 					when T.IS_AUDIT_COLUMN = 'Y' and T.CHAR_LENGTH > 0 and v_Data_Format NOT IN ('NATIVE', 'CSV') then
 						data_browser_conf.Get_Formated_User_Name('A.' || T.COLUMN_NAME)
-					when E.COLUMN_NAME IS NULL 
+					when T.IS_FOREIGN_KEY = 'N'
 					and T.COLUMN_NAME != NVL(S.ROW_VERSION_COLUMN_NAME, '-')
 					and T.IS_ORDERING_COLUMN = 'N' then
 						data_browser_select.Get_ConversionColFunction (
@@ -957,7 +957,7 @@ is
 					and T.IS_DISPLAYED_KEY_COLUMN = 'N' -- field is invisible
 					and S.HAS_SCALAR_KEY = 'YES' then	-- primary key is managed automatically
 						null
-					when E.COLUMN_NAME IS NULL then
+					when T.IS_FOREIGN_KEY = 'N' then
 						data_browser_conf.Get_Col_Format_Mask(
 							p_Column_Name 		=> T.COLUMN_NAME,
 							p_Data_Type 		=> T.DATA_TYPE, 
@@ -978,7 +978,7 @@ is
 						case when data_browser_select.FN_List_Offest(v_Select_Columns, T.COLUMN_NAME) = 0 then -- not visible
 							'HIDDEN' else 'DISPLAY_AND_SAVE'
 						end
-					when (E.COLUMN_NAME IS NOT NULL	-- In View Mode Import/Export the foreign key columns are hidden.
+					when (T.IS_FOREIGN_KEY = 'Y'	-- In View Mode Import/Export the foreign key columns are hidden.
 						and data_browser_select.FN_List_Offest(v_Select_Columns, T.COLUMN_NAME) = 0) -- not visible
 					or T.IS_IGNORED = 'Y'
 					or T.COLUMN_NAME = S.ROW_VERSION_COLUMN_NAME then
@@ -1029,10 +1029,7 @@ is
 					'' TABLE_ALIAS,
 					S.IS_AUDIT_COLUMN, 'N' IS_OBFUSCATED, 'N' IS_UPPER_NAME,
 					'N' IS_NUMBER_YES_NO_COLUMN, 'N' IS_CHAR_YES_NO_COLUMN,
-					case when S.NULLABLE = 'N' and F.DELETE_RULE = 'CASCADE' 
-						then 'C' 	-- Container 
-						else 'Y' 	-- Yes
-					end IS_REFERENCE,
+					S.IS_REFERENCE,
 					'Y' IS_SEARCHABLE_REF,
 					'N' IS_SUMMAND, 'N' IS_VIRTUAL_COLUMN, 'N' IS_DATETIME,
 					S.COLUMN_ID, S.R_COLUMN_ID, S.POSITION,
@@ -1118,13 +1115,7 @@ is
 					S.TABLE_ALIAS,
 					S.IS_AUDIT_COLUMN, 'N' IS_OBFUSCATED, 'N' IS_UPPER_NAME,
 					'N' IS_NUMBER_YES_NO_COLUMN, 'N' IS_CHAR_YES_NO_COLUMN,
-					case when E.COLUMN_NAME IS NOT NULL then 
-							case when S.NULLABLE = 'N' and E.DELETE_RULE = 'CASCADE' 
-								then 'C' 	-- Container 
-								else 'Y' 	-- Yes
-								end
-						else 'N' 			-- No
-					end IS_REFERENCE,
+					S.IS_REFERENCE,
 					case when S.R_DATA_TYPE IN ('BLOB', 'LONG')
 						then 'N' else 'Y'
 					end IS_SEARCHABLE_REF,
@@ -1139,14 +1130,14 @@ is
 						p_Data_Precision => S.R_DATA_PRECISION,
 						p_Data_Scale => S.R_DATA_SCALE,
 						p_Char_Length => S.R_CHAR_LENGTH,
-						p_Data_Format => case when E.COLUMN_NAME IS NULL then v_Data_Format else 'CSV' end,
+						p_Data_Format => case when S.IS_REFERENCE = 'N' then v_Data_Format else 'CSV' end,
 						p_Use_Trim => 'Y'
 					) COLUMN_EXPR,
 					S.HAS_HELP_TEXT,
 					S.HAS_DEFAULT,
 					S.IS_BLOB,
 					S.IS_PASSWORD,
-					case when E.COLUMN_NAME IS NULL then
+					case when S.IS_REFERENCE = 'N' then
 						data_browser_conf.Get_Col_Format_Mask(
 							p_Column_Name 		=> S.R_COLUMN_NAME,
 							p_Data_Type 		=> S.R_DATA_TYPE, 
@@ -1156,7 +1147,7 @@ is
 							p_Use_Group_Separator => case when v_Data_Format = 'FORM' then 'Y' else 'N' end)
 					end FORMAT_MASK,
 					'' LOV_QUERY,
-					case when E.COLUMN_NAME IS NOT NULL  -- In View Mode Import/Export the foreign key columns are hidden.
+					case when S.IS_REFERENCE != 'N'  -- In View Mode Import/Export the foreign key columns are hidden.
 					and data_browser_select.FN_List_Offest(v_Select_Columns, S.IMP_COLUMN_NAME) = 0 -- not visible
 						then 'HIDDEN'
 					else
@@ -1167,7 +1158,7 @@ is
 					S.R_DATA_TYPE, NULL DATA_TYPE_OWNER, S.R_DATA_PRECISION, S.R_DATA_SCALE, S.R_CHAR_LENGTH,
 					case when S.NULLABLE = 'N' and S.R_NULLABLE = 'N' then 'N' else 'Y' end NULLABLE,
 					'N' IS_PRIMARY_KEY, 'N' IS_SEARCH_KEY, 
-					case when E.COLUMN_NAME IS NOT NULL then 'Y' else 'N' end IS_FOREIGN_KEY,
+					case when S.IS_REFERENCE = 'N' then 'N' else 'Y' end IS_FOREIGN_KEY,
 					S.IS_DISPLAYED_KEY_COLUMN IS_DISP_KEY_COLUMN, 'N' CHECK_UNIQUE,
 					S.TABLE_NAME R_TABLE_NAME, 
 					S.VIEW_NAME R_VIEW_NAME, 
@@ -1177,7 +1168,6 @@ is
 					S.R_COLUMN_NAME REF_COLUMN_NAME,
 					'' COMMENTS
 				FROM MVDATA_BROWSER_F_REFS S
-				LEFT OUTER JOIN MVDATA_BROWSER_REFERENCES E ON S.R_VIEW_NAME = E.VIEW_NAME AND S.R_COLUMN_NAME = E.COLUMN_NAME
 				LEFT OUTER JOIN JOIN_OPTIONS J ON S.TABLE_ALIAS = J.TABLE_ALIAS
 				WHERE S.VIEW_NAME = v_View_Name
 				AND S.R_COLUMN_ID IS NOT NULL	
@@ -1197,7 +1187,7 @@ is
 					S.R_TABLE_ALIAS TABLE_ALIAS,
 					S.IS_AUDIT_COLUMN, 'N' IS_OBFUSCATED, 'N' IS_UPPER_NAME,
 					'N' IS_NUMBER_YES_NO_COLUMN, 'N' IS_CHAR_YES_NO_COLUMN,
-					'N' IS_REFERENCE,
+					S.IS_REFERENCE,
 					case when S.R_DATA_TYPE IN ('BLOB', 'LONG')
 						then 'N' else 'Y'
 					end IS_SEARCHABLE_REF,
@@ -1211,24 +1201,30 @@ is
 					S.HAS_DEFAULT,
 					S.IS_BLOB,
 					S.IS_PASSWORD,
-					data_browser_conf.Get_Col_Format_Mask(
-						p_Column_Name 		=> S.R_COLUMN_NAME,
-						p_Data_Type 		=> S.R_DATA_TYPE, 
-						p_Data_Precision 	=> S.R_DATA_PRECISION, 
-						p_Data_Scale 		=> S.R_DATA_SCALE, 
-						p_Char_Length 		=> S.R_CHAR_LENGTH, 
-						p_Use_Group_Separator => case when v_Data_Format = 'FORM' then 'Y' else 'N' end)
-					AS FORMAT_MASK,
+					case when S.IS_REFERENCE = 'N' then
+						data_browser_conf.Get_Col_Format_Mask(
+							p_Column_Name 		=> S.R_COLUMN_NAME,
+							p_Data_Type 		=> S.R_DATA_TYPE, 
+							p_Data_Precision 	=> S.R_DATA_PRECISION, 
+							p_Data_Scale 		=> S.R_DATA_SCALE, 
+							p_Char_Length 		=> S.R_CHAR_LENGTH, 
+							p_Use_Group_Separator => case when v_Data_Format = 'FORM' then 'Y' else 'N' end)
+					end FORMAT_MASK,
 					'' LOV_QUERY,
-					'POPUP_FROM_LOV' -- text field with popup list
-					as COLUMN_EXPR_TYPE,
+					case when S.IS_REFERENCE != 'N'  -- In View Mode Import/Export the foreign key columns are hidden.
+					and data_browser_select.FN_List_Offest(v_Select_Columns, S.IMP_COLUMN_NAME) = 0 -- not visible
+						then 'HIDDEN'
+					else
+						'POPUP_FROM_LOV' -- text field with popup list
+					end COLUMN_EXPR_TYPE,
+					--'POPUP_FROM_LOV' COLUMN_EXPR_TYPE,
 					S.FIELD_LENGTH,
 					S.DISPLAY_IN_REPORT,
 					S.R_DATA_TYPE, NULL DATA_TYPE_OWNER, S.R_DATA_PRECISION, S.R_DATA_SCALE, S.R_CHAR_LENGTH,
 					case when S.NULLABLE = 'N' and S.R_NULLABLE = 'N' then 'N' else 'Y' end NULLABLE,
 					'N' IS_PRIMARY_KEY, 
 					'N' IS_SEARCH_KEY, 
-					'N' IS_FOREIGN_KEY,
+					case when S.IS_REFERENCE = 'N' then 'N' else 'Y' end IS_FOREIGN_KEY,
 					S.IS_DISPLAYED_KEY_COLUMN IS_DISP_KEY_COLUMN, 'N' CHECK_UNIQUE,
 					S.TABLE_NAME R_TABLE_NAME, 
 					S.VIEW_NAME R_VIEW_NAME, 
@@ -1243,11 +1239,6 @@ is
 				AND S.PARENT_KEY_COLUMN IS NULL -- column is hidden because its content can be deduced from the references FILTER_KEY_COLUMN
 				AND S.IS_FILE_FOLDER_REF = 'N'
 				AND (J.COLUMNS_INCLUDED IN ('A', 'K') OR v_Join_Options IS NULL)
-				AND NOT EXISTS (-- no foreign key columns
-					SELECT 1
-					FROM MVDATA_BROWSER_REFERENCES E
-					WHERE S.R_VIEW_NAME = E.VIEW_NAME AND S.R_COLUMN_NAME = E.COLUMN_NAME
-				)
 				AND data_browser_select.FN_Filter_Parent_Key(
 					p_Parent_Key_Visible => v_Parent_Key_Visible,
 					p_Parent_Name 		=> v_Parent_Name,
@@ -1676,6 +1667,7 @@ is
 		SELECT --+ RESULT_CACHE 
 			VIEW_NAME, TABLE_NAME,
 			IMP_COLUMN_NAME, 
+			DEST_COLUMN_NAME,
 			COLUMN_PREFIX, IS_UPPER_NAME,
 			data_browser_conf.Column_Name_to_Header(
 				p_Column_Name => COLUMN_HEADER, 
@@ -1765,6 +1757,7 @@ is
 								p_Max_Length => 29)		
 						end 
 					AS IMP_COLUMN_NAME,
+					F.NORM_COLUMN_NAME DEST_COLUMN_NAME,
 					F.COLUMN_PREFIX, G.IS_UPPER_NAME,
 					case when G.U_MEMBERS = 1 and F.VIEW_NAME != G.R_VIEW_NAME then -- simple column name when only one member is displayed
 							data_browser_conf.Compose_Column_Name(
@@ -1867,6 +1860,7 @@ is
 			F.REF_TABLE_NAME TABLE_NAME,
 			F.REF_VIEW_NAME VIEW_NAME,
 			F.IMP_COLUMN_NAME,
+			F.DEST_COLUMN_NAME,
 			COLUMN_PREFIX, IS_UPPER_NAME, 
 			data_browser_conf.Column_Name_to_Header(
 				p_Column_Name => COLUMN_HEADER, 
@@ -1911,7 +1905,7 @@ is
 					CONNECT_BY_ROOT SHORT_NAME SHORT_NAME,
 					CONNECT_BY_ROOT COLUMN_ID COLUMN_ID,
 					RPAD(REPLACE(SYS_CONNECT_BY_PATH(LPAD(FK_COLUMN_ID, 2, '0'), ' '), ' '), 16, '0') R_COLUMN_ID,
-					PRIOR POSITION+R_COLUMN_ID/10000 POSITION,
+					POSITION*100+R_POSITION POSITION,
 					NVL(R_COLUMN_NAME, R_PRIMARY_KEY_COLS) R_COLUMN_NAME,
 					case when R_COLUMN_NAME IS NULL then 'No description columns found. (Q)' end WARNING_MSG,
 					case when INSTR(SYS_CONNECT_BY_PATH(NULLABLE, '_'), 'Y') > 0 then 'Y' else 'N' end NULLABLE,
@@ -1944,41 +1938,35 @@ is
 						p_Data_Precision => R_DATA_PRECISION,
 						p_Data_Scale => R_DATA_SCALE,
 						p_Char_Length => R_CHAR_LENGTH,
-						p_Data_Format => case when R_COLUMN_NAME IS NOT NULL then v_Data_Format else 'CSV' end,
+						p_Data_Format => case when CONNECT_BY_ISLEAF = 1 then v_Data_Format else 'NATIVE' end,
 						p_Use_Trim => 'Y'
 					) COLUMN_EXPR,
-					case when U_MEMBERS = 1 and PRIOR VIEW_NAME != R_VIEW_NAME then
-							data_browser_conf.Compose_Column_Name(
-								p_First_Name => REPLACE(LTRIM(SYS_CONNECT_BY_PATH(PRIOR NORM_COLUMN_NAME, ' ')), ' ', '_'),
-								p_Second_Name => NORM_COLUMN_NAME,
-								p_Deduplication => 'NO', 
-								p_Max_Length => 29
-							)
-						else
-							data_browser_conf.Compose_Column_Name(
-								p_First_Name => REPLACE(LTRIM(SYS_CONNECT_BY_PATH(NORM_COLUMN_NAME, ' ')), ' ', '_'),
-								p_Second_Name => NVL(R_COLUMN_NAME, R_PRIMARY_KEY_COLS),
-								p_Max_Length => 29
-							)
-						end 
-					AS IMP_COLUMN_NAME,
+					data_browser_conf.Compose_Column_Name(
+						p_First_Name => REPLACE(LTRIM(SYS_CONNECT_BY_PATH(NORM_COLUMN_NAME, ' ')), ' ', '_'),
+						p_Second_Name => NVL(R_COLUMN_NAME, R_PRIMARY_KEY_COLS),
+						p_Max_Length => 29
+					) IMP_COLUMN_NAME,
+					data_browser_conf.Compose_Column_Name(
+						p_First_Name => REPLACE(LTRIM(SYS_CONNECT_BY_PATH(PRIOR NORM_COLUMN_NAME, ' ')), ' ', '_'),
+						p_Second_Name => FOREIGN_KEY_COLS,
+						p_Max_Length => 29
+					) DEST_COLUMN_NAME,
 					PRIOR COLUMN_PREFIX COLUMN_PREFIX, 
 					IS_UPPER_NAME,
 					case when U_MEMBERS = 1 and PRIOR VIEW_NAME != R_VIEW_NAME then -- simple column name when only one member is displayed
-							data_browser_conf.Compose_Column_Name(
-								p_First_Name => REPLACE(LTRIM(SYS_CONNECT_BY_PATH(PRIOR NORM_COLUMN_NAME, ' ')), ' ', '_'),
-								p_Second_Name => NORM_COLUMN_NAME,
-								p_Deduplication => 'NO', 
-								p_Max_Length => 128
-							)
+						data_browser_conf.Compose_Column_Name(
+							p_First_Name => REPLACE(LTRIM(SYS_CONNECT_BY_PATH(PRIOR NORM_COLUMN_NAME, ' ')), ' ', '_'),
+							p_Second_Name => NORM_COLUMN_NAME,
+							p_Deduplication => 'NO', 
+							p_Max_Length => 128
+						)
 					else 
-							data_browser_conf.Compose_Column_Name(
-								p_First_Name => REPLACE(LTRIM(SYS_CONNECT_BY_PATH(NORM_COLUMN_NAME, ' ')), ' ', '_'),
-								p_Second_Name => NVL(R_COLUMN_NAME, R_PRIMARY_KEY_COLS),
-								p_Max_Length => 128
-							)
-					end 
-					AS COLUMN_HEADER,
+						data_browser_conf.Compose_Column_Name(
+							p_First_Name => REPLACE(LTRIM(SYS_CONNECT_BY_PATH(NORM_COLUMN_NAME, ' ')), ' ', '_'),
+							p_Second_Name => NVL(R_COLUMN_NAME, R_PRIMARY_KEY_COLS),
+							p_Max_Length => 128
+						)
+					end COLUMN_HEADER,
 					HAS_HELP_TEXT, HAS_DEFAULT, IS_BLOB, IS_PASSWORD,
 					IS_AUDIT_COLUMN, IS_READONLY, DISPLAY_IN_REPORT,
 					PRIOR IS_DISPLAYED_KEY_COLUMN IS_DISPLAYED_KEY_COLUMN,
@@ -2075,9 +2063,9 @@ is
 			Q.FOREIGN_KEY_COLS 	COLUMN_NAME,
 			Q.R_VIEW_NAME 		S_VIEW_NAME,
 			Q.IMP_COLUMN_NAME 	S_REF,
-			S.R_VIEW_NAME 		D_VIEW_NAME,
-			S.IMP_COLUMN_NAME D_REF,
-			S.IMP_COLUMN_NAME D_COLUMN_NAME,
+			Q.J_VIEW_NAME 		D_VIEW_NAME,
+			Q.DEST_COLUMN_NAME D_REF,
+			Q.DEST_COLUMN_NAME D_COLUMN_NAME,
 			Q.IS_FILE_FOLDER_REF,
 			null FOLDER_PARENT_COLUMN_NAME,
 			null FOLDER_NAME_COLUMN_NAME,
@@ -2097,15 +2085,9 @@ is
 			SUM(case when Q.U_MEMBERS = 1 THEN 1 else 0 end ) OVER (PARTITION BY Q.TABLE_NAME, Q.FOREIGN_KEY_COLS) HAS_SIMPLE_UNIQUE,
 			case when Q.IS_REFERENCE = 'N' then 0 else 1 end HAS_FOREIGN_KEY,
 			Q.U_CONSTRAINT_NAME, Q.U_MEMBERS, 1 POSITION2
-		FROM MVDATA_BROWSER_F_REFS S, TABLE(data_browser_select.FN_Pipe_browser_q_refs(p_View_Name => S.VIEW_NAME, p_Data_Format => p_Data_Format)) Q 
-        -- , (SELECT 'SALES' p_Table_name, 'NO' p_As_Of_Timestamp FROM DUAL ) PAR
-		where Q.VIEW_NAME = S.VIEW_NAME
-			and Q.FOREIGN_KEY_COLS = S.FOREIGN_KEY_COLS
-			and Q.TABLE_ALIAS = S.TABLE_ALIAS
-			and Q.J_VIEW_NAME = S.R_VIEW_NAME
-			and Q.J_COLUMN_NAME = S.R_COLUMN_NAME
-		and Q.TABLE_NAME = NVL(v_Table_Name, Q.TABLE_NAME)
-		AND Q.IS_FILE_FOLDER_REF = 'N';
+		FROM TABLE(data_browser_select.FN_Pipe_browser_q_refs(p_View_Name => v_Table_Name, p_Data_Format => p_Data_Format)) Q 
+		where Q.IS_FILE_FOLDER_REF = 'N';
+		
         v_in_row rec_table_imp_fk;
 	BEGIN
 		OPEN views_cur(p_Table_Name);

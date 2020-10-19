@@ -3597,7 +3597,8 @@ $END
 				end S_REF,
 				SUBSTR(E.INPUT_ID, 1, 1) S_REF_TYPE -- C,N
 			FROM (
-				SELECT --+ INDEX(Q) USE_NL_WITH_INDEX(S)
+				SELECT DISTINCT
+					--+ INDEX(Q) USE_NL_WITH_INDEX(S)
 					Q.TABLE_NAME, Q.VIEW_NAME, Q.SEARCH_KEY_COLS, Q.SHORT_NAME,
 					Q.FOREIGN_KEY_COLS 	COLUMN_NAME,
                     Q.VIEW_NAME         S_VIEW_NAME,
@@ -3605,9 +3606,10 @@ $END
 					Q.TABLE_ALIAS 		TABLE_ALIAS, 
 					S.R_VIEW_NAME 		D_VIEW_NAME,
 					S.IMP_COLUMN_NAME
-				FROM MVDATA_BROWSER_F_REFS S, TABLE(data_browser_select.FN_Pipe_browser_q_refs(
+				FROM MVDATA_BROWSER_F_REFS S
+                --, (SELECT 'SALES' v_Table_name, 'NO' p_As_Of_Timestamp, 'FORM' p_Data_Format FROM DUAL ) PAR
+				, TABLE(data_browser_select.FN_Pipe_browser_q_refs(
 					p_View_Name => S.VIEW_NAME, p_Data_Format => 'FORM')) Q 
-                -- , (SELECT 'SALES' p_Table_name, 'NO' p_As_Of_Timestamp FROM DUAL ) PAR
 				where Q.VIEW_NAME = S.VIEW_NAME
 					and Q.FOREIGN_KEY_COLS = S.FOREIGN_KEY_COLS
 					and Q.TABLE_ALIAS = S.TABLE_ALIAS
@@ -3714,7 +3716,8 @@ $END
 					'exception when NO_DATA_FOUND then' || data_browser_conf.NL(14)
 					|| 'INSERT INTO ' || T.R_VIEW_NAME || '('
 					|| LISTAGG(T.R_COLUMN_NAME, ', ') WITHIN GROUP (ORDER BY R_COLUMN_ID, POSITION)
-					|| ') VALUES ('
+					|| ')' || data_browser_conf.NL(14)
+					|| 'VALUES ('
 					|| LISTAGG( 
 						data_browser_conf.Get_Char_to_Type_Expr (
 							p_Element 		=> S_REF,
@@ -3733,7 +3736,8 @@ $END
 							p_use_NLS_params => 'Y'
 						)
 						, ', ') WITHIN GROUP (ORDER BY R_COLUMN_ID, POSITION)
-					|| ') RETURNING (' || T.R_PRIMARY_KEY_COLS || ') INTO ' 
+					|| ')' || data_browser_conf.NL(14)
+					|| 'RETURNING (' || T.R_PRIMARY_KEY_COLS || ') INTO ' 
 					|| case when T.D_REF_TYPE = 'N' then 'v_NResult' else 'v_CResult' end || ';' 
 					|| data_browser_edit.CM(' /* ' || T.COLUMN_NAME || ' */ ')
 					|| data_browser_conf.NL(14)
@@ -3796,7 +3800,8 @@ $END
 					'exception when NO_DATA_FOUND then' || data_browser_conf.NL(14)
 					|| 'INSERT INTO ' || T.R_VIEW_NAME || '('
 					|| LISTAGG(T.R_COLUMN_NAME, ', ') WITHIN GROUP (ORDER BY R_COLUMN_ID, POSITION)
-					|| ') VALUES ('
+					|| ')' || data_browser_conf.NL(14)
+					|| 'VALUES ('
 					|| LISTAGG( data_browser_conf.Get_Char_to_Type_Expr (
 									p_Element 		=> T.S_REF,
 									p_Data_Type 	=> T.R_DATA_TYPE,
@@ -3811,7 +3816,8 @@ $END
 									p_use_NLS_params => 'N'
 								)
 						, ', ') WITHIN GROUP (ORDER BY R_COLUMN_ID, POSITION)
-					|| ') RETURNING (' || T.R_PRIMARY_KEY_COLS || ') INTO ' || T.D_REF || ';' 
+					|| ')' || data_browser_conf.NL(14)
+					|| 'RETURNING (' || T.R_PRIMARY_KEY_COLS || ') INTO ' || T.D_REF || ';' 
 					|| data_browser_edit.CM(' /* ' || T.COLUMN_NAME || ' */ ')
 					|| data_browser_conf.NL(12)
 					|| 'end;' || data_browser_conf.NL(10)
@@ -4004,7 +4010,7 @@ $END
 		HAVING (MAX(T.U_CONSTRAINT_NAME) IS NOT NULL or v_Search_Keys_Unique = 'NO')
 		AND NOT(p_Exec_Phase = 1 AND SUM(S_HAS_FOREIGN_KEY) > 0)
 		AND NOT(p_Exec_Phase = 2 AND SUM(S_HAS_FOREIGN_KEY) = 0)
-		ORDER BY SUM(S_HAS_FOREIGN_KEY), T.U_MEMBERS, T.COLUMN_ID, T.D_REF;
+		ORDER BY SUM(S_HAS_FOREIGN_KEY), T.TABLE_ALIAS DESC, T.U_MEMBERS, T.COLUMN_ID, T.D_REF;
         v_Stat 				CLOB;
         v_Result_PLSQL		CLOB;
         v_Str 				VARCHAR2(32767);

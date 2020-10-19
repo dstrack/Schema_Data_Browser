@@ -113,7 +113,8 @@ CREATE OR REPLACE PACKAGE BODY import_utl IS
 				F.COLUMN_NAME D_REF,
 				E.COLUMN_NAME S_REF
 			FROM (
-				SELECT --+ INDEX(Q) USE_NL_WITH_INDEX(S)
+				SELECT DISTINCT
+					--+ INDEX(Q) USE_NL_WITH_INDEX(S)
 					Q.TABLE_NAME, Q.VIEW_NAME, Q.SEARCH_KEY_COLS, Q.SHORT_NAME,
 					Q.FOREIGN_KEY_COLS 	COLUMN_NAME,
                     Q.VIEW_NAME         S_VIEW_NAME,
@@ -143,7 +144,7 @@ CREATE OR REPLACE PACKAGE BODY import_utl IS
 					case when IS_FILE_FOLDER_REF = 'N' then 
 						RPAD(' ', 4) || 'if '
 						|| LISTAGG(S_REF || ' IS NOT NULL',
-							case when HAS_NULLABLE > 0 OR HAS_SIMPLE_UNIQUE > 0 then ' OR ' else ' AND ' end
+							case when HAS_NULLABLE > 0 OR HAS_SIMPLE_UNIQUE > 0 then chr(10) || RPAD(' ', 4) || 'OR ' else ' AND ' end
 						) WITHIN GROUP (ORDER BY R_COLUMN_ID) -- conditions to trigger the search of foreign keys
 						|| ' then ' || chr(10)
 						|| case when D.DEFAULTS_MISSING = 0  AND import_utl.Get_Insert_Foreign_Keys = 'YES' 
@@ -172,9 +173,11 @@ CREATE OR REPLACE PACKAGE BODY import_utl IS
 							'  exception when NO_DATA_FOUND then' || chr(10) || RPAD(' ', 8)
 							|| 'INSERT INTO ' || T.R_VIEW_NAME || '('
 							|| LISTAGG(T.R_COLUMN_NAME, ', ') WITHIN GROUP (ORDER BY R_COLUMN_ID)
-							|| ') VALUES ('
+							|| ')' || chr(10) || RPAD(' ', 8)
+							|| 'VALUES ('
 							|| LISTAGG(S_REF, ', ') WITHIN GROUP (ORDER BY R_COLUMN_ID)
-							|| ') RETURNING (' || T.R_PRIMARY_KEY_COLS || ') INTO ' || D_REF || ';' || chr(10) || RPAD(' ', 4)
+							|| ')' || chr(10) || RPAD(' ', 8)
+							|| 'RETURNING (' || T.R_PRIMARY_KEY_COLS || ') INTO ' || D_REF || ';' || chr(10) || RPAD(' ', 4)
 							|| '  end;' || chr(10) || RPAD(' ', 4)
 
 						end
@@ -257,7 +260,7 @@ CREATE OR REPLACE PACKAGE BODY import_utl IS
 				FROM (
 					-- 2. level foreign keys
 					SELECT 	VIEW_NAME, TABLE_NAME, SEARCH_KEY_COLS, SHORT_NAME, COLUMN_NAME, 
-						S_VIEW_NAME, ':new.' || S_REF S_REF, 
+						S_VIEW_NAME, case when HAS_FOREIGN_KEY = 0 then ':new.' else 'v_' end || S_REF S_REF, 
 						D_VIEW_NAME, 'v_' || D_REF D_REF, 
 						D_COLUMN_NAME, 
 						IS_FILE_FOLDER_REF, FOLDER_PARENT_COLUMN_NAME, FOLDER_NAME_COLUMN_NAME, FOLDER_CONTAINER_COLUMN_NAME, 
@@ -270,13 +273,7 @@ CREATE OR REPLACE PACKAGE BODY import_utl IS
 					-- 1. level foreign keys
 					SELECT VIEW_NAME, TABLE_NAME, SEARCH_KEY_COLS, SHORT_NAME, COLUMN_NAME, 
 						S_VIEW_NAME, 
-						case when EXISTS (
-							SELECT 1 
-							FROM MVDATA_BROWSER_FKEYS FK
-							WHERE FK.VIEW_NAME = S.R_VIEW_NAME 
-							AND FK.FOREIGN_KEY_COLS = S.R_COLUMN_NAME
-						) then 'v_' else ':new.' end 
-						|| S_REF S_REF, 
+						case when HAS_FOREIGN_KEY = 0 then ':new.' else 'v_' end || S_REF S_REF,
 						D_VIEW_NAME, 'v_row.' || D_REF D_REF, 
 						D_COLUMN_NAME, 
 						IS_FILE_FOLDER_REF, FOLDER_PARENT_COLUMN_NAME, FOLDER_NAME_COLUMN_NAME, FOLDER_CONTAINER_COLUMN_NAME, 
@@ -323,7 +320,7 @@ CREATE OR REPLACE PACKAGE BODY import_utl IS
 				T.IS_FILE_FOLDER_REF, T.FOLDER_PARENT_COLUMN_NAME, T.FOLDER_NAME_COLUMN_NAME, 
 				T.FOLDER_CONTAINER_COLUMN_NAME, T.FOLDER_CONTAINER_REF
 			HAVING (MAX(T.U_CONSTRAINT_NAME) IS NOT NULL or import_utl.Get_Search_Keys_Unique = 'NO')
-			ORDER BY SUM(HAS_FOREIGN_KEY), T.U_MEMBERS, T.COLUMN_ID, T.POSITION2, T.D_REF
+			ORDER BY SUM(HAS_FOREIGN_KEY), T.TABLE_ALIAS DESC, T.U_MEMBERS, T.COLUMN_ID, T.POSITION2, T.D_REF
 		) 
 		SELECT SQL_TEXT,
 			case when B.COLUMN_CHECK_EXPR IS NOT NULL then

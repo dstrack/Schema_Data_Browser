@@ -650,9 +650,9 @@ FROM (
         F.R_VIEW_NAME, F.R_TABLE_NAME,
         T.COLUMN_ID, T.NULLABLE,
         case when C.COLUMN_ID IS NULL then 'No description columns found. (F)' end WARNING_MSG,
-        C.COLUMN_ID*10000 R_COLUMN_ID,
-		C.COLUMN_ID*10000+NVL(C.COLUMN_ID,0)*100 POSITION,
-        C.POSITION R_POSITION,
+        NVL(C.COLUMN_ID, 1)*10000 R_COLUMN_ID,
+		NVL(C.COLUMN_ID, 1)*10000+NVL(C.POSITION, 1)*100 POSITION,
+        NVL(C.POSITION, 1) R_POSITION,
         C.COLUMN_NAME R_COLUMN_NAME, -- NVL(C.COLUMN_NAME, F.R_PRIMARY_KEY_COLS) -- description column reserve, use pk column
         NVL(C.NULLABLE, T.NULLABLE) R_NULLABLE,
 		NVL(C.DATA_TYPE, T.DATA_TYPE) R_DATA_TYPE,
@@ -660,6 +660,13 @@ FROM (
 		NVL(C.DATA_SCALE, T.DATA_SCALE) R_DATA_SCALE,
 		NVL(C.CHAR_LENGTH, T.CHAR_LENGTH) R_CHAR_LENGTH,
 		data_browser_conf.Sequence_To_Table_Alias(DENSE_RANK() OVER (PARTITION BY F.VIEW_NAME ORDER BY T.COLUMN_ID)) TABLE_ALIAS,
+		CAST(data_browser_conf.Compose_Column_Name(
+			p_First_Name => F.NORM_COLUMN_NAME
+			, p_Second_Name => C.COLUMN_NAME
+			, p_Deduplication => 'NO', p_Max_Length => 29
+			) AS VARCHAR2(32))
+		AS IMP_COLUMN_NAME,
+		SD.COLUMN_PREFIX,
 		CAST(case when C.COLUMN_NAME IS NOT NULL then
 				data_browser_conf.Compose_Column_Name(
 					NVL(data_browser_conf.Normalize_Column_Name(
@@ -667,30 +674,7 @@ FROM (
 							p_Remove_Prefix => SD.COLUMN_PREFIX),
 						data_browser_conf.Normalize_Table_Name(p_Table_Name => F.R_VIEW_NAME))
 					, C.COLUMN_NAME
-					, p_Deduplication => 'NO', p_Max_Length => 29)
-			else 
-				data_browser_conf.Normalize_Column_Name(
-					p_Column_Name => T.COLUMN_NAME ,
-					p_Remove_Extension => 'NO',
-					p_Remove_Prefix => SD.COLUMN_PREFIX)
-			end AS VARCHAR2(32))
-		AS IMP_COLUMN_NAME,
-		SD.COLUMN_PREFIX,
-		CAST(case when C.COLUMN_NAME IS NOT NULL then
-				case when U_MEMBERS = 1 then -- simple column name when only one member is displayed
-					NVL(data_browser_conf.Normalize_Column_Name(
-							p_Column_Name => T.COLUMN_NAME, 
-							p_Remove_Prefix => SD.COLUMN_PREFIX),
-						data_browser_conf.Normalize_Table_Name(p_Table_Name => F.R_VIEW_NAME))
-				else 
-					data_browser_conf.Compose_Column_Name(
-						NVL(data_browser_conf.Normalize_Column_Name(
-								p_Column_Name => T.COLUMN_NAME, 
-								p_Remove_Prefix => SD.COLUMN_PREFIX),
-							data_browser_conf.Normalize_Table_Name(p_Table_Name => F.R_VIEW_NAME))
-						, C.COLUMN_NAME
-						, p_Deduplication => 'YES', p_Max_Length => 128)
-				end
+					, p_Deduplication => 'YES', p_Max_Length => 128)
 			else 
 				data_browser_conf.Normalize_Column_Name(
 					p_Column_Name => T.COLUMN_NAME ,
@@ -744,12 +728,19 @@ FROM (
 		end IS_DISPLAYED_KEY_COLUMN,
 		C.HAS_NULLABLE, C.U_CONSTRAINT_NAME, C.U_MEMBERS, C.U_MATCHING,
 		case when C.COLUMN_NAME = D.ORDERING_COLUMN_NAME then 'Y' else 'N' end IS_ORDERING_COLUMN,
-		case when EXISTS (
+		/*case when EXISTS (
 				SELECT 1
 				FROM MVDATA_BROWSER_FKEYS E 
 				WHERE F.R_VIEW_NAME = E.VIEW_NAME
 				AND C.COLUMN_NAME = E.FOREIGN_KEY_COLS
 			) then 'Y' else 'N' 
+		end IS_REFERENCE,*/
+		case when E.FOREIGN_KEY_COLS IS NOT NULL then 
+			case when T.NULLABLE = 'N' and E.DELETE_RULE = 'CASCADE' 
+				then 'C' 	-- Container 
+				else 'Y' 	-- Yes
+			end
+		else 'N' 			-- No
 		end IS_REFERENCE,
         case when (SD.FILE_FOLDER_COLUMN_NAME = F.FOREIGN_KEY_COLS and C.COLUMN_NAME IN (D.FOLDER_NAME_COLUMN_NAME,D.FOLDER_PARENT_COLUMN_NAME))
         or (SD.FOLDER_PARENT_COLUMN_NAME = F.FOREIGN_KEY_COLS )
@@ -757,6 +748,7 @@ FROM (
         end IS_FILE_FOLDER_REF
 	FROM MVDATA_BROWSER_DESCRIPTIONS SD
 	, MVDATA_BROWSER_FKEYS F
+	, MVDATA_BROWSER_FKEYS E 
 	, TABLE (data_browser_pipes.FN_Pipe_Table_Columns) T 
 	, MVDATA_BROWSER_DESCRIPTIONS D
 	, TABLES_D_REFS C 
@@ -766,6 +758,7 @@ FROM (
 	AND T.HIDDEN_COLUMN = 'NO'
 	AND D.VIEW_NAME = F.R_VIEW_NAME AND D.VIEW_OWNER = SD.VIEW_OWNER
 	AND F.R_VIEW_NAME = C.VIEW_NAME (+) AND C.RANK (+) = 1 -- description for each foreign key
+	AND F.R_VIEW_NAME = E.VIEW_NAME (+) AND C.COLUMN_NAME = E.FOREIGN_KEY_COLS (+)
 );
 
 ALTER TABLE MVDATA_BROWSER_F_REFS ADD

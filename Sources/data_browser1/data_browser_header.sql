@@ -148,7 +148,8 @@ IS
 	TYPE rec_data_browser_q_refs IS RECORD (
 		VIEW_NAME			VARCHAR2(128),
 		TABLE_NAME			VARCHAR2(128),
-		IMP_COLUMN_NAME		VARCHAR2(72),
+		IMP_COLUMN_NAME		VARCHAR2(128),
+		DEST_COLUMN_NAME	VARCHAR2(128),
 		COLUMN_PREFIX		VARCHAR2(128),
 		IS_UPPER_NAME		CHAR(1),
 		COLUMN_HEADER		VARCHAR2(128),
@@ -203,6 +204,12 @@ IS
 	-- result cache
     g_q_ref_cols_tab		data_browser_select.tab_data_browser_q_refs;
 	g_q_ref_cols_md5 		VARCHAR2(300) := 'X';
+
+	FUNCTION FN_Pipe_browser_q_refs_flat (
+		p_View_Name VARCHAR2, 
+		p_Data_Format VARCHAR2 DEFAULT 'FORM', 
+		p_Include_Schema VARCHAR2 DEFAULT data_browser_conf.Get_Include_Query_Schema
+	) RETURN data_browser_select.tab_data_browser_q_refs PIPELINED;
 
 	FUNCTION FN_Pipe_browser_q_refs (
 		p_View_Name VARCHAR2, 
