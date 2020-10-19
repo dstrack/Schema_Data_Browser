@@ -894,19 +894,13 @@ is
 					'A' TABLE_ALIAS,
 					T.IS_AUDIT_COLUMN, T.IS_OBFUSCATED, T.IS_UPPER_NAME,
 					T.IS_NUMBER_YES_NO_COLUMN, T.IS_CHAR_YES_NO_COLUMN,
-					case when E.COLUMN_NAME IS NOT NULL then 
-							case when T.NULLABLE = 'N' and E.DELETE_RULE = 'CASCADE' 
-								then 'C' 	-- Container 
-								else 'Y' 	-- Yes
-								end
-						else 'N' 			-- No
-					end IS_REFERENCE,
+					T.IS_FOREIGN_KEY IS_REFERENCE,
 					case when T.DATA_TYPE IN ('BLOB', 'LONG')
 						then 'N' else 'Y'
 					end IS_SEARCHABLE_REF,
 					T.IS_SUMMAND, T.IS_VIRTUAL_COLUMN, T.IS_DATETIME,
 					T.COLUMN_ID, 
-					E.FK_COLUMN_ID R_COLUMN_ID, 
+					T.COLUMN_ID R_COLUMN_ID, 
 					T.POSITION,
 					T.COLUMN_NAME IMP_COLUMN_NAME,
 					T.COLUMN_ALIGN,
@@ -1011,9 +1005,6 @@ is
 					T.COMMENTS
 				FROM MVDATA_BROWSER_SIMPLE_COLS T
 				JOIN BROWSER_VIEW S ON S.VIEW_NAME = T.VIEW_NAME
-				LEFT OUTER JOIN MVDATA_BROWSER_REFERENCES E ON T.VIEW_NAME = E.VIEW_NAME 
-					AND T.COLUMN_ID = E.FK_COLUMN_ID -- support for composite keys
-					AND T.COLUMN_NAME = E.COLUMN_NAME -- currently this filter is required, special has has to be handled: fk to A and to A,B
 				WHERE T.VIEW_NAME = v_View_Name
 				AND (T.IS_IGNORED = 'N' AND T.IS_HIDDEN = 'N' OR T.IS_SEARCH_KEY = 'Y')
 				AND (T.IS_DATA_DEDUCTED = 'N' OR data_browser_conf.Check_Data_Deduction(T.COLUMN_NAME) = 'NO')
@@ -1253,7 +1244,7 @@ is
 					S.TABLE_ALIAS,
 					S.IS_AUDIT_COLUMN, 'N' IS_OBFUSCATED, 'N' IS_UPPER_NAME,
 					S.IS_NUMBER_YES_NO_COLUMN, S.IS_CHAR_YES_NO_COLUMN, 
-					'N' IS_REFERENCE,
+					S.IS_REFERENCE,
 					case when S.R_DATA_TYPE IN ('BLOB', 'LONG')
 						then 'N' else 'Y'
 					end IS_SEARCHABLE_REF,
@@ -1268,14 +1259,14 @@ is
 						p_Data_Precision => S.R_DATA_PRECISION,
 						p_Data_Scale => S.R_DATA_SCALE,
 						p_Char_Length => S.R_CHAR_LENGTH,
-						p_Data_Format => case when E.COLUMN_NAME IS NULL then v_Data_Format else 'CSV' end,
+						p_Data_Format => case when S.IS_REFERENCE = 'N' then v_Data_Format else 'CSV' end,
 						p_Use_Trim => 'Y'
 					) COLUMN_EXPR,
 					S.HAS_HELP_TEXT,
 					s.HAS_DEFAULT,
 					S.IS_BLOB,
 					S.IS_PASSWORD,
-					case when E.COLUMN_NAME IS  NULL then
+					case when S.IS_REFERENCE = 'N' then
 						data_browser_conf.Get_Col_Format_Mask(
 							p_Column_Name 		=> S.R_COLUMN_NAME,
 							p_Data_Type 		=> S.R_DATA_TYPE, 
@@ -1285,7 +1276,7 @@ is
 							p_Use_Group_Separator => case when v_Data_Format = 'FORM' then 'Y' else 'N' end)
 					end FORMAT_MASK, 
 					'' LOV_QUERY,
-					case when E.COLUMN_NAME IS NOT NULL -- In View Mode Import/Export the foreign key columns are hidden.
+					case when S.IS_REFERENCE != 'N' -- In View Mode Import/Export the foreign key columns are hidden.
 					and data_browser_select.FN_List_Offest(v_Select_Columns, S.IMP_COLUMN_NAME) = 0 -- not visible
 						then 'HIDDEN'
 					else 
@@ -1297,7 +1288,7 @@ is
 					case when S.NULLABLE = 'N' and S.R_NULLABLE = 'N' then 'N' else 'Y' end NULLABLE,
 					'N' IS_PRIMARY_KEY, 
 					'N' IS_SEARCH_KEY, 
-					case when E.COLUMN_NAME IS NOT NULL then 'Y' else 'N' end IS_FOREIGN_KEY,
+					case when S.IS_REFERENCE = 'N' then 'N' else 'Y' end IS_FOREIGN_KEY,
 					S.IS_DISPLAYED_KEY_COLUMN IS_DISP_KEY_COLUMN, 'N' CHECK_UNIQUE,
 					S.TABLE_NAME R_TABLE_NAME, 
 					S.VIEW_NAME R_VIEW_NAME, 
@@ -1307,7 +1298,6 @@ is
 					S.R_COLUMN_NAME REF_COLUMN_NAME,
 					S.COMMENTS
 				FROM TABLE(data_browser_select.FN_Pipe_browser_fc_refs(v_View_Name)) S
-				LEFT OUTER JOIN MVDATA_BROWSER_REFERENCES E ON S.R_VIEW_NAME = E.VIEW_NAME AND S.R_COLUMN_NAME = E.COLUMN_NAME
 				JOIN JOIN_OPTIONS J ON S.TABLE_ALIAS = J.TABLE_ALIAS
 				WHERE S.VIEW_NAME = v_View_Name
 				AND (J.COLUMNS_INCLUDED = 'A')
@@ -1318,7 +1308,7 @@ is
 					S.R_TABLE_ALIAS TABLE_ALIAS,
 					S.IS_AUDIT_COLUMN, 'N' IS_OBFUSCATED, 'N' IS_UPPER_NAME,
 					'N' IS_NUMBER_YES_NO_COLUMN, 'N' IS_CHAR_YES_NO_COLUMN, 
-					'N' IS_REFERENCE,
+					S.IS_REFERENCE,
 					case when S.R_DATA_TYPE IN ('BLOB', 'LONG')
 						then 'N' else 'Y'
 					end IS_SEARCHABLE_REF,
@@ -1429,7 +1419,7 @@ is
 			TABLE_ALIAS,
 			R_TABLE_ALIAS,
 			HAS_HELP_TEXT, HAS_DEFAULT, IS_BLOB, IS_PASSWORD, IS_AUDIT_COLUMN,
-			DISPLAY_IN_REPORT, IS_DISPLAYED_KEY_COLUMN,
+			DISPLAY_IN_REPORT, IS_DISPLAYED_KEY_COLUMN, IS_REFERENCE,
 			COMMENTS
 		FROM (
 			SELECT DISTINCT F.TABLE_NAME, F.VIEW_NAME,
@@ -1478,6 +1468,7 @@ is
 				G.R_VIEW_NAME JOIN_VIEW_NAME,
 				G.HAS_HELP_TEXT, G.HAS_DEFAULT, G.IS_BLOB, G.IS_PASSWORD, G.IS_AUDIT_COLUMN, G.DISPLAY_IN_REPORT,
 				F.IS_DISPLAYED_KEY_COLUMN,
+				F.IS_REFERENCE,
 				F.R_VIEW_NAME J_VIEW_NAME,
 				F.R_COLUMN_NAME J_COLUMN_NAME,
 				F.COMMENTS
@@ -1538,7 +1529,7 @@ is
 			) COLUMN_HEADER,
 			COLUMN_ALIGN, FIELD_LENGTH, HAS_HELP_TEXT, HAS_DEFAULT,
 			IS_BLOB, IS_PASSWORD, IS_AUDIT_COLUMN, IS_NUMBER_YES_NO_COLUMN, IS_CHAR_YES_NO_COLUMN,
-			DISPLAY_IN_REPORT, IS_DISPLAYED_KEY_COLUMN,
+			DISPLAY_IN_REPORT, IS_DISPLAYED_KEY_COLUMN, IS_REFERENCE,
 			R_DATA_TYPE, DATA_TYPE_OWNER, R_DATA_PRECISION, R_DATA_SCALE, R_CHAR_LENGTH, 
 			NULLABLE R_NULLABLE, COMMENTS, R_CHECK_UNIQUE, R_IS_READONLY,
 			CAST(TABLE_ALIAS AS VARCHAR2(10)) TABLE_ALIAS
@@ -1576,6 +1567,7 @@ is
 				T.IS_CHAR_YES_NO_COLUMN,
 				T.DISPLAY_IN_REPORT,
 				T.IS_DISPLAYED_KEY_COLUMN,
+				T.IS_FOREIGN_KEY IS_REFERENCE,
 				T.DATA_TYPE R_DATA_TYPE,
 				T.DATA_TYPE_OWNER,
 				T.DATA_PRECISION R_DATA_PRECISION,
