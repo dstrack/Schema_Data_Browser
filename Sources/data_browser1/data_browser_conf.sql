@@ -1790,11 +1790,6 @@ $END
 				INTO v_Result
 				FROM SYS.USER_TAB_COLS AC
 				LEFT OUTER JOIN TABLE (
-					/*SELECT B.TABLE_NAME, B.OWNER, B.COLUMN_NAME, B.CONSTRAINT_NAME, A.SEARCH_CONDITION 
-					FROM SYS.USER_CONS_COLUMNS B, 
-					TABLE ( data_browser_conf.Constraint_Condition_Cursor(B.TABLE_NAME, SYS_CONTEXT('USERENV', 'CURRENT_SCHEMA'), B.CONSTRAINT_NAME) ) A -- check constraints for Get_Yes_No_Column_Type
-					WHERE A.SEARCH_CONDITION NOT IN( DBMS_ASSERT.ENQUOTE_NAME(B.COLUMN_NAME) || ' IS NOT NULL', B.COLUMN_NAME || ' IS NOT NULL') -- filter NOT NULL checks
-					*/
 						data_browser_conf.Constraint_Columns_Cursor (p_Table_Name=>AC.TABLE_NAME)
 					) B ON AC.TABLE_NAME = B.TABLE_NAME 
 						AND AC.COLUMN_NAME = B.COLUMN_NAME
@@ -1819,11 +1814,6 @@ $END
 				INTO v_Result
 				FROM SYS.ALL_TAB_COLS AC
 				LEFT OUTER JOIN TABLE (
-					/*SELECT B.TABLE_NAME, B.OWNER, B.COLUMN_NAME, B.CONSTRAINT_NAME, A.SEARCH_CONDITION 
-					FROM SYS.ALL_CONS_COLUMNS B, 
-					TABLE ( data_browser_conf.Constraint_Condition_Cursor(B.TABLE_NAME, B.OWNER, B.CONSTRAINT_NAME) ) A -- check constraints for Get_Yes_No_Column_Type
-					WHERE A.SEARCH_CONDITION NOT IN( DBMS_ASSERT.ENQUOTE_NAME(B.COLUMN_NAME) || ' IS NOT NULL', B.COLUMN_NAME || ' IS NOT NULL') -- filter NOT NULL checks
-					*/
 						data_browser_conf.Constraint_Columns_Cursor (p_Table_Name=>AC.TABLE_NAME, p_Owner=>AC.OWNER)
 					) B ON AC.TABLE_NAME = B.TABLE_NAME 
 						AND AC.OWNER = B.OWNER
