@@ -39,7 +39,9 @@ is
 			WHERE VIEW_NAME = v_View_Name
 		)
 		SELECT COLUMN_NAME, TABLE_ALIAS, 
-			data_browser_select.FN_List_Offest(v_Select_Columns, COLUMN_NAME) COLUMN_ORDER,
+			-- data_browser_select.FN_List_Offest(v_Select_Columns, COLUMN_NAME) COLUMN_ORDER,
+			ROW_NUMBER() OVER (ORDER BY data_browser_select.FN_List_Offest(v_Select_Columns, COLUMN_NAME)
+								, IS_AUDIT_COLUMN, COLUMN_ID, POSITION) COLUMN_ORDER, 
 			COLUMN_ID, POSITION,
 			NULL INPUT_ID, -- Data Source COLLECTION is not supported
 			DATA_TYPE, DATA_PRECISION, DATA_SCALE, CHAR_LENGTH,
@@ -719,7 +721,7 @@ is
 				) S
 			) S
 		)
-		ORDER BY COLUMN_ORDER, IS_AUDIT_COLUMN, COLUMN_ID, POSITION;
+		ORDER BY COLUMN_ORDER;
 	--------------------------------------------------------------------------------------
 	/*
 	simple_cols: all simple col with alias A. 
@@ -763,7 +765,8 @@ is
 			WHERE VIEW_NAME = v_View_Name
 		)
 		SELECT COLUMN_NAME, TABLE_ALIAS, 
-			COLUMN_ORDER, COLUMN_ID, POSITION,
+			ROW_NUMBER() OVER (ORDER BY COLUMN_ORDER, IS_AUDIT_COLUMN, COLUMN_ID, R_COLUMN_ID, POSITION) COLUMN_ORDER, 
+			COLUMN_ID, POSITION,
 			case when HAS_COLLECTION_NUM_INDEX = 1 and COLLECTION_NUM_INDEX <= 5 then
 					'N' || LPAD(COLLECTION_NUM_INDEX, 3, '0')	-- apex_collections fields for hidden unique key columns
 				when HAS_COLLECTION_CHAR_INDEX = 1 then
@@ -853,7 +856,7 @@ is
 					then DENSE_RANK() OVER (PARTITION BY IMP_COLUMN_NAME ORDER BY COLUMN_ID, R_COLUMN_ID, POSITION) -- run_no
 				end COLUMN_NAME,
 				TABLE_ALIAS,
-				NULLIF(data_browser_select.FN_List_Offest(v_Select_Columns, IMP_COLUMN_NAME), 0) COLUMN_ORDER,
+				NULLIF(data_browser_select.FN_List_Offest(v_Select_Columns, IMP_COLUMN_NAME),0) COLUMN_ORDER,
 				IS_AUDIT_COLUMN, IS_OBFUSCATED, IS_UPPER_NAME, IS_NUMBER_YES_NO_COLUMN, IS_CHAR_YES_NO_COLUMN, 
 				IS_REFERENCE, IS_SEARCHABLE_REF, IS_SUMMAND, IS_VIRTUAL_COLUMN, 
 				IS_DATETIME, 
@@ -1356,7 +1359,7 @@ is
 			)
 			WHERE VIEW_NAME = v_View_Name
 		)
-    	ORDER BY COLUMN_ORDER, IS_AUDIT_COLUMN, COLUMN_ID, R_COLUMN_ID, POSITION;
+    	ORDER BY COLUMN_ORDER;
 
 
     FUNCTION Get_ConversionColFunction (

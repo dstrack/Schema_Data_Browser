@@ -935,6 +935,7 @@ IS
     	p_Unique_Key_Column VARCHAR2 DEFAULT NULL,
 		p_View_Mode VARCHAR2 DEFAULT 'FORM_VIEW',
 		p_Edit_Mode VARCHAR2 DEFAULT 'NO',
+		p_Join_Options VARCHAR2 DEFAULT NULL,
 		p_Foreign_Key_Table VARCHAR2 DEFAULT NULL,
 		p_Foreign_Key_Column IN VARCHAR2 DEFAULT NULL,
 		p_Foreign_Key_ID IN VARCHAR2 DEFAULT NULL,
@@ -952,6 +953,7 @@ IS
     	p_Unique_Key_Column VARCHAR2 DEFAULT NULL,
 		p_View_Mode VARCHAR2 DEFAULT 'FORM_VIEW',
 		p_Edit_Mode VARCHAR2 DEFAULT 'NO',
+		p_Join_Options VARCHAR2 DEFAULT NULL,
 		p_Foreign_Key_Table VARCHAR2 DEFAULT NULL,
 		p_Foreign_Key_Column IN VARCHAR2 DEFAULT NULL,
 		p_Foreign_Key_ID IN VARCHAR2 DEFAULT NULL,
@@ -1297,7 +1299,8 @@ IS
 		p_Table_name IN VARCHAR2,		
 		p_View_Mode IN VARCHAR2,
 		-- dependent on table name --
-		p_Select_Columns IN VARCHAR2
+		p_Select_Columns IN VARCHAR2,
+		p_Join_Options IN VARCHAR2					-- Example : B;K:C;K:C_B;K:C_C;K:D;K
 	);
 
 	FUNCTION Hide_Select_Column (
