@@ -584,6 +584,9 @@ IS
 			);
         v_in_rows tab_table_cols_prefix;
 	BEGIN
+		if changelog_conf.get_Use_Change_Log IS NULL then
+			return; -- not initialised (during create mview)
+		end if;
 		if changelog_conf.Get_Include_External_Objects = 'YES' then 
 			OPEN tables_cur;
 			FETCH tables_cur BULK COLLECT INTO v_in_rows;

@@ -52,7 +52,6 @@ IS
 	PROCEDURE Reset_Cache;
 end data_browser_joins;
 /
-show errors
 
 CREATE OR REPLACE PACKAGE data_browser_select
 AUTHID CURRENT_USER
@@ -681,8 +680,6 @@ IS
 
 end data_browser_select;
 /
-show errors
-
 
 CREATE OR REPLACE PACKAGE data_browser_blobs
 AUTHID CURRENT_USER
@@ -898,8 +895,6 @@ IS
 
 end data_browser_blobs;
 /
-show errors
-
 
 CREATE OR REPLACE PACKAGE data_browser_utl
 AUTHID CURRENT_USER
@@ -1519,13 +1514,14 @@ IS
 
 end data_browser_utl;
 /
-show errors
 
 CREATE OR REPLACE PACKAGE data_browser_UI_Defaults
 AUTHID CURRENT_USER
 IS
 	PROCEDURE UI_Defaults_update_table (
 		p_Table_name IN VARCHAR2,
+		p_View_Name IN VARCHAR2 DEFAULT NULL,
+		p_View_Mode IN VARCHAR2 DEFAULT 'FORM_VIEW',	-- FORM_VIEW, HISTORY, RECORD_VIEW, NAVIGATION_VIEW, NESTED_VIEW, IMPORT_VIEW, EXPORT_VIEW
 		p_Workspace_Name VARCHAR2,
 		p_Schema_Name VARCHAR2 DEFAULT SYS_CONTEXT('USERENV', 'CURRENT_SCHEMA')
 	);
@@ -1540,7 +1536,9 @@ IS
 	);
 	
 	FUNCTION UI_Defaults_export_table (
-		p_Table_name IN VARCHAR2
+		p_Table_name IN VARCHAR2,
+		p_View_Name IN VARCHAR2 DEFAULT NULL,
+		p_View_Mode IN VARCHAR2 DEFAULT 'FORM_VIEW'	-- FORM_VIEW, HISTORY, RECORD_VIEW, NAVIGATION_VIEW, NESTED_VIEW, IMPORT_VIEW, EXPORT_VIEW
 	) RETURN CLOB;
 
 	FUNCTION UI_Defaults_export_all_tables (
@@ -1555,8 +1553,6 @@ IS
 
 end data_browser_UI_Defaults;
 /
-show errors
-
 
 CREATE OR REPLACE PACKAGE data_browser_edit
 AUTHID CURRENT_USER

@@ -1006,7 +1006,7 @@ $END
 	g_NLS_Currency				VARCHAR2(64)    := '';
 	g_App_Date_Time_Format		VARCHAR2(64)    := '';		-- dynamic loaded system parameter
 	g_NLS_Timestamp_Format		VARCHAR2(64)    := '';		-- dynamic loaded system parameter
-
+	g_fetch_limit				CONSTANT INTEGER:= 200;
 	PROCEDURE Save_Config_Defaults
     IS PRAGMA AUTONOMOUS_TRANSACTION;
     BEGIN
@@ -3487,7 +3487,7 @@ $END
 			p_Search_Keys_Unique := data_browser_conf.Get_Search_Keys_Unique;
 			p_Insert_Foreign_Keys := data_browser_conf.Get_Insert_Foreign_Keys;
 		end if;
-	END;
+	END Get_Import_Parameter;
 
 	FUNCTION Strip_Comments ( p_Text VARCHAR2 ) RETURN VARCHAR2
 	IS
@@ -3499,7 +3499,7 @@ $END
 								, v_trim_set)
 						, v_trim_set
 					), '\s+', ' ');	-- remove newlines and spaces. Important for the usage in expressions and messages
-	END;
+	END Strip_Comments;
 
 	FUNCTION Get_ConstraintText (p_Table_Name VARCHAR2, p_Owner VARCHAR2, p_Constraint_Name VARCHAR2) RETURN VARCHAR2
 	IS
@@ -3524,7 +3524,7 @@ $END
 	EXCEPTION
 	WHEN NO_DATA_FOUND THEN
 		return NULL;
-	END;
+	END Get_ConstraintText;
 
 	FUNCTION Constraint_Condition_Cursor (
 		p_Table_Name IN VARCHAR2 DEFAULT NULL,
@@ -3533,57 +3533,74 @@ $END
 	) RETURN data_browser_conf.tab_constraint_condition PIPELINED
 	is
 		v_out_rec data_browser_conf.rec_constraint_condition;
+        v_Schema_Name CONSTANT VARCHAR2(50) := SYS_CONTEXT('USERENV', 'CURRENT_SCHEMA');
 		v_Search_Condition VARCHAR2(4000);
-		CURSOR Tables_cur1
+		CURSOR user_cons_cur
 		IS
-			SELECT C.OWNER, C.TABLE_NAME, C.CONSTRAINT_NAME, 
-$IF DBMS_DB_VERSION.VERSION >= 12 $THEN
-				C.SEARCH_CONDITION_VC SEARCH_CONDITION
-$ELSE
-				C.SEARCH_CONDITION
-$END
+			SELECT /*+ RESULT_CACHE */
+				C.OWNER, C.TABLE_NAME, C.CONSTRAINT_NAME, C.SEARCH_CONDITION
 			FROM SYS.USER_CONSTRAINTS C
 			WHERE C.TABLE_NAME = NVL(p_Table_Name, C.TABLE_NAME)
 			AND C.OWNER = NVL(p_Owner, C.OWNER)
 			AND C.CONSTRAINT_NAME = NVL(p_Constraint_Name, C.CONSTRAINT_NAME)
 			AND C.CONSTRAINT_TYPE = 'C' -- check constraint
+			AND C.TABLE_NAME NOT LIKE 'DR$%$_'  -- skip fulltext index
 			AND C.TABLE_NAME NOT LIKE 'BIN$%'  -- this table is in the recyclebin
 			;
-		CURSOR Tables_cur2
+		CURSOR all_cons_cur
 		IS
-			SELECT C.OWNER, C.TABLE_NAME, C.CONSTRAINT_NAME, C.SEARCH_CONDITION
+			SELECT /*+ RESULT_CACHE */
+				C.OWNER, C.TABLE_NAME, C.CONSTRAINT_NAME, C.SEARCH_CONDITION
 			FROM SYS.ALL_CONSTRAINTS C
 			WHERE C.TABLE_NAME = NVL(p_Table_Name, C.TABLE_NAME)
 			AND C.OWNER = NVL(p_Owner, C.OWNER)
 			AND C.CONSTRAINT_NAME = NVL(p_Constraint_Name, C.CONSTRAINT_NAME)
 			AND C.CONSTRAINT_TYPE = 'C' -- check constraint
+			AND C.TABLE_NAME NOT LIKE 'DR$%$_'  -- skip fulltext index
 			AND C.TABLE_NAME NOT LIKE 'BIN$%'  -- this table is in the recyclebin
+			AND C.OWNER NOT IN ('SYS', 'SYSTEM', 'SYSAUX', 'CTXSYS', 'MDSYS', 'OUTLN')
 			;
-		TYPE tables_tbl2 IS TABLE OF Tables_cur2%ROWTYPE;
-		v_in_recs 	tables_tbl2;
+		TYPE tables_tbl2 IS TABLE OF all_cons_cur%ROWTYPE;
+		v_in_rows 	tables_tbl2;
 	begin
-		if p_Owner = SYS_CONTEXT('USERENV', 'CURRENT_SCHEMA') then 
-			OPEN Tables_cur1;
-			FETCH Tables_cur1 BULK COLLECT INTO v_in_recs;
-			CLOSE Tables_cur1;
-		else
-			OPEN Tables_cur2;
-			FETCH Tables_cur2 BULK COLLECT INTO v_in_recs;
-			CLOSE Tables_cur2;
+		if g_App_Installation_Code IS NULL then 
+			return; -- not initialised (during create mview)
 		end if;
-		IF v_in_recs.FIRST IS NOT NULL THEN
-			FOR ind IN 1 .. v_in_recs.COUNT
+		if p_Owner = v_Schema_Name then 
+			OPEN user_cons_cur;
 			LOOP
-				v_Search_Condition			:= SUBSTR(v_in_recs(ind).SEARCH_CONDITION, 1, 4000);
-				v_out_rec.OWNER 			:= v_in_recs(ind).OWNER;
-				v_out_rec.TABLE_NAME 		:= v_in_recs(ind).TABLE_NAME;
-				v_out_rec.CONSTRAINT_NAME 	:= v_in_recs(ind).CONSTRAINT_NAME;
-				v_out_rec.SEARCH_CONDITION 	:= data_browser_conf.Strip_Comments (v_Search_Condition);
-				if v_out_rec.SEARCH_CONDITION IS NOT NULL then
-					pipe row (v_out_rec);
-				end if;
+				FETCH user_cons_cur BULK COLLECT INTO v_in_rows LIMIT g_fetch_limit;
+				EXIT WHEN v_in_rows.COUNT = 0;
+				FOR ind IN 1 .. v_in_rows.COUNT LOOP
+					v_Search_Condition			:= SUBSTR(v_in_rows(ind).SEARCH_CONDITION, 1, 4000);
+					v_out_rec.OWNER 			:= v_in_rows(ind).OWNER;
+					v_out_rec.TABLE_NAME 		:= v_in_rows(ind).TABLE_NAME;
+					v_out_rec.CONSTRAINT_NAME 	:= v_in_rows(ind).CONSTRAINT_NAME;
+					v_out_rec.SEARCH_CONDITION 	:= data_browser_conf.Strip_Comments (v_Search_Condition);
+					if v_out_rec.SEARCH_CONDITION IS NOT NULL then
+						pipe row (v_out_rec);
+					end if;
+				END LOOP;
 			END LOOP;
-		END IF;
+			CLOSE user_cons_cur;
+		else
+			OPEN all_cons_cur;
+			LOOP
+				FETCH all_cons_cur BULK COLLECT INTO v_in_rows LIMIT g_fetch_limit;
+				EXIT WHEN v_in_rows.COUNT = 0;
+				FOR ind IN 1 .. v_in_rows.COUNT LOOP
+					v_Search_Condition			:= SUBSTR(v_in_rows(ind).SEARCH_CONDITION, 1, 4000);
+					v_out_rec.OWNER 			:= v_in_rows(ind).OWNER;
+					v_out_rec.TABLE_NAME 		:= v_in_rows(ind).TABLE_NAME;
+					v_out_rec.CONSTRAINT_NAME 	:= v_in_rows(ind).CONSTRAINT_NAME;
+					v_out_rec.SEARCH_CONDITION 	:= data_browser_conf.Strip_Comments (v_Search_Condition);
+					if v_out_rec.SEARCH_CONDITION IS NOT NULL then
+						pipe row (v_out_rec);
+					end if;
+				END LOOP;
+			END LOOP;
+			CLOSE all_cons_cur;
+		end if;
 	end Constraint_Condition_Cursor;
 
 	FUNCTION Constraint_Columns_Cursor (
@@ -3592,12 +3609,11 @@ $END
 		p_Constraint_Name IN VARCHAR2 DEFAULT NULL
 	) RETURN data_browser_conf.tab_constraint_columns PIPELINED
 	is
-		v_Search_Condition VARCHAR2(4000);
-        v_Schema_Name       VARCHAR2(50) := SYS_CONTEXT('USERENV', 'CURRENT_SCHEMA');
-		CURSOR Tables_cur1
+        v_Schema_Name CONSTANT VARCHAR2(50) := SYS_CONTEXT('USERENV', 'CURRENT_SCHEMA');
+		CURSOR user_cons_cur
 		IS
-			SELECT B.OWNER, B.TABLE_NAME, B.COLUMN_NAME, B.POSITION, B.CONSTRAINT_NAME, A.SEARCH_CONDITION
-			-- FROM TABLE ( data_browser_conf.Constraint_Condition_Cursor (p_Table_Name, p_Owner, p_Constraint_Name) ) A
+			SELECT /*+ RESULT_CACHE */
+				B.OWNER, B.TABLE_NAME, B.COLUMN_NAME, B.POSITION, B.CONSTRAINT_NAME, A.SEARCH_CONDITION
 			FROM (
 				SELECT C.OWNER, C.TABLE_NAME, C.CONSTRAINT_NAME, 
 					data_browser_conf.Strip_Comments(C.SEARCH_CONDITION_VC) SEARCH_CONDITION
@@ -3606,15 +3622,16 @@ $END
 				AND C.OWNER = NVL(p_Owner, C.OWNER)
 				AND C.CONSTRAINT_NAME = NVL(p_Constraint_Name, C.CONSTRAINT_NAME)
 				AND C.CONSTRAINT_TYPE = 'C' -- check constraint
+				AND C.TABLE_NAME NOT LIKE 'DR$%$_'  -- skip fulltext index
 				AND C.TABLE_NAME NOT LIKE 'BIN$%'  -- this table is in the recyclebin
 			) A
 			JOIN SYS.USER_CONS_COLUMNS B ON A.OWNER = B.OWNER AND A.CONSTRAINT_NAME = B.CONSTRAINT_NAME AND A.TABLE_NAME = B.TABLE_NAME
 			WHERE A.SEARCH_CONDITION NOT IN( DBMS_ASSERT.ENQUOTE_NAME(B.COLUMN_NAME) || ' IS NOT NULL', B.COLUMN_NAME || ' IS NOT NULL') -- filter NOT NULL checks
 		;
-		CURSOR Tables_cur2
+		CURSOR all_cons_cur
 		IS
-			SELECT B.OWNER, B.TABLE_NAME, B.COLUMN_NAME, B.POSITION, B.CONSTRAINT_NAME, A.SEARCH_CONDITION
-			-- FROM TABLE ( data_browser_conf.Constraint_Condition_Cursor (p_Table_Name, p_Owner, p_Constraint_Name) ) A
+			SELECT /*+ RESULT_CACHE */
+				B.OWNER, B.TABLE_NAME, B.COLUMN_NAME, B.POSITION, B.CONSTRAINT_NAME, A.SEARCH_CONDITION
 			FROM (
 				SELECT C.OWNER, C.TABLE_NAME, C.CONSTRAINT_NAME, 
 					data_browser_conf.Strip_Comments(C.SEARCH_CONDITION_VC) SEARCH_CONDITION
@@ -3623,27 +3640,39 @@ $END
 				AND C.OWNER = NVL(p_Owner, C.OWNER)
 				AND C.CONSTRAINT_NAME = NVL(p_Constraint_Name, C.CONSTRAINT_NAME)
 				AND C.CONSTRAINT_TYPE = 'C' -- check constraint
+				AND C.TABLE_NAME NOT LIKE 'DR$%$_'  -- skip fulltext index
 				AND C.TABLE_NAME NOT LIKE 'BIN$%'  -- this table is in the recyclebin
+				AND C.OWNER NOT IN ('SYS', 'SYSTEM', 'SYSAUX', 'CTXSYS', 'MDSYS', 'OUTLN')
 			) A 
 			JOIN SYS.ALL_CONS_COLUMNS B ON A.OWNER = B.OWNER AND A.CONSTRAINT_NAME = B.CONSTRAINT_NAME AND A.TABLE_NAME = B.TABLE_NAME
 			WHERE A.SEARCH_CONDITION NOT IN( DBMS_ASSERT.ENQUOTE_NAME(B.COLUMN_NAME) || ' IS NOT NULL', B.COLUMN_NAME || ' IS NOT NULL') -- filter NOT NULL checks
 		;
-		v_in_recs 	data_browser_conf.tab_constraint_columns;
+		v_in_rows 	data_browser_conf.tab_constraint_columns;
 	begin
-		if p_Owner = v_Schema_Name then 
-			OPEN Tables_cur1;
-			FETCH Tables_cur1 BULK COLLECT INTO v_in_recs;
-			CLOSE Tables_cur1;
-		else
-			OPEN Tables_cur2;
-			FETCH Tables_cur2 BULK COLLECT INTO v_in_recs;
-			CLOSE Tables_cur2;
+		if g_App_Installation_Code IS NULL then 
+			return; -- not initialised (during create mview)
 		end if;
-		IF v_in_recs.FIRST IS NOT NULL THEN
-			FOR ind IN 1 .. v_in_recs.COUNT LOOP
-				pipe row (v_in_recs(ind));
+		if p_Owner = v_Schema_Name then 
+			OPEN user_cons_cur;
+			LOOP
+				FETCH user_cons_cur BULK COLLECT INTO v_in_rows LIMIT g_fetch_limit;
+				EXIT WHEN v_in_rows.COUNT = 0;
+				FOR ind IN 1 .. v_in_rows.COUNT LOOP
+					pipe row (v_in_rows(ind));
+				END LOOP;
 			END LOOP;
-		END IF;
+			CLOSE user_cons_cur;
+		else
+			OPEN all_cons_cur;
+			LOOP
+				FETCH all_cons_cur BULK COLLECT INTO v_in_rows LIMIT g_fetch_limit;
+				EXIT WHEN v_in_rows.COUNT = 0;
+				FOR ind IN 1 .. v_in_rows.COUNT LOOP
+					pipe row (v_in_rows(ind));
+				END LOOP;
+			END LOOP;
+			CLOSE all_cons_cur;
+		end if;
 	end Constraint_Columns_Cursor;
 
 
@@ -3655,8 +3684,6 @@ $END
 	PRAGMA UDF;
 	begin
 		return case when REGEXP_INSTR(TRIM(p_Check_Condition), '^' || p_Column_Name || '\s+IN\s*\(.+\)\s*$', 1, 1, 1, 'i') > 0	-- static IN list
-			and REGEXP_INSTR(p_Check_Condition, '\WOR\W', 1, 1, 1, 'i') = 0
-			and REGEXP_INSTR(p_Check_Condition, '\WAND\W', 1, 1, 1, 'i') = 0
 			then 'Y' else 'N' end;
 	end Is_Simple_IN_List;
 

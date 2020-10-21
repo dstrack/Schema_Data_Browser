@@ -12,11 +12,6 @@ Written by Dirk Strack <dirk_strack@yahoo.de>, Feb 2019
 Blob support for the schema data browser application
 */
 
-
---ALTER SESSION SET PLSQL_CODE_TYPE = NATIVE;
---ALTER SESSION SET PLSQL_OPTIMIZE_LEVEL = 3;
-
-
 CREATE OR REPLACE PACKAGE BODY data_browser_blobs
 IS
 	c_Clob_Field_Collection CONSTANT VARCHAR2(50) := 'DATA_BROWSER_CLOBS';

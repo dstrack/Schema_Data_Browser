@@ -157,19 +157,20 @@ end;
 
 CREATE OR REPLACE PACKAGE BODY data_browser_UI_Defaults
 IS
-	CURSOR form_view_cur (v_Table_Name VARCHAR2)
+	CURSOR form_view_cur (v_Table_Name VARCHAR2, v_View_Mode VARCHAR2)
 	IS
 		SELECT DISTINCT
 			T.TABLE_OWNER,
 			T.TABLE_NAME,
-			R_COLUMN_NAME COLUMN_NAME,
-			COLUMN_HEADER LABEL,
-			data_browser_edit.Get_Form_Field_Help_Text(
+			C.COLUMN_NAME,
+			C.COLUMN_HEADER LABEL,
+			/*data_browser_edit.Get_Form_Field_Help_Text(
 				p_Table_name => T.VIEW_NAME,
 				p_Column_Name => REF_COLUMN_NAME,
-				p_View_Mode => 'FORM_VIEW',
+				p_View_Mode => v_View_Mode,
 				p_Show_Statistics => 'NO'
-			) HELP_TEXT,
+			)*/
+			C.COMMENTS HELP_TEXT,
 			case when IS_AUDIT_COLUMN = 'Y'
 				then 'AUDIT_INFO' else 'FORM_FIELDS'
 			end GROUP_NAME,
@@ -178,12 +179,12 @@ IS
 				then SUBSTR(DATA_DEFAULT, 2, LENGTH(DATA_DEFAULT)-2)
 			when SUBSTR(DATA_DEFAULT, 1, 1) BETWEEN '0' and '9'
 				then DATA_DEFAULT
-			when COLUMN_EXPR_TYPE = 'NUMBER' AND FORMAT_MASK IS NOT NULL
+			when COLUMN_EXPR_TYPE IN ('NUMBER', 'FLOAT') AND FORMAT_MASK IS NOT NULL
 				then LTRIM(TO_CHAR(0, FORMAT_MASK))
-			when COLUMN_EXPR_TYPE = 'NUMBER'
+			when COLUMN_EXPR_TYPE IN ('NUMBER', 'FLOAT')
 				then '0'
 			end DEFAULT_VALUE,
-			case when COLUMN_EXPR_TYPE = 'NUMBER'
+			case when COLUMN_EXPR_TYPE IN ('NUMBER', 'FLOAT')
 				then 'NUMBER'
 				when COLUMN_EXPR_TYPE = 'DATE_POPUP'
 				then 'DATE'
@@ -199,7 +200,7 @@ IS
 			case when COLUMN_EXPR_TYPE = 'HIDDEN'
 				then 'N' else 'Y'
 			end DISPLAY_IN_FORM,
-			COLUMN_ID DISPLAY_SEQ_FORM,
+			ROWNUM + 1 DISPLAY_SEQ_FORM,
 			REQUIRED,
 			DISPLAY_IN_REPORT,
 			IS_PRIMARY_KEY,
@@ -215,22 +216,25 @@ IS
 		FROM MVDATA_BROWSER_VIEWS T, TABLE ( data_browser_edit.Get_Form_Edit_Cursor (
 			p_Table_name => T.VIEW_NAME,
 			p_Unique_Key_Column => T.SEARCH_KEY_COLS,
-			p_View_Mode => 'FORM_VIEW',
+			p_View_Mode => v_View_Mode,
 			p_Report_Mode => 'ALL',
 			p_Data_Columns_Only => 'YES'
-		))
+		)) C
 		WHERE T.VIEW_NAME = v_Table_Name
-		AND R_COLUMN_NAME IS NOT NULL
-		AND TABLE_ALIAS = 'A';
+		AND C.COLUMN_EXPR_TYPE != 'HIDDEN'
+		AND C.TABLE_ALIAS IS NOT NULL;
 	TYPE form_view_Tab IS TABLE OF form_view_cur%ROWTYPE;
 
 	PROCEDURE UI_Defaults_update_table (
 		p_Table_name IN VARCHAR2,
+		p_View_Name IN VARCHAR2 DEFAULT NULL,
+		p_View_Mode IN VARCHAR2 DEFAULT 'FORM_VIEW',	-- FORM_VIEW, HISTORY, RECORD_VIEW, NAVIGATION_VIEW, NESTED_VIEW, IMPORT_VIEW, EXPORT_VIEW
 		p_Workspace_Name VARCHAR2,
 		p_Schema_Name VARCHAR2 DEFAULT SYS_CONTEXT('USERENV', 'CURRENT_SCHEMA')
 	)
 	IS
         v_Table_Name 	MVDATA_BROWSER_VIEWS.VIEW_NAME%TYPE := UPPER(p_Table_Name);
+        v_View_Name 	MVDATA_BROWSER_VIEWS.VIEW_NAME%TYPE := NVL(p_View_Name, v_Table_Name);
 		v_out_tab 		form_view_Tab;
 		v_workspace_id 	NUMBER;
 	BEGIN
@@ -238,9 +242,11 @@ IS
 		apex_util.set_security_group_id (p_security_group_id => v_workspace_id);
 		$IF data_browser_conf.g_debug $THEN
 			apex_debug.info(
-				p_message => 'data_browser_UI_Defaults.UI_Defaults_update_table (p_Workspace_Name => %s, p_Table_name => %s)',
-				p0 => dbms_assert.enquote_literal(p_Workspace_Name),
-				p1 => dbms_assert.enquote_literal(v_Table_name)
+				p_message => 'data_browser_UI_Defaults.UI_Defaults_update_table (p_Table_name => %s, p_View_Mode => %s, p_Workspace_Name => %s, p_Schema_Name => %s, )',
+				p0 => dbms_assert.enquote_literal(v_Table_name),
+				p1 => dbms_assert.enquote_literal(p_View_Mode),
+				p2 => dbms_assert.enquote_literal(p_Workspace_Name),
+				p3 => dbms_assert.enquote_literal(p_Schema_Name)
 			);
 		$END
 
@@ -252,30 +258,30 @@ $IF data_browser_specs.g_update_apex_tables $THEN
 			WHERE S.TABLE_NAME = D.TABLE_NAME
 			AND S.COLUMN_NAME = D.COLUMN_NAME
 		)
-		AND D.TABLE_NAME = v_Table_Name
+		AND D.TABLE_NAME = v_View_Name
 		AND D.SCHEMA = p_Schema_Name ;
 $END
-		OPEN form_view_cur(v_Table_Name);
+		OPEN form_view_cur(v_Table_Name, p_View_Mode);
 		FETCH form_view_cur BULK COLLECT INTO v_out_tab;
 		CLOSE form_view_cur;
 		FOR ind IN 1 .. v_out_tab.COUNT
 		LOOP
 			$IF data_browser_conf.g_debug $THEN
-				DBMS_OUTPUT.PUT_LINE(ind || '.: ' || v_Table_Name || '.' ||  v_out_tab(ind).COLUMN_NAME);
+				DBMS_OUTPUT.PUT_LINE(ind || '.: ' || v_View_Name || '.' ||  v_out_tab(ind).COLUMN_NAME);
 			$END
 			
 			if ind = 1 then 
 				$IF data_browser_conf.g_debug $THEN
 					apex_debug.info(
 						p_message => 'apex_ui_default_update.synch_table (p_table_name => %s)',
-						p0 => dbms_assert.enquote_literal(v_Table_name)
+						p0 => dbms_assert.enquote_literal(v_View_Name)
 					);
 				$END
 				apex_ui_default_update.synch_table (
-					p_table_name => v_Table_Name
+					p_table_name => v_View_Name
 				);
 				apex_ui_default_update.upd_table (
-					p_table_name => v_Table_Name,
+					p_table_name => v_View_Name,
 					p_form_region_title => 'Edit ' || data_browser_conf.Table_Name_To_Header(p_Table_name),
 					p_report_region_title => data_browser_conf.Table_Name_To_Header(p_Table_name)
 				);
@@ -288,7 +294,7 @@ $END
 				);
 			$END
 			apex_ui_default_update.upd_column (
-  				p_table_name 		=> v_Table_Name,
+  				p_table_name 		=> v_View_Name,
   				p_column_name 		=> v_out_tab(ind).COLUMN_NAME,
   				-- p_group_id			=> v_out_tab(ind).GROUP_NAME,
   				p_label 			=> v_out_tab(ind).LABEL,
@@ -313,10 +319,21 @@ $IF data_browser_specs.g_update_apex_tables $THEN
 					display_as_form = 'NATIVE_POPUP_LOV',
 					display_as_tab_form = 'POPUP',
 					display_as_report = 'ESCAPE_SC',
-					form_attribute_01 = 'POPUP',
+					form_attribute_01 = 'NOT_ENTERABLE',
 					form_attribute_02 = 'FIRST_ROWSET',
 					form_attribute_03 = NULL
-				where table_name = v_Table_Name
+				where table_name = v_View_Name
+				and column_name = v_out_tab(ind).COLUMN_NAME;
+  			elsif v_out_tab(ind).COLUMN_EXPR_TYPE = 'POPUP_FROM_LOV' then
+				update USER_UI_DEFAULTS_COLUMNS
+				set lov_query = v_out_tab(ind).LOV_QUERY,
+					display_as_form = 'NATIVE_POPUP_LOV',
+					display_as_tab_form = 'POPUP',
+					display_as_report = 'ESCAPE_SC',
+					form_attribute_01 = 'ENTERABLE',
+					form_attribute_02 = 'FIRST_ROWSET',
+					form_attribute_03 = NULL
+				where table_name = v_View_Name
 				and column_name = v_out_tab(ind).COLUMN_NAME;
   			elsif v_out_tab(ind).COLUMN_EXPR_TYPE = 'SELECT_LIST_FROM_QUERY'  then
 				update USER_UI_DEFAULTS_COLUMNS
@@ -327,7 +344,7 @@ $IF data_browser_specs.g_update_apex_tables $THEN
 					form_attribute_01 = 'NONE',
 					form_attribute_02 = 'N',
 					form_attribute_03 = NULL
-				where table_name = v_Table_Name
+				where table_name = v_View_Name
 				and column_name = v_out_tab(ind).COLUMN_NAME;
   			elsif v_out_tab(ind).COLUMN_EXPR_TYPE IN ('SELECT_LIST', 'SWITCH_CHAR', 'SWITCH_NUMBER')  then
 				update USER_UI_DEFAULTS_COLUMNS
@@ -338,13 +355,13 @@ $IF data_browser_specs.g_update_apex_tables $THEN
 					form_attribute_01 = 'NONE',
 					form_attribute_02 = 'N',
 					form_attribute_03 = NULL
-				where table_name = v_Table_Name
+				where table_name = v_View_Name
 				and column_name = v_out_tab(ind).COLUMN_NAME;
 				-- special handling for Yes/No columns
 				if v_out_tab(ind).YES_NO_TYPE IS NOT NULL then
 					INSERT INTO USER_UI_DEFAULTS_LOV_DATA (SCHEMA, TABLE_NAME, COLUMN_NAME, LOV_DISP_SEQUENCE, LOV_DISP_VALUE, LOV_RETURN_VALUE)
 					select p_Schema_Name SCHEMA_NAME,
-						v_Table_Name TABLE_NAME,
+						v_View_Name TABLE_NAME,
 						v_out_tab(ind).COLUMN_NAME COLUMN_NAME,
 						DISP_SEQUENCE,
 						SUBSTR(P.COLUMN_VALUE, 1, OFFSET-1) DISPLAY_VALUE,
@@ -357,7 +374,7 @@ $IF data_browser_specs.g_update_apex_tables $THEN
 				else
 					INSERT INTO USER_UI_DEFAULTS_LOV_DATA (SCHEMA, TABLE_NAME, COLUMN_NAME, LOV_DISP_SEQUENCE, LOV_DISP_VALUE, LOV_RETURN_VALUE)
 					SELECT  p_Schema_Name SCHEMA_NAME,
-						TABLE_NAME, COLUMN_NAME, DISP_SEQUENCE, DISPLAY_VALUE, COLUMN_VALUE
+						v_View_Name TABLE_NAME, COLUMN_NAME, DISP_SEQUENCE, DISPLAY_VALUE, COLUMN_VALUE
 					FROM VUSER_TABLES_CHECK_IN_LIST
 					WHERE TABLE_NAME = v_Table_Name
 					AND COLUMN_NAME = v_out_tab(ind).COLUMN_NAME;
@@ -371,7 +388,7 @@ $IF data_browser_specs.g_update_apex_tables $THEN
 					form_attribute_01 = 'Y',
 					form_attribute_02 = 'VALUE',
 					form_attribute_03 = NULL
-				where table_name = v_Table_Name
+				where table_name = v_View_Name
 				and column_name = v_out_tab(ind).COLUMN_NAME;
   			end if;
 $END
@@ -400,10 +417,34 @@ $END
 		) loop
 			data_browser_UI_Defaults.UI_Defaults_update_table (
 				p_Table_name => c_cur.VIEW_NAME,
+				p_View_Mode => 'FORM_VIEW',
 				p_Workspace_Name => p_Workspace_Name,
 				p_Schema_Name => p_Schema_Name
 			);
 		end loop;
+		for c_cur IN (
+			SELECT TABLE_NAME, VIEW_NAME, IMP_VIEW_NAME
+			FROM (
+				SELECT TABLE_NAME, VIEW_NAME,
+					'V' || SHORT_NAME || '_IMP' IMP_VIEW_NAME
+				FROM MVDATA_BROWSER_VIEWS
+			) A 
+			WHERE EXISTS (
+				SELECT 1
+				FROM SYS.USER_VIEWS B 
+				WHERE B.VIEW_NAME = A.IMP_VIEW_NAME
+			)
+			ORDER BY TABLE_NAME
+		) loop
+			data_browser_UI_Defaults.UI_Defaults_update_table (
+				p_Table_name => c_cur.VIEW_NAME,
+				p_View_Mode => 'IMPORT_VIEW',
+				p_View_name => c_cur.IMP_VIEW_NAME,
+				p_Workspace_Name => p_Workspace_Name,
+				p_Schema_Name => p_Schema_Name
+			);
+		end loop;
+		
 	END UI_Defaults_update_all_tables;
 
 	PROCEDURE UI_Defaults_delete_all_tables (
@@ -412,7 +453,7 @@ $END
 	IS
 	Begin 
 		for t_cur in (
-			select SCHEMA,TABLE_NAME,FORM_REGION_TITLE
+			select TABLE_NAME
 			  from APEX_UI_DEFAULTS_TABLES
 			 where SCHEMA = p_Schema_Name
 		 ) loop 
@@ -523,12 +564,15 @@ $END
 	end UI_Defaults_export_footer;
 
 	FUNCTION UI_Defaults_export_table (
-		p_Table_name IN VARCHAR2
+		p_Table_name IN VARCHAR2,
+		p_View_Name IN VARCHAR2 DEFAULT NULL,
+		p_View_Mode IN VARCHAR2 DEFAULT 'FORM_VIEW'	-- FORM_VIEW, HISTORY, RECORD_VIEW, NAVIGATION_VIEW, NESTED_VIEW, IMPORT_VIEW, EXPORT_VIEW
 	) RETURN CLOB
 	is
         v_Table_Name 	MVDATA_BROWSER_VIEWS.VIEW_NAME%TYPE := UPPER(p_Table_Name);
+        v_View_Name 	MVDATA_BROWSER_VIEWS.VIEW_NAME%TYPE := NVL(p_View_Name, v_Table_Name);
 		v_workspace_id 	NUMBER;
-		v_out_tab 		form_view_Tab;
+		v_out_tab 		form_view_tab;
         v_Str 			VARCHAR2(32767);
         v_Stat 			CLOB;
         v_table_id 		NUMBER;
@@ -537,7 +581,7 @@ $END
 	begin
     	dbms_lob.createtemporary(v_Stat, true, dbms_lob.call);
 
-		OPEN form_view_cur(v_Table_Name);
+		OPEN form_view_cur(v_Table_Name, p_View_Mode);
 		FETCH form_view_cur BULK COLLECT INTO v_out_tab;
 		CLOSE form_view_cur;
 		if v_out_tab.COUNT > 0 then 
@@ -555,7 +599,7 @@ $END
 				|| 'end;' || chr(10) || '/' || chr(10),
 				p0 => dbms_assert.enquote_literal(v_Table_Name),
 				p1 => v_table_id,
-				p2 => data_browser_conf.Enquote_Literal(v_Table_Name),
+				p2 => data_browser_conf.Enquote_Literal(v_View_Name),
 				p3 => data_browser_conf.Enquote_Literal('Edit ' || data_browser_conf.Table_Name_To_Header(p_Table_name)),
 				p4 => data_browser_conf.Enquote_Literal(data_browser_conf.Table_Name_To_Header(p_Table_name)),
 				p_max_length => 30000
@@ -565,7 +609,7 @@ $END
 		FOR ind IN 1 .. v_out_tab.COUNT LOOP
 			v_column_id := wwv_flow_id.next_val;
 			$IF data_browser_conf.g_debug $THEN
-				DBMS_OUTPUT.PUT_LINE(ind || '.: ' || v_Table_Name || '.' ||  v_out_tab(ind).COLUMN_NAME || ', id:' || v_column_id);
+				DBMS_OUTPUT.PUT_LINE(ind || '.: ' || v_View_Name || '.' ||  v_out_tab(ind).COLUMN_NAME || ', id:' || v_column_id);
 			$END
 			
 			v_Str := apex_string.format (
@@ -642,7 +686,7 @@ $END
 					p5 => dbms_assert.enquote_literal('TEXTAREA'),
 					p_max_length => 30000
 				);
- 			elsif v_out_tab(ind).COLUMN_EXPR_TYPE = 'NUMBER'  then
+ 			elsif v_out_tab(ind).COLUMN_EXPR_TYPE IN ('NUMBER', 'FLOAT')  then
 				v_Str := v_Str || apex_string.format (
 					p_message => 
 					   '  p_display_as_form => %s,' || chr(10)
@@ -875,7 +919,29 @@ $END
 			ORDER BY TABLE_NAME
 		) loop
 			v_Stat := data_browser_UI_Defaults.UI_Defaults_export_table (
-				p_Table_name => c_cur.VIEW_NAME
+				p_Table_name => c_cur.VIEW_NAME,
+				p_View_Mode => 'FORM_VIEW'
+			);
+			dbms_lob.append(v_Result, v_Stat);
+		end loop;
+		for c_cur IN (
+			SELECT TABLE_NAME, VIEW_NAME, IMP_VIEW_NAME
+			FROM (
+				SELECT TABLE_NAME, VIEW_NAME,
+					'V' || SHORT_NAME || '_IMP' IMP_VIEW_NAME
+				FROM MVDATA_BROWSER_VIEWS
+			) A 
+			WHERE EXISTS (
+				SELECT 1
+				FROM SYS.USER_VIEWS B 
+				WHERE B.VIEW_NAME = A.IMP_VIEW_NAME
+			)
+			ORDER BY TABLE_NAME
+		) loop
+			v_Stat := data_browser_UI_Defaults.UI_Defaults_export_table (
+				p_Table_name => c_cur.VIEW_NAME,
+				p_View_name => c_cur.IMP_VIEW_NAME,
+				p_View_Mode => 'IMPORT_VIEW'
 			);
 			dbms_lob.append(v_Result, v_Stat);
 		end loop;

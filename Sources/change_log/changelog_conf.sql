@@ -809,11 +809,13 @@ IS
 
 		v_in_rows tab_references_count;
 	BEGIN
+		if g_Use_Change_Log IS NULL then
+			return; -- not initialised (during create mview)
+		end if;
 		if g_Include_External_Objects = 'YES' then 
 			OPEN all_refs_cur;
 			LOOP
-				FETCH all_refs_cur
-				BULK COLLECT INTO v_in_rows LIMIT g_fetch_limit;
+				FETCH all_refs_cur BULK COLLECT INTO v_in_rows LIMIT g_fetch_limit;
 				EXIT WHEN v_in_rows.COUNT = 0;
 				FOR ind IN 1 .. v_in_rows.COUNT LOOP
 					pipe row (v_in_rows(ind));
@@ -823,8 +825,7 @@ IS
 		else
 			OPEN user_refs_cur;
 			LOOP
-				FETCH user_refs_cur
-				BULK COLLECT INTO v_in_rows LIMIT g_fetch_limit;
+				FETCH user_refs_cur BULK COLLECT INTO v_in_rows LIMIT g_fetch_limit;
 				EXIT WHEN v_in_rows.COUNT = 0;
 				FOR ind IN 1 .. v_in_rows.COUNT LOOP
 					pipe row (v_in_rows(ind));
@@ -893,6 +894,9 @@ IS
         v_in_rows stat_tbl;
 		v_out_row changelog_conf.rec_insert_triggers; -- output row
 	BEGIN
+		if g_Use_Change_Log IS NULL then
+			return; -- not initialised (during create mview)
+		end if;
 		if g_Include_External_Objects = 'YES' then 
 			OPEN trigger_cur;
 			FETCH trigger_cur BULK COLLECT INTO v_in_rows;
@@ -974,6 +978,9 @@ IS
         v_in_rows stat_tbl;
 		v_out_row changelog_conf.rec_base_triggers; -- output row
 	BEGIN
+		if g_Use_Change_Log IS NULL then
+			return; -- not initialised (during create mview)
+		end if;
 		if g_Include_External_Objects = 'YES' then 
 			OPEN trigger_cur;
 			FETCH trigger_cur BULK COLLECT INTO v_in_rows;
@@ -1027,6 +1034,9 @@ IS
 
         v_in_rows changelog_conf.tab_views_triggers;
 	BEGIN
+		if g_Use_Change_Log IS NULL then
+			return; -- not initialised (during create mview)
+		end if;
 		OPEN trigger_cur;
 		FETCH trigger_cur BULK COLLECT INTO v_in_rows;
 		CLOSE trigger_cur;
@@ -1053,6 +1063,7 @@ IS
 			WHERE C.TABLE_NAME = B.TABLE_NAME AND C.CONSTRAINT_NAME = B.CONSTRAINT_NAME AND C.OWNER = B.OWNER
 			AND C.TABLE_NAME = D.TABLE_NAME AND C.COLUMN_NAME = D.COLUMN_NAME AND C.OWNER = D.OWNER
 			AND C.TABLE_NAME NOT LIKE 'DR$%$_'  -- skip fulltext index
+			AND C.TABLE_NAME NOT LIKE 'BIN$%'  -- this table is in the recyclebin
 			AND D.HIDDEN_COLUMN = 'NO'
 			AND B.CONSTRAINT_TYPE IN ('P', 'U')
 			AND B.VIEW_RELATED IS NULL
@@ -1070,6 +1081,7 @@ IS
 			AND C.TABLE_NAME = D.TABLE_NAME AND C.COLUMN_NAME = D.COLUMN_NAME 
 			AND B.OWNER = SYS_CONTEXT('USERENV', 'CURRENT_SCHEMA')
 			AND C.TABLE_NAME NOT LIKE 'DR$%$_'  -- skip fulltext index
+			AND C.TABLE_NAME NOT LIKE 'BIN$%'  -- this table is in the recyclebin
 			AND D.HIDDEN_COLUMN = 'NO'
 			AND B.CONSTRAINT_TYPE IN ('P', 'U')
 			AND B.VIEW_RELATED IS NULL;
@@ -1224,157 +1236,162 @@ IS
 	FUNCTION FN_Pipe_Base_Uniquekeys
 	RETURN changelog_conf.tab_base_unique_keys PIPELINED
 	IS
-		c_cur SYS_REFCURSOR;
-		v_row changelog_conf.rec_base_unique_keys; -- output row
-	BEGIN
-		OPEN c_cur FOR
-			WITH INSERT_TRIGGERS AS (
-				select * from table ( changelog_conf.FN_Pipe_insert_triggers )
-			), U_CONSTRAINTS AS (
-				select * from table ( changelog_conf.FN_Pipe_unique_keys)  where VIEW_COLUMN_NAME IS NOT NULL
-			), U_INDEXES AS (
-				select * from table ( changelog_conf.FN_Pipe_unique_indexes )
-			) -------------------------------------------------------------------------------
-			SELECT /*+ RESULT_CACHE */
-				TABLE_NAME, TABLE_OWNER, CONSTRAINT_NAME, CONSTRAINT_TYPE, REQUIRED, HAS_NULLABLE,
-				NVL(KEY_HAS_WORKSPACE_ID, 'NO') KEY_HAS_WORKSPACE_ID, 
-				NVL(KEY_HAS_DELETE_MARK, 'NO') KEY_HAS_DELETE_MARK, 
-				NVL(KEY_HAS_NEXTVAL, 'NO') KEY_HAS_NEXTVAL, 
-				NVL(KEY_HAS_SYS_GUID, 'NO') KEY_HAS_SYS_GUID, 
-				HAS_SCALAR_KEY, HAS_SERIAL_KEY, HAS_SCALAR_VIEW_KEY, HAS_SERIAL_VIEW_KEY,
-				NVL(TRIGGER_HAS_NEXTVAL, 'NO') TRIGGER_HAS_NEXTVAL, 
-				NVL(TRIGGER_HAS_SYS_GUID, 'NO') TRIGGER_HAS_SYS_GUID, 
-				SEQUENCE_OWNER, SEQUENCE_NAME,
+        CURSOR user_keys_cur
+        IS
+		WITH INSERT_TRIGGERS AS (
+			select * from table ( changelog_conf.FN_Pipe_insert_triggers )
+		), U_CONSTRAINTS AS (
+			select * from table ( changelog_conf.FN_Pipe_unique_keys)  where VIEW_COLUMN_NAME IS NOT NULL
+		), U_INDEXES AS (
+			select * from table ( changelog_conf.FN_Pipe_unique_indexes )
+		) -------------------------------------------------------------------------------
+		SELECT /*+ RESULT_CACHE */
+			TABLE_NAME, TABLE_OWNER, CONSTRAINT_NAME, CONSTRAINT_TYPE, REQUIRED, HAS_NULLABLE,
+			NVL(KEY_HAS_WORKSPACE_ID, 'NO') KEY_HAS_WORKSPACE_ID, 
+			NVL(KEY_HAS_DELETE_MARK, 'NO') KEY_HAS_DELETE_MARK, 
+			NVL(KEY_HAS_NEXTVAL, 'NO') KEY_HAS_NEXTVAL, 
+			NVL(KEY_HAS_SYS_GUID, 'NO') KEY_HAS_SYS_GUID, 
+			HAS_SCALAR_KEY, HAS_SERIAL_KEY, HAS_SCALAR_VIEW_KEY, HAS_SERIAL_VIEW_KEY,
+			NVL(TRIGGER_HAS_NEXTVAL, 'NO') TRIGGER_HAS_NEXTVAL, 
+			NVL(TRIGGER_HAS_SYS_GUID, 'NO') TRIGGER_HAS_SYS_GUID, 
+			SEQUENCE_OWNER, SEQUENCE_NAME,
+			DEFERRABLE, DEFERRED, STATUS, VALIDATED,
+			VIEW_KEY_COLS, UNIQUE_KEY_COLS, KEY_COLS_COUNT, VIEW_KEY_COLS_COUNT, INDEX_OWNER, INDEX_NAME,
+			RTRIM(SUBSTR(BASE_NAME, 1, 23), '_' || RUN_NO) || RUN_NO SHORT_NAME,
+			BASE_NAME, RUN_NO
+		FROM (
+			SELECT TABLE_NAME, TABLE_OWNER, CONSTRAINT_NAME, CONSTRAINT_TYPE, REQUIRED, HAS_NULLABLE,
+				KEY_HAS_WORKSPACE_ID, KEY_HAS_DELETE_MARK,
+				KEY_HAS_NEXTVAL, KEY_HAS_SYS_GUID,
+				case when HAS_SCALAR_KEY = 'YES' and KEY_COLS_COUNT = 1 
+					then 'YES' else 'NO' 
+				end HAS_SCALAR_KEY,
+				case when HAS_SCALAR_KEY = 'YES' and KEY_COLS_COUNT = 1 and COALESCE(KEY_HAS_NEXTVAL, KEY_HAS_SYS_GUID, TRIGGER_HAS_ASSIGN_ID) = 'YES'
+					then 'YES' else 'NO'
+				end HAS_SERIAL_KEY,
+				case when HAS_SCALAR_VIEW_KEY = 'YES' and VIEW_KEY_COLS_COUNT = 1
+					then 'YES' else 'NO'
+				end HAS_SCALAR_VIEW_KEY,
+				case when HAS_SCALAR_VIEW_KEY = 'YES' and VIEW_KEY_COLS_COUNT = 1 and COALESCE(KEY_HAS_NEXTVAL, KEY_HAS_SYS_GUID, TRIGGER_HAS_ASSIGN_ID) = 'YES'
+					then 'YES' else 'NO'
+				end HAS_SERIAL_VIEW_KEY,
+				TRIGGER_HAS_NEXTVAL, TRIGGER_HAS_SYS_GUID,
+				CAST(NVL(DEFAULT_SEQUENCE_OWNER, SEQUENCE_OWNER) AS VARCHAR2(128)) SEQUENCE_OWNER,
+				CAST(NVL(DEFAULT_SEQUENCE_NAME, SEQUENCE_NAME) AS VARCHAR2(128)) SEQUENCE_NAME,
 				DEFERRABLE, DEFERRED, STATUS, VALIDATED,
 				VIEW_KEY_COLS, UNIQUE_KEY_COLS, KEY_COLS_COUNT, VIEW_KEY_COLS_COUNT, INDEX_OWNER, INDEX_NAME,
-				RTRIM(SUBSTR(BASE_NAME, 1, 23), '_' || RUN_NO) || RUN_NO SHORT_NAME,
-				BASE_NAME, RUN_NO
+				changelog_conf.Get_BaseName(TABLE_NAME) BASE_NAME,
+				NULLIF(DENSE_RANK() OVER (PARTITION BY RTRIM(SUBSTR(TABLE_NAME, 1, 23), '_') ORDER BY NLSSORT(TABLE_NAME, 'NLS_SORT = WEST_EUROPEAN')), 1) RUN_NO
 			FROM (
-				SELECT TABLE_NAME, TABLE_OWNER, CONSTRAINT_NAME, CONSTRAINT_TYPE, REQUIRED, HAS_NULLABLE,
-					KEY_HAS_WORKSPACE_ID, KEY_HAS_DELETE_MARK,
-					KEY_HAS_NEXTVAL, KEY_HAS_SYS_GUID,
-					case when HAS_SCALAR_KEY = 'YES' and KEY_COLS_COUNT = 1 
-						then 'YES' else 'NO' 
-					end HAS_SCALAR_KEY,
-					case when HAS_SCALAR_KEY = 'YES' and KEY_COLS_COUNT = 1 and COALESCE(KEY_HAS_NEXTVAL, KEY_HAS_SYS_GUID, TRIGGER_HAS_ASSIGN_ID) = 'YES'
-						then 'YES' else 'NO'
-					end HAS_SERIAL_KEY,
-					case when HAS_SCALAR_VIEW_KEY = 'YES' and VIEW_KEY_COLS_COUNT = 1
-						then 'YES' else 'NO'
-					end HAS_SCALAR_VIEW_KEY,
-					case when HAS_SCALAR_VIEW_KEY = 'YES' and VIEW_KEY_COLS_COUNT = 1 and COALESCE(KEY_HAS_NEXTVAL, KEY_HAS_SYS_GUID, TRIGGER_HAS_ASSIGN_ID) = 'YES'
-						then 'YES' else 'NO'
-					end HAS_SERIAL_VIEW_KEY,
-					TRIGGER_HAS_NEXTVAL, TRIGGER_HAS_SYS_GUID,
-					CAST(NVL(DEFAULT_SEQUENCE_OWNER, SEQUENCE_OWNER) AS VARCHAR2(128)) SEQUENCE_OWNER,
-					CAST(NVL(DEFAULT_SEQUENCE_NAME, SEQUENCE_NAME) AS VARCHAR2(128)) SEQUENCE_NAME,
+				SELECT -- The Constraint of interest
+					TABLE_NAME, TABLE_OWNER, CONSTRAINT_NAME, CONSTRAINT_TYPE,
+					case when CONSTRAINT_TYPE = 'P' then 'Y'
+						when COUNT(DISTINCT COLUMN_NAME) = SUM(case when NULLABLE = 'Y' then 0 else 1 end) then 'Y'
+						else 'N'
+					end REQUIRED,
+					SUM(case when NULLABLE = 'Y' then 1 else 0 end) HAS_NULLABLE,
+					MAX(KEY_HAS_WORKSPACE_ID)  KEY_HAS_WORKSPACE_ID,
+					MAX(KEY_HAS_DELETE_MARK)  KEY_HAS_DELETE_MARK,
+					MAX(CASE WHEN DEFAULT_SEQUENCE_NAME IS NOT NULL THEN 'YES' END) KEY_HAS_NEXTVAL,
+					MAX(CASE WHEN REGEXP_INSTR(DEFAULT_TEXT, 'SYS_GUID', 1, 1, 1, 'i') > 0 THEN 'YES' END) KEY_HAS_SYS_GUID,
+					MAX(DEFAULT_TEXT) DEFAULT_TEXT,
+					MAX(HAS_SCALAR_KEY) HAS_SCALAR_KEY,
+					MAX(HAS_SCALAR_VIEW_KEY) HAS_SCALAR_VIEW_KEY,
+					MAX(TRIGGER_HAS_NEXTVAL) TRIGGER_HAS_NEXTVAL,
+					MAX(TRIGGER_HAS_SYS_GUID) TRIGGER_HAS_SYS_GUID,
+					MAX(TRIGGER_HAS_ASSIGN_ID) TRIGGER_HAS_ASSIGN_ID,
+					MAX(SEQUENCE_OWNER) SEQUENCE_OWNER,
+					MAX(SEQUENCE_NAME) SEQUENCE_NAME,
+					MAX(DEFAULT_SEQUENCE_OWNER) DEFAULT_SEQUENCE_OWNER,
+					MAX(DEFAULT_SEQUENCE_NAME) DEFAULT_SEQUENCE_NAME,
 					DEFERRABLE, DEFERRED, STATUS, VALIDATED,
-					VIEW_KEY_COLS, UNIQUE_KEY_COLS, KEY_COLS_COUNT, VIEW_KEY_COLS_COUNT, INDEX_OWNER, INDEX_NAME,
-					changelog_conf.Get_BaseName(TABLE_NAME) BASE_NAME,
-					NULLIF(DENSE_RANK() OVER (PARTITION BY RTRIM(SUBSTR(TABLE_NAME, 1, 23), '_') ORDER BY NLSSORT(TABLE_NAME, 'NLS_SORT = WEST_EUROPEAN')), 1) RUN_NO
+					CAST(LISTAGG(VIEW_COLUMN_NAME, ', ') WITHIN GROUP (ORDER BY POSITION) AS VARCHAR2(512)) VIEW_KEY_COLS,
+					CAST(LISTAGG(COLUMN_NAME, ', ') WITHIN GROUP (ORDER BY POSITION) AS VARCHAR2(512)) UNIQUE_KEY_COLS,
+					COUNT(DISTINCT COLUMN_NAME) KEY_COLS_COUNT,
+					COUNT(DISTINCT VIEW_COLUMN_NAME) VIEW_KEY_COLS_COUNT,
+					MAX(INDEX_OWNER) INDEX_OWNER, 
+					MAX(INDEX_NAME) INDEX_NAME
 				FROM (
-					SELECT -- The Constraint of interest
-						TABLE_NAME, TABLE_OWNER, CONSTRAINT_NAME, CONSTRAINT_TYPE,
-						case when CONSTRAINT_TYPE = 'P' then 'Y'
-							when COUNT(DISTINCT COLUMN_NAME) = SUM(case when NULLABLE = 'Y' then 0 else 1 end) then 'Y'
-							else 'N'
-						end REQUIRED,
-						SUM(case when NULLABLE = 'Y' then 1 else 0 end) HAS_NULLABLE,
-						MAX(KEY_HAS_WORKSPACE_ID)  KEY_HAS_WORKSPACE_ID,
-						MAX(KEY_HAS_DELETE_MARK)  KEY_HAS_DELETE_MARK,
-						MAX(CASE WHEN DEFAULT_SEQUENCE_NAME IS NOT NULL THEN 'YES' END) KEY_HAS_NEXTVAL,
-						MAX(CASE WHEN REGEXP_INSTR(DEFAULT_TEXT, 'SYS_GUID', 1, 1, 1, 'i') > 0 THEN 'YES' END) KEY_HAS_SYS_GUID,
-						MAX(DEFAULT_TEXT) DEFAULT_TEXT,
-						MAX(HAS_SCALAR_KEY) HAS_SCALAR_KEY,
-						MAX(HAS_SCALAR_VIEW_KEY) HAS_SCALAR_VIEW_KEY,
-						MAX(TRIGGER_HAS_NEXTVAL) TRIGGER_HAS_NEXTVAL,
-						MAX(TRIGGER_HAS_SYS_GUID) TRIGGER_HAS_SYS_GUID,
-						MAX(TRIGGER_HAS_ASSIGN_ID) TRIGGER_HAS_ASSIGN_ID,
-						MAX(SEQUENCE_OWNER) SEQUENCE_OWNER,
-						MAX(SEQUENCE_NAME) SEQUENCE_NAME,
-						MAX(DEFAULT_SEQUENCE_OWNER) DEFAULT_SEQUENCE_OWNER,
-						MAX(DEFAULT_SEQUENCE_NAME) DEFAULT_SEQUENCE_NAME,
-						DEFERRABLE, DEFERRED, STATUS, VALIDATED,
-						CAST(LISTAGG(VIEW_COLUMN_NAME, ', ') WITHIN GROUP (ORDER BY POSITION) AS VARCHAR2(512)) VIEW_KEY_COLS,
-						CAST(LISTAGG(COLUMN_NAME, ', ') WITHIN GROUP (ORDER BY POSITION) AS VARCHAR2(512)) UNIQUE_KEY_COLS,
-						COUNT(DISTINCT COLUMN_NAME) KEY_COLS_COUNT,
-						COUNT(DISTINCT VIEW_COLUMN_NAME) VIEW_KEY_COLS_COUNT,
-						MAX(INDEX_OWNER) INDEX_OWNER, 
-						MAX(INDEX_NAME) INDEX_NAME
+					SELECT TABLE_NAME, TABLE_OWNER, CONSTRAINT_NAME, CONSTRAINT_TYPE, 
+						COLUMN_NAME, VIEW_COLUMN_NAME, POSITION, DEFAULT_TEXT,
+						CASE WHEN COLUMN_NAME = changelog_conf.Get_ColumnWorkspace THEN 'YES' END  KEY_HAS_WORKSPACE_ID,
+						CASE WHEN COLUMN_NAME = changelog_conf.Get_ColumnDeletedMark THEN 'YES' END  KEY_HAS_DELETE_MARK,
+						CASE WHEN DATA_TYPE = 'NUMBER'
+							AND NVL(DATA_SCALE, 0 ) = 0
+							AND (NULLABLE = 'N' OR CONSTRAINT_TYPE = 'P')
+							THEN 'YES' 
+						END HAS_SCALAR_KEY,
+						CASE WHEN DATA_TYPE = 'NUMBER'
+							AND NVL(DATA_SCALE, 0 ) = 0
+							AND (NULLABLE = 'N' OR CONSTRAINT_TYPE = 'P')
+							AND VIEW_COLUMN_NAME IS NOT NULL 
+							THEN 'YES' 
+						END HAS_SCALAR_VIEW_KEY,
+						DATA_TYPE, NULLABLE, DATA_SCALE, INDEX_OWNER, INDEX_NAME, DEFERRABLE, DEFERRED, STATUS, VALIDATED,
+						DEFAULT_SEQUENCE_OWNER, DEFAULT_SEQUENCE_NAME, 
+						case when TRIGGER_HAS_NEXTVAL > 0 and TRIGGER_HAS_ASSIGN_ID > 0 then 'YES' end TRIGGER_HAS_NEXTVAL,
+						case when TRIGGER_HAS_SYS_GUID > 0 and TRIGGER_HAS_ASSIGN_ID > 0 then 'YES' end TRIGGER_HAS_SYS_GUID,
+						case when TRIGGER_HAS_ASSIGN_ID > 0 then 'YES' end TRIGGER_HAS_ASSIGN_ID,
+						SEQUENCE_OWNER, SEQUENCE_NAME
 					FROM (
-						SELECT TABLE_NAME, TABLE_OWNER, CONSTRAINT_NAME, CONSTRAINT_TYPE, 
-							COLUMN_NAME, VIEW_COLUMN_NAME, POSITION, DEFAULT_TEXT,
-							CASE WHEN COLUMN_NAME = changelog_conf.Get_ColumnWorkspace THEN 'YES' END  KEY_HAS_WORKSPACE_ID,
-							CASE WHEN COLUMN_NAME = changelog_conf.Get_ColumnDeletedMark THEN 'YES' END  KEY_HAS_DELETE_MARK,
-							CASE WHEN DATA_TYPE = 'NUMBER'
-								AND NVL(DATA_SCALE, 0 ) = 0
-								AND (NULLABLE = 'N' OR CONSTRAINT_TYPE = 'P')
-								THEN 'YES' 
-							END HAS_SCALAR_KEY,
-							CASE WHEN DATA_TYPE = 'NUMBER'
-								AND NVL(DATA_SCALE, 0 ) = 0
-								AND (NULLABLE = 'N' OR CONSTRAINT_TYPE = 'P')
-								AND VIEW_COLUMN_NAME IS NOT NULL 
-								THEN 'YES' 
-							END HAS_SCALAR_VIEW_KEY,
-							DATA_TYPE, NULLABLE, DATA_SCALE, INDEX_OWNER, INDEX_NAME, DEFERRABLE, DEFERRED, STATUS, VALIDATED,
-							DEFAULT_SEQUENCE_OWNER, DEFAULT_SEQUENCE_NAME, 
-							case when TRIGGER_HAS_NEXTVAL > 0 and TRIGGER_HAS_ASSIGN_ID > 0 then 'YES' end TRIGGER_HAS_NEXTVAL,
-							case when TRIGGER_HAS_SYS_GUID > 0 and TRIGGER_HAS_ASSIGN_ID > 0 then 'YES' end TRIGGER_HAS_SYS_GUID,
-							case when TRIGGER_HAS_ASSIGN_ID > 0 then 'YES' end TRIGGER_HAS_ASSIGN_ID,
-							SEQUENCE_OWNER, SEQUENCE_NAME
+						SELECT T.TABLE_NAME, T.TABLE_OWNER, T.CONSTRAINT_NAME, T.CONSTRAINT_TYPE, T.COLUMN_NAME, T.POSITION,
+							T.DEFAULT_TEXT, T.VIEW_COLUMN_NAME, T.DATA_TYPE, T.NULLABLE, T.DATA_SCALE,
+								T.INDEX_OWNER, T.INDEX_NAME, T.DEFERRABLE, T.DEFERRED, T.STATUS, T.VALIDATED,
+							CASE WHEN REGEXP_INSTR(T.DEFAULT_TEXT, 'NEXTVAL', 1, 1, 1, 'i') > 0 THEN changelog_conf.Get_Name_Part(T.DEFAULT_TEXT, 1) END DEFAULT_SEQUENCE_OWNER,
+							CASE WHEN REGEXP_INSTR(T.DEFAULT_TEXT, 'NEXTVAL', 1, 1, 1, 'i') > 0 THEN changelog_conf.Get_Name_Part(T.DEFAULT_TEXT, 2) END DEFAULT_SEQUENCE_NAME,
+							MAX(TR.TRIGGER_HAS_NEXTVAL) TRIGGER_HAS_NEXTVAL,
+							MAX(TR.TRIGGER_HAS_SYS_GUID) TRIGGER_HAS_SYS_GUID,
+							MAX(REGEXP_INSTR(TR.TRIGGER_BODY, ':new.' || COLUMN_NAME || '\s*:=', 1, 1, 1, 'i') 
+							+ REGEXP_INSTR(TR.TRIGGER_BODY, 'into\s*:new.' || COLUMN_NAME, 1, 1, 1, 'i')) TRIGGER_HAS_ASSIGN_ID,
+							MAX(TR.SEQUENCE_OWNER) SEQUENCE_OWNER, 
+							MAX(TR.SEQUENCE_NAME) SEQUENCE_NAME
 						FROM (
-							SELECT T.TABLE_NAME, T.TABLE_OWNER, T.CONSTRAINT_NAME, T.CONSTRAINT_TYPE, T.COLUMN_NAME, T.POSITION,
-								T.DEFAULT_TEXT, T.VIEW_COLUMN_NAME, T.DATA_TYPE, T.NULLABLE, T.DATA_SCALE,
-									T.INDEX_OWNER, T.INDEX_NAME, T.DEFERRABLE, T.DEFERRED, T.STATUS, T.VALIDATED,
-								CASE WHEN REGEXP_INSTR(T.DEFAULT_TEXT, 'NEXTVAL', 1, 1, 1, 'i') > 0 THEN changelog_conf.Get_Name_Part(T.DEFAULT_TEXT, 1) END DEFAULT_SEQUENCE_OWNER,
-								CASE WHEN REGEXP_INSTR(T.DEFAULT_TEXT, 'NEXTVAL', 1, 1, 1, 'i') > 0 THEN changelog_conf.Get_Name_Part(T.DEFAULT_TEXT, 2) END DEFAULT_SEQUENCE_NAME,
-								MAX(TR.TRIGGER_HAS_NEXTVAL) TRIGGER_HAS_NEXTVAL,
-								MAX(TR.TRIGGER_HAS_SYS_GUID) TRIGGER_HAS_SYS_GUID,
-								MAX(REGEXP_INSTR(TR.TRIGGER_BODY, ':new.' || COLUMN_NAME || '\s*:=', 1, 1, 1, 'i') 
-								+ REGEXP_INSTR(TR.TRIGGER_BODY, 'into\s*:new.' || COLUMN_NAME, 1, 1, 1, 'i')) TRIGGER_HAS_ASSIGN_ID,
-								MAX(TR.SEQUENCE_OWNER) SEQUENCE_OWNER, 
-								MAX(TR.SEQUENCE_NAME) SEQUENCE_NAME
-							FROM (
-								SELECT TABLE_NAME, TABLE_OWNER, CONSTRAINT_NAME, CONSTRAINT_TYPE, COLUMN_NAME, POSITION, DEFAULT_TEXT, VIEW_COLUMN_NAME,
-									DATA_TYPE, NULLABLE, DATA_SCALE, INDEX_OWNER, INDEX_NAME, DEFERRABLE, DEFERRED, STATUS, VALIDATED
-								FROM U_CONSTRAINTS
-								UNION ALL
-								SELECT TABLE_NAME, TABLE_OWNER, CONSTRAINT_NAME, CONSTRAINT_TYPE, COLUMN_NAME, POSITION, DEFAULT_TEXT, VIEW_COLUMN_NAME,
-									DATA_TYPE, NULLABLE, DATA_SCALE, INDEX_OWNER, INDEX_NAME, DEFERRABLE, DEFERRED, STATUS, VALIDATED
-								FROM U_INDEXES B
-								where NOT EXISTS (
-									SELECT 1
-									FROM U_CONSTRAINTS E
-									WHERE E.TABLE_NAME = B.TABLE_NAME
-									AND E.INDEX_NAME = B.INDEX_NAME
-									AND E.INDEX_OWNER = B.TABLE_OWNER
-								)
-							) T, INSERT_TRIGGERS TR
-							where T.TABLE_NAME = TR.TABLE_NAME (+) AND T.TABLE_OWNER = TR.TABLE_OWNER (+)
-							GROUP BY T.TABLE_NAME, T.TABLE_OWNER, T.CONSTRAINT_NAME, T.CONSTRAINT_TYPE, T.COLUMN_NAME, T.POSITION,
-								T.DEFAULT_TEXT, T.VIEW_COLUMN_NAME, T.DATA_TYPE, T.NULLABLE, T.DATA_SCALE,
-								T.INDEX_OWNER, T.INDEX_NAME, T.DEFERRABLE, T.DEFERRED, T.STATUS, T.VALIDATED
-						) T
-					) C
-					WHERE NOT EXISTS (    -- this table is not part of materialized view
-						SELECT --+ NO_UNNEST
-							1
-						FROM ALL_OBJECTS MV
-						WHERE MV.OBJECT_NAME = C.TABLE_NAME
-						AND MV.OWNER = C.TABLE_OWNER
-						AND MV.OBJECT_TYPE = 'MATERIALIZED VIEW'
-					)
-					GROUP BY TABLE_NAME, TABLE_OWNER, CONSTRAINT_NAME, CONSTRAINT_TYPE, DEFERRABLE, DEFERRED, STATUS, VALIDATED
+							SELECT TABLE_NAME, TABLE_OWNER, CONSTRAINT_NAME, CONSTRAINT_TYPE, COLUMN_NAME, POSITION, DEFAULT_TEXT, VIEW_COLUMN_NAME,
+								DATA_TYPE, NULLABLE, DATA_SCALE, INDEX_OWNER, INDEX_NAME, DEFERRABLE, DEFERRED, STATUS, VALIDATED
+							FROM U_CONSTRAINTS
+							UNION ALL
+							SELECT TABLE_NAME, TABLE_OWNER, CONSTRAINT_NAME, CONSTRAINT_TYPE, COLUMN_NAME, POSITION, DEFAULT_TEXT, VIEW_COLUMN_NAME,
+								DATA_TYPE, NULLABLE, DATA_SCALE, INDEX_OWNER, INDEX_NAME, DEFERRABLE, DEFERRED, STATUS, VALIDATED
+							FROM U_INDEXES B
+							where NOT EXISTS (
+								SELECT 1
+								FROM U_CONSTRAINTS E
+								WHERE E.TABLE_NAME = B.TABLE_NAME
+								AND E.INDEX_NAME = B.INDEX_NAME
+								AND E.INDEX_OWNER = B.TABLE_OWNER
+							)
+						) T, INSERT_TRIGGERS TR
+						where T.TABLE_NAME = TR.TABLE_NAME (+) AND T.TABLE_OWNER = TR.TABLE_OWNER (+)
+						GROUP BY T.TABLE_NAME, T.TABLE_OWNER, T.CONSTRAINT_NAME, T.CONSTRAINT_TYPE, T.COLUMN_NAME, T.POSITION,
+							T.DEFAULT_TEXT, T.VIEW_COLUMN_NAME, T.DATA_TYPE, T.NULLABLE, T.DATA_SCALE,
+							T.INDEX_OWNER, T.INDEX_NAME, T.DEFERRABLE, T.DEFERRED, T.STATUS, T.VALIDATED
+					) T
+				) C
+				WHERE NOT EXISTS (    -- this table is not part of materialized view
+					SELECT --+ NO_UNNEST
+						1
+					FROM ALL_OBJECTS MV
+					WHERE MV.OBJECT_NAME = C.TABLE_NAME
+					AND MV.OWNER = C.TABLE_OWNER
+					AND MV.OBJECT_TYPE = 'MATERIALIZED VIEW'
 				)
-			);
-		loop
-			FETCH c_cur INTO v_row;
-			EXIT WHEN c_cur%NOTFOUND;
-			PIPE ROW(v_row);
-		end loop;
-		CLOSE c_cur;
-		RETURN;
+				GROUP BY TABLE_NAME, TABLE_OWNER, CONSTRAINT_NAME, CONSTRAINT_TYPE, DEFERRABLE, DEFERRED, STATUS, VALIDATED
+			)
+		);
+		v_in_rows tab_base_unique_keys;
+	BEGIN
+		if g_Use_Change_Log IS NULL then
+			return; -- not initialised (during create mview)
+		end if;
+		OPEN user_keys_cur;
+		LOOP
+			FETCH user_keys_cur BULK COLLECT INTO v_in_rows LIMIT g_fetch_limit;
+			EXIT WHEN v_in_rows.COUNT = 0;
+			FOR ind IN 1 .. v_in_rows.COUNT LOOP
+				pipe row (v_in_rows(ind));
+			END LOOP;
+		END LOOP;
+		CLOSE user_keys_cur;  
 	END FN_Pipe_Base_Uniquekeys;
 
 	FUNCTION FN_Pipe_Base_Uniquekeys (
@@ -1455,18 +1472,18 @@ IS
 				ON T.CONSTRAINT_NAME = R.R_CONSTRAINT_NAME AND R.R_OWNER = SYS_CONTEXT('USERENV', 'CURRENT_SCHEMA');
         v_in_rows tab_alter_unique_keys;
 	BEGIN
-		OPEN keys_cur;
-		FETCH keys_cur BULK COLLECT INTO v_in_rows;
-		CLOSE keys_cur;
-		FOR ind IN 1 .. v_in_rows.COUNT LOOP
-			pipe row (v_in_rows(ind));
-		END LOOP;
-	exception
-	  when others then
-	    if keys_cur%ISOPEN then
-			CLOSE keys_cur;
+		if g_Use_Change_Log IS NULL then
+			return; -- not initialised (during create mview)
 		end if;
-		raise;
+		OPEN keys_cur;
+		LOOP
+			FETCH keys_cur BULK COLLECT INTO v_in_rows LIMIT g_fetch_limit;
+			EXIT WHEN v_in_rows.COUNT = 0;
+			FOR ind IN 1 .. v_in_rows.COUNT LOOP
+				pipe row (v_in_rows(ind));
+			END LOOP;
+		END LOOP;
+		CLOSE keys_cur;  
 	END FN_Pipe_Table_AlterUniquekeys;
 
 
@@ -1510,12 +1527,18 @@ IS
 		) V;
         v_in_rows tab_base_views;
 	BEGIN
+		if g_Use_Change_Log IS NULL then
+			return; -- not initialised (during create mview)
+		end if;
 		OPEN user_keys_cur;
-		FETCH user_keys_cur BULK COLLECT INTO v_in_rows;
-		CLOSE user_keys_cur;  
-		FOR ind IN 1 .. v_in_rows.COUNT LOOP
-			pipe row (v_in_rows(ind));
+		LOOP
+			FETCH user_keys_cur BULK COLLECT INTO v_in_rows LIMIT g_fetch_limit;
+			EXIT WHEN v_in_rows.COUNT = 0;
+			FOR ind IN 1 .. v_in_rows.COUNT LOOP
+				pipe row (v_in_rows(ind));
+			END LOOP;
 		END LOOP;
+		CLOSE user_keys_cur;  
 	END FN_Pipe_Base_Views;
 
 
@@ -1540,12 +1563,18 @@ IS
 
         v_in_rows tab_Changelog_fkeys;
 	BEGIN
+		if g_Use_Change_Log IS NULL then
+			return; -- not initialised (during create mview)
+		end if;
 		OPEN user_keys_cur;
-		FETCH user_keys_cur BULK COLLECT INTO v_in_rows;
-		CLOSE user_keys_cur;  
-		FOR ind IN 1 .. v_in_rows.COUNT LOOP
-			pipe row (v_in_rows(ind));
+		LOOP
+			FETCH user_keys_cur BULK COLLECT INTO v_in_rows LIMIT g_fetch_limit;
+			EXIT WHEN v_in_rows.COUNT = 0;
+			FOR ind IN 1 .. v_in_rows.COUNT LOOP
+				pipe row (v_in_rows(ind));
+			END LOOP;
 		END LOOP;
+		CLOSE user_keys_cur;  
 	END FN_Pipe_Changelog_fkeys;
 
 
@@ -1579,12 +1608,18 @@ IS
 		AND TR.TABLE_OWNER = SYS_CONTEXT('USERENV', 'CURRENT_SCHEMA');
         v_in_rows tab_has_set_null_fkeys;
 	BEGIN
+		if g_Use_Change_Log IS NULL then
+			return; -- not initialised (during create mview)
+		end if;
 		OPEN user_keys_cur;
-		FETCH user_keys_cur BULK COLLECT INTO v_in_rows;
-		CLOSE user_keys_cur;  
-		FOR ind IN 1 .. v_in_rows.COUNT LOOP
-			pipe row (v_in_rows(ind));
+		LOOP
+			FETCH user_keys_cur BULK COLLECT INTO v_in_rows LIMIT g_fetch_limit;
+			EXIT WHEN v_in_rows.COUNT = 0;
+			FOR ind IN 1 .. v_in_rows.COUNT LOOP
+				pipe row (v_in_rows(ind));
+			END LOOP;
 		END LOOP;
+		CLOSE user_keys_cur;  
 	END FN_Pipe_has_set_null_fkeys;
 
 
@@ -1607,7 +1642,7 @@ IS
 		end if;
 		OPEN user_keys_cur;
 		 LOOP
-			FETCH user_keys_cur BULK COLLECT INTO v_in_rows LIMIT 500;
+			FETCH user_keys_cur BULK COLLECT INTO v_in_rows LIMIT g_fetch_limit*5;
 			EXIT WHEN v_in_rows.COUNT = 0;
 			FOR ind IN 1 .. v_in_rows.COUNT LOOP
 				v_row.TABLE_NAME 			:= v_in_rows(ind).TABLE_NAME;
@@ -1675,8 +1710,7 @@ IS
 		if changelog_conf.Get_Include_External_Objects = 'YES' then 
 			OPEN all_objects_cur;
 			LOOP
-				FETCH all_objects_cur
-				BULK COLLECT INTO v_in_rows LIMIT g_fetch_limit;
+				FETCH all_objects_cur BULK COLLECT INTO v_in_rows LIMIT g_fetch_limit;
 				EXIT WHEN v_in_rows.COUNT = 0;
 				FOR ind IN 1 .. v_in_rows.COUNT LOOP
 					pipe row (v_in_rows(ind));
@@ -1686,8 +1720,7 @@ IS
 		else
 			OPEN user_objects_cur;
 			LOOP
-				FETCH user_objects_cur
-				BULK COLLECT INTO v_in_rows LIMIT g_fetch_limit;
+				FETCH user_objects_cur BULK COLLECT INTO v_in_rows LIMIT g_fetch_limit;
 				EXIT WHEN v_in_rows.COUNT = 0;
 				FOR ind IN 1 .. v_in_rows.COUNT LOOP
 					pipe row (v_in_rows(ind));

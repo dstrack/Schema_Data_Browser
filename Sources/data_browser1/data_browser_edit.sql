@@ -2757,16 +2757,7 @@ $END
 													else DATA_DEFAULT
 												end,
 							p_Format_Mask	=> FORMAT_MASK,
-							p_LOV_Query		=> case when COLUMN_EXPR_TYPE = 'POPUP_FROM_LOV' and (IS_FILE_FOLDER_REF = 'N' or LOV_QUERY IS NULL) then 
-														'select distinct ' || COLUMN_EXPR || ' d, ' || COLUMN_EXPR || ' r'
-														|| ' from ' 
-														|| data_browser_select.FN_Table_Prefix
-														|| data_browser_conf.Enquote_Name_Required(REF_VIEW_NAME) || ' ' || TABLE_ALIAS 
-														|| ' order by 1'
-													when COLUMN_EXPR_TYPE = 'POPUP_FROM_LOV' and IS_FILE_FOLDER_REF = 'Y' and LOV_QUERY IS NOT NULL then 
-														LOV_QUERY
-													else LOV_QUERY
-												end,
+							p_LOV_Query		=> LOV_QUERY,
 							p_Check_Unique	=> CHECK_UNIQUE,
 							p_Check_Range	=> case when CHECK_CONDITION IS NOT NULL then 'Y' else 'N' end,
 							p_Field_Length 	=> FIELD_LENGTH,
@@ -2815,10 +2806,15 @@ $END
 								p_Parent_Key_Column => p_Parent_Key_Column,
 								p_Parent_Key_Item => p_Parent_Key_Item
 							)
+						when COLUMN_EXPR_TYPE = 'POPUP_FROM_LOV' and LOV_QUERY IS NULL then 
+							'select distinct ' || T.COLUMN_EXPR || ' d, ' || T.COLUMN_EXPR || ' r'
+							|| ' from ' 
+							|| data_browser_select.FN_Table_Prefix
+							|| data_browser_conf.Enquote_Name_Required(T.REF_VIEW_NAME) || ' ' || T.TABLE_ALIAS 
+							|| ' order by 1'
 						else 
 							LOV_QUERY
-						end
-						LOV_QUERY,
+						end LOV_QUERY,
 						case 
 							when T.IS_VIRTUAL_COLUMN = 'Y' then 
 								T.DATA_DEFAULT

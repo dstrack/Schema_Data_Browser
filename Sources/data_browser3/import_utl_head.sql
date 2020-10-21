@@ -272,6 +272,10 @@ IS
 	PROCEDURE Generate_Import_Views (
 		p_Table_Name VARCHAR2
 	);
+	PROCEDURE Generate_Updatable_Views (
+		p_Schema_Name VARCHAR2 DEFAULT SYS_CONTEXT('USERENV', 'CURRENT_SCHEMA'),
+    	p_Data_Format VARCHAR2 DEFAULT 'NATIVE'	-- FORM, HTML, CSV, NATIVE. Format of the final projection columns.
+	);
 	PROCEDURE Link_Import_Table (
 		p_Table_Name	IN VARCHAR2,
 		p_Import_Job_ID IN NUMBER,

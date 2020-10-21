@@ -26,10 +26,6 @@ zu dem hier verwendeten Tablellen sind Beispiel Statements vorhanden.
 
 */
 
-
---ALTER SESSION SET PLSQL_CODE_TYPE = NATIVE;
---ALTER SESSION SET PLSQL_OPTIMIZE_LEVEL = 3;
-
 /*
 DROP PACKAGE custom_changelog;
 DROP TABLE CHANGE_LOG_BT;

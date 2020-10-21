@@ -2082,7 +2082,7 @@ CREATE OR REPLACE PACKAGE BODY import_utl IS
 
 
 	EXCEPTION WHEN NO_DATA_FOUND THEN
-		DBMS_OUTPUT.PUT_LINE('Tabelle nicht gefunden.');
+		DBMS_OUTPUT.PUT_LINE('Table not found.');
     END Generate_Imp_Table;
 
     PROCEDURE Generate_Import_Views (
@@ -2119,8 +2119,35 @@ CREATE OR REPLACE PACKAGE BODY import_utl IS
 
 
 	EXCEPTION WHEN NO_DATA_FOUND THEN
-		DBMS_OUTPUT.PUT_LINE('Tabelle nicht gefunden.');
+		DBMS_OUTPUT.PUT_LINE('Table not found.');
     END Generate_Import_Views;
+
+	PROCEDURE Generate_Updatable_Views (
+		p_Schema_Name VARCHAR2 DEFAULT SYS_CONTEXT('USERENV', 'CURRENT_SCHEMA'),
+    	p_Data_Format VARCHAR2 DEFAULT 'NATIVE'	-- FORM, HTML, CSV, NATIVE. Format of the final projection columns.
+	) 
+	IS
+        v_Stat CLOB;
+	BEGIN
+		for c_cur IN (
+			SELECT TABLE_NAME, VIEW_NAME
+			FROM MVDATA_BROWSER_VIEWS
+			WHERE READ_ONLY = 'NO'
+			AND VIEW_OWNER = p_Schema_Name
+			ORDER BY TABLE_NAME
+		) loop
+			v_Stat := import_utl.Get_Imp_Table_View (
+				p_Table_name => c_cur.VIEW_NAME,
+				p_Data_Format => p_Data_Format
+			);
+        	Run_DDL_Stat (v_Stat); -- create import view
+			v_Stat := import_utl.Get_Imp_Table_View_trigger (
+				p_Table_name => c_cur.VIEW_NAME,
+				p_Data_Format => p_Data_Format
+			);
+        	Run_DDL_Stat (v_Stat); -- create import trigger
+		end loop;
+	END Generate_Updatable_Views;
 
     PROCEDURE Link_Import_Table (
         p_Table_Name 	IN VARCHAR2,
