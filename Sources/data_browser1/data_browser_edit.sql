@@ -2661,6 +2661,7 @@ $IF DBMS_DB_VERSION.VERSION >= 12 $THEN
 $END
     	v_Describe_Edit_Cols_md5	VARCHAR2(300);
         v_is_cached					VARCHAR2(10);
+        v_Export_CSV_Mode			VARCHAR2(10);
 		v_Unique_Key_Column  		MVDATA_BROWSER_VIEWS.SEARCH_KEY_COLS%TYPE;
     	v_Row_Version_Column_Name 	MVDATA_BROWSER_VIEWS.ROW_VERSION_COLUMN_NAME%TYPE;
     	v_Key_Cols_Count 			MVDATA_BROWSER_VIEWS.KEY_COLS_COUNT%TYPE;
@@ -2702,7 +2703,7 @@ $END
 								case when COLUMN_EXPR_TYPE = 'TEXT_EDITOR'
 								and p_Data_Source != 'COLLECTION' -- no reference to primary key exists
 								and p_Text_Editor_Page_ID IS NOT NULL
-								and data_browser_conf.Get_Export_CSV_Mode = 'NO' then
+								and v_Export_CSV_Mode = 'NO' then
 									data_browser_blobs.FN_Edit_Text_Link_Html (
 										p_Table_Name => R_VIEW_NAME,
 										p_Key_Column => v_Key_Column,
@@ -2727,7 +2728,7 @@ $END
 									)
 								when COLUMN_EXPR_TYPE = 'FILE_BROWSER'
 								and p_Data_Source != 'COLLECTION' -- no reference to primary key exists
-								and data_browser_conf.Get_Export_CSV_Mode = 'NO' then
+								and v_Export_CSV_Mode = 'NO' then
 									data_browser_blobs.FN_File_Icon_Link (
 										p_Table_Name => R_VIEW_NAME,
 										p_Key_Column => v_Key_Column,
@@ -2885,7 +2886,7 @@ $END
 						B.IS_NUMBER_YES_NO_COLUMN, B.IS_CHAR_YES_NO_COLUMN, 
 						B.IS_REFERENCE, B.IS_SEARCHABLE_REF, B.IS_SUMMAND, B.IS_VIRTUAL_COLUMN, 
 						B.IS_DATETIME, 
-						NVL(D.CHECK_UNIQUE, 'N') CHECK_UNIQUE,
+						B.CHECK_UNIQUE,
 						B.FORMAT_MASK,
 						case when B.COLUMN_EXPR_TYPE IN ( 'NUMBER', 'TEXT' )
 							and D.IS_SIMPLE_IN_LIST = 'Y'
@@ -2985,7 +2986,7 @@ $END
     	INTO v_Unique_Key_Column, v_Row_Version_Column_Name, v_Key_Cols_Count, v_Has_Scalar_Key
     	FROM MVDATA_BROWSER_VIEWS
     	WHERE VIEW_NAME = p_Table_Name;
-
+		v_Export_CSV_Mode := data_browser_conf.Get_Export_CSV_Mode;
 		v_Unique_Key_Column := NVL(p_Unique_Key_Column, v_Unique_Key_Column);
 		v_Key_Column := case when v_Key_Cols_Count = 1 then v_Unique_Key_Column else 'ROWID' end;
 		v_Key_Value_Exp := case when p_Data_Source = 'TABLE' 
