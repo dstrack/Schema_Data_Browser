@@ -205,10 +205,9 @@ IS
 		p_Char_Length NUMBER,
 		p_Nullable VARCHAR2,
 		p_Num_Distinct NUMBER,
-		p_Default_Length NUMBER,
+		p_Default_Text VARCHAR2,
 		p_Check_Condition VARCHAR2,
-		p_Explain VARCHAR2 DEFAULT 'NO',
-		p_Data_Default VARCHAR2 DEFAULT NULL
+		p_Explain VARCHAR2 DEFAULT 'NO'
     )
     RETURN VARCHAR2;
 
@@ -658,6 +657,22 @@ IS
 	-- output of data_browser_utl.Constraint_Condition_Cursor
 	TYPE tab_constraint_columns IS TABLE OF rec_constraint_columns;
 
+	TYPE rec_table_columns IS RECORD (
+		TABLE_NAME              	VARCHAR2(128), 
+		OWNER                 		VARCHAR2(128), 
+		COLUMN_ID					NUMBER,
+		COLUMN_NAME               	VARCHAR2(128), 
+		DATA_TYPE					VARCHAR2(128), 
+		NULLABLE					VARCHAR2(1), 
+		NUM_DISTINCT				NUMBER,
+		DEFAULT_LENGTH				NUMBER,
+		DEFAULT_TEXT				VARCHAR2(1000), 
+		DATA_PRECISION			  	NUMBER,
+		DATA_SCALE					NUMBER,
+		CHAR_LENGTH					NUMBER
+	);
+	TYPE tab_table_columns IS TABLE OF rec_table_columns;
+
 	FUNCTION Constraint_Condition_Cursor (
 		p_Table_Name IN VARCHAR2 DEFAULT NULL,
 		p_Owner IN VARCHAR2 DEFAULT NULL,
@@ -669,6 +684,13 @@ IS
 		p_Owner IN VARCHAR2 DEFAULT SYS_CONTEXT('USERENV', 'CURRENT_SCHEMA'),
 		p_Constraint_Name IN VARCHAR2 DEFAULT NULL
 	) RETURN data_browser_conf.tab_constraint_columns PIPELINED;
+
+	FUNCTION Table_Columns_Cursor(
+    	p_Table_Name VARCHAR2 DEFAULT NULL,
+    	p_Owner VARCHAR2 DEFAULT SYS_CONTEXT('USERENV', 'CURRENT_SCHEMA'),
+    	p_Column_Name VARCHAR2 DEFAULT NULL
+    )
+	RETURN data_browser_conf.tab_table_columns PIPELINED;
 
 	FUNCTION Is_Simple_IN_List (
 		p_Check_Condition VARCHAR2,
@@ -1633,10 +1655,9 @@ $END
 		p_Char_Length NUMBER,
 		p_Nullable VARCHAR2,
 		p_Num_Distinct NUMBER,
-		p_Default_Length NUMBER,
+		p_Default_Text VARCHAR2,
 		p_Check_Condition VARCHAR2,
-		p_Explain VARCHAR2 DEFAULT 'NO',
-		p_Data_Default VARCHAR2 DEFAULT NULL
+		p_Explain VARCHAR2 DEFAULT 'NO'
     )
     RETURN VARCHAR2
     IS
@@ -1646,7 +1667,6 @@ $END
 		v_Is_Number_Yes_No_Check BOOLEAN := NULL;	-- Important! three values logic NULL=UNKNOWN
 		v_Is_Char_Yes_No_Check 	BOOLEAN := NULL;	-- Important! three values logic NULL=UNKNOWN
 		v_Match_Count 			PLS_INTEGER := 0;
-		v_Data_Default 			VARCHAR2(4000);
 		v_Check_List 			VARCHAR2(32767);
 		v_Check_Pattern			VARCHAR2(128);
 		v_Check_Condition 		VARCHAR2(32767);
@@ -1657,19 +1677,14 @@ $END
 		if p_Data_Type NOT IN ('CHAR', 'VARCHAR', 'VARCHAR2', 'NUMBER') then
 			return case when p_Explain = 'YES' then 'FAILED. Reason: datatype contradiction' end;
 		end if;
-		if p_Data_Default IS NOT NULL then 
-			v_Data_Default := p_Data_Default;
-		elsif p_Default_Length > 0 then 
-			v_Data_Default := data_browser_conf.Get_ColumnDefaultText(p_Table_Name, p_Table_Owner, p_Column_Name);
-		end if;
-		if v_Data_Default IS NOT NULL then
-			v_Is_Number_Yes_No_Default 	:= v_Data_Default IN (
+		if p_Default_Text IS NOT NULL then
+			v_Is_Number_Yes_No_Default 	:= p_Default_Text IN (
 				data_browser_conf.Get_Boolean_No_Value('NUMBER', 'VALUE'),
 				data_browser_conf.Get_Boolean_Yes_Value('NUMBER', 'VALUE'),
 				data_browser_conf.Get_Boolean_No_Value('NUMBER', 'ENQUOTE'),
 				data_browser_conf.Get_Boolean_Yes_Value('NUMBER', 'ENQUOTE')
 			);
-			v_Is_Char_Yes_No_Default	:= v_Data_Default IN (
+			v_Is_Char_Yes_No_Default	:= p_Default_Text IN (
 				data_browser_conf.Get_Boolean_No_Value('CHAR', 'ENQUOTE'),
 				data_browser_conf.Get_Boolean_Yes_Value('CHAR', 'ENQUOTE')
 			);
@@ -1736,7 +1751,7 @@ $END
 			and (v_Is_Number_Yes_No_Check or v_Is_Number_Yes_No_Check IS NULL) then
 				return 'NUMBER';
 			end if;
-			return case when p_Explain = 'YES' then 'FAILED. Reason: matching name, but no default value or check condition or weak hints (' || v_Data_Default || ')' end;
+			return case when p_Explain = 'YES' then 'FAILED. Reason: matching name, but no default value or check condition or weak hints (' || p_Default_Text || ')' end;
 		elsif Get_Detect_Yes_No_Static_LOV = 'YES' then
 			-- column name is not matching pattern and no contraditions
 			if (p_Data_Type IN ('CHAR', 'VARCHAR', 'VARCHAR2') AND p_Char_Length = 1)		-- string length 1; is a strong hint
@@ -1772,57 +1787,33 @@ $END
 		v_Result			VARCHAR2(128);
 	BEGIN
 		if p_Column_Name IS NOT NULL then 
-			if p_Table_Owner = SYS_CONTEXT('USERENV', 'CURRENT_SCHEMA') then 
-				SELECT DISTINCT
-					data_browser_conf.Get_Yes_No_Column_Type (
-						p_Table_Name => AC.TABLE_NAME,
-						p_Table_Owner => SYS_CONTEXT('USERENV', 'CURRENT_SCHEMA'),
-						p_Column_Name => AC.COLUMN_NAME,
-						p_Data_Type => AC.DATA_TYPE,
-						p_Data_Precision => AC.DATA_PRECISION,
-						p_Data_Scale => AC.DATA_SCALE,
-						p_Char_Length => AC.CHAR_LENGTH,
-						p_Nullable => AC.NULLABLE,
-						p_Num_Distinct => AC.NUM_DISTINCT,
-						p_Default_Length => AC.DEFAULT_LENGTH,
-						p_Check_Condition => B.SEARCH_CONDITION
-					) Result
-				INTO v_Result
-				FROM SYS.USER_TAB_COLS AC
-				LEFT OUTER JOIN TABLE (
-						data_browser_conf.Constraint_Columns_Cursor (p_Table_Name=>AC.TABLE_NAME)
-					) B ON AC.TABLE_NAME = B.TABLE_NAME 
-						AND AC.COLUMN_NAME = B.COLUMN_NAME
-				WHERE AC.TABLE_NAME = p_Table_Name
-				AND AC.COLUMN_NAME = p_Column_Name
-				AND AC.HIDDEN_COLUMN = 'NO'; 
-			else
-				SELECT DISTINCT
-					data_browser_conf.Get_Yes_No_Column_Type (
-						p_Table_Name => AC.TABLE_NAME,
-						p_Table_Owner => AC.OWNER,
-						p_Column_Name => AC.COLUMN_NAME,
-						p_Data_Type => AC.DATA_TYPE,
-						p_Data_Precision => AC.DATA_PRECISION,
-						p_Data_Scale => AC.DATA_SCALE,
-						p_Char_Length => AC.CHAR_LENGTH,
-						p_Nullable => AC.NULLABLE,
-						p_Num_Distinct => AC.NUM_DISTINCT,
-						p_Default_Length => AC.DEFAULT_LENGTH,
-						p_Check_Condition => B.SEARCH_CONDITION
-					) Result
-				INTO v_Result
-				FROM SYS.ALL_TAB_COLS AC
-				LEFT OUTER JOIN TABLE (
-						data_browser_conf.Constraint_Columns_Cursor (p_Table_Name=>AC.TABLE_NAME, p_Owner=>AC.OWNER)
-					) B ON AC.TABLE_NAME = B.TABLE_NAME 
-						AND AC.OWNER = B.OWNER
-						AND AC.COLUMN_NAME = B.COLUMN_NAME
-				WHERE AC.TABLE_NAME = p_Table_Name
-				AND AC.COLUMN_NAME = p_Column_Name
-				AND AC.OWNER = p_Table_Owner
-				AND AC.HIDDEN_COLUMN = 'NO'; 
-			end if;
+			SELECT DISTINCT
+				data_browser_conf.Get_Yes_No_Column_Type (
+					p_Table_Name => AC.TABLE_NAME,
+					p_Table_Owner => AC.OWNER,
+					p_Column_Name => AC.COLUMN_NAME,
+					p_Data_Type => AC.DATA_TYPE,
+					p_Data_Precision => AC.DATA_PRECISION,
+					p_Data_Scale => AC.DATA_SCALE,
+					p_Char_Length => AC.CHAR_LENGTH,
+					p_Nullable => AC.NULLABLE,
+					p_Num_Distinct => AC.NUM_DISTINCT,
+					p_Default_Text => AC.DEFAULT_TEXT,
+					p_Check_Condition => B.SEARCH_CONDITION
+				) Result
+			INTO v_Result
+			FROM TABLE (data_browser_conf.Table_Columns_Cursor(
+				p_Table_Name => p_Table_Name,
+				p_Owner => p_Table_Owner,
+				p_Column_Name => p_Column_Name
+			)) AC
+			LEFT OUTER JOIN TABLE (data_browser_conf.Constraint_Columns_Cursor (
+				p_Table_Name=>p_Table_Name, 
+				p_Owner=>p_Table_Owner
+			)) B ON AC.TABLE_NAME = B.TABLE_NAME 
+				AND AC.OWNER = B.OWNER
+				AND AC.COLUMN_NAME = B.COLUMN_NAME
+			; 
 		end if;
 		return v_Result;
 	END Get_Yes_No_Column_Type;
@@ -3675,6 +3666,86 @@ $END
 		end if;
 	end Constraint_Columns_Cursor;
 
+	FUNCTION Table_Columns_Cursor(
+    	p_Table_Name VARCHAR2 DEFAULT NULL,
+    	p_Owner VARCHAR2 DEFAULT SYS_CONTEXT('USERENV', 'CURRENT_SCHEMA'),
+    	p_Column_Name VARCHAR2 DEFAULT NULL
+    )
+	RETURN data_browser_conf.tab_table_columns PIPELINED
+	IS
+        CURSOR user_cols_cur
+        IS
+		SELECT /*+ RESULT_CACHE */
+			TABLE_NAME, SYS_CONTEXT('USERENV', 'CURRENT_SCHEMA') OWNER,
+			COLUMN_ID, COLUMN_NAME, DATA_TYPE, NULLABLE, NUM_DISTINCT,
+			DEFAULT_LENGTH, DATA_DEFAULT, DATA_PRECISION, DATA_SCALE, CHAR_LENGTH
+		FROM SYS.USER_TAB_COLS C
+		WHERE C.TABLE_NAME = NVL(p_Table_Name, C.TABLE_NAME)
+		AND C.COLUMN_NAME = NVL(p_Column_Name, C.COLUMN_NAME)
+		AND C.HIDDEN_COLUMN = 'NO';
+
+        CURSOR all_cols_cur
+        IS
+		SELECT /*+ RESULT_CACHE */
+			TABLE_NAME, OWNER,
+			COLUMN_ID, COLUMN_NAME, DATA_TYPE, NULLABLE, NUM_DISTINCT,
+			DEFAULT_LENGTH, DATA_DEFAULT, DATA_PRECISION, DATA_SCALE, CHAR_LENGTH
+		FROM SYS.ALL_TAB_COLS C
+		WHERE C.TABLE_NAME = NVL(p_Table_Name, C.TABLE_NAME)
+		AND C.OWNER = NVL(p_Owner, C.OWNER)
+		AND C.COLUMN_NAME = NVL(p_Column_Name, C.COLUMN_NAME)
+		AND C.HIDDEN_COLUMN = 'NO';
+
+        TYPE stat_tbl IS TABLE OF user_cols_cur%ROWTYPE;
+        v_in_rows stat_tbl;
+        v_row rec_table_columns;
+	BEGIN
+		if p_Owner = SYS_CONTEXT('USERENV', 'CURRENT_SCHEMA') then
+			OPEN user_cols_cur;
+			LOOP
+				FETCH user_cols_cur BULK COLLECT INTO v_in_rows LIMIT g_fetch_limit*5;
+				EXIT WHEN v_in_rows.COUNT = 0;
+				FOR ind IN 1 .. v_in_rows.COUNT LOOP
+					v_row.TABLE_NAME 			:= v_in_rows(ind).TABLE_NAME;
+					v_row.OWNER 				:= v_in_rows(ind).OWNER;
+					v_row.COLUMN_ID 			:= v_in_rows(ind).COLUMN_ID;
+					v_row.COLUMN_NAME 			:= v_in_rows(ind).COLUMN_NAME;
+					v_row.DATA_TYPE 			:= v_in_rows(ind).DATA_TYPE;
+					v_row.NULLABLE 				:= v_in_rows(ind).NULLABLE;
+					v_row.NUM_DISTINCT 			:= v_in_rows(ind).NUM_DISTINCT;
+					v_row.DEFAULT_LENGTH 		:= v_in_rows(ind).DEFAULT_LENGTH;
+					v_row.DEFAULT_TEXT 			:= SUBSTR(TO_CLOB(v_in_rows(ind).DATA_DEFAULT), 1, 800); -- special conversion of LONG type; give a margin of 200 bytes for char expansion
+					v_row.DATA_PRECISION 		:= v_in_rows(ind).DATA_PRECISION;
+					v_row.DATA_SCALE 			:= v_in_rows(ind).DATA_SCALE;
+					v_row.CHAR_LENGTH 			:= v_in_rows(ind).CHAR_LENGTH;			
+					pipe row (v_row);
+				END LOOP;
+			END LOOP;
+			CLOSE user_cols_cur;
+		else
+			OPEN all_cols_cur;
+			LOOP
+				FETCH all_cols_cur BULK COLLECT INTO v_in_rows LIMIT g_fetch_limit*5;
+				EXIT WHEN v_in_rows.COUNT = 0;
+				FOR ind IN 1 .. v_in_rows.COUNT LOOP
+					v_row.TABLE_NAME 			:= v_in_rows(ind).TABLE_NAME;
+					v_row.OWNER 				:= v_in_rows(ind).OWNER;
+					v_row.COLUMN_ID 			:= v_in_rows(ind).COLUMN_ID;
+					v_row.COLUMN_NAME 			:= v_in_rows(ind).COLUMN_NAME;
+					v_row.DATA_TYPE 			:= v_in_rows(ind).DATA_TYPE;
+					v_row.NULLABLE 				:= v_in_rows(ind).NULLABLE;
+					v_row.NUM_DISTINCT 			:= v_in_rows(ind).NUM_DISTINCT;
+					v_row.DEFAULT_LENGTH 		:= v_in_rows(ind).DEFAULT_LENGTH;
+					v_row.DEFAULT_TEXT 			:= SUBSTR(TO_CLOB(v_in_rows(ind).DATA_DEFAULT), 1, 800); -- special conversion of LONG type; give a margin of 200 bytes for char expansion
+					v_row.DATA_PRECISION 		:= v_in_rows(ind).DATA_PRECISION;
+					v_row.DATA_SCALE 			:= v_in_rows(ind).DATA_SCALE;
+					v_row.CHAR_LENGTH 			:= v_in_rows(ind).CHAR_LENGTH;			
+					pipe row (v_row);
+				END LOOP;
+			END LOOP;
+			CLOSE all_cols_cur;
+		end if;
+	END Table_Columns_Cursor;
 
 	FUNCTION Is_Simple_IN_List (
 		p_Check_Condition VARCHAR2,
