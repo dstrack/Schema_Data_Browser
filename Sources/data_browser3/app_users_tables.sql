@@ -123,7 +123,7 @@ begin
 		EXECUTE IMMEDIATE v_Stat;
 	end if;
 
-	-- used in package set_custom_ctx and weco_auth
+	-- used in package set_custom_ctx and data_browser_auth
 	v_stat := q'[
 	CREATE OR REPLACE VIEW V_CONTEXT_USERS AS
 	SELECT ID USER_ID, USER_LEVEL, 

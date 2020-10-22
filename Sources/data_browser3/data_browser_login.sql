@@ -18,23 +18,23 @@ GRANT EXECUTE ON SYS.UTL_TCP TO OWNER;
 GRANT EXECUTE ON SYS.UTL_SMTP TO OWNER;
 
 -- uninstall
-DROP PACCKAGE weco_login;
+DROP PACCKAGE data_browser_login;
 
 
-select weco_auth.Get_Admin_Workspace_Name Admin_Workspace_Name,
-	weco_auth.Get_App_Schema_Name App_Schema_Name,
-	weco_auth.client_ip_address Client_Ip_Address,
-	weco_login.Get_App_Base_URL App_Base_URL,
-	weco_login.Get_App_Host_Name App_Host_Name,
-	weco_login.Get_App_Domain_Name App_Domain_Name
+select data_browser_auth.Get_Admin_Workspace_Name Admin_Workspace_Name,
+	data_browser_auth.Get_App_Schema_Name App_Schema_Name,
+	data_browser_auth.client_ip_address Client_Ip_Address,
+	data_browser_login.Get_App_Base_URL App_Base_URL,
+	data_browser_login.Get_App_Host_Name App_Host_Name,
+	data_browser_login.Get_App_Domain_Name App_Domain_Name
 from dual;
 
 */
 
-CREATE OR REPLACE PACKAGE weco_login
+CREATE OR REPLACE PACKAGE data_browser_login
 AUTHID DEFINER -- enable caller to find users (V_CONTEXT_USERS).
 AS
-	c_Job_Name_Prefix 	CONSTANT VARCHAR2(64) := 'WECO_LOGIN_';
+	c_Job_Name_Prefix 	CONSTANT VARCHAR2(64) := 'DBR_LOGIN_';
 
    	FUNCTION Get_App_Base_URL
    	RETURN VARCHAR2;
@@ -122,12 +122,12 @@ AS
 		p_App_ID		IN NUMBER DEFAULT APEX_APPLICATION.G_FLOW_ID
 	);
 
-END weco_login;
+END data_browser_login;
 /
 show errors
 
 -------------------------------------------------------------------------------
-CREATE OR REPLACE PACKAGE BODY weco_login AS
+CREATE OR REPLACE PACKAGE BODY data_browser_login AS
 
    	FUNCTION Get_App_Base_URL
    	RETURN VARCHAR2
@@ -169,7 +169,7 @@ CREATE OR REPLACE PACKAGE BODY weco_login AS
 		if p_Host_Name IS NOT NULL then
 			v_App_Host_Name := p_Host_Name;
 		else
-			v_App_Host_Name := weco_login.Get_App_Host_Name;
+			v_App_Host_Name := data_browser_login.Get_App_Host_Name;
 		end if;	
 		-- remove protocol
 		if INSTR(v_App_Host_Name, '://') > 0 then
@@ -237,8 +237,8 @@ CREATE OR REPLACE PACKAGE BODY weco_login AS
     	v_Mail_type     pls_integer;
     	v_Sender_ID 	NUMBER;
 	BEGIN
-       	v_Workspace := case when weco_login.Custom_VPD_Active then SYS_CONTEXT('CUSTOM_CTX', 'WORKSPACE_NAME') else NULL end;
-		v_Password := weco_auth.Temporary_Password();
+       	v_Workspace := case when data_browser_login.Custom_VPD_Active then SYS_CONTEXT('CUSTOM_CTX', 'WORKSPACE_NAME') else NULL end;
+		v_Password := data_browser_auth.Temporary_Password();
 
 		SELECT case when EMAIL_VALIDATED = 'N' then dbms_random.string('X',32) end TOKEN,
 			case when EMAIL_VALIDATED = 'N' then 3 else 2 end -- 2= requests a new password - account credentials, 3=Guests Invitation - confirm e-mail address
@@ -248,9 +248,9 @@ CREATE OR REPLACE PACKAGE BODY weco_login AS
 
 		UPDATE V_CONTEXT_USERS
 		SET PASSWORD_RESET = 'Y',
-			PASSWORD_HASH = weco_auth.hex_hash(p_User_ID, v_Password),
+			PASSWORD_HASH = data_browser_auth.hex_hash(p_User_ID, v_Password),
 			ACCOUNT_EXPIRATION_DATE = p_Account_Ablaufdatum,
-		    EMAIL_VALIATION_TOKEN = case when EMAIL_VALIDATED = 'N' then weco_auth.hex_hash(p_User_ID, v_Token) end
+		    EMAIL_VALIATION_TOKEN = case when EMAIL_VALIDATED = 'N' then data_browser_auth.hex_hash(p_User_ID, v_Token) end
 		WHERE USER_ID = p_User_ID;
 		COMMIT;
 
@@ -259,7 +259,7 @@ CREATE OR REPLACE PACKAGE BODY weco_login AS
 		from APEX_APPLICATIONS
 		where APPLICATION_ID = p_App_ID;
 		v_Sender_ID := SYS_CONTEXT('CUSTOM_CTX', 'USER_ID');
-		weco_login.Account_Info_Mail (
+		data_browser_login.Account_Info_Mail (
 			p_User_ID				=> p_User_ID,
 			p_Password 				=> v_Password,
 			p_Account_Token			=> v_Token,
@@ -302,7 +302,7 @@ CREATE OR REPLACE PACKAGE BODY weco_login AS
 			return;
 		end;
 
-		weco_login.Guest_New_password (
+		data_browser_login.Guest_New_password (
 			p_User_ID				=> v_User_ID,
 			p_Account_Ablaufdatum 	=> SYSDATE+2,
 			p_App_ID  				=> p_App_ID,
@@ -333,7 +333,7 @@ CREATE OR REPLACE PACKAGE BODY weco_login AS
 		SELECT USER_ID
 		INTO v_User_ID
 		FROM V_CONTEXT_USERS
-		WHERE EMAIL_VALIATION_TOKEN = weco_auth.hex_hash(USER_ID, p_account_token)
+		WHERE EMAIL_VALIATION_TOKEN = data_browser_auth.hex_hash(USER_ID, p_account_token)
 		AND USER_LEVEL < 6
 		AND (TRUNC(ACCOUNT_EXPIRATION_DATE) >= TRUNC(SYSDATE) OR ACCOUNT_EXPIRATION_DATE IS NULL)
 		FOR UPDATE OF EMAIL_VALIATION_TOKEN;
@@ -410,9 +410,9 @@ CREATE OR REPLACE PACKAGE BODY weco_login AS
 			p_Last_Name := v_Last_Name;
 		end if;
 		if p_Login_Name IS NULL then
-			p_Login_Name := weco_login.Get_Unique_Login_Name(p_First_Name, p_Last_Name);
+			p_Login_Name := data_browser_login.Get_Unique_Login_Name(p_First_Name, p_Last_Name);
 		else 
-			p_Login_Name := weco_login.Get_Unique_Login_Name(p_Login_Name);
+			p_Login_Name := data_browser_login.Get_Unique_Login_Name(p_Login_Name);
 		end if;
 	END Split_EMail_Adress;
 	
@@ -501,8 +501,8 @@ CREATE OR REPLACE PACKAGE BODY weco_login AS
 		v_Date_Format   VARCHAR2(20) :='DD-Mon-YYYY';
     	v_Language_Code V_CONTEXT_USERS.LANGUAGE_CODE%TYPE;
 		v_instance_url 	VARCHAR2(1024);
-		v_host_name 	VARCHAR2(1024) := NVL(p_host_name, weco_login.Get_App_Host_Name);
-		v_domain_name   VARCHAR2(1024) := weco_login.Get_App_Domain_Name(p_host_name);
+		v_host_name 	VARCHAR2(1024) := NVL(p_host_name, data_browser_login.Get_App_Host_Name);
+		v_domain_name   VARCHAR2(1024) := data_browser_login.Get_App_Domain_Name(p_host_name);
 		v_confirm_url   VARCHAR2(1024);
 		v_Mail_Footer	VARCHAR2(4000);
 		v_conn 			utl_smtp.connection;
@@ -544,7 +544,7 @@ CREATE OR REPLACE PACKAGE BODY weco_login AS
 		WHERE ID = data_browser_conf.Get_Configuration_ID;
 		v_Mail_From		:= COALESCE(APEX_UTIL.GET_EMAIL(V('APP_USER')), 'info@' || v_domain_name);
 
-		v_instance_url := RTRIM(NVL(p_instance_url, weco_login.Get_App_Base_URL), '/ ');
+		v_instance_url := RTRIM(NVL(p_instance_url, data_browser_login.Get_App_Base_URL), '/ ');
 		v_confirm_url  := v_instance_url || '/f?p=' || p_App_ID 
 			|| ':' || p_Startpage || ':0::::'
 			|| case when p_Workspace IS NOT NULL then 'P' || p_Startpage || '_WORKSPACE_NAME,' end
@@ -644,7 +644,7 @@ CREATE OR REPLACE PACKAGE BODY weco_login AS
 		v_Job_Name_Prefix USER_SCHEDULER_JOBS.JOB_NAME%TYPE := SUBSTR(c_Job_Name_Prefix || p_Job_Name, 1, 18);
 	BEGIN
 		v_Job_Name := dbms_scheduler.generate_job_name (v_Job_Name_Prefix);
-		DBMS_OUTPUT.PUT_LINE('weco_login.Load_Job - start ' || v_Job_Name || '; sql: ' || p_Sql);
+		DBMS_OUTPUT.PUT_LINE('data_browser_login.Load_Job - start ' || v_Job_Name || '; sql: ' || p_Sql);
 		dbms_scheduler.create_job(
 			job_name => v_Job_Name,
 			job_type => 'PLSQL_BLOCK',
@@ -680,9 +680,9 @@ CREATE OR REPLACE PACKAGE BODY weco_login AS
 		else
 			v_Mail_type := 3; -- Invitation
 		end if;
-		v_instance_url 	:= weco_login.Get_App_Base_URL;
-		v_host_name 	:= weco_login.Get_App_Domain_Name;
-       	v_Workspace 	:= case when weco_login.Custom_VPD_Active then SYS_CONTEXT('CUSTOM_CTX', 'WORKSPACE_NAME') end;
+		v_instance_url 	:= data_browser_login.Get_App_Base_URL;
+		v_host_name 	:= data_browser_login.Get_App_Domain_Name;
+       	v_Workspace 	:= case when data_browser_login.Custom_VPD_Active then SYS_CONTEXT('CUSTOM_CTX', 'WORKSPACE_NAME') end;
 		begin
 			select PAGE_ID
 			  into v_startpage
@@ -700,7 +700,7 @@ CREATE OR REPLACE PACKAGE BODY weco_login AS
 		v_Sender_ID := SYS_CONTEXT('CUSTOM_CTX', 'USER_ID');
 		v_sql :=
         'begin ' || chr(10) ||
-        'weco_login.Account_Info_Mail (' || chr(10) ||
+        'data_browser_login.Account_Info_Mail (' || chr(10) ||
         '   p_User_ID       => ' || DBMS_ASSERT.ENQUOTE_LITERAL(p_User_ID) || ', ' || chr(10) ||
         '   p_Password      => ' || DBMS_ASSERT.ENQUOTE_LITERAL(p_Password) || ', ' || chr(10) ||
         '   p_Account_Token => ' || DBMS_ASSERT.ENQUOTE_LITERAL(p_Account_Token) || ', ' || chr(10) ||
@@ -715,7 +715,7 @@ CREATE OR REPLACE PACKAGE BODY weco_login AS
 		DBMS_OUTPUT.PUT('v_sql: ');
 		DBMS_OUTPUT.PUT(v_sql);
 		DBMS_OUTPUT.PUT('-------------------------------------------');
-        weco_login.Load_Job (
+        data_browser_login.Load_Job (
             p_Job_Name => 'ACCOUNT_MAIL',
             p_Comment => 'Send account info mail for data browser application',
             p_Sql => v_sql
@@ -725,7 +725,7 @@ CREATE OR REPLACE PACKAGE BODY weco_login AS
 	  when NO_DATA_FOUND then
 	  	NULL;
 	END Account_Info_Mail_Job;
-END weco_login;
+END data_browser_login;
 /
 show errors
 
@@ -739,16 +739,16 @@ BEGIN
     	:new.LANGUAGE_CODE := COALESCE(:new.LANGUAGE_CODE, APEX_UTIL.GET_SESSION_LANG, 'de');
     	if :new.PASSWORD_HASH IS NULL then
     		:new.PASSWORD_RESET := 'Y';
-    		v_Password := weco_auth.Temporary_Password();
-			:new.PASSWORD_HASH := weco_auth.hex_hash(:new.ID, v_Password);
+    		v_Password := data_browser_auth.Temporary_Password();
+			:new.PASSWORD_HASH := data_browser_auth.hex_hash(:new.ID, v_Password);
     	else
     		v_Password := :new.PASSWORD_HASH;	-- is password may be already hashed by the program.
-    		if Weco_Auth.is_hex_key(:new.PASSWORD_HASH) = 0  then
-				:new.PASSWORD_HASH := weco_auth.hex_hash(:new.ID, v_Password);
+    		if data_browser_auth.is_hex_key(:new.PASSWORD_HASH) = 0  then
+				:new.PASSWORD_HASH := data_browser_auth.hex_hash(:new.ID, v_Password);
 			end if;
     	end if;
 		if :new.EMAIL_ADDRESS IS NOT NULL then 
-			weco_login.Split_EMail_Adress (
+			data_browser_login.Split_EMail_Adress (
 				p_Email => :new.EMAIL_ADDRESS,
 				p_Main_Group_Name => :new.MAIN_GROUP_NAME,
 				p_First_Name => :new.FIRST_NAME,
@@ -758,9 +758,9 @@ BEGIN
 			if :new.PASSWORD_RESET = 'Y' then 
 				:new.ACCOUNT_EXPIRATION_DATE := NVL(:new.ACCOUNT_EXPIRATION_DATE, SYSDATE+2);
 				v_Token := dbms_random.string('X',32);
-				:new.EMAIL_VALIATION_TOKEN :=  weco_auth.hex_hash(:new.ID, v_Token);
-				weco_auth.log_message('APP_USERS_PWD_TR', 'Account_Info_Mail_Job(' || :new.ID ||', ' || v_Password || ', ' || v_Token|| ', ' || V('APP_ID') || ')' );
-				weco_login.Account_Info_Mail_Job(
+				:new.EMAIL_VALIATION_TOKEN :=  data_browser_auth.hex_hash(:new.ID, v_Token);
+				data_browser_auth.log_message('APP_USERS_PWD_TR', 'Account_Info_Mail_Job(' || :new.ID ||', ' || v_Password || ', ' || v_Token|| ', ' || V('APP_ID') || ')' );
+				data_browser_login.Account_Info_Mail_Job(
 					p_User_ID		=> :new.ID,
 					p_Password		=> v_Password,
 					p_Account_Token	=> v_Token,
@@ -769,8 +769,8 @@ BEGIN
 			end if;
 		end if;
     elsif UPDATING then
-		if :new.PASSWORD_HASH IS NOT NULL AND Weco_Auth.is_hex_key(:new.PASSWORD_HASH) = 0  then
-			:new.PASSWORD_HASH := weco_auth.Hex_Hash(:new.ID, :new.PASSWORD_HASH);
+		if :new.PASSWORD_HASH IS NOT NULL AND data_browser_auth.is_hex_key(:new.PASSWORD_HASH) = 0  then
+			:new.PASSWORD_HASH := data_browser_auth.Hex_Hash(:new.ID, :new.PASSWORD_HASH);
 		elsif :new.PASSWORD_HASH IS NULL then
 			:new.PASSWORD_HASH := :old.PASSWORD_HASH;
 		end if;
@@ -785,7 +785,7 @@ set serveroutput on
 set pagesize 0
 set linesize 32767
 begin
-	weco_login.Account_Info_Mail_Job(
+	data_browser_login.Account_Info_Mail_Job(
 		p_User_ID		=> 141424135413816554241736902659090143070,
 		p_Password		=> 'XXX',
 		p_Account_Token	=> 'YYY',

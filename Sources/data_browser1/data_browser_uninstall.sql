@@ -223,8 +223,9 @@ BEGIN
 
     --- conditionally installed packages --
     if v_Schema_Keychain_Exists > 0 then
-        -- weco_login --
-        RUN_STAT('DROP PACKAGE WECO_LOGIN');
+        -- data_browser_login --
+        RUN_STAT('DROP PACKAGE WECO_LOGIN');-- old name
+        RUN_STAT('DROP PACKAGE DATA_BROWSER_LOGIN');
         RUN_STAT('DROP TRIGGER APP_USERS_PWD_TR');
         RUN_STAT('DROP PROCEDURE INIT_APP_PREFERENCES');-- old name
         -- weco_mail --
@@ -232,7 +233,8 @@ BEGIN
         -- weco_auth --
         RUN_STAT('DROP TRIGGER SET_CUSTOM_CTX_TRIG');
         RUN_STAT('DROP PACKAGE WECO_AUTH_MGR'); -- old name
-        RUN_STAT('DROP PACKAGE weco_auth');
+        RUN_STAT('DROP PACKAGE WECO_AUTH'); -- old name
+        RUN_STAT('DROP PACKAGE DATA_BROWSER_AUTH'); 
         RUN_STAT('DROP SYNONYM SCHEMA_KEYCHAIN');
         RUN_STAT('DROP VIEW VCURRENT_WORKSPACE');
         RUN_STAT('DROP VIEW V_CONTEXT_USERS');

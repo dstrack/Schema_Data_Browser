@@ -981,8 +981,8 @@ $END
 	g_Data_Deduction_Array 		apex_t_varchar2 := apex_t_varchar2();
 	g_Yes_No_Columns_Array 		apex_t_varchar2 := apex_t_varchar2();	
 
-	g_Encrypt_Function 			CONSTANT VARCHAR2(128) 	:= 'weco_auth.Hex_Crypt';
-	g_Hash_Function 			CONSTANT VARCHAR2(128) 	:= 'weco_auth.Hex_Hash';
+	g_Encrypt_Function 			CONSTANT VARCHAR2(128) 	:= 'data_browser_auth.Hex_Crypt';
+	g_Hash_Function 			CONSTANT VARCHAR2(128) 	:= 'data_browser_auth.Hex_Hash';
 	g_Sys_Guid_Function 		CONSTANT VARCHAR2(100) := 'TO_NUMBER(SYS_GUID(),''XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX'')';
 	g_MD5_Column_Name 			CONSTANT VARCHAR2(64) := 'ROW_CHECKSUM_MD5$';
 	g_Search_Column_Index 		CONSTANT PLS_INTEGER := 40;

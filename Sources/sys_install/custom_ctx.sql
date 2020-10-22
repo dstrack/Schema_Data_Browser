@@ -21,7 +21,7 @@ i have learned from :
 	http://jeffkemponoracle.com/2013/02/28/apex-and-application-contexts/
 
 
-The following objects must be installed in the application schema with the script weco_auth.sql
+The following objects must be installed in the application schema with the script data_browser_auth.sql
 	table  USER_NAMESPACES must exist -- used to manage namespaces for the applications
 	View V_CONTEXT_USERS must exist -- used to access the user list
 	View V_ERROR_PROTOCOL must exist -- used to register errors
@@ -53,9 +53,9 @@ IS
 	g_ColWorkspaceName  CONSTANT VARCHAR2(32) := 'WORKSPACE_NAME'; 	-- Column Name for Custom Namspace Name
 
     g_TableAppUsers  	CONSTANT VARCHAR2(32) := 'V_CONTEXT_USERS'; 	-- Tabelle Name for Custom Namspace User
-    																	-- see weco_auth.sql for definition
+    																	-- see data_browser_auth.sql for definition
     g_TableErrProtocol 	CONSTANT VARCHAR2(32) := 'V_ERROR_PROTOCOL'; 	-- Tabelle Name for Error Protocol
-    																	-- see weco_auth.sql for definition
+    																	-- see data_browser_auth.sql for definition
 	g_CtxNamespace  	CONSTANT VARCHAR2(32) := 'CUSTOM_CTX';		-- Context Namespace
 	g_CtxUserID		   	CONSTANT VARCHAR2(32) := 'USER_ID';			-- Context Parameter for current user identifier
 	g_CtxUserName   	CONSTANT VARCHAR2(32) := 'USER_NAME';		-- Context Parameter for current user name

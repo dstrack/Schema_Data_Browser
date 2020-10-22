@@ -17,7 +17,7 @@ begin
 		)
 		]';
 		EXECUTE IMMEDIATE v_Stat;
-		-- used in package set_custom_ctx and weco_auth
+		-- used in package set_custom_ctx and data_browser_auth
 		v_stat := q'[
 		CREATE OR REPLACE VIEW V_ERROR_PROTOCOL (ID, LOGGING_USER, LOGGING_DATE, DESCRIPTION, REMARKS )
 		AS

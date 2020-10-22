@@ -118,8 +118,8 @@ IS
 	PROCEDURE First_Run (
 		p_Dest_Schema VARCHAR2,
 		p_Admin_User VARCHAR2,
-		p_Admin_Password VARCHAR2,	-- encrypted by Weco_Auth.Hex_Crypt
-		p_Admin_EMail VARCHAR2,		-- encrypted by Weco_Auth.Hex_Crypt
+		p_Admin_Password VARCHAR2,	-- encrypted by data_browser_auth.Hex_Crypt
+		p_Admin_EMail VARCHAR2,		-- encrypted by data_browser_auth.Hex_Crypt
 		p_Add_Demo_Guest VARCHAR2
 	);
 
@@ -725,15 +725,15 @@ $END
 	PROCEDURE First_Run (
 		p_Dest_Schema VARCHAR2,
 		p_Admin_User VARCHAR2,
-		p_Admin_Password VARCHAR2,	-- encrypted by Weco_Auth.Hex_Crypt
-		p_Admin_EMail VARCHAR2,		-- encrypted by Weco_Auth.Hex_Crypt
+		p_Admin_Password VARCHAR2,	-- encrypted by data_browser_auth.Hex_Crypt
+		p_Admin_EMail VARCHAR2,		-- encrypted by data_browser_auth.Hex_Crypt
 		p_Add_Demo_Guest VARCHAR2
 	)
 	is
 		v_First_Run VARCHAR2(2000);
 	begin
 		v_First_Run := 'begin '
-			|| dbms_assert.enquote_name(p_Dest_Schema) || '.weco_auth.First_Run ('
+			|| dbms_assert.enquote_name(p_Dest_Schema) || '.data_browser_auth.First_Run ('
 			|| 'p_Admin_User => ' || dbms_assert.enquote_literal(p_Admin_User)
 			|| ',p_Admin_Password => ' || dbms_assert.enquote_literal(p_Admin_Password)
 			|| ',p_Admin_EMail => ' || dbms_assert.enquote_literal(p_Admin_EMail)

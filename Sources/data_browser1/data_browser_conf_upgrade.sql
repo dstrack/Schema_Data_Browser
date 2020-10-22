@@ -38,15 +38,17 @@ DECLARE -- remove packages from previous installation
 BEGIN
     RUN_STAT('DROP VIEW VUSER_TABLES_IMP');
     RUN_STAT('DROP VIEW VUSER_TABLES_IMP_JOINS');
-    RUN_STAT('DROP VIEW VUSER_TABLES_IMP_TRIGGER');	-- old name
-    RUN_STAT('DROP VIEW VUSER_TABLES_IMP_COLUMNS');	-- old name
+    RUN_STAT('DROP VIEW VUSER_TABLES_IMP_TRIGGER'); -- old name
+    RUN_STAT('DROP VIEW VUSER_TABLES_IMP_COLUMNS'); -- old name
     RUN_STAT('DROP VIEW VUSER_TABLES_IMP_LINK'); -- old name
     RUN_STAT('DROP VIEW VBASE_VIEWS'); -- old name
     RUN_STAT('DROP MATERIALIZED VIEW MVDATA_BROWSER_FC_REFS'); -- old name
     RUN_STAT('DROP MATERIALIZED VIEW MVDATA_BROWSER_QC_REFS'); -- old name
     RUN_STAT('DROP MATERIALIZED VIEW MVDATA_BROWSER_Q_REFS'); -- old name
-	-- Drop packages that define record types
+    -- Drop packages that define record types
     RUN_STAT('DROP PACKAGE WECO_AUTH_MGR');-- old name
+    RUN_STAT('DROP PACKAGE WECO_AUTH'); -- old name
+    RUN_STAT('DROP PACKAGE WECO_LOGIN'); -- old name
     RUN_STAT('DROP PACKAGE CUSTOM_CHANGELOG_GEN');
     RUN_STAT('DROP PACKAGE CUSTOM_CHANGELOG');
     RUN_STAT('DROP PACKAGE DATA_BROWSER_CONF');
@@ -61,8 +63,8 @@ BEGIN
     RUN_STAT('DROP VIEW VDATA_BROWSER_SPECIAL_COLS'); -- old name
     RUN_STAT('DROP VIEW VDATA_BROWSER_IMPORT_COLS');-- old name
     RUN_STAT('DROP VIEW VUSER_FOREIGN_KEY_PARENTS'); -- old name
-	RUN_STAT('DROP VIEW VBASE_TRIGGER');-- old name
-	-- Drop old names - now in package data_brwoser_diagram_utl
+    RUN_STAT('DROP VIEW VBASE_TRIGGER');-- old name
+    -- Drop old names - now in package data_brwoser_diagram_utl
     RUN_STAT('DROP PROCEDURE OBJECT_DEPENDENCIES_JS');
     RUN_STAT('DROP PROCEDURE USER_OBJECT_DEPENDENCIES_JS');
     RUN_STAT('DROP PROCEDURE SPRINGY_DIAGRAMM_JS'); -- old name
@@ -71,7 +73,7 @@ BEGIN
     RUN_STAT('DROP VIEW APP_ALL_OBJECT_DEPENDENCIES_V'); -- old name
     RUN_STAT('DROP VIEW APP_USER_OBJECT_DEPENDENCIES_V'); -- old name
 
-	-- Drop packages that define record types
+    -- Drop packages that define record types
     RUN_STAT('DROP PACKAGE DATA_BROWSER_DIAGRAM_PIPES');
     RUN_STAT('DROP PACKAGE DATA_BROWSER_JOBS');
     RUN_STAT('DROP PACKAGE DATA_BROWSER_PIPES');
@@ -85,27 +87,27 @@ END;
 DECLARE
     v_Count NUMBER;
 BEGIN
-	LOOP
-		v_Count := 0;
-		FOR s_cur IN (
-			SELECT 'DROP TYPE ' || OBJECT_NAME  STAT
-			FROM USER_OBJECTS WHERE OBJECT_TYPE = 'TYPE' AND OBJECT_NAME LIKE 'SYS_PLSQL%'
-		) LOOP
-			BEGIN
-				EXECUTE IMMEDIATE s_cur.STAT;
-				DBMS_OUTPUT.PUT_LINE(s_cur.STAT || ';');
-			EXCEPTION
-			  WHEN OTHERS THEN
-				IF SQLCODE != -2303 
-				AND SQLCODE != -60 -- deadlock detected while waiting for resource
-				THEN
-					RAISE;
-				END IF;
-			END;
-			v_Count := v_Count + 1;
-		END LOOP;
-		EXIT WHEN v_Count = 0;
-	END LOOP;
+    LOOP
+        v_Count := 0;
+        FOR s_cur IN (
+            SELECT 'DROP TYPE ' || OBJECT_NAME  STAT
+            FROM USER_OBJECTS WHERE OBJECT_TYPE = 'TYPE' AND OBJECT_NAME LIKE 'SYS_PLSQL%'
+        ) LOOP
+            BEGIN
+                EXECUTE IMMEDIATE s_cur.STAT;
+                DBMS_OUTPUT.PUT_LINE(s_cur.STAT || ';');
+            EXCEPTION
+              WHEN OTHERS THEN
+                IF SQLCODE != -2303 
+                AND SQLCODE != -60 -- deadlock detected while waiting for resource
+                THEN
+                    RAISE;
+                END IF;
+            END;
+            v_Count := v_Count + 1;
+        END LOOP;
+        EXIT WHEN v_Count = 0;
+    END LOOP;
 END;
 /
 

@@ -208,7 +208,7 @@ IS
 	g_ChangLog_Stale_Call 		VARCHAR2(2000) 	:= 'custom_changelog_gen.MViews_Stale_Count';
 	g_App_Setting_publish_Date	CONSTANT VARCHAR2(50) := 'TRANSLATIONS_PUBLISHED_DATE';
 	g_Jobs_Collection			CONSTANT VARCHAR2(50) := 'SCHEDULER_JOBS';
-	g_Encrypt_Function 			CONSTANT VARCHAR2(128) 	:= 'weco_auth.Hex_Crypt';
+	g_Encrypt_Function 			CONSTANT VARCHAR2(128) 	:= 'data_browser_auth.Hex_Crypt';
 	g_CtxTimestampFormat 		CONSTANT VARCHAR2(64)	:= 'DD.MM.YYYY HH24.MI.SS';
 
 	g_Refresh_MViews_Proc_Name 	CONSTANT	VARCHAR2(128) := 'Refresh snapshots for data browser application';

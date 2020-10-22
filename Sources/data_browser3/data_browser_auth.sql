@@ -21,17 +21,17 @@ package for Apex custom authentication via user name and encrypted password
 
 Setting for Apex Custom Authentification Schema :
 
-	Sentry Function Name : weco_auth.page_sentry
+	Sentry Function Name : data_browser_auth.page_sentry
 
-	Authentication Function Name : weco_auth.authenticate
+	Authentication Function Name : data_browser_auth.authenticate
 
-	Post Logout Procedure Name : weco_auth.post_logout
+	Post Logout Procedure Name : data_browser_auth.post_logout
 
-	Post-Authentication Procedure Name : weco_auth.post_authenticate
+	Post-Authentication Procedure Name : data_browser_auth.post_authenticate
 
 	Error Handling Function : #OWNER#.apex_error_handling
 
-	Verify Function Name ; weco_auth.check_session_schema
+	Verify Function Name ; data_browser_auth.check_session_schema
 
 	Authorization Scheme : APPLICATION_SENTRY
 Setting for Application / Edit Security Attributes
@@ -39,8 +39,8 @@ Database Session
 	Initialization PL/SQL Code: 
 
 currently not used
--- weco_auth.page_sentry
--- weco_auth.check_session_schema
+-- data_browser_auth.page_sentry
+-- data_browser_auth.check_session_schema
 
 -- required privileges:
 GRANT EXECUTE ON SYS.DBMS_CRYPTO TO OWNER;
@@ -51,7 +51,7 @@ DROP SYNONYM SCHEMA_KEYCHAIN;
 DROP VIEW VCURRENT_WORKSPACE;
 DROP VIEW V_CONTEXT_USERS;
 DROP VIEW V_ERROR_PROTOCOL;
-DROP PACKAGE weco_auth;
+DROP PACKAGE data_browser_auth;
 DROP TABLE APP_PREFERENCES;
 DROP TABLE APP_USERS;
 DROP TABLE APP_PROTOCOL;
@@ -94,7 +94,7 @@ FROM USER_NAMESPACES
 WHERE WORKSPACE$_ID = custom_changelog.Get_Current_Workspace_ID
 WITH CHECK OPTION;
 
-CREATE OR REPLACE PACKAGE weco_auth
+CREATE OR REPLACE PACKAGE data_browser_auth
 AUTHID DEFINER -- enable caller to find users (V_CONTEXT_USERS).
 IS
     FUNCTION Get_Admin_Workspace_Name RETURN VARCHAR2;
@@ -190,8 +190,8 @@ $END
 
 	PROCEDURE First_Run (
 		p_Admin_User VARCHAR2 DEFAULT SYS_CONTEXT('APEX$SESSION','APP_USER'),
-		p_Admin_Password VARCHAR2,	-- encrypted by Weco_Auth.Hex_Crypt
-		p_Admin_EMail VARCHAR2,		-- encrypted by Weco_Auth.Hex_Crypt
+		p_Admin_Password VARCHAR2,	-- encrypted by data_browser_auth.Hex_Crypt
+		p_Admin_EMail VARCHAR2,		-- encrypted by data_browser_auth.Hex_Crypt
 		p_Add_Demo_Guest VARCHAR2 DEFAULT 'NO'
 	);
 
@@ -237,11 +237,11 @@ $END
 	-- post_logout called in apex custom authorization schema
     PROCEDURE post_logout;
 
-END weco_auth;
+END data_browser_auth;
 /
 show errors
 
-CREATE OR REPLACE PACKAGE BODY weco_auth IS
+CREATE OR REPLACE PACKAGE BODY data_browser_auth IS
     g_NewUserIDFunction CONSTANT VARCHAR2(100) := 'to_number(sys_guid(),''XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX'')';
     -- g_NewUserIDFunction CONSTANT VARCHAR2(100) := 'APP_USERS_SEQ.NEXTVAL';
     g_AppUserExt   		CONSTANT VARCHAR2(10)   := '_APP_USER';	-- Extension for schema name of application user
@@ -454,7 +454,7 @@ $END
 		OPEN  stat_cur FOR
 			'SELECT COUNT(*) FROM '
 			|| DBMS_ASSERT.ENQUOTE_NAME(p_Table_Name)
-    		|| ' WHERE weco_auth.is_hex_key(' || DBMS_ASSERT.ENQUOTE_NAME(p_Column_Name) || ') > 0';
+    		|| ' WHERE data_browser_auth.is_hex_key(' || DBMS_ASSERT.ENQUOTE_NAME(p_Column_Name) || ') > 0';
 		FETCH stat_cur INTO v_cnt;
 		RETURN v_cnt;
 	EXCEPTION
@@ -496,7 +496,7 @@ $END
 		COMMIT;
 	EXCEPTION
 	WHEN OTHERS THEN
-		DBMS_OUTPUT.PUT_LINE('weco_auth.log_message - failed with ' || SQLERRM);
+		DBMS_OUTPUT.PUT_LINE('data_browser_auth.log_message - failed with ' || SQLERRM);
 	END;
 
 
@@ -556,17 +556,17 @@ $END
 	BEGIN
 		custom_changelog.set_new_workspace(SYS_CONTEXT('USERENV', 'CURRENT_SCHEMA'));
 		-- Enable APEX_PUBLIC_USER as app user
-		weco_auth.add_user(p_Username => SYS_CONTEXT('USERENV', 'SESSION_USER'), p_Password => Temporary_Password, p_Account_Locked => 'Y');
+		data_browser_auth.add_user(p_Username => SYS_CONTEXT('USERENV', 'SESSION_USER'), p_Password => Temporary_Password, p_Account_Locked => 'Y');
 		if p_Username IS NOT NULL and p_Password IS NOT NULL then
 			begin
-				weco_auth.add_user(
+				data_browser_auth.add_user(
 					p_Username => p_Username,
 					p_Email    => p_Email,
 					p_Password => p_Password,
 					p_User_level => 1,
 					p_Password_Reset => 'N'
 				);
-				weco_auth.change_password(
+				data_browser_auth.change_password(
 					p_Username => p_Username,
 					p_Password => p_Password
 				);
@@ -597,8 +597,8 @@ $END
 
 	PROCEDURE First_Run (
 		p_Admin_User VARCHAR2 DEFAULT SYS_CONTEXT('APEX$SESSION','APP_USER'),
-		p_Admin_Password VARCHAR2,	-- encrypted by Weco_Auth.Hex_Crypt
-		p_Admin_EMail VARCHAR2,		-- encrypted by Weco_Auth.Hex_Crypt
+		p_Admin_Password VARCHAR2,	-- encrypted by data_browser_auth.Hex_Crypt
+		p_Admin_EMail VARCHAR2,		-- encrypted by data_browser_auth.Hex_Crypt
 		p_Add_Demo_Guest VARCHAR2 DEFAULT 'NO'
 	)
 	is
@@ -608,13 +608,13 @@ $END
 		if v_Count = 0 then 
 			-- first run : add admin, demo, guest accounts
 $IF data_browser_specs.g_use_dbms_crypt $THEN
-			weco_auth.Add_Admin(
+			data_browser_auth.Add_Admin(
 				p_Username => p_Admin_User,
-				p_Password => weco_auth.hex_dcrypt( p_Admin_Password ),
-				p_email => weco_auth.hex_dcrypt (p_Admin_EMail )
+				p_Password => data_browser_auth.hex_dcrypt( p_Admin_Password ),
+				p_email => data_browser_auth.hex_dcrypt (p_Admin_EMail )
 			);
 $ELSE
-			weco_auth.Add_Admin(
+			data_browser_auth.Add_Admin(
 				p_Username => p_Admin_User,
 				p_Password => p_Admin_Password,
 				p_email => p_Admin_EMail
@@ -624,13 +624,13 @@ $END
 		if p_Add_Demo_Guest = 'YES' then 
 			select count(*) into v_Count from V_CONTEXT_USERS where UPPER_LOGIN_NAME = 'DEMO';
 			if v_Count = 0 then 
-				weco_auth.Add_User(
+				data_browser_auth.Add_User(
 					p_Username => 'Demo',
 					p_Password => 'Demo/2945',
 					p_User_level => 1,
 					p_Password_Reset => 'N'
 				);
-				weco_auth.Add_User(
+				data_browser_auth.Add_User(
 					p_Username => 'Guest',
 					p_Password => 'Guess/2945',
 					p_User_level => 6,
@@ -782,7 +782,7 @@ $END
       v_reset_pw 		V_CONTEXT_USERS.Password_Reset%type;
       v_expire_date		V_CONTEXT_USERS.Password_Expiration_Date%type;
       v_redirect_url	VARCHAR2(200);
-      v_client_ip_address VARCHAR2(255) := SUBSTR(weco_auth.client_ip_address(), 1, 255);
+      v_client_ip_address VARCHAR2(255) := SUBSTR(data_browser_auth.client_ip_address(), 1, 255);
 	BEGIN
 		SELECT USER_ID, UPPER_LOGIN_NAME, Password_Hash, Password_Reset, Password_Expiration_Date
 		INTO v_id, v_user, v_pwd_hash, v_reset_pw, v_expire_date
@@ -942,7 +942,7 @@ $END
 		log_message(v_Message, v_User);
 	END;
 
-END weco_auth;
+END data_browser_auth;
 /
 show errors
 
@@ -970,7 +970,7 @@ end;
 
 /*
 
-begin if weco_auth.authenticate('DIRK', 'abc') then dbms_output.PUT_LINE('OK'); else dbms_output.PUT_LINE('failed'); end if; end;
+begin if data_browser_auth.authenticate('DIRK', 'abc') then dbms_output.PUT_LINE('OK'); else dbms_output.PUT_LINE('failed'); end if; end;
 /
 
 
