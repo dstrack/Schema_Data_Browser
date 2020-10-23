@@ -843,13 +843,26 @@ IS
 		IS 	
 		select /*+ RESULT_CACHE */
 			TABLE_NAME, OWNER, NUM_ROWS
-		from SYS.ALL_TABLES;
-
+		from SYS.ALL_TABLES A
+		where A.OWNER NOT IN ('SYS', 'SYSTEM', 'SYSAUX', 'CTXSYS', 'MDSYS', 'OUTLN')
+		and A.TABLE_NAME NOT LIKE 'DR$%$_'  -- skip fulltext index
+		and A.TABLE_NAME NOT LIKE 'DR$%$_'  -- skip fulltext index
+        AND A.TEMPORARY = 'N'	-- skip temporary tables
+        AND A.SECONDARY = 'N'
+        AND A.NESTED = 'NO'
+		;
+		
 		CURSOR user_objects_cur
 		IS 	
 		select /*+ RESULT_CACHE */
 			TABLE_NAME, SYS_CONTEXT('USERENV', 'CURRENT_SCHEMA') OWNER, NUM_ROWS
-		from SYS.USER_TABLES;
+		from SYS.USER_TABLES A
+		where A.TABLE_NAME NOT LIKE 'DR$%$_'  -- skip fulltext index
+		and A.TABLE_NAME NOT LIKE 'DR$%$_'  -- skip fulltext index
+        AND A.TEMPORARY = 'N'	-- skip temporary tables
+        AND A.SECONDARY = 'N'
+        AND A.NESTED = 'NO'
+		;
 
 		v_in_rows tab_table_numrows;
 	BEGIN

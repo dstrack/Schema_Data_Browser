@@ -3706,7 +3706,7 @@ $END
 						p_Data_Precision => DATA_PRECISION,
 						p_Data_Scale => DATA_SCALE,
 						p_Char_Length => CHAR_LENGTH,
-						p_Data_Format => case when R_VIEW_NAME IS NULL then 'FORM' else 'CSV' end,
+						p_Data_Format => case when R_VIEW_NAME IS NULL then 'FORM' else 'NATIVE' end,
 						p_Use_Trim => 'Y',
 						p_Datetime => IS_DATETIME
 					) C_COLUMN_EXPR,
