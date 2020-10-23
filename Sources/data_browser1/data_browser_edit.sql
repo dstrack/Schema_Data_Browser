@@ -314,18 +314,18 @@ $END
     	dbms_lob.createtemporary(v_Result_Stat, true, dbms_lob.call);
 		for c_cur IN ( -- single column checks
 			WITH EDIT_Q AS (
-				SELECT R_VIEW_NAME, R_COLUMN_NAME, COLUMN_NAME, REF_COLUMN_NAME, COLUMN_HEADER, CHECK_CONDITION,
-					REQUIRED, NULLABLE, CHECK_UNIQUE, FORMAT_MASK, DATA_TYPE, DATA_SCALE, DATA_DEFAULT, TABLE_ALIAS,
-					IS_PRIMARY_KEY, IS_SEARCH_KEY, IS_VIRTUAL_COLUMN, CONSTRAINT_NAME, APEX_ITEM_IDX, COLUMN_EXPR_TYPE, ROW_FACTOR, ROW_OFFSET, 
+				SELECT B.R_VIEW_NAME, B.R_COLUMN_NAME, B.COLUMN_NAME, B.REF_COLUMN_NAME, B.COLUMN_HEADER, D.CHECK_CONDITION,
+					B.REQUIRED, B.NULLABLE, B.CHECK_UNIQUE, B.FORMAT_MASK, B.DATA_TYPE, B.DATA_SCALE, B.DATA_DEFAULT, B.TABLE_ALIAS,
+					B.IS_PRIMARY_KEY, B.IS_SEARCH_KEY, B.IS_VIRTUAL_COLUMN, B.APEX_ITEM_IDX, B.COLUMN_EXPR_TYPE, B.ROW_FACTOR, B.ROW_OFFSET, 
 					APEX_ITEM_REF, INPUT_ID,  SUBSTR(INPUT_ID, 1, 1)  S_REF_TYPE, -- C,N
 					IS_NUMBER_YES_NO_COLUMN, IS_CHAR_YES_NO_COLUMN,
 					case when p_Data_Source = 'COLLECTION' then
 						'p_cur.' || INPUT_ID
 					else
 						data_browser_edit.Get_Apex_Item_Call (
-							p_Idx 			=> APEX_ITEM_IDX,
-							p_Row_Factor	=> ROW_FACTOR,
-							p_Row_Offset	=> ROW_OFFSET,
+							p_Idx 			=> B.APEX_ITEM_IDX,
+							p_Row_Factor	=> B.ROW_FACTOR,
+							p_Row_Offset	=> B.ROW_OFFSET,
 							p_Row_Number	=> 'p_Row'
 						)
 					end APEX_ITEM_CALL
@@ -342,8 +342,8 @@ $END
 						p_Parent_Key_Column => p_Parent_Key_Column,
 						p_Parent_Key_Visible => p_Parent_Key_Visible,
 						p_Parent_Key_Item => p_Parent_Key_Item
-					)
-				)
+					)) B
+					LEFT OUTER JOIN MVDATA_BROWSER_CHECKS_DEFS D ON D.VIEW_NAME = B.REF_VIEW_NAME AND D.COLUMN_NAME = B.REF_COLUMN_NAME AND D.CONS_COLS_COUNT = 1				
 			), REFERENCES_Q AS (
 				SELECT A.*,
 					case when DATA_DEFAULT IS NOT NULL -- unique check on virtual column
@@ -378,7 +378,7 @@ $END
 					p_Data_Source 	=> p_Data_Source,
 					p_Item_Type 	=> COLUMN_EXPR_TYPE
 				) APEX_ITEM_CELL_ID,
-				IS_PRIMARY_KEY, IS_SEARCH_KEY, CONSTRAINT_NAME, INPUT_ID,
+				IS_PRIMARY_KEY, IS_SEARCH_KEY, INPUT_ID,
 				case when CHECK_UNIQUE = 'Y' and TABLE_ALIAS = 'A' 
 				and NOT(v_Has_Scalar_Key = 'NO' and p_Data_Source = 'COLLECTION') then -- only lookup Scalar Primary Key
 					data_browser_conf.Enquote_Name_Required(R_VIEW_NAME)
@@ -399,7 +399,7 @@ $END
 						)
 					end
 				end UNIQUE_QUERY,
-				case when CHECK_CONDITION IS NOT NULL
+				case when CHECK_CONDITION IS NOT NULL -- and CONSTRAINT_NAME != 'AUTOMATICALLY'
 					and T.APEX_ITEM_COLUMNS IS NULL then
 					'(SELECT '
 					|| data_browser_conf.Get_Char_to_Type_Expr (
@@ -412,7 +412,7 @@ $END
 						p_USE_GROUP_SEPARATOR => v_Use_Group_Separator,
 						p_use_NLS_params => case when p_Data_Source = 'COLLECTION' then 'Y' else 'N' end
 					)
-					|| ' ' || R_COLUMN_NAME || ' FROM DUAL) WHERE ' 
+					|| ' ' || REF_COLUMN_NAME || ' FROM DUAL) WHERE ' 
 					|| case when p_Data_Source = 'COLLECTION' and IS_NUMBER_YES_NO_COLUMN = 'Y' then 
 							data_browser_conf.Get_Yes_No_Check('NUMBER', R_COLUMN_NAME)
 						when p_Data_Source = 'COLLECTION' and IS_CHAR_YES_NO_COLUMN = 'Y' then 
@@ -525,11 +525,15 @@ $END
 						case when c_cur.CHECK_QUERY IS NOT NULL
 						 or c_cur.FORMAT_MASK IS NOT NULL then
 							NL(12) ||
-							'exception '
+							'exception'
 						end ||
-						case when c_cur.CHECK_QUERY IS NOT NULL -- and c_cur.CONSTRAINT_NAME != 'AUTOMATICALLY'
+						case when c_cur.CHECK_QUERY IS NOT NULL 
 						then
-							' when no_data_found then' || NL(16) ||
+							case when c_cur.FORMAT_MASK IS NOT NULL 
+								then ' when no_data_found then' 
+								else ' when others then'
+							end
+							|| NL(16) ||
 								register_error_call (
 									p_Table_Name => p_Table_Name,
 									p_Key_Column => v_Search_Key_Cols,
@@ -1524,8 +1528,8 @@ $END
 					|| ' ' || R_COLUMN_NAME || ' FROM DUAL) WHERE ' || CHECK_CONDITION
 				end CHECK_QUERY
 			from (
-				SELECT R_VIEW_NAME, COLUMN_NAME, R_COLUMN_NAME, COLUMN_HEADER, CHECK_CONDITION,
-					REQUIRED, CHECK_UNIQUE, FORMAT_MASK, DATA_TYPE, DATA_SCALE, APEX_ITEM_REF
+				SELECT B.R_VIEW_NAME, B.COLUMN_NAME, B.R_COLUMN_NAME, B.COLUMN_HEADER, D.CHECK_CONDITION,
+					B.REQUIRED, B.CHECK_UNIQUE, B.FORMAT_MASK, B.DATA_TYPE, B.DATA_SCALE, B.APEX_ITEM_REF
 				FROM TABLE (data_browser_edit.Get_Form_Edit_Cursor (
 						p_Table_Name => p_Table_name,
 						p_Unique_Key_Column => p_Key_Column,
@@ -1535,10 +1539,11 @@ $END
 						p_Report_Mode => 'NO',
 						p_Join_Options => p_Join_Options
 					)
-				)
-				WHERE COLUMN_NAME = p_Column_Name
-				AND APEX_ITEM_REF IS NOT NULL
-				AND IS_SEARCH_KEY = 'N'
+				) B
+				LEFT OUTER JOIN MVDATA_BROWSER_CHECKS_DEFS D ON D.VIEW_NAME = B.REF_VIEW_NAME AND D.COLUMN_NAME = B.REF_COLUMN_NAME AND D.CONS_COLS_COUNT = 1
+				WHERE B.COLUMN_NAME = p_Column_Name
+				AND B.APEX_ITEM_REF IS NOT NULL
+				AND B.IS_SEARCH_KEY = 'N'
 			)
 		) loop
 			$IF data_browser_conf.g_debug $THEN
@@ -1749,18 +1754,12 @@ $END
 		for c_cur IN ( -- single column checks
 				select S.R_VIEW_NAME, S.R_TABLE_NAME, S.COLUMN_NAME, S.R_COLUMN_NAME, S.COLUMN_HEADER,
 					S.REF_VIEW_NAME, S.REF_TABLE_NAME, S.REF_COLUMN_NAME, 
-					S.CHECK_CONDITION, S.CONSTRAINT_NAME,
+					D.CHECK_CONDITION, D.CONSTRAINT_NAME,
 					S.REQUIRED, S.CHECK_UNIQUE, S.FORMAT_MASK, 
 					C.DATA_TYPE, C.DATA_PRECISION, C.DATA_SCALE, C.CHAR_LENGTH,
 					C.HAS_DEFAULT,  
-					/*case when C.HAS_DEFAULT = 'Y' then 
-						data_browser_conf.Get_ColumnDefaultText (
-							p_Table_Name =>S.REF_TABLE_NAME, 
-							p_Owner => T.TABLE_OWNER, 
-							p_Column_Name => S.REF_COLUMN_NAME) 
-					end DATA_DEFAULT,*/
-					C.DATA_DEFAULT,
-					S.APEX_ITEM_REF, S.COLUMN_EXPR_TYPE,
+					D.DATA_DEFAULT,
+					S.COLUMN_EXPR_TYPE,
 					S.IS_BLOB, S.IS_AUDIT_COLUMN, S.IS_OBFUSCATED, S.IS_UPPER_NAME, S.IS_NUMBER_YES_NO_COLUMN, S.IS_CHAR_YES_NO_COLUMN, 
 					S.IS_REFERENCE, S.IS_SEARCHABLE_REF, 
 					S.IS_PASSWORD, S.TABLE_ALIAS, 
@@ -1780,7 +1779,7 @@ $END
 					case when S.COLUMN_NAME IN (T.FILE_FOLDER_COLUMN_NAME, T.FOLDER_NAME_COLUMN_NAME, T.FOLDER_PARENT_COLUMN_NAME)
 						then 'Y' else 'N' end IS_FOLDER_META_FIELD
 				from MVDATA_BROWSER_VIEWS T
-				, TABLE (data_browser_edit.Get_Form_Edit_Cursor (
+				, TABLE (data_browser_select.Get_View_Column_Cursor (
 						p_Table_Name => T.VIEW_NAME,
 						p_Unique_Key_Column => T.SEARCH_KEY_COLS,
 						p_View_Mode => p_View_Mode,
@@ -1793,6 +1792,7 @@ $END
 				) S 
 				left outer join MVDATA_BROWSER_SIMPLE_COLS C on S.R_VIEW_NAME = C.VIEW_NAME and S.R_COLUMN_NAME = C.COLUMN_NAME
 				left outer join SYS.USER_TAB_COLS TC on S.REF_TABLE_NAME = TC.TABLE_NAME and S.REF_COLUMN_NAME = TC.COLUMN_NAME
+				LEFT OUTER JOIN MVDATA_BROWSER_CHECKS_DEFS D ON D.VIEW_NAME = S.REF_VIEW_NAME AND D.COLUMN_NAME = S.REF_COLUMN_NAME AND D.CONS_COLS_COUNT = 1
 				where S.COLUMN_NAME = p_Column_Name
 				and T.VIEW_NAME = p_Table_name
 		) loop
@@ -1949,7 +1949,7 @@ $END
 			SELECT B.VIEW_NAME, B.CONSTRAINT_NAME, B.CHECK_CONDITION, B.CHECK_UNIQUE,
 				LISTAGG(A.COLUMN_HEADER, ', ') WITHIN GROUP (ORDER BY A.COLUMN_ID, A.POSITION) COLUMN_NAMES
 			FROM MVDATA_BROWSER_VIEWS T
-				, TABLE (data_browser_edit.Get_Form_Edit_Cursor (
+				, TABLE (data_browser_select.Get_View_Column_Cursor (
 					p_Table_Name => T.VIEW_NAME,
 					p_Unique_Key_Column => T.SEARCH_KEY_COLS,
 					p_View_Mode => p_View_Mode,
@@ -1967,8 +1967,9 @@ $END
 					where S.VIEW_NAME = p_Table_name
 					and S.CONS_COLS_COUNT > 1  -- multiple columns unique constraints
 				) B
-			WHERE A.REF_COLUMN_NAME = B.COLUMN_NAME
+			WHERE A.R_COLUMN_NAME = B.COLUMN_NAME
 			AND T.VIEW_NAME = p_Table_name
+			AND A.COLUMN_EXPR_TYPE != 'HIDDEN'
 			GROUP BY B.VIEW_NAME, B.CONSTRAINT_NAME, B.CHECK_CONDITION, B.CHECK_UNIQUE
 			HAVING SUM(case when A.COLUMN_NAME = p_Column_Name then 1 else 0 end ) > 0
 		) loop
@@ -2678,7 +2679,7 @@ $END
 					IS_REFERENCE, IS_SEARCHABLE_REF, IS_SUMMAND, IS_VIRTUAL_COLUMN, IS_DATETIME,
 					CHECK_UNIQUE, FORMAT_MASK, LOV_QUERY,
 					DATA_DEFAULT,
-					CHECK_CONDITION, CHECK_CONSTRAINT_NAME, CONSTRAINT_NAME, COLUMN_ALIGN, COLUMN_HEADER,
+					COLUMN_ALIGN, COLUMN_HEADER,
 					COLUMN_EXPR, COLUMN_EXPR_TYPE,
 					case when IS_VIRTUAL_COLUMN = 'Y' then 
 				    	case p_Data_Source when 'COLLECTION' then DATA_DEFAULT
@@ -2760,7 +2761,7 @@ $END
 							p_Format_Mask	=> FORMAT_MASK,
 							p_LOV_Query		=> LOV_QUERY,
 							p_Check_Unique	=> CHECK_UNIQUE,
-							p_Check_Range	=> case when CHECK_CONDITION IS NOT NULL then 'Y' else 'N' end,
+							p_Check_Range	=> HAS_RANGE_CHECK,
 							p_Field_Length 	=> FIELD_LENGTH,
 							p_Nullable		=> NULLABLE,
 							p_Data_Source	=> p_Data_Source,
@@ -2797,7 +2798,7 @@ $END
 						IS_AUDIT_COLUMN, IS_OBFUSCATED, IS_UPPER_NAME,
 						IS_NUMBER_YES_NO_COLUMN, IS_CHAR_YES_NO_COLUMN, 
 						IS_REFERENCE, IS_SEARCHABLE_REF, IS_SUMMAND, IS_VIRTUAL_COLUMN, IS_DATETIME,
-						CHECK_UNIQUE, FORMAT_MASK, 
+						CHECK_UNIQUE, HAS_RANGE_CHECK, FORMAT_MASK, 
 						case when COLUMN_EXPR_TYPE IN ('SELECT_LIST_FROM_QUERY', 'POPUPKEY_FROM_LOV') then
 							data_browser_select.Get_Ref_LOV_Query (	-- inject query with filter condition using p_Parent_Key_Item
 								p_Table_Name => T.R_VIEW_NAME,
@@ -2851,7 +2852,7 @@ $END
 							else
 								T.DATA_DEFAULT
 						end DATA_DEFAULT,
-						T.CHECK_CONDITION, T.CHECK_CONSTRAINT_NAME, T.CONSTRAINT_NAME, T.COLUMN_ALIGN,
+						T.COLUMN_ALIGN,
 						T.COLUMN_HEADER, T.COLUMN_EXPR, T.COLUMN_EXPR_TYPE,
 						T.FIELD_LENGTH, T.DISPLAY_IN_REPORT, T.COLUMN_DATA,
 						T.R_TABLE_NAME, T.R_VIEW_NAME, T.R_COLUMN_NAME,
@@ -2888,49 +2889,44 @@ $END
 						B.IS_DATETIME, 
 						B.CHECK_UNIQUE,
 						B.FORMAT_MASK,
-						case when B.COLUMN_EXPR_TYPE IN ( 'NUMBER', 'TEXT' )
-							and D.IS_SIMPLE_IN_LIST = 'Y'
-								then D.STATIC_LOV_EXPR
-							else B.LOV_QUERY
-						end LOV_QUERY,
-						case when D.DATA_DEFAULT IS NOT NULL then 
+						B.LOV_QUERY,
+						case when B.DATA_DEFAULT IS NOT NULL then 
 							case when B.R_TABLE_NAME = B.REF_TABLE_NAME
 							and B.R_COLUMN_NAME = B.REF_COLUMN_NAME then 
-								TRIM(TO_CHAR(D.DATA_DEFAULT))
+								TRIM(TO_CHAR(B.DATA_DEFAULT))
 							when  COLUMN_EXPR_TYPE = 'POPUP_FROM_LOV' then
 								data_browser_conf.Enquote_Literal (
 									data_browser_utl.Lookup_Column_Values (
 										p_Table_Name    => B.REF_VIEW_NAME,
 										p_Column_Names  => B.REF_COLUMN_NAME,
 										p_Search_Key_Col => null,
-										p_Search_Value  => data_browser_conf.Dequote_Literal(D.DATA_DEFAULT),
+										p_Search_Value  => data_browser_conf.Dequote_Literal(B.DATA_DEFAULT),
 										p_View_Mode		=> p_View_Mode
 									)
 								)
 							else 
-								TO_CHAR(D.DATA_DEFAULT)
+								TO_CHAR(B.DATA_DEFAULT)
 							end 
 						end DATA_DEFAULT,
-						case when NOT(D.CHECK_CONSTRAINT_NAME = 'AUTOMATICALLY' 
-							and (D.IS_FOREIGN_KEY = 'Y' -- no numeric range check for fk columns.
+						case when NOT(B.HAS_AUTOMATIC_CHECK = 'Y'
+							and (B.IS_FOREIGN_KEY = 'Y' -- no numeric range check for fk columns.
 							  or p_View_Mode NOT IN ('IMPORT_VIEW', 'EXPORT_VIEW') and B.COLUMN_EXPR_TYPE IN ('TEXT', 'TEXT_EDITOR', 'TEXTAREA')))
-							then D.CHECK_CONDITION 
-						end CHECK_CONDITION,
-						D.CHECK_CONSTRAINT_NAME, D.CONSTRAINT_NAME,
+							then B.HAS_RANGE_CHECK
+						end HAS_RANGE_CHECK,
 						LOWER(B.COLUMN_ALIGN) COLUMN_ALIGN,
 						B.COLUMN_HEADER,
 						B.COLUMN_EXPR,
 						case 
 							when B.COLUMN_EXPR_TYPE IN ( 'NUMBER', 'TEXT' )
-							and D.IS_SIMPLE_IN_LIST = 'Y'
+							and B.IS_SIMPLE_IN_LIST = 'Y'
 									then 'SELECT_LIST'
 							when B.COLUMN_EXPR_TYPE = 'ORDERING_MOVER' and p_Ordering_Column_Tool = 'NO'
 								then 'NUMBER' -- Disable the rendering of row mover tool icons
 							when B.IS_PASSWORD = 'Y'
 								then 'PASSWORD'
-							when (COLUMN_EXPR_TYPE = 'SELECT_LIST' OR (B.COLUMN_EXPR_TYPE IN ( 'NUMBER', 'TEXT' ) AND D.IS_SIMPLE_IN_LIST = 'Y'))
+							when (COLUMN_EXPR_TYPE = 'SELECT_LIST' OR (B.COLUMN_EXPR_TYPE IN ( 'NUMBER', 'TEXT' ) AND B.IS_SIMPLE_IN_LIST = 'Y'))
 								and IS_CHAR_YES_NO_COLUMN = 'Y' then 'SWITCH_CHAR'
-							when (COLUMN_EXPR_TYPE = 'SELECT_LIST' OR (B.COLUMN_EXPR_TYPE IN ( 'NUMBER', 'TEXT' ) AND D.IS_SIMPLE_IN_LIST = 'Y'))
+							when (COLUMN_EXPR_TYPE = 'SELECT_LIST' OR (B.COLUMN_EXPR_TYPE IN ( 'NUMBER', 'TEXT' ) AND B.IS_SIMPLE_IN_LIST = 'Y'))
 								and IS_NUMBER_YES_NO_COLUMN = 'Y' then 'SWITCH_NUMBER'
 							else
 								B.COLUMN_EXPR_TYPE
@@ -2967,7 +2963,6 @@ $END
 							p_Detail_Parameter => p_Detail_Parameter
 						)
 					) B
-					LEFT OUTER JOIN MVDATA_BROWSER_CHECKS_DEFS D ON D.VIEW_NAME = B.R_VIEW_NAME AND D.COLUMN_NAME = B.R_COLUMN_NAME AND D.CONS_COLS_COUNT = 1
 					WHERE NOT(IS_AUDIT_COLUMN = 'Y' and p_Exclude_Audit_Columns = 'YES')
 				) T
 				LEFT OUTER JOIN MVDATA_BROWSER_REFERENCES E ON T.R_VIEW_NAME = E.VIEW_NAME AND T.R_COLUMN_NAME = E.COLUMN_NAME
@@ -4075,9 +4070,9 @@ $END
 
 		if DBMS_LOB.GETLENGTH(v_Stat) > 1 then
 			for c_cur IN (
-					select R_VIEW_NAME, R_COLUMN_NAME, COLUMN_NAME, COLUMN_HEADER, CHECK_CONDITION,
+					select R_VIEW_NAME, R_COLUMN_NAME, COLUMN_NAME, COLUMN_HEADER, 
 						REQUIRED, CHECK_UNIQUE, FORMAT_MASK, DATA_TYPE, DATA_SCALE, TABLE_ALIAS,
-						IS_PRIMARY_KEY, IS_SEARCH_KEY, CONSTRAINT_NAME, APEX_ITEM_IDX, ROW_FACTOR, ROW_OFFSET, APEX_ITEM_REF, INPUT_ID,
+						IS_PRIMARY_KEY, IS_SEARCH_KEY, APEX_ITEM_IDX, ROW_FACTOR, ROW_OFFSET, APEX_ITEM_REF, INPUT_ID,
 						case when p_Data_Source = 'COLLECTION' then
 							'p_cur.' || INPUT_ID
 						else
@@ -4484,9 +4479,7 @@ $END
 	begin
     	SELECT --+ INDEX(T) USE_NL_WITH_INDEX(C)
     		T.ROW_LOCKED_COLUMN_NAME,
-			case when C.IS_NUMBER_YES_NO_COLUMN = 'Y' then 'NUMBER'
-				when C.IS_CHAR_YES_NO_COLUMN = 'Y' then 'CHAR'
-			end YES_NO_COLUMN_TYPE
+			C.YES_NO_COLUMN_TYPE
     	INTO v_Row_Locked_Column_Name, v_Row_Locked_Column_Type
     	FROM MVDATA_BROWSER_VIEWS T
     	LEFT OUTER JOIN MVDATA_BROWSER_SIMPLE_COLS C ON T.VIEW_NAME = C.VIEW_NAME AND T.ROW_LOCKED_COLUMN_NAME = C.COLUMN_NAME
@@ -4879,9 +4872,7 @@ $END
 			SELECT T.TABLE_NAME, NVL(p_Unique_Key_Column, T.SEARCH_KEY_COLS), KEY_COLS_COUNT, HAS_SCALAR_KEY,
 				T.SEQUENCE_OWNER, T.SEQUENCE_NAME, T.ROW_VERSION_COLUMN_NAME, 
 				T.ROW_LOCKED_COLUMN_NAME,
-				case when C.IS_NUMBER_YES_NO_COLUMN = 'Y' then 'NUMBER'
-					when C.IS_CHAR_YES_NO_COLUMN = 'Y' then 'CHAR'
-				end YES_NO_COLUMN_TYPE
+				C.YES_NO_COLUMN_TYPE
 			INTO v_Table_Name, v_Unique_Key_Column, v_Key_Cols_Count, v_Has_Scalar_Key,
 					v_Sequence_Owner, v_Sequence_Name, v_Row_Version_Column_Name, 
 					v_Row_Locked_Column_Name, v_Row_Locked_Column_Type
@@ -4891,24 +4882,13 @@ $END
 		exception when NO_DATA_FOUND then
 			return NULL;
 		end;
-
-		/*v_Unique_Key_Column := data_browser_select.Get_Unique_Key_Expression(
-			p_Table_Name => p_View_name,
-			p_Unique_Key_Column => v_Unique_Key_Column,
-			p_View_Mode => p_View_Mode
-		);*/
 		v_Count := 0;
         FOR c_cur IN (
 			SELECT COLUMN_NAME, COLUMN_EXPR_TYPE, DATA_TYPE, DATA_SCALE, FORMAT_MASK, HAS_DEFAULT,
 				IS_PRIMARY_KEY, IS_SEARCH_KEY, CHECK_UNIQUE, CHAR_LENGTH, INPUT_ID, IS_VIRTUAL_COLUMN,
 				SUBSTR(INPUT_ID, 1, 1)  S_REF_TYPE, -- C,N
-				R_COLUMN_NAME,
-				IS_NUMBER_YES_NO_COLUMN, IS_CHAR_YES_NO_COLUMN,
-					( SELECT IS_DISPLAYED_KEY_COLUMN
-						FROM MVDATA_BROWSER_SIMPLE_COLS C
-						WHERE C.VIEW_NAME = S.R_VIEW_NAME
-						AND C.COLUMN_NAME = S.R_COLUMN_NAME
-					) IS_DISPLAYED_KEY_COLUMN
+				R_COLUMN_NAME, YES_NO_COLUMN_TYPE,
+				IS_DISP_KEY_COLUMN
 			FROM TABLE ( data_browser_select.Get_View_Column_Cursor(
 					p_Table_name => p_View_name,
 					p_Unique_Key_Column => v_Unique_Key_Column,
@@ -4944,7 +4924,7 @@ $END
 					v_Insert_Ref := c_cur.R_COLUMN_NAME;				
 				end if; 
 			elsif p_Row_Operation IN ('DUPLICATE', 'COPY_ROWS')
-			and (c_cur.CHECK_UNIQUE = 'Y' or c_cur.IS_DISPLAYED_KEY_COLUMN = 'Y')
+			and (c_cur.CHECK_UNIQUE = 'Y' or c_cur.IS_DISP_KEY_COLUMN = 'Y')
 			and  p_Data_Source = 'TABLE' 
 			and c_cur.CHAR_LENGTH > 10 then
 				v_Insert_Ref := 'RTRIM(' || c_cur.R_COLUMN_NAME
@@ -4982,10 +4962,8 @@ $END
 					p_Default_Value => case when c_cur.R_COLUMN_NAME = p_Parent_Key_Column then 'V(' || Enquote_Literal(p_Parent_Key_Item) || ') ' end,
 					p_indent => 12,
 					p_Convert_Expr => case 
-						when c_cur.IS_NUMBER_YES_NO_COLUMN = 'Y' 
-							then data_browser_conf.Lookup_Yes_No_Call('NUMBER', 'A.' || c_cur.INPUT_ID)
-						when c_cur.IS_CHAR_YES_NO_COLUMN = 'Y' 
-							then data_browser_conf.Lookup_Yes_No_Call('CHAR', 'A.' || c_cur.INPUT_ID)
+						when c_cur.YES_NO_COLUMN_TYPE IS NOT NULL 
+							then data_browser_conf.Lookup_Yes_No_Call(c_cur.YES_NO_COLUMN_TYPE, 'A.' || c_cur.INPUT_ID)
 						else
 							data_browser_conf.Get_Char_to_Type_Expr(
 								p_Element => c_cur.INPUT_ID, 
@@ -5299,7 +5277,6 @@ $END
 			SELECT COLUMN_NAME, REF_COLUMN_NAME, COLUMN_EXPR, COLUMN_EXPR_TYPE, IS_PRIMARY_KEY, IS_SEARCH_KEY, CHECK_UNIQUE,
 					APEX_ITEM_IDX, ROW_FACTOR, ROW_OFFSET, DATA_TYPE, DATA_SCALE, FORMAT_MASK,
 					TABLE_ALIAS, R_COLUMN_NAME, HAS_DEFAULT, DATA_DEFAULT, CHAR_LENGTH,
-					IS_NUMBER_YES_NO_COLUMN, IS_CHAR_YES_NO_COLUMN,
 					data_browser_edit.Get_Apex_Item_Ref (
 						p_Idx 			=> APEX_ITEM_IDX,
 						p_Row_Factor	=> ROW_FACTOR,
@@ -5313,12 +5290,7 @@ $END
 						p_Row_Number	=> 'p_Row'
 					) APEX_ITEM_CALL,
 					SUBSTR(INPUT_ID, 1, 1)  S_REF_TYPE, -- C,N
-					(
-						SELECT IS_DISPLAYED_KEY_COLUMN
-						FROM MVDATA_BROWSER_SIMPLE_COLS C
-						WHERE C.VIEW_NAME = S.R_VIEW_NAME
-						AND C.COLUMN_NAME = S.R_COLUMN_NAME
-					) IS_DISPLAYED_KEY_COLUMN
+					IS_DISP_KEY_COLUMN
 			FROM TABLE ( data_browser_edit.Get_Form_Edit_Cursor(
 					p_Table_name => v_View_Name,
 					p_Unique_Key_Column => v_Unique_Key_Column,
