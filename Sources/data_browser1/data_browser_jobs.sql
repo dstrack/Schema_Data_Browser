@@ -1192,12 +1192,7 @@ $END
 			AND TABLE_NAME NOT LIKE 'DR$%$_'  -- skip fulltext index
 			AND data_browser_pattern.Match_Included_Tables(T.TABLE_NAME) = 'YES'
 			AND data_browser_pattern.Match_Excluded_Tables(T.TABLE_NAME) = 'NO'
-			AND NOT EXISTS (    -- this table is part of materialized view
-				SELECT 1
-				FROM SYS.USER_OBJECTS MV
-				WHERE MV.OBJECT_NAME = T.TABLE_NAME
-				AND MV.OBJECT_TYPE = 'MATERIALIZED VIEW'
-			);
+			;
 			
 		CURSOR Tables_cur2
 		IS
@@ -1209,13 +1204,7 @@ $END
 			AND TABLE_NAME NOT LIKE 'DR$%$_'  -- skip fulltext index
 			AND data_browser_pattern.Match_Included_Tables(T.TABLE_NAME) = 'YES'
 			AND data_browser_pattern.Match_Excluded_Tables(T.TABLE_NAME) = 'NO'
-			AND NOT EXISTS (    -- this table is part of materialized view
-				SELECT 1
-				FROM SYS.ALL_OBJECTS MV
-				WHERE MV.OBJECT_NAME = T.TABLE_NAME
-				AND MV.OWNER = T.OWNER
-				AND MV.OBJECT_TYPE = 'MATERIALIZED VIEW'
-			);
+			;
 		TYPE tables_tbl2 IS TABLE OF Tables_cur2%ROWTYPE;
 		v_in_recs 	tables_tbl2;
 	BEGIN

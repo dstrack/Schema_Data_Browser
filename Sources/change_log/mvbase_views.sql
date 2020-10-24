@@ -36,7 +36,7 @@ DECLARE
 		LOOP 
 			BEGIN 
 				EXECUTE IMMEDIATE 'DROP MATERIALIZED VIEW ' || p_MView_Name;
-        		DBMS_OUTPUT.PUT_LINE('DROP MATERIALIZED VIEW ' || p_MView_Name || ';');
+        		-- DBMS_OUTPUT.PUT_LINE('DROP MATERIALIZED VIEW ' || p_MView_Name || ';');
         		EXIT;
 			EXCEPTION
 				WHEN time_limit_exceeded THEN 
@@ -45,8 +45,6 @@ DECLARE
 					EXIT WHEN v_count > 10;
 				WHEN mview_does_not_exist THEN
 					EXIT;
-				WHEN OTHERS THEN
-					RAISE;
 			END;
 		END LOOP;
 	END;

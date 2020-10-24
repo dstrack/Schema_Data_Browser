@@ -292,11 +292,10 @@ IS
 	FUNCTION FN_Pipe_unique_keys
 	RETURN changelog_conf.tab_unique_keys PIPELINED;
 
-	FUNCTION FN_Pipe_unique_indexes (
-		p_Table_Name VARCHAR2 DEFAULT NULL
-	) RETURN changelog_conf.tab_unique_keys PIPELINED;
+	FUNCTION FN_Pipe_unique_indexes 
+	RETURN changelog_conf.tab_unique_keys PIPELINED;
 
-	FUNCTION FN_Pipe_Base_Uniquekeys
+	FUNCTION FN_Pipe_Base_Uniquekeys	-- result is cached in MVBASE_UNIQUE_KEYS
 	RETURN changelog_conf.tab_base_unique_keys PIPELINED;
 
 	FUNCTION FN_Pipe_Base_Uniquekeys (
@@ -1139,9 +1138,8 @@ IS
 		RETURN;
 	END FN_Pipe_unique_keys;
 
-	FUNCTION FN_Pipe_unique_indexes (
-		p_Table_Name VARCHAR2 DEFAULT NULL
-	) RETURN changelog_conf.tab_unique_keys PIPELINED
+	FUNCTION FN_Pipe_unique_indexes 
+	RETURN changelog_conf.tab_unique_keys PIPELINED
 	IS
         CURSOR keys_cur
         IS
@@ -1157,10 +1155,10 @@ IS
 			WHERE C.TABLE_NAME = B.TABLE_NAME AND C.INDEX_NAME = B.INDEX_NAME AND C.TABLE_OWNER = B.TABLE_OWNER
 			AND C.TABLE_NAME = D.TABLE_NAME AND C.COLUMN_NAME = D.COLUMN_NAME AND C.TABLE_OWNER = D.OWNER
 			AND C.TABLE_NAME NOT LIKE 'DR$%$_'  -- skip fulltext index
-			AND C.TABLE_NAME = NVL(p_Table_Name, C.TABLE_NAME)
 			AND D.HIDDEN_COLUMN = 'NO'
 			AND B.UNIQUENESS = 'UNIQUE'
 			AND B.INDEX_TYPE IN ('NORMAL', 'FUNCTION-BASED NORMAL')
+			AND B.CONSTRAINT_INDEX = 'NO'
 			AND C.TABLE_OWNER NOT IN ('SYS', 'SYSTEM', 'SYSAUX', 'CTXSYS', 'MDSYS', 'OUTLN');
         CURSOR user_keys_cur
         IS
@@ -1178,7 +1176,8 @@ IS
 			AND C.TABLE_NAME = D.TABLE_NAME AND C.COLUMN_NAME = D.COLUMN_NAME
 			AND D.HIDDEN_COLUMN = 'NO'
 			AND B.UNIQUENESS = 'UNIQUE'
-			AND B.INDEX_TYPE IN ('NORMAL', 'FUNCTION-BASED NORMAL');
+			AND B.INDEX_TYPE IN ('NORMAL', 'FUNCTION-BASED NORMAL')
+			AND B.CONSTRAINT_INDEX = 'NO';
 		v_row changelog_conf.rec_unique_keys; -- output row
         TYPE stat_tbl IS TABLE OF keys_cur%ROWTYPE;
         v_in_rows stat_tbl;
@@ -1233,7 +1232,7 @@ IS
 	END FN_Pipe_unique_indexes;
 
 
-	FUNCTION FN_Pipe_Base_Uniquekeys
+	FUNCTION FN_Pipe_Base_Uniquekeys	-- result is cached in MVBASE_UNIQUE_KEYS
 	RETURN changelog_conf.tab_base_unique_keys PIPELINED
 	IS
         CURSOR user_keys_cur
@@ -1242,8 +1241,6 @@ IS
 			select * from table ( changelog_conf.FN_Pipe_insert_triggers )
 		), U_CONSTRAINTS AS (
 			select * from table ( changelog_conf.FN_Pipe_unique_keys)  where VIEW_COLUMN_NAME IS NOT NULL
-		), U_INDEXES AS (
-			select * from table ( changelog_conf.FN_Pipe_unique_indexes )
 		) -------------------------------------------------------------------------------
 		SELECT /*+ RESULT_CACHE */
 			TABLE_NAME, TABLE_OWNER, CONSTRAINT_NAME, CONSTRAINT_TYPE, REQUIRED, HAS_NULLABLE,
@@ -1334,7 +1331,8 @@ IS
 						case when TRIGGER_HAS_ASSIGN_ID > 0 then 'YES' end TRIGGER_HAS_ASSIGN_ID,
 						SEQUENCE_OWNER, SEQUENCE_NAME
 					FROM (
-						SELECT T.TABLE_NAME, T.TABLE_OWNER, T.CONSTRAINT_NAME, T.CONSTRAINT_TYPE, T.COLUMN_NAME, T.POSITION,
+						SELECT
+							T.TABLE_NAME, T.TABLE_OWNER, T.CONSTRAINT_NAME, T.CONSTRAINT_TYPE, T.COLUMN_NAME, T.POSITION,
 							T.DEFAULT_TEXT, T.VIEW_COLUMN_NAME, T.DATA_TYPE, T.NULLABLE, T.DATA_SCALE,
 								T.INDEX_OWNER, T.INDEX_NAME, T.DEFERRABLE, T.DEFERRED, T.STATUS, T.VALIDATED,
 							CASE WHEN REGEXP_INSTR(T.DEFAULT_TEXT, 'NEXTVAL', 1, 1, 1, 'i') > 0 THEN changelog_conf.Get_Name_Part(T.DEFAULT_TEXT, 1) END DEFAULT_SEQUENCE_OWNER,
@@ -1352,7 +1350,7 @@ IS
 							UNION ALL
 							SELECT TABLE_NAME, TABLE_OWNER, CONSTRAINT_NAME, CONSTRAINT_TYPE, COLUMN_NAME, POSITION, DEFAULT_TEXT, VIEW_COLUMN_NAME,
 								DATA_TYPE, NULLABLE, DATA_SCALE, INDEX_OWNER, INDEX_NAME, DEFERRABLE, DEFERRED, STATUS, VALIDATED
-							FROM U_INDEXES B
+							FROM table ( changelog_conf.FN_Pipe_unique_indexes ) B
 							where NOT EXISTS (
 								SELECT 1
 								FROM U_CONSTRAINTS E

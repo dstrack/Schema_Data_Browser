@@ -123,7 +123,8 @@ IS
 	g_Edit_Tables_Pattern 		VARCHAR2(2000) 	:= '%'; 	-- List of table name pattern for tables with editing of table data enabled.
 	g_ReadOnly_Columns_Pattern 	VARCHAR2(2000) 	:=
 	'%CREATED%,%MODIFIED%,%UPDATED%,ROW_VERSION_NUMBER,LAST_LOGIN_DATE,EMAIL_VALIATION_TOKEN'; -- List of read only column name pattern
-	g_Admin_Tables_Pattern 		VARCHAR2(2000) 	:= 'APP_%,DATA_BROWSER_CHECKS'; 	-- List of table name pattern for user administration tables.
+	g_Admin_Tables_Pattern 		VARCHAR2(2000) 	:= 
+	'APP_%,DATA_BROWSER_CHECKS,SPRINGY_DIAGRAMS,DIAGRAM_COLORS,DIAGRAM_EDGES,DIAGRAM_NODES,DIAGRAM_SHAPES'; 	-- List of table name pattern for user administration tables.
     g_Included_Tables_Pattern 	VARCHAR2(2000) 	:= '%';	-- List of table name pattern that are included in the application.
     g_Excluded_Tables_Pattern 	VARCHAR2(2000) 	:= 
     'PLUGIN_DELETE_CHECKS,DATA_BROWSER%,MVDATA_BROWSER%,MVBASE%,USER%,CHANGE_LOG%,MVCHANGELOG%';	-- List of table name pattern that are excluded from the application.

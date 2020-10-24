@@ -1328,6 +1328,8 @@ IS
 		p_View_Mode IN VARCHAR2
 	);
 
+	PROCEDURE Reset_All_Column_Preferences;
+	
 	PROCEDURE Set_Parent_Key_Preference (
 		p_Table_name IN VARCHAR2,		
 		p_View_Mode IN VARCHAR2,
