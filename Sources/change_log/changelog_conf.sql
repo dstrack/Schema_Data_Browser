@@ -1158,7 +1158,9 @@ IS
 			AND D.HIDDEN_COLUMN = 'NO'
 			AND B.UNIQUENESS = 'UNIQUE'
 			AND B.INDEX_TYPE IN ('NORMAL', 'FUNCTION-BASED NORMAL')
+$IF DBMS_DB_VERSION.VERSION >= 19 $THEN			
 			AND B.CONSTRAINT_INDEX = 'NO'
+$END
 			AND C.TABLE_OWNER NOT IN ('SYS', 'SYSTEM', 'SYSAUX', 'CTXSYS', 'MDSYS', 'OUTLN');
         CURSOR user_keys_cur
         IS
@@ -1177,7 +1179,10 @@ IS
 			AND D.HIDDEN_COLUMN = 'NO'
 			AND B.UNIQUENESS = 'UNIQUE'
 			AND B.INDEX_TYPE IN ('NORMAL', 'FUNCTION-BASED NORMAL')
-			AND B.CONSTRAINT_INDEX = 'NO';
+$IF DBMS_DB_VERSION.VERSION >= 19 $THEN			
+			AND B.CONSTRAINT_INDEX = 'NO'
+$END
+			;
 		v_row changelog_conf.rec_unique_keys; -- output row
         TYPE stat_tbl IS TABLE OF keys_cur%ROWTYPE;
         v_in_rows stat_tbl;
