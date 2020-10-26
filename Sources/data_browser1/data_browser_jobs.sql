@@ -205,15 +205,15 @@ END data_browser_jobs;
 CREATE OR REPLACE PACKAGE BODY data_browser_jobs
 IS
 	g_Configuration_ID			NUMBER			:= 1;
-	g_ChangLog_Stale_Call 		VARCHAR2(2000) 	:= 'custom_changelog_gen.MViews_Stale_Count';
+	g_ChangLog_Stale_Call 		VARCHAR2(2000) 	:= 'data_browser_pipes.MViews_Stale_Count';
 	g_App_Setting_publish_Date	CONSTANT VARCHAR2(50) := 'TRANSLATIONS_PUBLISHED_DATE';
 	g_Jobs_Collection			CONSTANT VARCHAR2(50) := 'SCHEDULER_JOBS';
 	g_Encrypt_Function 			CONSTANT VARCHAR2(128) 	:= 'data_browser_auth.Hex_Crypt';
 	g_CtxTimestampFormat 		CONSTANT VARCHAR2(64)	:= 'DD.MM.YYYY HH24.MI.SS';
 
-	g_Refresh_MViews_Proc_Name 	CONSTANT	VARCHAR2(128) := 'Refresh snapshots for data browser application';
-	g_Publish_Transl_Proc_Name 	CONSTANT	VARCHAR2(128) := 'Publish translations for data browser application';
-	g_Ref_Schema_Stats_Proc_Name CONSTANT	VARCHAR2(128) := 'Refresh statistics for data browser application';
+	g_Refresh_MViews_Proc_Name 	CONSTANT VARCHAR2(128) := 'Refresh snapshots for data browser application';
+	g_Publish_Transl_Proc_Name 	CONSTANT VARCHAR2(128) := 'Publish translations for data browser application';
+	g_Ref_Schema_Stats_Proc_Name CONSTANT VARCHAR2(128) := 'Refresh statistics for data browser application';
 	g_Ref_Tree_View_Proc_Name 	CONSTANT VARCHAR2(128) := 'Refresh tree view for data browser application';
 	g_Timemark 					NUMBER;
 

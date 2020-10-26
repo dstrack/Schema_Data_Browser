@@ -67,9 +67,7 @@ is
 		p_Column_Expr_Type VARCHAR2
 	) RETURN VARCHAR2
 	is
-$IF DBMS_DB_VERSION.VERSION >= 12 $THEN
 	PRAGMA UDF;
-$END
 	begin
 		return case when p_Column_Expr_Type NOT IN 
 		('DISPLAY_ONLY', 'DISPLAY_AND_SAVE', 'LINK', 'LINK_LIST', 'LINK_ID', 'ROW_SELECTOR', 'FILE_BROWSER') then 'YES' else 'NO' end;
@@ -79,9 +77,7 @@ $END
 		p_Column_Expr_Type VARCHAR2
 	) RETURN VARCHAR2
 	is
-$IF DBMS_DB_VERSION.VERSION >= 12 $THEN
 	PRAGMA UDF;
-$END
 	begin
 		return case when p_Column_Expr_Type IN 
 		('POPUPKEY_FROM_LOV', 'SELECT_LIST_FROM_QUERY', 'SELECT_LIST', 'SWITCH_CHAR', 'SWITCH_NUMBER') then 'YES' else 'NO' end;
@@ -97,9 +93,7 @@ $END
     	p_Item_Type		VARCHAR2 DEFAULT 'TEXT'
 	) RETURN VARCHAR2
 	is
-$IF DBMS_DB_VERSION.VERSION >= 12 $THEN
 	PRAGMA UDF;
-$END
 		v_Item_Char		VARCHAR2(20);
 		v_Row_Offset 	NUMBER;
 	begin
@@ -126,9 +120,7 @@ $END
 		p_Class VARCHAR2 DEFAULT 'DATA' -- DATA, UNIQUENESS, LOOKUP
 	) RETURN VARCHAR2
 	IS
-$IF DBMS_DB_VERSION.VERSION >= 12 $THEN
 	PRAGMA UDF;
-$END
 	BEGIN
 		return 'apex_collection.add_member(p_collection_name => v_Err_Collection' ||
 			', p_c001 => ' || Enquote_Literal(p_Table_Name) ||
@@ -1394,9 +1386,7 @@ $END
 
 	FUNCTION Import_Description_cursor RETURN data_browser_conf.tab_apex_links_list PIPELINED
 	is
-$IF DBMS_DB_VERSION.VERSION >= 12 $THEN
 	PRAGMA UDF;
-$END
         CURSOR view_cur
         IS
 		SELECT 1 the_level,
@@ -2039,9 +2029,7 @@ $END
     	p_Row_Number	VARCHAR2 DEFAULT 'p_Row'
 	) RETURN VARCHAR2
 	is
-$IF DBMS_DB_VERSION.VERSION >= 12 $THEN
 	PRAGMA UDF;
-$END
 	begin
 		if p_Row_Factor = 1 and p_Row_Offset = 1 and p_Row_Number != 'ROWNUM' then
 			return 'apex_application.g_f' || LPAD( p_Idx, 2, '0') || ' (' || p_Row_Number || ')';
@@ -2078,9 +2066,7 @@ $END
     	p_Row_Number		NUMBER DEFAULT 1
 	) RETURN VARCHAR2
 	is
-$IF DBMS_DB_VERSION.VERSION >= 12 $THEN
 	PRAGMA UDF;
-$END
 		v_Array_Offset NUMBER;
 	begin
 		v_Array_Offset := p_Row_Factor * (p_Row_Number - 1) + p_Row_Offset;
@@ -2186,9 +2172,7 @@ $END
     	p_Primary_Key_Call VARCHAR2
 	) RETURN VARCHAR2
 	is
-$IF DBMS_DB_VERSION.VERSION >= 12 $THEN
 	PRAGMA UDF;
-$END
 		v_Row_Offset 	NUMBER;
 		v_Item_Char		VARCHAR2(20);
 		v_Item_Id 		VARCHAR2(20);
@@ -2564,9 +2548,7 @@ $END
 		p_Enquote 		VARCHAR2 DEFAULT 'YES'
 	) RETURN VARCHAR2
 	is
-$IF DBMS_DB_VERSION.VERSION >= 12 $THEN
 	PRAGMA UDF;
-$END
 		v_Result VARCHAR2(4000);
 		v_Column_Expr 	VARCHAR2(4000);
 	begin
@@ -2657,9 +2639,7 @@ $END
 	)
 	RETURN data_browser_conf.tab_record_edit PIPELINED
 	is
-$IF DBMS_DB_VERSION.VERSION >= 12 $THEN
 	PRAGMA UDF;
-$END
     	v_Describe_Edit_Cols_md5	VARCHAR2(300);
         v_is_cached					VARCHAR2(10);
         v_Export_CSV_Mode			VARCHAR2(10);

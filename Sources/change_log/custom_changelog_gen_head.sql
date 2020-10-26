@@ -59,9 +59,7 @@ CREATE OR REPLACE FUNCTION Changelog_Values (
 )
 RETURN VARCHAR2
 IS -- funtion is used in VPROTOCOL_COLUMNS_LIST2 to display all changes to a row including decoded foreign key values.
-$IF DBMS_DB_VERSION.VERSION >= 12 $THEN
 	PRAGMA UDF;
-$END
 	v_Result VARCHAR2(32767);
 BEGIN
 	FOR c_cur IN (

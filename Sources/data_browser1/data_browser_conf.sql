@@ -577,7 +577,7 @@ IS
     	p_string in clob,
     	p_delimiter in varchar2 DEFAULT ';'
     )
-    RETURN sys.odciVarchar2List PIPELINED DETERMINISTIC;   -- VARCHAR2(4000)
+    RETURN sys.odciVarchar2List PIPELINED DETERMINISTIC PARALLEL_ENABLE;   -- VARCHAR2(4000)
 
 	TYPE rec_replace_list IS RECORD (
 		string			VARCHAR2(2048),
@@ -590,7 +590,7 @@ IS
 	FUNCTION replace_agg (
 		p_cur data_browser_conf.cur_replace_list
 	)
-    RETURN sys.odciVarchar2List PIPELINED DETERMINISTIC;  -- VARCHAR2(4000)
+    RETURN sys.odciVarchar2List PIPELINED DETERMINISTIC PARALLEL_ENABLE;  -- VARCHAR2(4000)
 
 	FUNCTION Table_Alias_To_Sequence (p_Symbol_Name VARCHAR2) RETURN NUMBER;
 	FUNCTION Sequence_To_Table_Alias (p_Sequence NUMBER) RETURN VARCHAR2;
@@ -673,24 +673,34 @@ IS
 	);
 	TYPE tab_table_columns IS TABLE OF rec_table_columns;
 
+	TYPE rec_table_column_in_list IS RECORD (
+		TABLE_NAME              	VARCHAR2(128), 
+		TABLE_OWNER                 VARCHAR2(128), 
+		COLUMN_NAME               	VARCHAR2(128), 
+		DISPLAY_VALUE				VARCHAR2(1024), 
+		LIST_VALUE					VARCHAR2(1024), 
+		DISP_SEQUENCE				NUMBER
+	);
+	TYPE tab_table_column_in_list IS TABLE OF rec_table_column_in_list;
+
 	FUNCTION Constraint_Condition_Cursor (
 		p_Table_Name IN VARCHAR2 DEFAULT NULL,
 		p_Owner IN VARCHAR2 DEFAULT NULL,
 		p_Constraint_Name IN VARCHAR2 DEFAULT NULL
-	) RETURN data_browser_conf.tab_constraint_condition PIPELINED;
+	) RETURN data_browser_conf.tab_constraint_condition PIPELINED PARALLEL_ENABLE;
 
 	FUNCTION Constraint_Columns_Cursor (
 		p_Table_Name IN VARCHAR2 DEFAULT NULL,
 		p_Owner IN VARCHAR2 DEFAULT SYS_CONTEXT('USERENV', 'CURRENT_SCHEMA'),
 		p_Constraint_Name IN VARCHAR2 DEFAULT NULL
-	) RETURN data_browser_conf.tab_constraint_columns PIPELINED;
+	) RETURN data_browser_conf.tab_constraint_columns PIPELINED PARALLEL_ENABLE;
 
 	FUNCTION Table_Columns_Cursor(
     	p_Table_Name VARCHAR2 DEFAULT NULL,
     	p_Owner VARCHAR2 DEFAULT SYS_CONTEXT('USERENV', 'CURRENT_SCHEMA'),
     	p_Column_Name VARCHAR2 DEFAULT NULL
     )
-	RETURN data_browser_conf.tab_table_columns PIPELINED;
+	RETURN data_browser_conf.tab_table_columns PIPELINED PARALLEL_ENABLE;
 
 	FUNCTION Is_Simple_IN_List (
 		p_Check_Condition VARCHAR2,
@@ -703,6 +713,13 @@ IS
 	) RETURN VARCHAR2 DETERMINISTIC;
 
     FUNCTION Get_Column_In_List (p_Table_Name VARCHAR2, p_Owner VARCHAR2, p_Column_Name VARCHAR2) RETURN VARCHAR2;
+
+	FUNCTION Table_Column_In_List_Cursor (
+    	p_Table_Name VARCHAR2 DEFAULT NULL,
+    	p_Owner VARCHAR2 DEFAULT SYS_CONTEXT('USERENV', 'CURRENT_SCHEMA'),
+    	p_Column_Name VARCHAR2 DEFAULT NULL
+    )
+	RETURN data_browser_conf.tab_table_column_in_list PIPELINED PARALLEL_ENABLE;
 
 	FUNCTION Has_ChangeLog_History (p_Table_Name VARCHAR2) RETURN VARCHAR2;	-- YES, NO
 
@@ -3524,7 +3541,7 @@ $END
 		p_Table_Name IN VARCHAR2 DEFAULT NULL,
 		p_Owner IN VARCHAR2 DEFAULT NULL,
 		p_Constraint_Name IN VARCHAR2 DEFAULT NULL
-	) RETURN data_browser_conf.tab_constraint_condition PIPELINED
+	) RETURN data_browser_conf.tab_constraint_condition PIPELINED PARALLEL_ENABLE
 	is
 		v_out_rec data_browser_conf.rec_constraint_condition;
         v_Schema_Name CONSTANT VARCHAR2(50) := SYS_CONTEXT('USERENV', 'CURRENT_SCHEMA');
@@ -3601,7 +3618,7 @@ $END
 		p_Table_Name IN VARCHAR2 DEFAULT NULL,
 		p_Owner IN VARCHAR2 DEFAULT SYS_CONTEXT('USERENV', 'CURRENT_SCHEMA'),
 		p_Constraint_Name IN VARCHAR2 DEFAULT NULL
-	) RETURN data_browser_conf.tab_constraint_columns PIPELINED
+	) RETURN data_browser_conf.tab_constraint_columns PIPELINED PARALLEL_ENABLE
 	is
         v_Schema_Name CONSTANT VARCHAR2(50) := SYS_CONTEXT('USERENV', 'CURRENT_SCHEMA');
 		CURSOR user_cons_cur
@@ -3674,7 +3691,7 @@ $END
     	p_Owner VARCHAR2 DEFAULT SYS_CONTEXT('USERENV', 'CURRENT_SCHEMA'),
     	p_Column_Name VARCHAR2 DEFAULT NULL
     )
-	RETURN data_browser_conf.tab_table_columns PIPELINED
+	RETURN data_browser_conf.tab_table_columns PIPELINED PARALLEL_ENABLE
 	IS
         CURSOR user_cols_cur
         IS
@@ -3835,6 +3852,48 @@ $END
         return NULL;
     END Get_Column_In_List;
 
+	FUNCTION Table_Column_In_List_Cursor(
+    	p_Table_Name VARCHAR2 DEFAULT NULL,
+    	p_Owner VARCHAR2 DEFAULT SYS_CONTEXT('USERENV', 'CURRENT_SCHEMA'),
+    	p_Column_Name VARCHAR2 DEFAULT NULL
+    )
+	RETURN data_browser_conf.tab_table_column_in_list PIPELINED PARALLEL_ENABLE
+	is
+        v_Schema_Name CONSTANT VARCHAR2(50) := SYS_CONTEXT('USERENV', 'CURRENT_SCHEMA');
+		CURSOR user_cons_cur
+		IS
+		SELECT TABLE_NAME, TABLE_OWNER, COLUMN_NAME,
+			data_browser_conf.LOV_Initcap(COLUMN_VALUE) DISPLAY_VALUE,
+			COLUMN_VALUE,
+			ROW_NUMBER() OVER (PARTITION BY TABLE_NAME, COLUMN_NAME ORDER BY RN) DISP_SEQUENCE
+		FROM ( -- remove quotes
+		   SELECT TABLE_NAME, TABLE_OWNER, COLUMN_NAME, REGEXP_REPLACE(COLUMN_VALUE, '^''(.*)''$', '\1') COLUMN_VALUE,
+			ROWNUM RN
+			FROM ( -- convert values to rows
+				SELECT TABLE_NAME, TABLE_OWNER, COLUMN_NAME, REGEXP_REPLACE(SEARCH_CONDITION_VC, COLUMN_NAME || '\s+IN\s*\((.+)\)\s*$', '\1', 1, 1, 'i') CHECK_IN_LIST
+				FROM (
+					SELECT B.TABLE_NAME, B.OWNER TABLE_OWNER, B.COLUMN_NAME, B.SEARCH_CONDITION SEARCH_CONDITION_VC
+					FROM TABLE ( data_browser_conf.Constraint_Columns_Cursor(p_Table_Name, p_Owner) ) B 
+					WHERE B.COLUMN_NAME = NVL(p_Column_Name, B.COLUMN_NAME)
+				)
+				WHERE REGEXP_INSTR(SEARCH_CONDITION_VC, COLUMN_NAME || '\s+IN\s*\(.+\)\s*$', 1, 1, 1, 'i') > 0
+			) S,
+			TABLE( data_browser_conf.in_list(S.CHECK_IN_LIST, ',') ) P
+		);
+		v_in_rows 	data_browser_conf.tab_table_column_in_list;
+	begin
+		OPEN user_cons_cur;
+		LOOP
+			FETCH user_cons_cur BULK COLLECT INTO v_in_rows LIMIT g_fetch_limit;
+			EXIT WHEN v_in_rows.COUNT = 0;
+			FOR ind IN 1 .. v_in_rows.COUNT LOOP
+				pipe row (v_in_rows(ind));
+			END LOOP;
+		END LOOP;
+		CLOSE user_cons_cur;
+	end Table_Column_In_List_Cursor;
+
+
     FUNCTION Get_ColumnDefaultText (p_Table_Name VARCHAR2, p_Owner VARCHAR2, p_Column_Name VARCHAR2) RETURN VARCHAR2
     IS
 	PRAGMA UDF;
@@ -3903,7 +3962,7 @@ $END
     	p_string in clob,
     	p_delimiter in varchar2 DEFAULT ';'
     )
-    RETURN sys.odciVarchar2List PIPELINED DETERMINISTIC  -- VARCHAR2(4000)
+    RETURN sys.odciVarchar2List PIPELINED DETERMINISTIC PARALLEL_ENABLE  -- VARCHAR2(4000)
     IS
 	PRAGMA UDF;
         l_string    varchar2(32767);
@@ -3931,7 +3990,7 @@ $END
 	FUNCTION replace_agg (
 		p_cur data_browser_conf.cur_replace_list
 	)
-    RETURN sys.odciVarchar2List PIPELINED DETERMINISTIC  -- VARCHAR2(4000)
+    RETURN sys.odciVarchar2List PIPELINED DETERMINISTIC PARALLEL_ENABLE  -- VARCHAR2(4000)
 	IS
 		v_row data_browser_conf.rec_replace_list;
 		v_result VARCHAR2(4000); -- output row

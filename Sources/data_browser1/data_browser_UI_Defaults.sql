@@ -254,7 +254,7 @@ $IF data_browser_specs.g_update_apex_tables $THEN
 		DELETE FROM USER_UI_DEFAULTS_LOV_DATA D
 		WHERE EXISTS (
 			SELECT 1
-			FROM VUSER_TABLES_CHECK_IN_LIST S
+			FROM TABLE( data_browser_conf.Table_Column_In_List_Cursor ) S
 			WHERE S.TABLE_NAME = D.TABLE_NAME
 			AND S.COLUMN_NAME = D.COLUMN_NAME
 		)
@@ -374,10 +374,11 @@ $IF data_browser_specs.g_update_apex_tables $THEN
 				else
 					INSERT INTO USER_UI_DEFAULTS_LOV_DATA (SCHEMA, TABLE_NAME, COLUMN_NAME, LOV_DISP_SEQUENCE, LOV_DISP_VALUE, LOV_RETURN_VALUE)
 					SELECT  p_Schema_Name SCHEMA_NAME,
-						v_View_Name TABLE_NAME, COLUMN_NAME, DISP_SEQUENCE, DISPLAY_VALUE, COLUMN_VALUE
-					FROM VUSER_TABLES_CHECK_IN_LIST
-					WHERE TABLE_NAME = v_Table_Name
-					AND COLUMN_NAME = v_out_tab(ind).COLUMN_NAME;
+						v_View_Name TABLE_NAME, COLUMN_NAME, DISP_SEQUENCE, DISPLAY_VALUE, LIST_VALUE
+					FROM TABLE( data_browser_conf.Table_Column_In_List_Cursor(
+						p_Table_Name => v_Table_Name,
+						p_Column_Name => v_out_tab(ind).COLUMN_NAME
+					));
 				end if;
 			elsif v_out_tab(ind).COLUMN_EXPR_TYPE = 'DISPLAY_ONLY' then
 				update USER_UI_DEFAULTS_COLUMNS
@@ -859,10 +860,11 @@ $END
 					end loop;
 				else
 					for lov_cur in (
-						SELECT DISP_SEQUENCE, DISPLAY_VALUE, COLUMN_VALUE
-						FROM VUSER_TABLES_CHECK_IN_LIST
-						WHERE TABLE_NAME = v_Table_Name
-						AND COLUMN_NAME = v_out_tab(ind).COLUMN_NAME
+						SELECT DISP_SEQUENCE, DISPLAY_VALUE, LIST_VALUE
+						FROM TABLE( data_browser_conf.Table_Column_In_List_Cursor(
+							p_Table_Name => v_Table_Name,
+							p_Column_Name => v_out_tab(ind).COLUMN_NAME
+						))
 					) loop 
 						v_lov_data_id := wwv_flow_id.next_val;
 						v_Str := apex_string.format (
@@ -879,7 +881,7 @@ $END
 							p1 => v_column_id,
 							p2 => lov_cur.DISP_SEQUENCE,
 							p3 => dbms_assert.enquote_literal(lov_cur.DISPLAY_VALUE),
-							p4 => dbms_assert.enquote_literal(lov_cur.COLUMN_VALUE),
+							p4 => dbms_assert.enquote_literal(lov_cur.LIST_VALUE),
 							p_max_length => 30000
 						);
 						dbms_lob.writeappend(v_Stat, length(v_Str), v_Str);

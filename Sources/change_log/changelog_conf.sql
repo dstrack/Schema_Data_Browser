@@ -275,56 +275,55 @@ IS
 	PROCEDURE Load_Config;
 
 	FUNCTION FN_Pipe_References_Count
-	RETURN changelog_conf.tab_references_count PIPELINED;
+	RETURN changelog_conf.tab_references_count PIPELINED PARALLEL_ENABLE;
 
-	FUNCTION FN_Pipe_insert_triggers (
-		p_Table_Name VARCHAR2 DEFAULT NULL
-	) RETURN changelog_conf.tab_insert_triggers PIPELINED;
+	FUNCTION FN_Pipe_insert_triggers
+	RETURN changelog_conf.tab_insert_triggers PIPELINED PARALLEL_ENABLE;
 
 	FUNCTION FN_Pipe_base_triggers (
 		p_Table_Name VARCHAR2 DEFAULT NULL
-	) RETURN changelog_conf.tab_base_triggers PIPELINED;
+	) RETURN changelog_conf.tab_base_triggers PIPELINED PARALLEL_ENABLE;
 
 	FUNCTION FN_Pipe_views_triggers (
 		p_Table_Name VARCHAR2 DEFAULT NULL
-	) RETURN changelog_conf.tab_views_triggers PIPELINED;
+	) RETURN changelog_conf.tab_views_triggers PIPELINED PARALLEL_ENABLE;
 
 	FUNCTION FN_Pipe_unique_keys
-	RETURN changelog_conf.tab_unique_keys PIPELINED;
+	RETURN changelog_conf.tab_unique_keys PIPELINED PARALLEL_ENABLE;
 
 	FUNCTION FN_Pipe_unique_indexes 
-	RETURN changelog_conf.tab_unique_keys PIPELINED;
+	RETURN changelog_conf.tab_unique_keys PIPELINED PARALLEL_ENABLE;
 
 	FUNCTION FN_Pipe_Base_Uniquekeys	-- result is cached in MVBASE_UNIQUE_KEYS
-	RETURN changelog_conf.tab_base_unique_keys PIPELINED;
+	RETURN changelog_conf.tab_base_unique_keys PIPELINED PARALLEL_ENABLE;
 
 	FUNCTION FN_Pipe_Base_Uniquekeys (
 		p_cur changelog_conf.cur_base_unique_keys
 	)
-	RETURN changelog_conf.tab_base_unique_keys PIPELINED;
+	RETURN changelog_conf.tab_base_unique_keys PIPELINED PARALLEL_ENABLE;
 
 	FUNCTION FN_Pipe_Table_AlterUniquekeys (
 		p_cur_unique_keys changelog_conf.cur_base_unique_keys
 	)
-	RETURN changelog_conf.tab_alter_unique_keys PIPELINED;
+	RETURN changelog_conf.tab_alter_unique_keys PIPELINED PARALLEL_ENABLE;
 
 	FUNCTION FN_Pipe_Base_Views
-	RETURN changelog_conf.tab_base_views PIPELINED;
+	RETURN changelog_conf.tab_base_views PIPELINED PARALLEL_ENABLE;
 
 	FUNCTION FN_Pipe_Changelog_fkeys
-	RETURN changelog_conf.tab_Changelog_fkeys PIPELINED;
+	RETURN changelog_conf.tab_Changelog_fkeys PIPELINED PARALLEL_ENABLE;
 
 	FUNCTION FN_Pipe_has_set_null_fkeys (p_Table_Name VARCHAR2 DEFAULT NULL)
-	RETURN changelog_conf.tab_has_set_null_fkeys PIPELINED;
+	RETURN changelog_conf.tab_has_set_null_fkeys PIPELINED PARALLEL_ENABLE;
 
 	FUNCTION FN_Pipe_Table_Columns
-	RETURN changelog_conf.tab_table_columns PIPELINED;
+	RETURN changelog_conf.tab_table_columns PIPELINED PARALLEL_ENABLE;
 
 	FUNCTION FN_Pipe_Foreign_Key_Columns
-	RETURN changelog_conf.tab_foreign_key_columns PIPELINED;
+	RETURN changelog_conf.tab_foreign_key_columns PIPELINED PARALLEL_ENABLE;
 
 	FUNCTION FN_Pipe_Changelog_References
-	RETURN changelog_conf.tab_changelog_references PIPELINED;
+	RETURN changelog_conf.tab_changelog_references PIPELINED PARALLEL_ENABLE;
 
 	FUNCTION Enquote_Name (str VARCHAR2) RETURN VARCHAR2 DETERMINISTIC;
 	FUNCTION Enquote_Literal ( p_Text VARCHAR2 ) RETURN VARCHAR2 DETERMINISTIC;
@@ -482,7 +481,7 @@ IS
 
 	FUNCTION Strip_Comments ( p_Text VARCHAR2 ) RETURN VARCHAR2;
 
-    FUNCTION IN_LIST( p_string in clob, p_delimiter in varchar2 := ';') RETURN sys.odciVarchar2List PIPELINED;
+    FUNCTION IN_LIST( p_string in clob, p_delimiter in varchar2 := ';') RETURN sys.odciVarchar2List PIPELINED PARALLEL_ENABLE;
 
     FUNCTION F_BASE_KEY_COLS (
         p_TABLE_NAME IN VARCHAR2,
@@ -558,7 +557,7 @@ IS
 	FUNCTION Constraint_Condition_Cursor (
 		p_Table_Name IN VARCHAR2 DEFAULT NULL,
 		p_Constraint_Name IN VARCHAR2 DEFAULT NULL
-	) RETURN changelog_conf.tab_constraint_condition PIPELINED;
+	) RETURN changelog_conf.tab_constraint_condition PIPELINED PARALLEL_ENABLE;
 
     FUNCTION Get_ChangeLogTable RETURN VARCHAR2 DETERMINISTIC;
     FUNCTION Get_ChangeLogFKeyTables RETURN VARCHAR2;
@@ -782,7 +781,7 @@ IS
     END;
 
 	FUNCTION FN_Pipe_References_Count
-	RETURN changelog_conf.tab_references_count PIPELINED
+	RETURN changelog_conf.tab_references_count PIPELINED PARALLEL_ENABLE
 	IS
 		PRAGMA UDF;
 		CURSOR all_refs_cur
@@ -834,23 +833,20 @@ IS
 		end if;
 	END FN_Pipe_References_Count;
 
-	FUNCTION FN_Pipe_insert_triggers (
-		p_Table_Name VARCHAR2 DEFAULT NULL
-	) RETURN changelog_conf.tab_insert_triggers PIPELINED
+	FUNCTION FN_Pipe_insert_triggers 
+	RETURN changelog_conf.tab_insert_triggers PIPELINED PARALLEL_ENABLE
 	IS
         CURSOR trigger_cur
         IS
-			SELECT T.TABLE_NAME, T.TABLE_OWNER,
-					T.TRIGGER_BODY, 
-					S.REFERENCED_OWNER SEQUENCE_OWNER, 
-					S.REFERENCED_NAME SEQUENCE_NAME
+			SELECT T.TABLE_NAME, T.TABLE_OWNER, T.TRIGGER_BODY, 
+				S.REFERENCED_OWNER SEQUENCE_OWNER, 
+				S.REFERENCED_NAME SEQUENCE_NAME
 			FROM (
 				SELECT T.TABLE_NAME, T.TABLE_OWNER, T.TRIGGER_NAME, T.TRIGGER_BODY TRIGGER_BODY
 				FROM SYS.USER_TRIGGERS T
 				WHERE T.BASE_OBJECT_TYPE = 'TABLE'
 				AND T.TRIGGER_TYPE IN ('BEFORE EACH ROW','COMPOUND')
 				AND INSTR(T.TRIGGERING_EVENT, 'INSERT') > 0
-				AND T.TABLE_NAME = NVL(p_Table_Name, T.TABLE_NAME)
 				AND T.TABLE_OWNER = SYS_CONTEXT('USERENV', 'CURRENT_SCHEMA') 
 				UNION ALL
 				SELECT T.TABLE_NAME, T.TABLE_OWNER, T.TRIGGER_NAME, T.TRIGGER_BODY TRIGGER_BODY
@@ -859,7 +855,6 @@ IS
 				WHERE T.BASE_OBJECT_TYPE = 'TABLE'
 				AND T.TRIGGER_TYPE IN ('BEFORE EACH ROW','COMPOUND')
 				AND INSTR(T.TRIGGERING_EVENT, 'INSERT') > 0
-				AND T.TABLE_NAME = NVL(p_Table_Name, T.TABLE_NAME)
 				and G.TYPE = 'TABLE'
 				and G.GRANTEE IN ('PUBLIC', SYS_CONTEXT('USERENV', 'CURRENT_SCHEMA'))
 			) T
@@ -872,17 +867,15 @@ IS
         CURSOR user_trigger_cur
         IS
 			SELECT /*+ USE_MERGE(T S) */
-					T.TABLE_NAME, SYS_CONTEXT('USERENV', 'CURRENT_SCHEMA') TABLE_OWNER,
-					T.TRIGGER_BODY, 
-					S.REFERENCED_OWNER SEQUENCE_OWNER, 
-					S.REFERENCED_NAME SEQUENCE_NAME
+				T.TABLE_NAME, T.TABLE_OWNER, T.TRIGGER_BODY, 
+				S.REFERENCED_OWNER SEQUENCE_OWNER, 
+				S.REFERENCED_NAME SEQUENCE_NAME
 			FROM (
 				SELECT T.TABLE_NAME, T.TABLE_OWNER, T.TRIGGER_NAME, T.TRIGGER_BODY TRIGGER_BODY
 				FROM SYS.USER_TRIGGERS T
 				WHERE T.BASE_OBJECT_TYPE = 'TABLE'
 				AND T.TRIGGER_TYPE IN ('BEFORE EACH ROW','COMPOUND')
 				AND INSTR(T.TRIGGERING_EVENT, 'INSERT') > 0
-				AND T.TABLE_NAME = NVL(p_Table_Name, T.TABLE_NAME)
 				AND T.TABLE_OWNER = SYS_CONTEXT('USERENV', 'CURRENT_SCHEMA') 
 			) T
 			, SYS.USER_DEPENDENCIES S
@@ -908,21 +901,23 @@ IS
         IF v_in_rows.FIRST IS NOT NULL THEN
             FOR ind IN 1 .. v_in_rows.COUNT
 			loop
-				v_out_row.TABLE_NAME := v_in_rows(ind).TABLE_NAME;
-				v_out_row.TABLE_OWNER := v_in_rows(ind).TABLE_OWNER;
 				v_out_row.TRIGGER_HAS_NEXTVAL := REGEXP_INSTR(v_in_rows(ind).TRIGGER_BODY, 'NEXTVAL', 1, 1, 1, 'i');
 				v_out_row.TRIGGER_HAS_SYS_GUID := REGEXP_INSTR(v_in_rows(ind).TRIGGER_BODY, 'SYS_GUID', 1, 1, 1, 'i');
-				v_out_row.TRIGGER_BODY := SUBSTR(TO_CLOB(v_in_rows(ind).TRIGGER_BODY), 1, 800); -- special conversion of LONG type; give a margin of 200 bytes for char expansion 
-				v_out_row.SEQUENCE_OWNER := v_in_rows(ind).SEQUENCE_OWNER;
-				v_out_row.SEQUENCE_NAME := v_in_rows(ind).SEQUENCE_NAME;
-				PIPE ROW(v_out_row);
+				if v_out_row.TRIGGER_HAS_NEXTVAL + v_out_row.TRIGGER_HAS_SYS_GUID > 0 then
+					v_out_row.TABLE_NAME := v_in_rows(ind).TABLE_NAME;
+					v_out_row.TABLE_OWNER := v_in_rows(ind).TABLE_OWNER;
+					v_out_row.TRIGGER_BODY := SUBSTR(TO_CLOB(v_in_rows(ind).TRIGGER_BODY), 1, 800); -- special conversion of LONG type; give a margin of 200 bytes for char expansion 
+					v_out_row.SEQUENCE_OWNER := v_in_rows(ind).SEQUENCE_OWNER;
+					v_out_row.SEQUENCE_NAME := v_in_rows(ind).SEQUENCE_NAME;
+					PIPE ROW(v_out_row);
+				end if;
 			end loop;
         END IF;
 	END FN_Pipe_insert_triggers;
 
 	FUNCTION FN_Pipe_base_triggers (
 		p_Table_Name VARCHAR2 DEFAULT NULL
-	) RETURN changelog_conf.tab_base_triggers PIPELINED
+	) RETURN changelog_conf.tab_base_triggers PIPELINED PARALLEL_ENABLE
 	IS
         CURSOR trigger_cur
         IS
@@ -1007,7 +1002,7 @@ IS
 
 	FUNCTION FN_Pipe_views_triggers (
 		p_Table_Name VARCHAR2 DEFAULT NULL
-	) RETURN changelog_conf.tab_views_triggers PIPELINED
+	) RETURN changelog_conf.tab_views_triggers PIPELINED PARALLEL_ENABLE
 	IS
         CURSOR trigger_cur
         IS
@@ -1048,7 +1043,7 @@ IS
 	END FN_Pipe_views_triggers;
 
 	FUNCTION FN_Pipe_unique_keys 
-	RETURN changelog_conf.tab_unique_keys PIPELINED
+	RETURN changelog_conf.tab_unique_keys PIPELINED PARALLEL_ENABLE
 	IS
         CURSOR keys_cur
         IS
@@ -1139,7 +1134,7 @@ IS
 	END FN_Pipe_unique_keys;
 
 	FUNCTION FN_Pipe_unique_indexes 
-	RETURN changelog_conf.tab_unique_keys PIPELINED
+	RETURN changelog_conf.tab_unique_keys PIPELINED PARALLEL_ENABLE
 	IS
         CURSOR keys_cur
         IS
@@ -1238,13 +1233,11 @@ $END
 
 
 	FUNCTION FN_Pipe_Base_Uniquekeys	-- result is cached in MVBASE_UNIQUE_KEYS
-	RETURN changelog_conf.tab_base_unique_keys PIPELINED
+	RETURN changelog_conf.tab_base_unique_keys PIPELINED PARALLEL_ENABLE
 	IS
         CURSOR user_keys_cur
         IS
-		WITH INSERT_TRIGGERS AS (
-			select * from table ( changelog_conf.FN_Pipe_insert_triggers )
-		), U_CONSTRAINTS AS (
+		WITH U_CONSTRAINTS AS (
 			select * from table ( changelog_conf.FN_Pipe_unique_keys)  where VIEW_COLUMN_NAME IS NOT NULL
 		) -------------------------------------------------------------------------------
 		SELECT /*+ RESULT_CACHE */
@@ -1296,7 +1289,6 @@ $END
 					MAX(KEY_HAS_DELETE_MARK)  KEY_HAS_DELETE_MARK,
 					MAX(CASE WHEN DEFAULT_SEQUENCE_NAME IS NOT NULL THEN 'YES' END) KEY_HAS_NEXTVAL,
 					MAX(CASE WHEN REGEXP_INSTR(DEFAULT_TEXT, 'SYS_GUID', 1, 1, 1, 'i') > 0 THEN 'YES' END) KEY_HAS_SYS_GUID,
-					MAX(DEFAULT_TEXT) DEFAULT_TEXT,
 					MAX(HAS_SCALAR_KEY) HAS_SCALAR_KEY,
 					MAX(HAS_SCALAR_VIEW_KEY) HAS_SCALAR_VIEW_KEY,
 					MAX(TRIGGER_HAS_NEXTVAL) TRIGGER_HAS_NEXTVAL,
@@ -1329,14 +1321,14 @@ $END
 							AND VIEW_COLUMN_NAME IS NOT NULL 
 							THEN 'YES' 
 						END HAS_SCALAR_VIEW_KEY,
-						DATA_TYPE, NULLABLE, DATA_SCALE, INDEX_OWNER, INDEX_NAME, DEFERRABLE, DEFERRED, STATUS, VALIDATED,
+						NULLABLE, INDEX_OWNER, INDEX_NAME, DEFERRABLE, DEFERRED, STATUS, VALIDATED,
 						DEFAULT_SEQUENCE_OWNER, DEFAULT_SEQUENCE_NAME, 
 						case when TRIGGER_HAS_NEXTVAL > 0 and TRIGGER_HAS_ASSIGN_ID > 0 then 'YES' end TRIGGER_HAS_NEXTVAL,
 						case when TRIGGER_HAS_SYS_GUID > 0 and TRIGGER_HAS_ASSIGN_ID > 0 then 'YES' end TRIGGER_HAS_SYS_GUID,
 						case when TRIGGER_HAS_ASSIGN_ID > 0 then 'YES' end TRIGGER_HAS_ASSIGN_ID,
 						SEQUENCE_OWNER, SEQUENCE_NAME
 					FROM (
-						SELECT
+						SELECT  /*+ USE_MERGE(T TR) */
 							T.TABLE_NAME, T.TABLE_OWNER, T.CONSTRAINT_NAME, T.CONSTRAINT_TYPE, T.COLUMN_NAME, T.POSITION,
 							T.DEFAULT_TEXT, T.VIEW_COLUMN_NAME, T.DATA_TYPE, T.NULLABLE, T.DATA_SCALE,
 								T.INDEX_OWNER, T.INDEX_NAME, T.DEFERRABLE, T.DEFERRED, T.STATUS, T.VALIDATED,
@@ -1363,21 +1355,22 @@ $END
 								AND E.INDEX_NAME = B.INDEX_NAME
 								AND E.INDEX_OWNER = B.TABLE_OWNER
 							)
-						) T, INSERT_TRIGGERS TR
-						where T.TABLE_NAME = TR.TABLE_NAME (+) AND T.TABLE_OWNER = TR.TABLE_OWNER (+)
+						) T
+						LEFT OUTER JOIN table ( changelog_conf.FN_Pipe_insert_triggers ) TR
+							ON T.TABLE_NAME = TR.TABLE_NAME AND T.TABLE_OWNER = TR.TABLE_OWNER
+						WHERE NOT EXISTS (    -- this table is not part of materialized view
+							SELECT 
+								1
+							FROM ALL_OBJECTS MV
+							WHERE MV.OBJECT_NAME = T.TABLE_NAME
+							AND MV.OWNER = T.TABLE_OWNER
+							AND MV.OBJECT_TYPE = 'MATERIALIZED VIEW'
+						)					
 						GROUP BY T.TABLE_NAME, T.TABLE_OWNER, T.CONSTRAINT_NAME, T.CONSTRAINT_TYPE, T.COLUMN_NAME, T.POSITION,
 							T.DEFAULT_TEXT, T.VIEW_COLUMN_NAME, T.DATA_TYPE, T.NULLABLE, T.DATA_SCALE,
 							T.INDEX_OWNER, T.INDEX_NAME, T.DEFERRABLE, T.DEFERRED, T.STATUS, T.VALIDATED
 					) T
 				) C
-				WHERE NOT EXISTS (    -- this table is not part of materialized view
-					SELECT --+ NO_UNNEST
-						1
-					FROM ALL_OBJECTS MV
-					WHERE MV.OBJECT_NAME = C.TABLE_NAME
-					AND MV.OWNER = C.TABLE_OWNER
-					AND MV.OBJECT_TYPE = 'MATERIALIZED VIEW'
-				)
 				GROUP BY TABLE_NAME, TABLE_OWNER, CONSTRAINT_NAME, CONSTRAINT_TYPE, DEFERRABLE, DEFERRED, STATUS, VALIDATED
 			)
 		);
@@ -1400,7 +1393,7 @@ $END
 	FUNCTION FN_Pipe_Base_Uniquekeys (
 		p_cur changelog_conf.cur_base_unique_keys
 	)
-	RETURN changelog_conf.tab_base_unique_keys PIPELINED
+	RETURN changelog_conf.tab_base_unique_keys PIPELINED PARALLEL_ENABLE
 	IS
 		v_row changelog_conf.rec_base_unique_keys; -- output row
 	BEGIN 
@@ -1417,7 +1410,7 @@ $END
 	FUNCTION FN_Pipe_Table_AlterUniquekeys (
 		p_cur_unique_keys changelog_conf.cur_base_unique_keys
 	)
-	RETURN changelog_conf.tab_alter_unique_keys PIPELINED
+	RETURN changelog_conf.tab_alter_unique_keys PIPELINED PARALLEL_ENABLE
 	IS
         CURSOR keys_cur
         IS
@@ -1491,7 +1484,7 @@ $END
 
 
 	FUNCTION FN_Pipe_Base_Views
-	RETURN changelog_conf.tab_base_views PIPELINED
+	RETURN changelog_conf.tab_base_views PIPELINED PARALLEL_ENABLE
 	IS
         CURSOR user_keys_cur
         IS
@@ -1546,7 +1539,7 @@ $END
 
 
 	FUNCTION FN_Pipe_Changelog_fkeys
-	RETURN changelog_conf.tab_Changelog_fkeys PIPELINED
+	RETURN changelog_conf.tab_Changelog_fkeys PIPELINED PARALLEL_ENABLE
 	IS
         CURSOR user_keys_cur
         IS
@@ -1582,7 +1575,7 @@ $END
 
 
 	FUNCTION FN_Pipe_has_set_null_fkeys (p_Table_Name VARCHAR2 DEFAULT NULL)
-	RETURN changelog_conf.tab_has_set_null_fkeys PIPELINED
+	RETURN changelog_conf.tab_has_set_null_fkeys PIPELINED PARALLEL_ENABLE
 	IS
         CURSOR user_keys_cur
         IS
@@ -1627,7 +1620,7 @@ $END
 
 
 	FUNCTION FN_Pipe_Table_Columns
-	RETURN changelog_conf.tab_table_columns PIPELINED
+	RETURN changelog_conf.tab_table_columns PIPELINED PARALLEL_ENABLE
 	IS
         CURSOR user_keys_cur
         IS
@@ -1666,7 +1659,7 @@ $END
 
 
 	FUNCTION FN_Pipe_Foreign_Key_Columns
-	RETURN changelog_conf.tab_foreign_key_columns PIPELINED
+	RETURN changelog_conf.tab_foreign_key_columns PIPELINED PARALLEL_ENABLE
 	IS
 		PRAGMA UDF;
 		CURSOR all_objects_cur
@@ -1735,7 +1728,7 @@ $END
 
 
 	FUNCTION FN_Pipe_Changelog_References
-	RETURN changelog_conf.tab_changelog_references PIPELINED
+	RETURN changelog_conf.tab_changelog_references PIPELINED PARALLEL_ENABLE
 	IS
         CURSOR user_keys_cur
         IS
@@ -2524,7 +2517,7 @@ $END
 	END;
 
     FUNCTION in_list( p_string in clob, p_delimiter in varchar2 := ';')
-    RETURN sys.odciVarchar2List PIPELINED   -- VARCHAR2(4000)
+    RETURN sys.odciVarchar2List PIPELINED PARALLEL_ENABLE   -- VARCHAR2(4000)
     IS
 	PRAGMA UDF;
         l_string    varchar2(32767);
@@ -2853,7 +2846,7 @@ $END
 	FUNCTION Constraint_Condition_Cursor (
 		p_Table_Name IN VARCHAR2 DEFAULT NULL,
 		p_Constraint_Name IN VARCHAR2 DEFAULT NULL
-	) RETURN changelog_conf.tab_constraint_condition PIPELINED
+	) RETURN changelog_conf.tab_constraint_condition PIPELINED PARALLEL_ENABLE
 	is
 		v_out_rec changelog_conf.rec_constraint_condition;
 		v_Search_Condition VARCHAR2(4000);

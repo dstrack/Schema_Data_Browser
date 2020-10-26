@@ -53,9 +53,7 @@ CREATE OR REPLACE PACKAGE BODY custom_changelog_gen IS
 
 	FUNCTION NL(p_Indent PLS_INTEGER) RETURN VARCHAR2 DETERMINISTIC
 	is
-$IF DBMS_DB_VERSION.VERSION >= 12 $THEN
 	PRAGMA UDF;
-$END
 	begin
 		return case when g_Generate_Compact_Queries = 'NO'
 			then chr(10) || RPAD(' ', p_Indent)
@@ -366,9 +364,10 @@ $END
 		FROM MVBASE_UNIQUE_KEYS S
 		WHERE NOT EXISTS (
 			SELECT 1
-			FROM SYS.ALL_TABLES T
-			WHERE T.TABLE_NAME = S.TABLE_NAME
+			FROM SYS.ALL_OBJECTS T
+			WHERE T.OBJECT_NAME = S.TABLE_NAME
 			AND T.OWNER = S.TABLE_OWNER
+            AND T.OBJECT_TYPE = 'TABLE'
 		);
 		return v_Count;
 	END;
@@ -783,9 +782,7 @@ $END
 		p_Table_Name VARCHAR2 DEFAULT NULL
 	) RETURN tab_user_table_timstamps PIPELINED
 	IS
-$IF DBMS_DB_VERSION.VERSION >= 12 $THEN
 	PRAGMA UDF;
-$END
         v_Stat      CLOB;
 		c_cur  SYS_REFCURSOR;
 		v_row rec_user_table_timstamps; -- output row
@@ -1331,9 +1328,7 @@ $END
 		p_Use_Group_Separator VARCHAR2 DEFAULT 'N')
 	RETURN VARCHAR2 DETERMINISTIC
 	IS
-$IF DBMS_DB_VERSION.VERSION >= 12 $THEN
 	PRAGMA UDF;
-$END
         v_Data_Scale CONSTANT PLS_INTEGER := NVL(p_Data_Scale, g_Default_Data_Scale);
         v_Data_Precision CONSTANT PLS_INTEGER := NVL(p_Data_Precision, g_Default_Data_Precision + g_Default_Data_Scale) - v_Data_Scale + 1; -- one char for minus sign
 	BEGIN

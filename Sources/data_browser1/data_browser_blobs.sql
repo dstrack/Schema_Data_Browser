@@ -25,9 +25,7 @@ IS
 	)
     RETURN VARCHAR2 DETERMINISTIC
     IS
-$IF DBMS_DB_VERSION.VERSION >= 12 $THEN
 	PRAGMA UDF;
-$END
     BEGIN
     	RETURN
 			case when p_First_Name IS NOT NULL and p_Second_Name IS NOT NULL
@@ -1376,9 +1374,7 @@ $END
 
 	FUNCTION Prepare_Plain_Url(p_URL VARCHAR2) RETURN VARCHAR2
 	is
-$IF DBMS_DB_VERSION.VERSION >= 12 $THEN
 	PRAGMA UDF;
-$END
 	begin
 		return APEX_UTIL.PREPARE_URL(p_URL => p_URL, p_plain_url => true);
 		-- v_URL	:= Extract_Source_URL(v_URL);
@@ -1476,9 +1472,7 @@ $END
 		p_Page_ID           NUMBER DEFAULT 31
 	) RETURN VARCHAR2
 	IS
-$IF DBMS_DB_VERSION.VERSION >= 12 $THEN
 	PRAGMA UDF;
-$END
 	BEGIN
 		if p_Key_Column IS NULL then
 			return 'NULL';
@@ -1514,9 +1508,7 @@ $END
 		p_Selector			VARCHAR DEFAULT 'ACTIONS_GEAR'
 	) RETURN VARCHAR2
 	is
-$IF DBMS_DB_VERSION.VERSION >= 12 $THEN
 	PRAGMA UDF;
-$END
 	begin
 		return '<a href="'
 			|| apex_util.prepare_url(p_url=> 'f?p='
@@ -1542,9 +1534,7 @@ $END
 		p_Selector			VARCHAR2 DEFAULT 'ACTIONS_GEAR'
 	) RETURN VARCHAR2
 	is
-$IF DBMS_DB_VERSION.VERSION >= 12 $THEN
 	PRAGMA UDF;
-$END
 		v_Result VARCHAR2(4000);
 	begin
 		v_Result := 'data_browser_blobs.Text_Link_Url(p_Table_Name=> '
@@ -1569,9 +1559,7 @@ $END
 		p_CSS_Class			VARCHAR2 DEFAULT NULL
 	) RETURN VARCHAR2
 	is
-$IF DBMS_DB_VERSION.VERSION >= 12 $THEN
 	PRAGMA UDF;
-$END
 	begin
 		return case when data_browser_conf.Get_Export_CSV_Mode = 'NO' then
 			Enquote_Literal('<div id="' || p_Column_Label || '_') || '||ROWNUM||'
@@ -1744,9 +1732,7 @@ $END
 		p_Field_Value VARCHAR2
 	) return CLOB
 	is
-$IF DBMS_DB_VERSION.VERSION >= 12 $THEN
 	PRAGMA UDF;
-$END
 		v_Seq_ID NUMBER;
 		v_clob CLOB;
 	begin
@@ -1768,9 +1754,7 @@ $END
 		p_Field_Value VARCHAR2
 	) return VARCHAR2
 	is
-$IF DBMS_DB_VERSION.VERSION >= 12 $THEN
 	PRAGMA UDF;
-$END
 		v_Seq_ID NUMBER;
 		v_clob CLOB;
 	begin

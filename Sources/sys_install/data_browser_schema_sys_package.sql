@@ -148,9 +148,7 @@ IS
 	-- enable the application to obtain the mail server configuration for the APEX_INSTANCE_ADMIN parameters. 
 	FUNCTION FN_Pipe_mail_parameter RETURN DATA_BROWSER_MAILPARAM_TAB PIPELINED
 	IS
-$IF DBMS_DB_VERSION.VERSION >= 12 $THEN
 	PRAGMA UDF;
-$END
 		c_cur SYS_REFCURSOR;
 		v_row DATA_BROWSER_MAILPARAM_TYPE; -- output row
 	BEGIN

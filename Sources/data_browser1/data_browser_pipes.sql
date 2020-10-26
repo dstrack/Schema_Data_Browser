@@ -173,44 +173,62 @@ IS
 
 	g_fetch_limit CONSTANT PLS_INTEGER := 100;
 
+	FUNCTION MViews_Stale_Count RETURN NUMBER;
+
 	FUNCTION FN_Pipe_Table_Uniquekeys 
-	RETURN data_browser_pipes.tab_table_unique_keys PIPELINED;
+	RETURN data_browser_pipes.tab_table_unique_keys PIPELINED PARALLEL_ENABLE;
 
 	FUNCTION FN_Pipe_Mapping_Views
-	RETURN data_browser_pipes.tab_base_mapping_views PIPELINED;
+	RETURN data_browser_pipes.tab_base_mapping_views PIPELINED PARALLEL_ENABLE;
 
 	FUNCTION FN_Pipe_Table_Cols_Prefix
-	RETURN data_browser_pipes.tab_table_cols_prefix PIPELINED;
+	RETURN data_browser_pipes.tab_table_cols_prefix PIPELINED PARALLEL_ENABLE;
 
 	FUNCTION FN_Pipe_Table_Columns
-	RETURN data_browser_pipes.tab_table_columns PIPELINED;
+	RETURN data_browser_pipes.tab_table_columns PIPELINED PARALLEL_ENABLE;
 
 	FUNCTION FN_Pipe_Unique_Ref_Columns		-- result is cached in MVDATA_BROWSER_U_REFS
-	RETURN data_browser_pipes.tab_unique_ref_columns PIPELINED;
+	RETURN data_browser_pipes.tab_unique_ref_columns PIPELINED PARALLEL_ENABLE;
 
 	FUNCTION FN_Pipe_Sys_Objects(p_Include_External_Objects VARCHAR2 DEFAULT 'NO')
-	RETURN data_browser_pipes.tab_sys_objects PIPELINED;
+	RETURN data_browser_pipes.tab_sys_objects PIPELINED PARALLEL_ENABLE;
 
 	FUNCTION FN_Pipe_Table_Numrows
-	RETURN data_browser_pipes.tab_table_numrows PIPELINED;
+	RETURN data_browser_pipes.tab_table_numrows PIPELINED PARALLEL_ENABLE;
 
 	FUNCTION FN_Pipe_References_Count
-	RETURN data_browser_pipes.tab_references_count PIPELINED;
+	RETURN data_browser_pipes.tab_references_count PIPELINED PARALLEL_ENABLE;
 
 	FUNCTION FN_Pipe_Special_Columns
-	RETURN data_browser_pipes.tab_special_columns PIPELINED;
+	RETURN data_browser_pipes.tab_special_columns PIPELINED PARALLEL_ENABLE;
 
 	FUNCTION FN_Pipe_Accessible_Schemas (
 		p_User_Name IN VARCHAR2 DEFAULT SYS_CONTEXT('APEX$SESSION','APP_USER'),
 		p_application_id IN NUMBER DEFAULT NV('APP_ID')
-	) RETURN tab_Accessible_Schema PIPELINED;
+	) RETURN tab_Accessible_Schema PIPELINED PARALLEL_ENABLE;
 END data_browser_pipes;
 /
 
 CREATE OR REPLACE PACKAGE BODY data_browser_pipes 
 IS
+	FUNCTION MViews_Stale_Count RETURN NUMBER
+	IS
+        v_Count 		PLS_INTEGER;
+	BEGIN
+		SELECT COUNT(*) INTO v_Count
+		FROM MVBASE_UNIQUE_KEYS S
+		WHERE NOT EXISTS (
+			SELECT 1
+			FROM SYS.ALL_OBJECTS T
+			WHERE T.OBJECT_NAME = S.TABLE_NAME
+			AND T.OWNER = S.TABLE_OWNER
+            AND T.OBJECT_TYPE = 'TABLE'
+		);
+		return v_Count;
+	END;
+
 	FUNCTION FN_Pipe_Table_Uniquekeys 
-	RETURN data_browser_pipes.tab_table_unique_keys PIPELINED
+	RETURN data_browser_pipes.tab_table_unique_keys PIPELINED PARALLEL_ENABLE
 	IS
         CURSOR keys_cur
         IS
@@ -418,7 +436,7 @@ IS
 
 
 	FUNCTION FN_Pipe_Mapping_Views
-	RETURN data_browser_pipes.tab_base_mapping_views PIPELINED
+	RETURN data_browser_pipes.tab_base_mapping_views PIPELINED PARALLEL_ENABLE
 	IS
 		PRAGMA UDF;
         CURSOR views_cur
@@ -542,7 +560,7 @@ IS
 	END FN_Pipe_Mapping_Views;
 
 	FUNCTION FN_Pipe_Table_Cols_Prefix
-	RETURN data_browser_pipes.tab_table_cols_prefix PIPELINED
+	RETURN data_browser_pipes.tab_table_cols_prefix PIPELINED PARALLEL_ENABLE
 	IS
 		PRAGMA UDF;
         CURSOR tables_cur
@@ -602,7 +620,7 @@ IS
 	END FN_Pipe_Table_Cols_Prefix;
 
 	FUNCTION FN_Pipe_Table_Columns
-	RETURN data_browser_pipes.tab_table_columns PIPELINED
+	RETURN data_browser_pipes.tab_table_columns PIPELINED PARALLEL_ENABLE
 	IS
 	$IF DBMS_DB_VERSION.VERSION >= 12 $THEN
 		PRAGMA UDF;
@@ -692,7 +710,7 @@ IS
 	END FN_Pipe_Table_Columns;
 
 	FUNCTION FN_Pipe_Unique_Ref_Columns		-- result is cached in MVDATA_BROWSER_U_REFS
-	RETURN data_browser_pipes.tab_unique_ref_columns PIPELINED
+	RETURN data_browser_pipes.tab_unique_ref_columns PIPELINED PARALLEL_ENABLE
 	IS
 		PRAGMA UDF;
 		CURSOR all_cols_cur
@@ -791,7 +809,7 @@ IS
 
 
 	FUNCTION FN_Pipe_Sys_Objects(p_Include_External_Objects VARCHAR2 DEFAULT 'NO')
-	RETURN data_browser_pipes.tab_sys_objects PIPELINED
+	RETURN data_browser_pipes.tab_sys_objects PIPELINED PARALLEL_ENABLE
 	IS
 		PRAGMA UDF;
 		CURSOR all_objects_cur
@@ -836,7 +854,7 @@ IS
 	END FN_Pipe_Sys_Objects;
 
 	FUNCTION FN_Pipe_Table_Numrows
-	RETURN data_browser_pipes.tab_table_numrows PIPELINED
+	RETURN data_browser_pipes.tab_table_numrows PIPELINED PARALLEL_ENABLE
 	IS
 		PRAGMA UDF;
 		CURSOR all_objects_cur
@@ -895,7 +913,7 @@ IS
 	END FN_Pipe_Table_Numrows;
 
 	FUNCTION FN_Pipe_References_Count
-	RETURN data_browser_pipes.tab_references_count PIPELINED
+	RETURN data_browser_pipes.tab_references_count PIPELINED PARALLEL_ENABLE
 	IS
 		PRAGMA UDF;
 		CURSOR all_refs_cur
@@ -947,7 +965,7 @@ IS
 	END FN_Pipe_References_Count;
 
 	FUNCTION FN_Pipe_Special_Columns
-	RETURN data_browser_pipes.tab_special_columns PIPELINED
+	RETURN data_browser_pipes.tab_special_columns PIPELINED PARALLEL_ENABLE
 	IS
 		PRAGMA UDF;
 		CURSOR user_objects_cur
@@ -1115,7 +1133,7 @@ IS
 	FUNCTION FN_Pipe_Accessible_Schemas (
 		p_User_Name IN VARCHAR2 DEFAULT SYS_CONTEXT('APEX$SESSION','APP_USER'),
 		p_application_id IN NUMBER DEFAULT NV('APP_ID')
-	) RETURN tab_Accessible_Schema PIPELINED
+	) RETURN tab_Accessible_Schema PIPELINED PARALLEL_ENABLE
 	IS
 		s_cur  SYS_REFCURSOR;
 		v_row rec_Accessible_Schema; -- output row

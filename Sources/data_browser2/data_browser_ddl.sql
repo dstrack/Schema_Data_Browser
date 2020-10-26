@@ -1673,9 +1673,7 @@ Load_Column_Constraints (
 		p_Column_Names IN VARCHAR2
 	) RETURN VARCHAR2 -- YES / NO / N/A
 	IS
-$IF DBMS_DB_VERSION.VERSION >= 12 $THEN
 	PRAGMA UDF;
-$END
 		v_Query		VARCHAR2(32767);
 		v_Result    PLS_INTEGER := 0;
    		cv 			SYS_REFCURSOR;
@@ -1747,9 +1745,7 @@ $END
 		p_Column_Name IN VARCHAR2
 	) RETURN VARCHAR2 -- YES / NO / N/A
 	IS
-$IF DBMS_DB_VERSION.VERSION >= 12 $THEN
 	PRAGMA UDF;
-$END
 		v_Query		VARCHAR2(32767);
 		v_Result    PLS_INTEGER := 0;
    		cv 			SYS_REFCURSOR;

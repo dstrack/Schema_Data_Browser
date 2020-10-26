@@ -201,9 +201,7 @@ is
 		p_List_Excluded VARCHAR2 DEFAULT 'NO'
 	) RETURN data_browser_conf.tab_describe_joins PIPELINED
 	IS
-$IF DBMS_DB_VERSION.VERSION >= 12 $THEN
 	PRAGMA UDF;
-$END
 		v_Table_Name		MVDATA_BROWSER_VIEWS.VIEW_NAME%TYPE := UPPER(p_Table_Name);
 		v_joins_md5			VARCHAR2(300);
 		v_is_cached			VARCHAR2(10);
@@ -257,9 +255,7 @@ $END
 		p_Join_Options VARCHAR2
 	) RETURN data_browser_conf.tab_join_options PIPELINED
 	IS
-$IF DBMS_DB_VERSION.VERSION >= 12 $THEN
 	PRAGMA UDF;
-$END
 		CURSOR join_options_cur
 		IS
 		WITH JOIN_OPTIONS AS (

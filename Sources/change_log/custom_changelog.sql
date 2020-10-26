@@ -697,9 +697,7 @@ CREATE OR REPLACE PACKAGE BODY custom_changelog IS
 	)
     RETURN VARCHAR2 DETERMINISTIC
     IS
-$IF DBMS_DB_VERSION.VERSION >= 12 $THEN
 	PRAGMA UDF;
-$END
     BEGIN
     	RETURN
 			case when p_First_Name IS NOT NULL and p_Second_Name IS NOT NULL
@@ -1042,9 +1040,7 @@ $END
     )
     RETURN VARCHAR2
     IS
-$IF DBMS_DB_VERSION.VERSION >= 12 $THEN
 	PRAGMA UDF;
-$END
         stat_cur            SYS_REFCURSOR;
         v_Stat1             VARCHAR2(400);
         v_Wert              VARCHAR2(4000)  := p_After;
