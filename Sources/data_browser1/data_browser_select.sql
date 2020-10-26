@@ -1418,10 +1418,8 @@ is
     END Get_ConversionColFunction;
 
 	/*
-	List of displayed column names for each user table foreign key target tables.
-	The columns names match a pattern in the list of Reference Description Cols configuration list
-	or the column names are members of unique key definitions
-	or the column names are displayed columns of second level foreign keys of composite primary keys.
+	qc_refs: all 2. level table columns of indirect references from frefs => alias B_A. 
+		FK cols are excluded fields. (join options A)
 	*/
 	FUNCTION FN_Pipe_browser_qc_refs (p_View_Name VARCHAR2, p_Data_Format VARCHAR2 DEFAULT 'FORM')
 	RETURN data_browser_select.tab_data_browser_qc_refs PIPELINED
@@ -1537,8 +1535,8 @@ is
 	END FN_Pipe_browser_qc_refs;
 
 	/*
-		List of displayed column names for each user table foreign key. 
-		The columns names match a pattern in the list of Reference Description Cols configuration list.
+		fc_refs: all 1. level table columns of direct references from table A => alias B. 
+		FK cols are HIDDEN fields. (join options A)
 	*/
 
 	FUNCTION FN_Pipe_browser_fc_refs (p_View_Name VARCHAR2)
