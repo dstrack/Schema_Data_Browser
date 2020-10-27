@@ -1328,7 +1328,11 @@ IS
 		p_View_Mode IN VARCHAR2
 	);
 
-	PROCEDURE Reset_All_Column_Preferences;
+	PROCEDURE Reset_All_Column_Preferences (
+		p_Owner VARCHAR2 DEFAULT V('OWNER'),
+    	p_Application_ID NUMBER DEFAULT NV('APP_ID'),
+		p_Page_ID NUMBER DEFAULT 30
+	);
 	
 	PROCEDURE Set_Parent_Key_Preference (
 		p_Table_name IN VARCHAR2,		
