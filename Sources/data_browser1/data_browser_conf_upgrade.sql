@@ -14,6 +14,20 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+-- stop running or scheduled jobs of this app
+begin
+    for c in (
+        select JOB_NAME from USER_SCHEDULER_JOBS
+        where JOB_NAME LIKE 'DBROW_%'
+    ) loop 
+        dbms_scheduler.drop_job (
+            job_name => c.JOB_NAME,
+            force => TRUE
+        );
+    end loop;
+    commit;
+end;
+/
 
 -- hide own materialized views
 UPDATE DATA_BROWSER_CONFIG SET EXCLUDED_TABLES_PATTERN = (EXCLUDED_TABLES_PATTERN||','||'MVDATA_BROWSER%')

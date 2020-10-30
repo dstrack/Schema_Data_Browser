@@ -28,7 +28,7 @@ DROP VIEW VBASE_VIEWS0;
 DECLARE
 	PROCEDURE DROP_MVIEW( p_MView_Name VARCHAR2) IS
 		time_limit_exceeded EXCEPTION;
-		PRAGMA EXCEPTION_INIT (time_limit_exceeded, -40); -- ORA-04021: timeout occurred while waiting to lock object 
+		PRAGMA EXCEPTION_INIT (time_limit_exceeded, -4021); -- ORA-04021: timeout occurred while waiting to lock object 
 		mview_does_not_exist EXCEPTION;
 		PRAGMA EXCEPTION_INIT (mview_does_not_exist, -12003); -- ORA-12003: materialized view does not exist
 		v_count NUMBER := 0;
