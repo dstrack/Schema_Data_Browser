@@ -250,6 +250,7 @@ is
         v_Result_PLSQL				CLOB;
         v_Result_Stat				CLOB;
         v_Use_Group_Separator 		CONSTANT VARCHAR2(1) := 'Y';
+		v_use_NLS_params 			CONSTANT VARCHAR2(1) := 'Y'; -- case when p_Data_Source = 'COLLECTION' then 'Y' else 'N' end
 		v_Apex_Item_Rows_Call 		VARCHAR2(1024);
     	v_Procedure_Name 			VARCHAR2(50);
     	v_Procedure_Name2 			VARCHAR2(50);
@@ -294,12 +295,12 @@ is
 		v_Init_Key_Stat := case 
 			when p_Data_Source = 'COLLECTION' then
 				'v_Key_Value := null;' || chr(10)
-			when p_Report_Mode = 'YES' and v_Key_Cols_Count > 1 then 
+			when p_Report_Mode = 'YES' then -- and v_Key_Cols_Count > 1 then 
 				'v_Key_Value := ' || data_browser_conf.Get_Link_ID_Expr || ' (p_Row);' || chr(10)
 			else 
 				'v_Key_Value := p_Key_Value;' || chr(10)
 		end;
-		if p_Report_Mode = 'YES' and v_Key_Cols_Count > 1 then 
+		if p_Report_Mode = 'YES' then -- and v_Key_Cols_Count > 1 then 
 			v_Key_Value_call := data_browser_conf.Get_Link_ID_Expr || ' (p_Row)';
 		end if;
     	dbms_lob.createtemporary(v_Result_PLSQL, true, dbms_lob.call);
@@ -387,7 +388,7 @@ is
 							p_DATA_SCALE 	=> DATA_SCALE,
 							p_FORMAT_MASK 	=> FORMAT_MASK,
 							p_USE_GROUP_SEPARATOR => v_Use_Group_Separator,
-							p_use_NLS_params => case when p_Data_Source = 'COLLECTION' then 'Y' else 'N' end
+							p_use_NLS_params => v_use_NLS_params
 						)
 					end
 				end UNIQUE_QUERY,
@@ -402,7 +403,7 @@ is
 						p_DATA_SCALE 	=> DATA_SCALE,
 						p_FORMAT_MASK 	=> FORMAT_MASK,
 						p_USE_GROUP_SEPARATOR => v_Use_Group_Separator,
-						p_use_NLS_params => case when p_Data_Source = 'COLLECTION' then 'Y' else 'N' end
+						p_use_NLS_params => v_use_NLS_params
 					)
 					|| ' ' || REF_COLUMN_NAME || ' FROM DUAL) WHERE ' 
 					|| case when p_Data_Source = 'COLLECTION' and IS_NUMBER_YES_NO_COLUMN = 'Y' then 
@@ -442,7 +443,7 @@ is
 						p_DATA_SCALE 	=>  c_cur.DATA_SCALE,
 						p_FORMAT_MASK 	=>  c_cur.FORMAT_MASK,
 						p_USE_GROUP_SEPARATOR => v_Use_Group_Separator,
-						p_use_NLS_params => case when p_Data_Source = 'COLLECTION' then 'Y' else 'N' end
+						p_use_NLS_params => v_use_NLS_params
 					)
 					|| ';' || chr(10);
 			elsif c_cur.UNIQUE_QUERY IS NOT NULL OR c_cur.CHECK_QUERY IS NOT NULL then
@@ -603,7 +604,7 @@ is
 								p_DATA_SCALE 	=> DATA_SCALE,
 								p_FORMAT_MASK 	=> FORMAT_MASK,
 								p_USE_GROUP_SEPARATOR => v_Use_Group_Separator,
-								p_use_NLS_params => case when p_Data_Source = 'COLLECTION' then 'Y' else 'N' end
+								p_use_NLS_params => v_use_NLS_params
 							)
 							|| case when T.KEY_REQUIRED = 'N' then
 								' OR ' || COLUMN_NAME
@@ -624,7 +625,7 @@ is
 							p_DATA_SCALE 	=> DATA_SCALE,
 							p_FORMAT_MASK 	=> FORMAT_MASK,
 							p_USE_GROUP_SEPARATOR => v_Use_Group_Separator,
-							p_use_NLS_params => case when p_Data_Source = 'COLLECTION' then 'Y' else 'N' end
+							p_use_NLS_params => v_use_NLS_params
 						)
 						|| ' ' || R_COLUMN_NAME
 						, ', '
@@ -942,11 +943,23 @@ is
 			p_Use_Empty_Columns => p_Use_Empty_Columns
 		);
 		$IF data_browser_conf.g_debug $THEN
-			apex_debug.info(
-				p_message => 'data_browser_edit.Validate_Form_Checks (p_Data_Source=>%s, p_Key_Value=> %s, v_Error_Message=> %s)',
-				p0 => p_Data_Source,
-				p1 => p_Key_Value,
-				p2 => v_Error_Message,
+			apex_debug.message (
+				p_message => 'data_browser_edit.Validate_Form_Checks (p_Table_name=> %s, p_Key_Column=> %s, p_Key_Value=> %s, p_Select_Columns=> %s,' || chr(10)
+				|| 'p_Columns_Limit=> %s, p_View_Mode=> %s, p_Data_Source=> %s, p_Report_Mode=> %s, p_Join_Options=> %s' || chr(10)
+				|| 'p_Parent_Name=> %s, p_Parent_Key_Column=> %s, p_Parent_Key_Visible=> %s, p_Parent_Key_Item=> %s)',
+				p0 => DBMS_ASSERT.ENQUOTE_LITERAL(p_Table_name),
+				p1 => DBMS_ASSERT.ENQUOTE_LITERAL(p_Key_Column),
+				p2 => DBMS_ASSERT.ENQUOTE_LITERAL(p_Key_Value),
+				p3 => DBMS_ASSERT.ENQUOTE_LITERAL(p_Select_Columns),
+				p4 => p_Columns_Limit,
+				p5 => DBMS_ASSERT.ENQUOTE_LITERAL(p_View_Mode),
+				p6 => DBMS_ASSERT.ENQUOTE_LITERAL(p_Data_Source),
+				p7 => DBMS_ASSERT.ENQUOTE_LITERAL(p_Report_Mode),
+				p8 => DBMS_ASSERT.ENQUOTE_LITERAL(p_Join_Options),
+				p9 => DBMS_ASSERT.ENQUOTE_LITERAL(p_Parent_Name),
+				p10 => DBMS_ASSERT.ENQUOTE_LITERAL(p_Parent_Key_Column),
+				p11 => DBMS_ASSERT.ENQUOTE_LITERAL(p_Parent_Key_Visible),
+				p12 => DBMS_ASSERT.ENQUOTE_LITERAL(p_Parent_Key_Item),
 				p_max_length => 3500
 			);
 			data_browser_edit.Dump_Application_Items;
@@ -1486,7 +1499,8 @@ $END
 		v_Query			VARCHAR2(4000);
 		v_Result		NUMBER;
 		cv 				SYS_REFCURSOR;
-		v_Use_Group_Separator VARCHAR2(1) := 'Y';
+		v_Use_Group_Separator CONSTANT VARCHAR2(1) := 'Y';
+		v_use_NLS_params CONSTANT VARCHAR2(1) := 'Y';
 	BEGIN
 		v_Column_Value := p_Column_Value;
 		for c_cur IN ( -- single column checks
@@ -1502,7 +1516,7 @@ $END
 						p_DATA_SCALE 	=> DATA_SCALE,
 						p_FORMAT_MASK 	=> FORMAT_MASK,
 						p_USE_GROUP_SEPARATOR => v_Use_Group_Separator,
-						p_use_NLS_params => 'N'
+						p_use_NLS_params => v_use_NLS_params
 					)
 				end UNIQUE_QUERY,
 				case when CHECK_CONDITION IS NOT NULL then
@@ -1513,7 +1527,7 @@ $END
 						p_Data_Scale 	=> DATA_SCALE,
 						p_Format_Mask 	=> FORMAT_MASK,
 						p_Use_Group_Separator => v_Use_Group_Separator,
-						p_use_NLS_params => 'N'
+						p_use_NLS_params => v_use_NLS_params
 					)
 					|| ' ' || R_COLUMN_NAME || ' FROM DUAL) WHERE ' || CHECK_CONDITION
 				end CHECK_QUERY
@@ -2678,7 +2692,7 @@ $END
 								p_Table_Alias=> TABLE_ALIAS, 
 								p_View_Mode=> p_View_Mode),
 							p_Column_Name   => COLUMN_NAME,
-							p_Column_Label  => case when p_Report_Mode = 'NO' then COLUMN_NAME end,
+							p_Column_Label  => COLUMN_NAME, -- case when p_Report_Mode = 'NO' then COLUMN_NAME end,
 							p_Column_Expr 	=> COLUMN_EXPR, 
 							p_Tools_html	=>
 								case when COLUMN_EXPR_TYPE = 'TEXT_EDITOR'
@@ -3520,6 +3534,7 @@ $END
 		v_Compare_Case_Insensitive	VARCHAR2(10);
 		v_Search_Keys_Unique		VARCHAR2(10);
 		v_Insert_Foreign_Keys		VARCHAR2(10);
+		v_use_NLS_params CONSTANT VARCHAR2(1) := 'Y';
 
         CURSOR form_view_cur
         IS
@@ -3705,7 +3720,7 @@ $END
 								p_Char_Length 		=> T.R_CHAR_LENGTH
 							),
 							p_Use_Group_Separator => 'Y',
-							p_use_NLS_params => 'Y'
+							p_use_NLS_params => v_use_NLS_params
 						)
 						, ', ') WITHIN GROUP (ORDER BY R_COLUMN_ID, POSITION)
 					|| ')' || data_browser_conf.NL(14)
@@ -3785,7 +3800,7 @@ $END
 										p_Data_Scale 		=> T.R_DATA_SCALE,
 										p_Char_Length 		=> T.R_CHAR_LENGTH
 									),
-									p_use_NLS_params => 'N'
+									p_use_NLS_params => v_use_NLS_params
 								)
 						, ', ') WITHIN GROUP (ORDER BY R_COLUMN_ID, POSITION)
 					|| ')' || data_browser_conf.NL(14)
@@ -4832,6 +4847,7 @@ $END
         v_Column_List	CLOB;
         v_Values_List	CLOB;
         v_Result_Stat	CLOB;
+        v_use_NLS_params CONSTANT VARCHAR2(1) := 'Y';
         v_Delimiter     CONSTANT VARCHAR2(50) := ', ' || NL(20);
         v_Delimiter2	VARCHAR2(50);
 		v_Indent 		PLS_INTEGER;
@@ -4953,7 +4969,7 @@ $END
 								p_Data_Scale => c_cur.DATA_SCALE, 
 								p_Format_Mask => c_cur.FORMAT_MASK, 
 								p_Use_Group_Separator => 'Y',
-								p_use_NLS_params => 'Y'
+								p_use_NLS_params => v_use_NLS_params
 							)
 					end,
 					p_Is_Virtual_Column => c_cur.IS_VIRTUAL_COLUMN
@@ -5123,7 +5139,8 @@ $END
         v_Search_Condition	VARCHAR2(32767);
 		v_Row_Number 	PLS_INTEGER := 1;	--	used for form validation
 		v_Delimiter2	VARCHAR2(50);
-		v_Use_Group_Separator VARCHAR2(1) := 'Y';
+		v_Use_Group_Separator 	CONSTANT VARCHAR2(1) := 'Y';
+		v_use_NLS_params 		CONSTANT VARCHAR2(1) := 'Y'; -- case when p_Data_Source = 'COLLECTION' then 'Y' else 'N' end
 		v_Apex_Item_Rows_Call VARCHAR2(1024);
 		v_Row_Op        VARCHAR2(50);
 		v_Parent_Key_Visible  VARCHAR2(10);
@@ -5305,7 +5322,7 @@ $END
 							p_Data_Scale => c_cur.DATA_SCALE, 
 							p_Format_Mask => c_cur.FORMAT_MASK, 
 							p_Use_Group_Separator => v_Use_Group_Separator,
-							p_use_NLS_params => case when p_Data_Source = 'COLLECTION' then 'Y' else 'N' end
+							p_use_NLS_params => v_use_NLS_params
 						)
 				end;
 			v_Insert_Ref := v_Column_Expr;

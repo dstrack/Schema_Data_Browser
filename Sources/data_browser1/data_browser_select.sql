@@ -191,7 +191,7 @@ is
 							p_Data_Precision 	=> T.DATA_PRECISION, 
 							p_Data_Scale 		=> T.DATA_SCALE, 
 							p_Char_Length 		=> T.CHAR_LENGTH, 
-							p_Use_Group_Separator => case when v_Data_Format = 'FORM' then 'Y' else 'N' end, 
+							p_Use_Group_Separator => case when v_Data_Format IN ('FORM', 'HTML', 'QUERY') then 'Y' else 'N' end, 
 							p_Datetime			=> T.IS_DATETIME)
 				end FORMAT_MASK,
 				case when T.YES_NO_COLUMN_TYPE IS NOT NULL then
@@ -553,7 +553,7 @@ is
 							p_Data_Precision 	=> A.DATA_PRECISION, 
 							p_Data_Scale 		=> A.DATA_SCALE, 
 							p_Char_Length 		=> A.CHAR_LENGTH, 
-							p_Use_Group_Separator => case when v_Data_Format = 'FORM' then 'Y' else 'N' end, 
+							p_Use_Group_Separator => case when v_Data_Format IN ('FORM', 'HTML', 'QUERY') then 'Y' else 'N' end, 
 							p_Datetime			=> A.IS_DATETIME
                         ) FORMAT_MASK,
 						E.VIEW_NAME R_VIEW_NAME,
@@ -975,7 +975,7 @@ is
 							p_Data_Precision 	=> T.DATA_PRECISION, 
 							p_Data_Scale 		=> T.DATA_SCALE, 
 							p_Char_Length 		=> T.CHAR_LENGTH, 
-							p_Use_Group_Separator => case when v_Data_Format = 'FORM' then 'Y' else 'N' end, 
+							p_Use_Group_Separator => case when v_Data_Format IN ('FORM', 'HTML', 'QUERY') then 'Y' else 'N' end, 
 							p_Datetime  		=> T.IS_DATETIME)
 					end FORMAT_MASK,
 					null LOV_QUERY,
@@ -1156,7 +1156,7 @@ is
 							p_Data_Precision 	=> S.R_DATA_PRECISION, 
 							p_Data_Scale 		=> S.R_DATA_SCALE, 
 							p_Char_Length 		=> S.R_CHAR_LENGTH, 
-							p_Use_Group_Separator => case when v_Data_Format = 'FORM' then 'Y' else 'N' end)
+							p_Use_Group_Separator => case when v_Data_Format IN ('FORM', 'HTML', 'QUERY') then 'Y' else 'N' end)
 					end FORMAT_MASK,
 					'' LOV_QUERY,
 					case when S.IS_REFERENCE != 'N'  -- In View Mode Import/Export the foreign key columns are hidden.
@@ -1222,7 +1222,7 @@ is
 							p_Data_Precision 	=> S.R_DATA_PRECISION, 
 							p_Data_Scale 		=> S.R_DATA_SCALE, 
 							p_Char_Length 		=> S.R_CHAR_LENGTH, 
-							p_Use_Group_Separator => case when v_Data_Format = 'FORM' then 'Y' else 'N' end)
+							p_Use_Group_Separator => case when v_Data_Format IN ('FORM', 'HTML', 'QUERY') then 'Y' else 'N' end)
 					end FORMAT_MASK,
 					'' LOV_QUERY,
 					case when S.IS_REFERENCE != 'N'  -- In View Mode Import/Export the foreign key columns are hidden.
@@ -1298,7 +1298,7 @@ is
 							p_Data_Precision 	=> S.R_DATA_PRECISION, 
 							p_Data_Scale 		=> S.R_DATA_SCALE, 
 							p_Char_Length 		=> S.R_CHAR_LENGTH, 
-							p_Use_Group_Separator => case when v_Data_Format = 'FORM' then 'Y' else 'N' end)
+							p_Use_Group_Separator => case when v_Data_Format IN ('FORM', 'HTML', 'QUERY') then 'Y' else 'N' end)
 					end FORMAT_MASK, 
 					'' LOV_QUERY,
 					case when S.IS_REFERENCE != 'N' -- In View Mode Import/Export the foreign key columns are hidden.
@@ -1356,7 +1356,7 @@ is
 						p_Data_Precision 	=> S.R_DATA_PRECISION, 
 						p_Data_Scale 		=> S.R_DATA_SCALE, 
 						p_Char_Length 		=> S.R_CHAR_LENGTH, 
-						p_Use_Group_Separator => case when v_Data_Format = 'FORM' then 'Y' else 'N' end)
+						p_Use_Group_Separator => case when v_Data_Format IN ('FORM', 'HTML', 'QUERY') then 'Y' else 'N' end)
 					AS FORMAT_MASK, 
 					'' LOV_QUERY,
 					'DISPLAY_ONLY' COLUMN_EXPR_TYPE,
@@ -1399,6 +1399,8 @@ is
     ) RETURN VARCHAR2 DETERMINISTIC
     IS
 	PRAGMA UDF;
+		v_use_NLS_params 		CONSTANT VARCHAR2(1) := 'Y'; -- case when p_Data_Format IN ('FORM', 'HTML', 'QUERY') then 'N' else 'Y' end;
+		v_Use_Group_Separator 	CONSTANT VARCHAR2(1) := case when p_Data_Format IN ('FORM', 'HTML', 'QUERY') then 'Y' else 'N' end;
 	BEGIN
 		if p_Data_Format != 'NATIVE' then
 			return data_browser_conf.Get_ExportColFunction (
@@ -1407,10 +1409,10 @@ is
 				p_Data_Precision => p_Data_Precision,
 				p_Data_Scale => p_Data_Scale,
 				p_Char_Length => p_Char_Length,
-				p_Use_Group_Separator => case when p_Data_Format IN ('FORM', 'HTML') then 'Y' else 'N' end,
+				p_Use_Group_Separator => v_Use_Group_Separator,
 				p_Use_Trim => p_Use_Trim,
 				p_Datetime => p_Datetime,
-				p_use_NLS_params => case when p_Data_Format IN ('FORM', 'HTML') then 'N' else 'Y' end
+				p_use_NLS_params => v_use_NLS_params
 			);
 		else
 			return p_Column_Name;
@@ -2690,7 +2692,8 @@ is
 		p_Idx NUMBER,
 		p_value VARCHAR2,
 		p_item_id VARCHAR2 DEFAULT NULL,
-		p_item_label VARCHAR2
+		p_item_label VARCHAR2,
+		p_attributes VARCHAR2 DEFAULT NULL
 	) RETURN VARCHAR2
 	IS
 	BEGIN

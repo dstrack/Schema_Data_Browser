@@ -3122,7 +3122,7 @@ $END
 			else
 				'DISPLAY_ONLY'
 			end;
-	END;
+	END Get_Column_Expr_Type;
 
     FUNCTION Get_ExportColFunction (
         p_Column_Name VARCHAR2,
@@ -3160,14 +3160,14 @@ $END
         when p_Data_Type = 'NUMBER' AND p_Data_Precision IS NULL and p_Data_Scale IS NULL and v_Use_Group_Separator = 'Y' then 
         	v_Result := 'FN_NUMBER_TO_CHAR(' || p_Column_Name || ')';
         when p_Data_Type = 'NUMBER' AND (p_Data_Scale > 0 or v_Use_Group_Separator = 'Y') then
-        	v_Format_Mask := Get_Number_Format_Mask(p_Data_Precision, p_Data_Scale, v_Use_Group_Separator, p_Export => 'Y', p_Use_Trim => 'N');
+        	v_Format_Mask := Get_Number_Format_Mask(p_Data_Precision, p_Data_Scale, v_Use_Group_Separator, p_Export => 'Y', p_Use_Trim => p_Use_Trim);
             v_Result := 'TO_CHAR(' || p_Column_Name || ', '
             || Enquote_Literal(v_Format_Mask)
             || case when p_use_NLS_params = 'Y' then ', ' || Get_Export_NumChars end
             || ')';
-			if p_Use_Trim = 'Y' then 
+			/*if p_Use_Trim = 'Y' then 
 				v_Result := 'LTRIM(' || v_Result || ')';
-			end if;
+			end if;*/
         when p_Data_Type = 'NUMBER' AND NULLIF(p_Data_Scale, 0) IS NULL then
         	if p_Data_Precision < 4 then 
         		v_Result := 'TO_CHAR(' || p_Column_Name || ')';
@@ -3429,6 +3429,7 @@ $END
     )
     RETURN VARCHAR2
     IS
+		v_use_NLS_params 	CONSTANT VARCHAR2(1) := 'Y'; -- case when p_Data_Source = 'COLLECTION' then 'Y' else 'N' end
     BEGIN
         RETURN case when p_Compare_Case_Insensitive = 'YES' and p_Data_Type IN ('CHAR', 'VARCHAR2', 'NVARCHAR2', 'CLOB', 'NCLOB')
             then 'UPPER(' || p_Column_Name || ') = UPPER(' || p_Element || ')'
@@ -3449,7 +3450,7 @@ $END
 							p_Use_Group_Separator => p_Use_Group_Separator
 						),
 						p_Use_Group_Separator => p_Use_Group_Separator,
-						p_use_NLS_params => case when p_Data_Source = 'COLLECTION' then 'Y' else 'N' end
+						p_use_NLS_params => v_use_NLS_params
 					)
             end;
     END Get_Compare_Case_Insensitive;
@@ -3623,41 +3624,43 @@ $END
         v_Schema_Name CONSTANT VARCHAR2(50) := SYS_CONTEXT('USERENV', 'CURRENT_SCHEMA');
 		CURSOR user_cons_cur
 		IS
-			SELECT /*+ RESULT_CACHE */
-				B.OWNER, B.TABLE_NAME, B.COLUMN_NAME, B.POSITION, B.CONSTRAINT_NAME, A.SEARCH_CONDITION
+			SELECT /*+ RESULT_CACHE PARALLEL */
+				A.OWNER, A.TABLE_NAME, A.COLUMN_NAME, A.POSITION, A.CONSTRAINT_NAME, A.SEARCH_CONDITION
 			FROM (
-				SELECT C.OWNER, C.TABLE_NAME, C.CONSTRAINT_NAME, 
+				SELECT
+					C.OWNER, C.TABLE_NAME, B.COLUMN_NAME, B.POSITION, C.CONSTRAINT_NAME, 
 					data_browser_conf.Strip_Comments(C.SEARCH_CONDITION_VC) SEARCH_CONDITION
 				FROM SYS.USER_CONSTRAINTS C
-				WHERE C.TABLE_NAME = NVL(p_Table_Name, C.TABLE_NAME)
+				JOIN SYS.USER_CONS_COLUMNS B ON C.OWNER = B.OWNER AND C.CONSTRAINT_NAME = B.CONSTRAINT_NAME AND C.TABLE_NAME = B.TABLE_NAME
+				WHERE C.CONSTRAINT_TYPE = 'C' -- check constraint
+                AND C.TABLE_NAME = NVL(p_Table_Name, C.TABLE_NAME)
 				AND C.OWNER = NVL(p_Owner, C.OWNER)
 				AND C.CONSTRAINT_NAME = NVL(p_Constraint_Name, C.CONSTRAINT_NAME)
-				AND C.CONSTRAINT_TYPE = 'C' -- check constraint
 				AND C.TABLE_NAME NOT LIKE 'DR$%$_'  -- skip fulltext index
 				AND C.TABLE_NAME NOT LIKE 'BIN$%'  -- this table is in the recyclebin
-			) A
-			JOIN SYS.USER_CONS_COLUMNS B ON A.OWNER = B.OWNER AND A.CONSTRAINT_NAME = B.CONSTRAINT_NAME AND A.TABLE_NAME = B.TABLE_NAME
-			WHERE A.SEARCH_CONDITION NOT IN( DBMS_ASSERT.ENQUOTE_NAME(B.COLUMN_NAME) || ' IS NOT NULL', B.COLUMN_NAME || ' IS NOT NULL') -- filter NOT NULL checks
-		;
-		CURSOR all_cons_cur
+			) A 
+			WHERE A.SEARCH_CONDITION NOT IN( DBMS_ASSERT.ENQUOTE_NAME(A.COLUMN_NAME) || ' IS NOT NULL', A.COLUMN_NAME || ' IS NOT NULL') -- filter NOT NULL checks
+            ;
+        CURSOR all_cons_cur
 		IS
-			SELECT /*+ RESULT_CACHE */
-				B.OWNER, B.TABLE_NAME, B.COLUMN_NAME, B.POSITION, B.CONSTRAINT_NAME, A.SEARCH_CONDITION
+			SELECT /*+ RESULT_CACHE USE_MERGE(B C) */
+				A.OWNER, A.TABLE_NAME, A.COLUMN_NAME, A.POSITION, A.CONSTRAINT_NAME, A.SEARCH_CONDITION
 			FROM (
-				SELECT C.OWNER, C.TABLE_NAME, C.CONSTRAINT_NAME, 
+				SELECT
+					C.OWNER, C.TABLE_NAME, B.COLUMN_NAME, B.POSITION, C.CONSTRAINT_NAME, 
 					data_browser_conf.Strip_Comments(C.SEARCH_CONDITION_VC) SEARCH_CONDITION
 				FROM SYS.ALL_CONSTRAINTS C
-				WHERE C.TABLE_NAME = NVL(p_Table_Name, C.TABLE_NAME)
+				JOIN SYS.ALL_CONS_COLUMNS B ON C.OWNER = B.OWNER AND C.CONSTRAINT_NAME = B.CONSTRAINT_NAME AND C.TABLE_NAME = B.TABLE_NAME
+				WHERE C.CONSTRAINT_TYPE = 'C' -- check constraint
+                AND C.TABLE_NAME = NVL(p_Table_Name, C.TABLE_NAME)
 				AND C.OWNER = NVL(p_Owner, C.OWNER)
 				AND C.CONSTRAINT_NAME = NVL(p_Constraint_Name, C.CONSTRAINT_NAME)
-				AND C.CONSTRAINT_TYPE = 'C' -- check constraint
 				AND C.TABLE_NAME NOT LIKE 'DR$%$_'  -- skip fulltext index
 				AND C.TABLE_NAME NOT LIKE 'BIN$%'  -- this table is in the recyclebin
 				AND C.OWNER NOT IN ('SYS', 'SYSTEM', 'SYSAUX', 'CTXSYS', 'MDSYS', 'OUTLN')
 			) A 
-			JOIN SYS.ALL_CONS_COLUMNS B ON A.OWNER = B.OWNER AND A.CONSTRAINT_NAME = B.CONSTRAINT_NAME AND A.TABLE_NAME = B.TABLE_NAME
-			WHERE A.SEARCH_CONDITION NOT IN( DBMS_ASSERT.ENQUOTE_NAME(B.COLUMN_NAME) || ' IS NOT NULL', B.COLUMN_NAME || ' IS NOT NULL') -- filter NOT NULL checks
-		;
+			WHERE A.SEARCH_CONDITION NOT IN( DBMS_ASSERT.ENQUOTE_NAME(A.COLUMN_NAME) || ' IS NOT NULL', A.COLUMN_NAME || ' IS NOT NULL') -- filter NOT NULL checks
+            ;
 		v_in_rows 	data_browser_conf.tab_constraint_columns;
 	begin
 		if g_App_Installation_Code IS NULL then 

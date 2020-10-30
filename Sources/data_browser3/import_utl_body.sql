@@ -100,6 +100,9 @@ CREATE OR REPLACE PACKAGE BODY import_utl IS
 	)
 	RETURN tab_table_imp_trigger PIPELINED
 	IS
+		v_Use_Group_Separator 	CONSTANT VARCHAR2(1) := 'Y';
+		v_use_NLS_params 		CONSTANT VARCHAR2(1) := 'Y'; -- case when v_Data_Format = 'FORM' then 'N' else 'Y' end
+
         CURSOR views_cur (v_Table_Name VARCHAR2, v_Data_Format VARCHAR2)
         IS
 		WITH REFERENCES_Q AS (
@@ -386,10 +389,10 @@ CREATE OR REPLACE PACKAGE BODY import_utl IS
 										p_Data_Precision 	=> T.DATA_PRECISION,
 										p_Data_Scale 		=> T.DATA_SCALE,
 										p_Char_Length 		=> T.CHAR_LENGTH,
-										p_Use_Group_Separator => case when v_Data_Format = 'FORM' then 'Y' else 'N' end
+										p_Use_Group_Separator => v_Use_Group_Separator
 									), 
-									p_Use_Group_Separator => case when v_Data_Format = 'FORM' then 'Y' else 'N' end,
-									p_use_NLS_params => case when v_Data_Format = 'FORM' then 'N' else 'Y' end
+									p_Use_Group_Separator => v_Use_Group_Separator,
+									p_use_NLS_params => v_use_NLS_params
 								)
 							end
 						else ':new.' || 'LINK_ID$'
@@ -452,10 +455,10 @@ CREATE OR REPLACE PACKAGE BODY import_utl IS
 							p_Data_Precision 	=> T.DATA_PRECISION,
 							p_Data_Scale 		=> T.DATA_SCALE,
 							p_Char_Length 		=> T.CHAR_LENGTH,
-							p_Use_Group_Separator => 'Y'
+							p_Use_Group_Separator => v_Use_Group_Separator
 						), 
-						p_Use_Group_Separator => 'Y',
-						p_use_NLS_params => case when v_Data_Format = 'FORM' then 'N' else 'Y' end
+						p_Use_Group_Separator => v_Use_Group_Separator,
+						p_use_NLS_params => v_use_NLS_params
 					)
 					|| ' ' || T.COLUMN_NAME, ', ')
 					WITHIN GROUP (ORDER BY T.COLUMN_ID) || chr(10)

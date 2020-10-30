@@ -259,8 +259,11 @@ function check_range_event(element, p_table_name) {
             get.GetAsync(Async_get_Message); 
         }
     }
-
-    var key_element = $(element).closest('tr').find('input.check_unique[name*=f][type="hidden"]');
+	// find row selector 
+    var key_element = $(element).closest('tr').find('input[name*=f46][type="hidden"]');
+    if (key_element.length === 0) {
+        key_element = $(element).closest('table').find('input.check_unique[name*=f][type="hidden"]');
+    }
     if (key_element.length === 0) {
         key_element = $(element).closest('table').find('input.check_unique[name*=f][type="hidden"]');
     }
