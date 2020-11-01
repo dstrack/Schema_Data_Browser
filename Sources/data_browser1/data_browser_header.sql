@@ -1589,17 +1589,14 @@ IS
 		p_Column_Expr_Type VARCHAR2
 	) RETURN VARCHAR2;
 
-	FUNCTION register_error_call (
-		p_Table_Name VARCHAR2,
-		p_Key_Column VARCHAR2,
-		p_Key_Value VARCHAR2 DEFAULT 'v_Key_Value',
+	FUNCTION Add_Error_Call (
 		p_Column_Name VARCHAR2,
 		p_Apex_Item_Cell_Id VARCHAR2,
 		p_Message VARCHAR2,
 		p_Column_Header VARCHAR2,
 		p1 VARCHAR2 DEFAULT NULL,
 		p_Class VARCHAR2 DEFAULT 'DATA' -- DATA, UNIQUENESS, LOOKUP
-	) RETURN VARCHAR2;
+	) RETURN VARCHAR2 DETERMINISTIC;
 
 	FUNCTION Get_Apex_Item_Cell_ID (
 		p_Idx 			NUMBER,		-- index for apex_application.g_fxx in range 01 to 50

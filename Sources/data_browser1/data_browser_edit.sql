@@ -108,45 +108,45 @@ is
 		return 'f' || LPAD(p_Idx, 2, '0') || chr(ascii(v_Item_Char) + p_Row_Offset - 1);
 	end;
 
-	FUNCTION register_error_call (
-		p_Table_Name VARCHAR2,
-		p_Key_Column VARCHAR2,
-		p_Key_Value VARCHAR2 DEFAULT 'v_Key_Value',
+	FUNCTION add_error_call (
 		p_Column_Name VARCHAR2,
 		p_Apex_Item_Cell_Id VARCHAR2,
 		p_Message VARCHAR2,
 		p_Column_Header VARCHAR2,
 		p1 VARCHAR2 DEFAULT NULL,
 		p_Class VARCHAR2 DEFAULT 'DATA' -- DATA, UNIQUENESS, LOOKUP
-	) RETURN VARCHAR2
+	) RETURN VARCHAR2 DETERMINISTIC
 	IS
 	PRAGMA UDF;
 	BEGIN
-		return 'apex_collection.add_member(p_collection_name => v_Err_Collection' ||
-			', p_c001 => ' || Enquote_Literal(p_Table_Name) ||
-			', p_c002 => ' || Enquote_Literal(p_Key_Column) || NL(20) ||
-			', p_c003 => ' || p_Key_Value || 
-			', p_c004 => ' || Enquote_Literal(p_Column_Name) ||
-			', p_c005 => ' || Enquote_Literal(p_Apex_Item_Cell_Id) ||
-			case when length(p_Apex_Item_Cell_Id) = 3 then -- special case for POPUP_FROM_QUERY
-				q'[, p_c006 => LPAD(p_Row-1, 4, '0')]' 
-			else 
-				', p_c006 => p_Row' 
-			end
-			|| NL(20) ||
-			', p_c007 => apex_lang.lang('
-						   || Enquote_Literal (p_Message) || ', '
-						   || Enquote_Literal (p_Column_Header)
-						   || case when p1 IS NOT NULL then
-						   		 ', ' || p1
-						   end
-						   || ')' || 
-			', p_c008 => ' || Enquote_Literal(p_Class) ||
-			', p_c009 => SQLCODE' ||
+		return 'add_error(' || Enquote_Literal(p_Column_Name) ||
+			', ' || Enquote_Literal(p_Apex_Item_Cell_Id) ||
+			', apex_lang.lang('
+		   || Enquote_Literal (p_Message) || ', '
+		   || Enquote_Literal (p_Column_Header)
+		   || case when p1 IS NOT NULL then ', ' || p1 end
+		   || ')' || 
+			', ' || Enquote_Literal(p_Class) ||
 			');';
-	END register_error_call;
+	END add_error_call;
 
-
+	FUNCTION declare_error_call (
+		p_Table_Name VARCHAR2,
+		p_Key_Column VARCHAR2
+	) RETURN VARCHAR2
+	is 
+	begin 
+		return 'procedure add_error (p_Column_Name VARCHAR2, p_Apex_Item_Cell_Id VARCHAR2, p_Message VARCHAR2, p_Class VARCHAR2 )' || NL(8) ||
+		'is ' || NL(8) ||
+		'begin' || NL(12) ||
+			'apex_collection.add_member(p_collection_name => v_Err_Collection' || NL(12) ||
+			', p_c001 => ' || Enquote_Literal(p_Table_Name) ||', p_c002 => ' || Enquote_Literal(p_Key_Column) || NL(12) ||
+			', p_c003 => v_Key_Value, p_c004 => p_Column_Name, p_c005 => p_Apex_Item_Cell_Id' || NL(12) ||
+			', p_c006 => case when length(p_Apex_Item_Cell_Id) = 3 then LPAD(p_Row-1, 4, ''0'') else p_Row end' || NL(12) ||-- special case for POPUP_FROM_QUERY
+			', p_c007 => p_Message, p_c008 => p_Class, p_c009 => SQLCODE);' || NL(8) ||
+		'end;' || NL(4);
+	end declare_error_call;
+	
 	PROCEDURE Form_Validation_Process (
 		p_Table_name VARCHAR2,
     	p_Data_Source VARCHAR2 DEFAULT 'TABLE' 			-- TABLE, COLLECTION, NEW_ROWS
@@ -295,12 +295,12 @@ is
 		v_Init_Key_Stat := case 
 			when p_Data_Source = 'COLLECTION' then
 				'v_Key_Value := null;' || chr(10)
-			when p_Report_Mode = 'YES' then -- and v_Key_Cols_Count > 1 then 
+			when p_Report_Mode = 'YES' then 
 				'v_Key_Value := ' || data_browser_conf.Get_Link_ID_Expr || ' (p_Row);' || chr(10)
 			else 
 				'v_Key_Value := p_Key_Value;' || chr(10)
 		end;
-		if p_Report_Mode = 'YES' then -- and v_Key_Cols_Count > 1 then 
+		if p_Report_Mode = 'YES' then 
 			v_Key_Value_call := data_browser_conf.Get_Link_ID_Expr || ' (p_Row)';
 		end if;
     	dbms_lob.createtemporary(v_Result_PLSQL, true, dbms_lob.call);
@@ -463,9 +463,7 @@ is
 							'SELECT COUNT(*) INTO v_Result FROM ' || c_cur.UNIQUE_QUERY ||
 							' AND (' || v_Key_Column || ' != v_Key_Value OR v_Key_Value IS NULL);' || NL(16) ||
 							'if v_Result > 0 then' || NL(20) ||
-								register_error_call (
-									p_Table_Name => p_Table_Name,
-									p_Key_Column => v_Search_Key_Cols,
+								add_error_call (
 									p_Column_Name => c_cur.COLUMN_NAME,
 									p_Apex_Item_Cell_Id => c_cur.APEX_ITEM_CELL_ID,
 									p_Message => '"%0" - Value is not unique.',
@@ -482,16 +480,14 @@ is
 							'INTO v_Key_Value ' || NL(16) ||
 							'FROM ' || c_cur.UNIQUE_QUERY || ';' || NL(16) ||
 							'if v_Key_Value IS NOT NULL then' || NL(20) ||
-								register_error_call (
-									p_Table_Name => p_Table_Name,
-									p_Key_Column => v_Search_Key_Cols,
-									p_Key_Value => 'v_Key_Value',
+								add_error_call (
 									p_Column_Name => c_cur.COLUMN_NAME,
 									p_Apex_Item_Cell_Id => c_cur.APEX_ITEM_CELL_ID,
 									p_Message => '"%0" - Unique value exists.',
 									p_Column_Header => c_cur.COLUMN_HEADER,
 									p_Class => 'UNIQUENESS'
-								)  ||  -- register the found id as primary key
+								)
+								||  -- register the found id as primary key
 								case when v_Key_Input_ID IS NOT NULL then
 									NL(20) ||
 									'apex_collection.update_member_attribute(p_collection_name => v_Data_Collection, p_seq => p_Row, p_attr_number => ' 
@@ -527,29 +523,25 @@ is
 								else ' when others then'
 							end
 							|| NL(16) ||
-								register_error_call (
-									p_Table_Name => p_Table_Name,
-									p_Key_Column => v_Search_Key_Cols,
-									p_Column_Name => c_cur.COLUMN_NAME,
-									p_Apex_Item_Cell_Id => c_cur.APEX_ITEM_CELL_ID,
-									p_Message => '"%0" - Value is out of range (%1).',
-									p_Column_Header => c_cur.COLUMN_HEADER,
-									p1 => Enquote_Literal(c_cur.CHECK_CONDITION)
-								) 
+							add_error_call (
+								p_Column_Name => c_cur.COLUMN_NAME,
+								p_Apex_Item_Cell_Id => c_cur.APEX_ITEM_CELL_ID,
+								p_Message => '"%0" - Value is out of range (%1).',
+								p_Column_Header => c_cur.COLUMN_HEADER,
+								p1 => Enquote_Literal(c_cur.CHECK_CONDITION)
+							) 
 						end
 						|| case when c_cur.FORMAT_MASK IS NOT NULL then
 							NL(12) ||
 							' when others then' || NL(16) ||
-								register_error_call (
-									p_Table_Name => p_Table_Name,
-									p_Key_Column => v_Search_Key_Cols,
-									p_Column_Name => c_cur.COLUMN_NAME,
-									p_Apex_Item_Cell_Id => c_cur.APEX_ITEM_CELL_ID,
-									p_Message => '"%0" - Value does not match format : %1.',
-									p_Column_Header => c_cur.COLUMN_HEADER,
-									p1 => Enquote_Literal(data_browser_conf.Get_Display_Format_Mask(c_cur.FORMAT_MASK, c_cur.DATA_TYPE))
-								)
-							end
+							add_error_call (
+								p_Column_Name => c_cur.COLUMN_NAME,
+								p_Apex_Item_Cell_Id => c_cur.APEX_ITEM_CELL_ID,
+								p_Message => '"%0" - Value does not match format : %1.',
+								p_Column_Header => c_cur.COLUMN_HEADER,
+								p1 => Enquote_Literal(data_browser_conf.Get_Display_Format_Mask(c_cur.FORMAT_MASK, c_cur.DATA_TYPE))
+							)
+						end
 						|| NL(12) || 'end;'
 					);
 					if c_cur.REQUIRED ='Y' -- empty hidden key values are not validated, because the submit page process can/will insert the new rows.
@@ -557,14 +549,12 @@ is
 						then dbms_lob.append (v_Result_Stat,
 							NL(8) ||
 							'else' || NL(12) ||
-								register_error_call (
-									p_Table_Name => p_Table_Name,
-									p_Key_Column => v_Search_Key_Cols,
-									p_Column_Name => c_cur.COLUMN_NAME,
-									p_Apex_Item_Cell_Id => c_cur.APEX_ITEM_CELL_ID,
-									p_Message => '"%0" - Value is required.',
-									p_Column_Header => c_cur.COLUMN_HEADER
-								)
+							add_error_call (
+								p_Column_Name => c_cur.COLUMN_NAME,
+								p_Apex_Item_Cell_Id => c_cur.APEX_ITEM_CELL_ID,
+								p_Message => '"%0" - Value is required.',
+								p_Column_Header => c_cur.COLUMN_HEADER
+							)
 						);
 					end if;
 					dbms_lob.append (v_Result_Stat,
@@ -577,14 +567,13 @@ is
 				then dbms_lob.append (v_Result_Stat,
 					NL(8) ||
 					'if ' || c_cur.APEX_ITEM_CALL || ' IS NULL then' || NL(12) ||
-							register_error_call (
-								p_Table_Name => p_Table_Name,
-								p_Key_Column => v_Search_Key_Cols,
+							add_error_call (
 								p_Column_Name => c_cur.COLUMN_NAME,
 								p_Apex_Item_Cell_Id => c_cur.APEX_ITEM_CELL_ID,
 								p_Message => '"%0" - Value is required.',
 								p_Column_Header => c_cur.COLUMN_HEADER
-							) || NL(8) ||
+							)
+							|| NL(8) ||
 					'end if;'
 				);
 
@@ -731,17 +720,15 @@ is
 							'WHERE ' || c_cur.STAT || NL(12) ||
 							'AND (' || v_Key_Column || ' != v_Key_Value OR v_Key_Value IS NULL);' || NL(12) ||
 							'if v_Result > 0 then' || NL(16) ||
-								register_error_call (
-									p_Table_Name => p_Table_Name,
-									p_Key_Column => v_Search_Key_Cols,
-									p_Key_Value => 'NVL(v_Key_Value,v_Result)',
+								add_error_call (
 									p_Column_Name => c_cur.COLUMN_NAME,
 									p_Apex_Item_Cell_Id => c_cur.APEX_ITEM_CELL_ID,
 									p_Message => '"%0" - Value combination must be unique. (Constraint %1).',
 									p_Column_Header => c_cur.COLUMN_NAMES,
 									p1 => Enquote_Literal (c_cur.CONSTRAINT_NAME),
 									p_Class => 'UNIQUENESS'
-								) || NL(12) ||
+								)
+								|| NL(12) ||
 							'end if;'
 						);
 					end if;
@@ -754,17 +741,15 @@ is
 						'FROM ' ||  data_browser_conf.Enquote_Name_Required(c_cur.VIEW_NAME) || ' A ' || NL(12) ||
 						'WHERE ' || c_cur.STAT || ';' || NL(12) ||
 						'if v_Key_Value IS NOT NULL then' || NL(16) ||
-							register_error_call (
-								p_Table_Name => p_Table_Name,
-								p_Key_Column => v_Search_Key_Cols,
-								p_Key_Value => 'v_Key_Value',
+							add_error_call (
 								p_Column_Name => c_cur.COLUMN_NAME,
 								p_Apex_Item_Cell_Id => c_cur.APEX_ITEM_CELL_ID,
 								p_Message => '"%0" - Value combination exists. (Constraint %1).',
 								p_Column_Header => c_cur.COLUMN_NAMES,
 								p1 => Enquote_Literal (c_cur.CONSTRAINT_NAME),
 								p_Class => 'UNIQUENESS'
-							) ||
+							)
+							||
 							case when v_Key_Input_ID IS NOT NULL then
 								NL(16) ||
 								'apex_collection.update_member_attribute(p_collection_name => v_Data_Collection, p_seq => p_Row, p_attr_number => ' 
@@ -792,26 +777,24 @@ is
 				'exception ' ||
 				case when c_cur.CHECK_UNIQUE = 'N' then
 					' when no_data_found then' || NL(16) ||
-						register_error_call (
-							p_Table_Name => p_Table_Name,
-							p_Key_Column => v_Search_Key_Cols,
+						add_error_call (
 							p_Column_Name => c_cur.COLUMN_NAME,
 							p_Apex_Item_Cell_Id => c_cur.APEX_ITEM_CELL_ID,
 							p_Message => '"%0" - Value is out of range (%1).',
 							p_Column_Header => c_cur.COLUMN_NAMES,
 							p1 => Enquote_Literal (c_cur.CHECK_CONDITION)
-						) || NL(12)
+						)
+						|| NL(12)
 				end ||
 					'when others then' || NL(16) ||
-						register_error_call (
-							p_Table_Name => p_Table_Name,
-							p_Key_Column => v_Search_Key_Cols,
+						add_error_call (
 							p_Column_Name => c_cur.COLUMN_NAME,
 							p_Apex_Item_Cell_Id => c_cur.APEX_ITEM_CELL_ID,
 							p_Message => '"%0" - Error : %1.',
 							p_Column_Header => c_cur.CONSTRAINT_NAME,
 							p1 => 'DBMS_UTILITY.FORMAT_ERROR_STACK'
-						) || NL(10) ||
+						)
+						|| NL(10) ||
 					'end;' || NL(8) ||
 				'end if;'
 			);
@@ -828,8 +811,9 @@ is
 					'procedure ' || v_Procedure_Name || ' ( p_cur APEX_COLLECTIONS%ROWTYPE, p_Row number )' || NL(4) ||
 					'is' || NL(8) ||
 						'v_Key_Value ' || v_Primary_Key_Col_Type || NL(8) ||
-						'v_Result number;' || NL(4) ||
-					'begin ' || NL(8) ||
+						'v_Result number;' || NL(8) ||
+						declare_error_call(p_Table_name, v_Search_Key_Cols) || 
+					'begin ' || NL(8) || 
 					v_Init_Key_Stat
 				);
 			else
@@ -842,7 +826,8 @@ is
 					'procedure ' || v_Procedure_Name || ' ( p_Key_Value varchar2, p_Row number )' || NL(4) ||
 					'is' || NL(8) ||
 						'v_Key_Value ' || v_Primary_Key_Col_Type || NL(8) ||
-						'v_Result number;' || NL(4) ||
+						'v_Result number;' || NL(8) ||
+						declare_error_call(p_Table_name, v_Search_Key_Cols) || 
 					'begin ' || NL(8) ||
 					v_Init_Key_Stat
 				);
@@ -3830,9 +3815,8 @@ $END
 					|| 'exception when OTHERS then' || data_browser_conf.NL(12)
 				end -- INSERT --
 			end
-			|| data_browser_edit.register_error_call (
-				p_Table_Name => p_Table_Name,
-				p_Key_Column => p_Unique_Key_Column,
+			|| 
+			add_error_call (
 				p_Column_Name => T.COLUMN_NAME,
 				p_Apex_Item_Cell_Id => MIN(T.APEX_ITEM_CELL_ID),
 				p_Message => 'Lookup for "%0" failed. - Error : %1.',
@@ -4120,6 +4104,7 @@ $END
 						'v_Key_Value varchar2(4000);' || NL(8) ||
 						'v_CResult varchar2(4000);' || NL(8) ||
 						'v_NResult number;' || NL(4) ||
+						declare_error_call(p_Table_name, p_Unique_Key_Column) || 
 					'begin ' || NL(8) ||
 					v_Init_Key_Stat
 				);
@@ -4133,6 +4118,7 @@ $END
 					'procedure ' || v_Procedure_Name || ' ( p_Row number )' || NL(4) ||
 					'is' || NL(8) ||
 						'v_Key_Value varchar2(4000);' || NL(4) ||
+						declare_error_call(p_Table_name, p_Unique_Key_Column) || 
 					'begin ' || NL(8) ||
 					v_Init_Key_Stat
 				);

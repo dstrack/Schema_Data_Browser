@@ -1,15 +1,41 @@
 set serveroutput on size unlimited
 
+begin
+    for c in (
+        select JOB_NAME from USER_SCHEDULER_JOBS
+        where JOB_NAME LIKE 'DBROW_%'
+    ) loop 
+        dbms_scheduler.drop_job (
+            job_name => c.JOB_NAME,
+            force => TRUE
+        );
+    end loop;
+    commit;
+end;
+/
+
 DECLARE
     PROCEDURE DROP_MVIEW( p_MView_Name VARCHAR2) IS
-    BEGIN
-        EXECUTE IMMEDIATE 'DROP MATERIALIZED VIEW ' || p_MView_Name;
-        DBMS_OUTPUT.PUT_LINE('DROP MATERIALIZED VIEW ' || p_MView_Name || ';');
-    EXCEPTION
-      WHEN OTHERS THEN
-        IF SQLCODE != -12003 THEN
-            RAISE;
-        END IF;
+        time_limit_exceeded EXCEPTION;
+        PRAGMA EXCEPTION_INIT (time_limit_exceeded, -4021); -- ORA-04021: timeout occurred while waiting to lock object 
+        mview_does_not_exist EXCEPTION;
+        PRAGMA EXCEPTION_INIT (mview_does_not_exist, -12003); -- ORA-12003: materialized view does not exist
+        v_count NUMBER := 0;
+    BEGIN       
+        LOOP 
+            BEGIN 
+                EXECUTE IMMEDIATE 'DROP MATERIALIZED VIEW ' || p_MView_Name;
+                -- DBMS_OUTPUT.PUT_LINE('DROP MATERIALIZED VIEW ' || p_MView_Name || ';');
+                EXIT;
+            EXCEPTION
+                WHEN time_limit_exceeded THEN 
+                    APEX_UTIL.PAUSE(1/2);
+                    v_count := v_count + 1;
+                    EXIT WHEN v_count > 10;
+                WHEN mview_does_not_exist THEN
+                    EXIT;
+            END;
+        END LOOP;
     END;
 BEGIN
     DROP_MVIEW('MVDATA_BROWSER_SIMPLE_COLS');
@@ -116,8 +142,8 @@ BEGIN
 
     RUN_STAT('DROP VIEW VUSER_TABLES_IMP');
     RUN_STAT('DROP VIEW VUSER_TABLES_IMP_JOINS');
-    RUN_STAT('DROP VIEW VUSER_TABLES_IMP_TRIGGER');	-- old name
-    RUN_STAT('DROP VIEW VUSER_TABLES_IMP_COLUMNS');	-- old name
+    RUN_STAT('DROP VIEW VUSER_TABLES_IMP_TRIGGER'); -- old name
+    RUN_STAT('DROP VIEW VUSER_TABLES_IMP_COLUMNS'); -- old name
     RUN_STAT('DROP VIEW VUSER_TABLES_IMP_LINK'); -- old name
     RUN_STAT('DROP VIEW VUSER_TABLES_CHECK_IN_LIST'); -- old name
     RUN_STAT('DROP VIEW VUSER_FOREIGN_KEY_PARENTS'); -- old name
@@ -133,7 +159,7 @@ BEGIN
     RUN_STAT('DROP VIEW VDATA_BROWSER_FILTER_COLS');
     RUN_STAT('DROP VIEW VDATA_BROWSER_FILTER_CONDS');
     RUN_STAT('DROP VIEW VDATA_BROWSER_SEARCH_OPS');
-    RUN_STAT('DROP VIEW VDATA_BROWSER_TREE'); 		-- old name
+    RUN_STAT('DROP VIEW VDATA_BROWSER_TREE');       -- old name
     RUN_STAT('DROP VIEW VDATA_BROWSER_TREE_CACHED'); -- old name
     RUN_STAT('DROP VIEW USER_UI_DEFAULTS_LOV_DATA');
     RUN_STAT('DROP VIEW USER_UI_DEFAULTS_COLUMNS');
