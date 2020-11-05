@@ -626,7 +626,7 @@ IS
 
     g_AppUserPassword     VARCHAR2(64)      := '';   		-- Password of the created application user schema
     g_Apex_Workspace_Name VARCHAR2(64)      := '';    		-- Schema of the APEX Workspace used to register the application user schema
-    g_Use_On_Null       VARCHAR2(64)        := 'NO';        -- Use DEFAULT ON NULL in Oracle 12c. This ensures that default values will be used in all case that a null value is inserted in a columns with default.
+    g_Use_On_Null       VARCHAR2(64)        := 'YES';       -- Use DEFAULT ON NULL in Oracle 12c. This ensures that default values will be used in all case that a null value is inserted in a columns with default.
     g_BaseTableSchema   VARCHAR2(128);                      -- Schema Prefix with dot for Base Table names
     g_BaseViewSchema    VARCHAR2(128);                      -- Schema Prefix with dot for Base View names
 	g_Include_External_Objects VARCHAR2(64)    := 'NO';		-- Include external objects from other granted schemas
@@ -644,7 +644,7 @@ IS
     g_ExcludeDeleteMarkPattern VARCHAR2(4000)    := 'USER_WORKSPACE_SESSIONS,PLUGIN_DELETE_CHECKS,DATA_BROWSER%';		-- List of table name pattern that are excluded from 'Soft Delete Support'.
 
     g_IncludeTimestampPattern VARCHAR2(4000)    := '%';		-- List of table name pattern that are included for 'Audit Info Columns'.
-    g_ExcludeTimestampPattern VARCHAR2(4000)    := '%PROTOCOL%,USER_IMPORT_JOBS,USER_WORKSPACE_SESSIONS,PLUGIN_DELETE_CHECKS,DATA_BROWSER%';		-- List of table name pattern that are excluded from 'Audit Info Columns'.
+    g_ExcludeTimestampPattern VARCHAR2(4000)    := '%PROTOCOL%,USER_IMPORT_JOBS,USER_WORKSPACE_SESSIONS,PLUGIN_DELETE_CHECKS,DATA_BROWSER%.APP_%';		-- List of table name pattern that are excluded from 'Audit Info Columns'.
 
     g_ExcludedTablesPattern CONSTANT VARCHAR2(4000) :=		-- Internal list of table name pattern that are excluded from 'Audit Info Columns' and 'Soft Delete Support'.
     	'CHANGE_LOG%,CHAINED_ROWS,%PLAN_TABLE,%_IMP,PLUGIN_DELETE_CHECKS,%PROTOCOL%,%HISTORY%';

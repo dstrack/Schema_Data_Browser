@@ -92,7 +92,7 @@ is
 			end SQL_TEXT,
 			COLUMN_ID, POSITION, MATCHING, COLUMNS_INCLUDED, TABLE_ALIAS, R_TABLE_NAME,
 			TABLE_HEADER, SOURCE_INFO
-		FROM (
+		FROM ( -- base table - Alias A
 			SELECT S.SEARCH_KEY_COLS COLUMN_NAME, S.COLUMN_PREFIX,
 				CAST('FROM '
 				|| case when v_Include_Schema = 'YES' then 
@@ -107,7 +107,7 @@ is
 				'A' SOURCE_INFO
 			FROM MVDATA_BROWSER_VIEWS S
 			WHERE S.VIEW_NAME = v_View_Name
-			UNION ALL -- foreign keys with description columns
+			UNION ALL -- f_refs: all 1. level natural key columns of direct references from table A => alias B.
 			SELECT COLUMN_NAME, COLUMN_PREFIX,
 				CAST(JOIN_CLAUSE || case when MATCHING = 0 then ' -- No description columns found.' end
 					AS VARCHAR2(1024)) JOIN_CLAUSE,
@@ -148,7 +148,7 @@ is
 				-- avoid joins for file folder path 
 				AND (S.COLUMN_NAME != T.FOLDER_PARENT_COLUMN_NAME OR T.FOLDER_PARENT_COLUMN_NAME IS NULL)
 			)
-			UNION ALL -- foreign keys with unique columns and second level foreign keys
+			UNION ALL -- q_refs: all 2. level natural key columns of indirect references from frefs => alias B_A. 
 			SELECT DISTINCT 
 				S.COLUMN_NAME, S.COLUMN_PREFIX,
 				S.JOIN_CLAUSE, 
@@ -170,7 +170,7 @@ is
 			AND S.PARENT_KEY_COLUMN IS NULL -- column is hidden because its content can be deduced from the references FILTER_KEY_COLUMN
 			AND S.IS_FILE_FOLDER_REF = 'N'
 			AND (J.COLUMNS_INCLUDED IN ('A','K') OR J.COLUMNS_INCLUDED IS NULL)
-			UNION ALL
+			UNION ALL -- qc_refs: all 2. level table columns of indirect references from frefs => alias B_A. 
 			SELECT DISTINCT 
 				S.COLUMN_NAME, S.COLUMN_PREFIX,
 				S.JOIN_CLAUSE, 

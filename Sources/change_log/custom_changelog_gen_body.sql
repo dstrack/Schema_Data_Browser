@@ -102,6 +102,8 @@ CREATE OR REPLACE PACKAGE BODY custom_changelog_gen IS
     	v_Delimiter := CASE WHEN p_Delimiter = '/' THEN CHR(10) || p_Delimiter || CHR(10) ELSE p_Delimiter END;
         DBMS_OUTPUT.PUT_LINE(SUBSTR(p_Statement, 1, 32760) || v_Delimiter);
         EXECUTE IMMEDIATE p_Statement;
+		INSERT INTO APP_PROTOCOL (Description, Remarks) VALUES  ('Processing DDL', SUBSTR(p_Statement, 1, 4000));
+		COMMIT;
     EXCEPTION
     WHEN OTHERS THEN
         DBMS_OUTPUT.PUT_LINE(SUBSTR(p_Statement, 1, 32760) || v_Delimiter);
@@ -120,6 +122,8 @@ CREATE OR REPLACE PACKAGE BODY custom_changelog_gen IS
         -- DBMS_OUTPUT.PUT(TO_CHAR(SYSDATE,'HH24:MI:SS') || ' : ');
         DBMS_OUTPUT.PUT_LINE(p_Statement || v_Delimiter);
         EXECUTE IMMEDIATE p_Statement;
+		INSERT INTO APP_PROTOCOL (Description, Remarks) VALUES  ('Processing DDL', SUBSTR(p_Statement, 1, 4000));
+		COMMIT;
     EXCEPTION
     WHEN OTHERS THEN
         DBMS_OUTPUT.PUT_LINE('-- SQL Warning :' || SQLCODE || ' ' || SQLERRM);
@@ -137,6 +141,34 @@ CREATE OR REPLACE PACKAGE BODY custom_changelog_gen IS
             RAISE;
         end if;
     END Try_Run_Stat;
+
+    FUNCTION Try_Run_Stat (
+        p_Statement     IN CLOB,
+        p_Delimiter     IN VARCHAR2 DEFAULT ';',
+        p_Allowed_Code  IN NUMBER DEFAULT 0,
+        p_Allowed_Code2  IN NUMBER DEFAULT 0,
+        p_Allowed_Code3  IN NUMBER DEFAULT 0,
+        p_Allowed_Code4  IN NUMBER DEFAULT 0,
+        p_Allowed_Code5  IN NUMBER DEFAULT 0
+    )
+    RETURN NUMBER
+    IS
+    BEGIN
+        -- DBMS_OUTPUT.PUT(TO_CHAR(SYSDATE,'HH24:MI:SS') || ' : ');
+        DBMS_OUTPUT.PUT_LINE(p_Statement || p_Delimiter);
+        EXECUTE IMMEDIATE p_Statement;
+		INSERT INTO APP_PROTOCOL (Description, Remarks) VALUES  ('Processing DDL', SUBSTR(p_Statement, 1, 4000));
+		COMMIT;
+        return 0;
+    EXCEPTION
+    WHEN OTHERS THEN
+        DBMS_OUTPUT.PUT_LINE('-- SQL Error :' || SQLCODE || ' ' || SQLERRM);
+        if SQLCODE NOT IN (p_Allowed_Code, p_Allowed_Code2, p_Allowed_Code3, p_Allowed_Code4, p_Allowed_Code5) then
+            RAISE;
+        end if;
+        return SQLCODE;
+    END;
+
 
 	-- Internal
 	FUNCTION Get_Last_DDL_Time(
@@ -1989,6 +2021,240 @@ CREATE OR REPLACE PACKAGE BODY custom_changelog_gen IS
         END IF;
 
     END Drop_ChangeLog_Views;
+
+    PROCEDURE Alter_Table_Audit_Columns (
+        p_Table_Name   	   IN VARCHAR2,
+        p_Owner    		   IN VARCHAR2,
+        p_Add_Modify_Date  IN VARCHAR2 DEFAULT changelog_conf.Get_Add_Modify_Date,
+        p_Add_Modify_User  IN VARCHAR2 DEFAULT changelog_conf.Get_Add_Modify_User,
+        p_Add_Create_Date  IN VARCHAR2 DEFAULT changelog_conf.Get_Add_Creation_Date,
+        p_Add_Create_User  IN VARCHAR2 DEFAULT changelog_conf.Get_Add_Creation_User,
+        p_Enforce_Not_Null IN VARCHAR2 DEFAULT changelog_conf.Get_Enforce_Not_Null
+    )
+    IS
+        v_SQLCODE               INTEGER;
+        v_HasColumnCreDate      VARCHAR2(6);
+        v_HasColumnCreUser      VARCHAR2(6);
+        v_HasColumnModDate      VARCHAR2(6);
+        v_HasColumnModUser      VARCHAR2(6);
+        v_Incude_Timestamp      VARCHAR2(6);
+        v_Include_Changelog     VARCHAR2(6);
+        v_Stat                  VARCHAR2(4000);
+        v_Table_Name            VARCHAR2(300);
+        stat_cur                SYS_REFCURSOR;
+        v_Default_Clause		VARCHAR2(100);
+        v_Create_Timestamp_Column_Name	MVBASE_VIEWS.CREATE_TIMESTAMP_COLUMN_NAME%TYPE;
+        v_Create_User_Column_Name		MVBASE_VIEWS.CREATE_USER_COLUMN_NAME%TYPE;
+        v_Modfiy_Timestamp_Column_Name	MVBASE_VIEWS.MODFIY_TIMESTAMP_COLUMN_NAME%TYPE;
+        v_Modfiy_User_Column_Name		MVBASE_VIEWS.MODFIY_USER_COLUMN_NAME%TYPE;
+    BEGIN
+		v_Default_Clause := case when changelog_conf.Get_Use_On_Null = 'YES' then ' DEFAULT ON NULL ' else ' DEFAULT ' end;
+        SELECT 
+            HAS_CREATE_TIMESTAMP, HAS_CREATE_USER, HAS_MODFIY_TIMESTAMP, HAS_MODFIY_USER,
+            CREATE_TIMESTAMP_COLUMN_NAME, CREATE_USER_COLUMN_NAME, MODFIY_TIMESTAMP_COLUMN_NAME, MODFIY_USER_COLUMN_NAME,
+            INCLUDE_TIMESTAMP, INCLUDE_CHANGELOG
+        INTO 
+            v_HasColumnCreDate, v_HasColumnCreUser, v_HasColumnModDate, v_HasColumnModUser,
+            v_Create_Timestamp_Column_Name, v_Create_User_Column_Name, v_Modfiy_Timestamp_Column_Name, v_Modfiy_User_Column_Name,
+            v_Incude_Timestamp, v_Include_Changelog
+        FROM MVBASE_VIEWS T
+        WHERE T.TABLE_NAME = p_Table_Name
+        AND T.OWNER = p_Owner;
+
+        v_Table_Name := DBMS_ASSERT.ENQUOTE_NAME(p_Owner) || '.' || DBMS_ASSERT.ENQUOTE_NAME(p_Table_Name);
+
+		if changelog_conf.Get_Drop_Audit_Info_Columns = 'YES' then
+			-- Drop Column CreateDate
+			IF p_Add_Create_Date = 'YES' AND v_Incude_Timestamp = 'NO' AND v_HasColumnCreDate != 'NO' THEN
+				v_Stat := 'ALTER TABLE ' || v_Table_Name || ' MODIFY ' || v_Create_Timestamp_Column_Name || ' DEFAULT NULL';
+				Run_Stat (v_Stat);
+				v_Stat := 'ALTER TABLE ' || v_Table_Name || ' DROP COLUMN ' || v_Create_Timestamp_Column_Name;
+				v_HasColumnCreDate := 'NO';
+				Run_Stat (v_Stat);
+			end if;
+			-- Drop Column CreateUser
+			IF p_Add_Create_User = 'YES' AND v_Incude_Timestamp = 'NO' AND v_HasColumnCreUser != 'NO' THEN
+				v_Stat := 'ALTER TABLE ' || v_Table_Name || ' MODIFY ' || v_Create_User_Column_Name || ' DEFAULT NULL';
+				Run_Stat (v_Stat);
+				v_Stat := 'ALTER TABLE ' || v_Table_Name || ' DROP COLUMN ' || v_Create_User_Column_Name;
+				v_HasColumnCreUser := 'NO';
+				Run_Stat (v_Stat);
+			end if;
+			-- Drop Column ModifyDate
+			IF p_Add_Modify_Date = 'YES' AND v_Incude_Timestamp = 'NO' AND v_HasColumnModDate != 'NO' THEN
+				v_Stat := 'ALTER TABLE ' || v_Table_Name || ' MODIFY ' || v_Modfiy_Timestamp_Column_Name || ' DEFAULT NULL';
+				Run_Stat (v_Stat);
+				v_Stat := 'ALTER TABLE ' || v_Table_Name || ' DROP COLUMN ' || v_Modfiy_Timestamp_Column_Name;
+				v_HasColumnModDate := 'NO';
+				Run_Stat (v_Stat);
+			end if;
+
+			-- Drop Column ModifyUser
+			IF p_Add_Modify_User = 'YES' AND v_Incude_Timestamp = 'NO' AND v_HasColumnModUser != 'NO' THEN
+				v_Stat := 'ALTER TABLE ' || v_Table_Name || ' MODIFY ' || v_Modfiy_User_Column_Name || ' DEFAULT NULL';
+				Run_Stat (v_Stat);
+				v_Stat := 'ALTER TABLE ' || v_Table_Name || ' DROP COLUMN ' || v_Modfiy_User_Column_Name;
+				v_HasColumnModUser := 'NO';
+				Run_Stat (v_Stat);
+			end if;
+		end if;
+		if changelog_conf.Get_Use_Audit_Info_Columns = 'YES' then
+			-- Add Column CreateDate
+			IF p_Add_Create_Date = 'YES' AND v_Incude_Timestamp = 'YES' AND v_HasColumnCreDate = 'NO' THEN
+				v_Stat := 'ALTER TABLE ' || v_Table_Name || ' ADD (' || changelog_conf.Get_ColumnCreateDate
+					|| ' ' || changelog_conf.Get_DatatypeModifyDate
+					|| v_Default_Clause || changelog_conf.Get_FunctionModifyDate || ' NOT NULL)';
+				v_HasColumnCreDate := 'READY';
+				v_Create_Timestamp_Column_Name := changelog_conf.Get_ColumnCreateDate;
+				Run_Stat (v_Stat);
+			end if;
+
+			-- Add Column CreateUser
+			IF p_Add_Create_User = 'YES' AND v_Incude_Timestamp = 'YES' AND v_HasColumnCreUser = 'NO' THEN
+				v_Stat := 'ALTER TABLE ' || v_Table_Name || ' ADD (' || changelog_conf.Get_ColumnCreateUser
+					|| ' ' || changelog_conf.Get_ColumnTypeModifyUser || ' ' || v_Default_Clause || changelog_conf.Get_DefaultModifyUser || ' NOT NULL)';
+				v_HasColumnCreUser := 'READY';
+				v_Create_User_Column_Name := changelog_conf.Get_ColumnCreateUser;
+				Run_Stat (v_Stat);
+			end if;
+
+			-----------------------------------------------------------------------
+			-- Add Column ModifyDate
+			IF p_Add_Modify_Date = 'YES' AND v_Incude_Timestamp = 'YES' AND v_HasColumnModDate = 'NO' THEN
+				v_Stat := 'ALTER TABLE ' || v_Table_Name || ' ADD (' || changelog_conf.Get_ColumnModifyDate
+					|| ' ' || changelog_conf.Get_DatatypeModifyDate
+					|| v_Default_Clause || changelog_conf.Get_FunctionModifyDate || ' NOT NULL)';
+				v_HasColumnModDate := 'READY';
+				v_Modfiy_Timestamp_Column_Name := changelog_conf.Get_ColumnModifyDate;
+				Run_Stat (v_Stat);
+			end if;
+
+			-- Add Column ModifyUser
+			IF p_Add_Modify_User = 'YES' AND v_Incude_Timestamp = 'YES' AND v_HasColumnModUser = 'NO' THEN
+				v_Stat := 'ALTER TABLE ' || v_Table_Name || ' ADD (' || changelog_conf.Get_ColumnModifyUser
+					|| ' ' || changelog_conf.Get_ColumnTypeModifyUser || ' ' || v_Default_Clause || changelog_conf.Get_DefaultModifyUser || ' NOT NULL)';
+				v_HasColumnModUser := 'READY';
+				v_Modfiy_User_Column_Name := changelog_conf.Get_ColumnModifyUser;
+				Run_Stat (v_Stat);
+			end if;
+
+			-----------------------------------------------------------------------
+			-- Default Systimestamp for Column ModifyDate
+			IF p_Add_Modify_Date = 'YES' AND v_Incude_Timestamp = 'YES' AND v_HasColumnModDate != 'READY' THEN
+				v_Stat := 'ALTER TABLE ' || v_Table_Name || ' MODIFY (' || v_Modfiy_Timestamp_Column_Name
+					|| ' ' || changelog_conf.Get_DatatypeModifyDate || ')';
+				v_HasColumnModDate := 'READY';
+				v_SQLCODE := Try_Run_Stat (v_Stat, ';', -1439, -1442); 	-- skip on ORA-01439: column to be modified must be empty to change datatype
+																		-- skip on ORA-01442: column to be modified to NOT NULL is already NOT NULL
+				v_Stat := 'ALTER TABLE ' || v_Table_Name || ' MODIFY (' || v_Modfiy_Timestamp_Column_Name
+					|| v_Default_Clause || changelog_conf.Get_FunctionModifyDate || ')';
+				Run_Stat(v_Stat);
+			end if;
+			if v_Incude_Timestamp = 'YES' then 
+				-- Default Systimestamp for Column CreateDate
+				if v_HasColumnCreDate = 'YES' then
+					v_Stat := 'ALTER TABLE ' || v_Table_Name || ' MODIFY (' || v_Create_Timestamp_Column_Name
+						|| ' ' || changelog_conf.Get_DatatypeModifyDate || ')';
+					v_HasColumnCreDate := 'READY';
+					v_SQLCODE := Try_Run_Stat (v_Stat, ';', -1439, -1442); 	-- skip on ORA-01439: column to be modified must be empty to change datatype
+																			-- skip on ORA-01442: column to be modified to NOT NULL is already NOT NULL
+					v_Stat := 'ALTER TABLE ' || v_Table_Name || ' MODIFY (' || v_Create_Timestamp_Column_Name
+						|| v_Default_Clause || changelog_conf.Get_FunctionModifyDate || ')';
+					Run_Stat(v_Stat);
+				end if;
+
+				-- Default ContextUser for Column CreateUser
+				if v_HasColumnCreUser = 'YES' then
+					v_Stat := 'ALTER TABLE ' || v_Table_Name ||' MODIFY (' || v_Create_User_Column_Name || ' VARCHAR2(32 BYTE) ' || v_Default_Clause || changelog_conf.Get_DefaultModifyUser || ')';
+					v_SQLCODE := Try_Run_Stat (v_Stat, ';', -1439); -- skip on ORA-01439: column to be modified must be empty to change datatype
+				end if;
+
+				-- Default ContextUser for Column ModifyUser
+				if v_HasColumnModUser = 'YES' then
+					v_Stat := 'ALTER TABLE ' || v_Table_Name ||' MODIFY (' || v_Modfiy_User_Column_Name || ' VARCHAR2(32 BYTE) ' || v_Default_Clause || changelog_conf.Get_DefaultModifyUser || ')';
+					v_SQLCODE := Try_Run_Stat (v_Stat, ';', -1439); -- skip on ORA-01439: column to be modified must be empty to change datatype
+				end if;
+				-----------------------------------------------------------------------
+				if p_Enforce_Not_Null = 'YES' then
+					-- Enforce Not Null constraint for g_ColumnCreateDate and g_ColumnModifyDate
+					FOR stat_cur IN (
+						SELECT
+							'UPDATE ' || C.TABLE_NAME
+							|| ' SET ' || C.COLUMN_NAME || ' = ' || changelog_conf.Get_FunctionModifyDate
+							|| ' WHERE ' || C.COLUMN_NAME || ' IS NULL ' UPDATE_STAT,
+							'ALTER TABLE ' || C.TABLE_NAME || ' MODIFY ' || C.COLUMN_NAME || ' NOT NULL ' NN_STAT
+						FROM SYS.ALL_TAB_COLUMNS C
+						WHERE C.COLUMN_NAME IN (v_Create_Timestamp_Column_Name, v_Modfiy_Timestamp_Column_Name)
+						AND C.TABLE_NAME = p_Table_Name
+						AND C.OWNER = p_Owner
+						AND C.NULLABLE = 'Y'
+					)
+					LOOP
+						Run_Stat (stat_cur.UPDATE_STAT);
+						v_SQLCODE := Try_Run_Stat (stat_cur.NN_STAT, ';', -2296, -1442); 	-- ORA-02296: cannot enable NN - null values found
+																							-- ORA-01442: column to be modified to NOT NULL is already NOT NULL
+					END LOOP;
+
+					-- Enforce Not Null constraint for g_ColumnCreateUser and g_ColumnModifyUser
+					FOR stat_cur IN (
+						SELECT
+							'UPDATE ' || C.TABLE_NAME
+							|| ' SET ' || C.COLUMN_NAME || ' = ' || changelog_conf.Get_DefaultModifyUser
+							|| ' WHERE ' || C.COLUMN_NAME || ' IS NULL ' UPDATE_STAT,
+							'ALTER TABLE ' || C.TABLE_NAME || ' MODIFY ' || C.COLUMN_NAME || ' NOT NULL ' NN_STAT
+						FROM SYS.ALL_TAB_COLUMNS C
+						WHERE C.COLUMN_NAME IN (v_Create_User_Column_Name, v_Modfiy_User_Column_Name)
+						AND C.TABLE_NAME = p_Table_Name
+						AND C.OWNER = p_Owner
+						AND C.NULLABLE = 'Y'
+					)
+					LOOP
+						Run_Stat (stat_cur.UPDATE_STAT);
+						v_SQLCODE := Try_Run_Stat (stat_cur.NN_STAT, ';', -2296, -1442); 	-- ORA-02296: cannot enable NN - null values found
+																							-- ORA-01442: column to be modified to NOT NULL is already NOT NULL
+					END LOOP;
+				end if;
+			end if;
+		end if;
+    END Alter_Table_Audit_Columns;
+
+    PROCEDURE Add_Audit_Columns (
+        p_Table_Name    	IN VARCHAR2 DEFAULT NULL,
+    	p_context   		IN binary_integer DEFAULT NVL(MOD(NV('APP_SESSION'), POWER(2,31)), 0)
+    )
+    IS
+        v_rindex            binary_integer := dbms_application_info.set_session_longops_nohint;
+        v_slno              binary_integer;
+       	CURSOR view_cur IS
+			SELECT TABLE_NAME, OWNER
+			FROM MVBASE_VIEWS A
+			WHERE INCLUDE_CHANGELOG = 'YES'
+			AND (TABLE_NAME = UPPER(p_Table_Name) OR p_Table_Name IS NULL)
+			ORDER BY TABLE_NAME;
+        TYPE stat_tbl IS TABLE OF view_cur%ROWTYPE;
+        v_stat_tbl      stat_tbl;
+        v_Steps  		binary_integer := 0;
+        v_Proc_Name 	VARCHAR2(128) := 'Add Audit Columns';
+    BEGIN
+		MView_Refresh('MVBASE_VIEWS');
+
+        OPEN view_cur;
+        FETCH view_cur BULK COLLECT INTO v_stat_tbl;
+        CLOSE view_cur;
+
+        IF v_stat_tbl.FIRST IS NOT NULL THEN
+        	v_Steps := v_stat_tbl.COUNT;
+            FOR ind IN 1 .. v_stat_tbl.COUNT
+            LOOP
+                Set_Process_Infos(v_rindex, v_slno, v_Proc_Name, p_context, v_Steps, ind, 'tables');
+				Alter_Table_Audit_Columns(v_stat_tbl(ind).TABLE_NAME, v_stat_tbl(ind).OWNER);
+			END LOOP;
+		END IF;
+	exception
+	  when others then
+		Set_Process_Infos(v_rindex, v_slno, v_Proc_Name, p_context, v_Steps, v_Steps, 'tables');
+		raise;
+    END Add_Audit_Columns;
     
 	PROCEDURE Prepare_Tables (
     	p_context  IN binary_integer DEFAULT NVL(MOD(NV('APP_SESSION'), POWER(2,31)), 0)
@@ -1997,6 +2263,7 @@ CREATE OR REPLACE PACKAGE BODY custom_changelog_gen IS
 	BEGIN
 		if changelog_conf.Get_Use_Change_Log = 'YES'
 		OR changelog_conf.Get_Use_Audit_Info_Columns = 'YES' then
+			custom_changelog_gen.Add_Audit_Columns(p_context => p_context);
 			custom_changelog_gen.Drop_ChangeLog_Table_Trigger;
 			custom_changelog_gen.Add_ChangeLog_Table_Trigger(p_context => p_context);
 		else

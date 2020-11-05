@@ -779,7 +779,6 @@ CREATE OR REPLACE PACKAGE BODY data_browser_ddl IS
 		|| dbms_assert.enquote_name(v_Table_Owner) || '.'  || dbms_assert.enquote_name(v_Table_Name)
 		|| ' CASCADE CONSTRAINTS ';
 		Run_Stat (v_Stat);
-		-- data_browser_conf.Touch_Configuration;
 		data_browser_jobs.Start_Refresh_Mviews_Job(p_Delay_Seconds => c_MView_Refresh_Delay);
 	end Drop_Table;
 
@@ -986,7 +985,7 @@ CREATE OR REPLACE PACKAGE BODY data_browser_ddl IS
 		WHERE VIEW_NAME = p_Table_Name;
 
 		v_Stat := 'ALTER TABLE ' || dbms_assert.enquote_name(v_Table_Owner) || '.'  || dbms_assert.enquote_name(v_Table_Name)
-			|| ' DROP COLUMN ' || dbms_assert.enquote_name(p_Column_Name) 
+			|| ' SET UNUSED COLUMN ' || dbms_assert.enquote_name(p_Column_Name) 
 			|| ' CASCADE CONSTRAINTS';
 		EXECUTE IMMEDIATE v_Stat;
 		INSERT INTO APP_PROTOCOL (Description, Remarks) VALUES  ('Processing DDL', SUBSTR(v_Stat, 1, 4000));

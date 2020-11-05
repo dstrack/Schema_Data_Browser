@@ -598,7 +598,7 @@ $END
 				|| '  p_report_region_title => %s,' || chr(10) 
 				|| '  p_form_region_title => %s);' || chr(10) || chr(10)
 				|| 'end;' || chr(10) || '/' || chr(10),
-				p0 => dbms_assert.enquote_literal(v_Table_Name),
+				p0 => dbms_assert.enquote_literal(v_View_Name),
 				p1 => v_table_id,
 				p2 => data_browser_conf.Enquote_Literal(v_View_Name),
 				p3 => data_browser_conf.Enquote_Literal('Edit ' || data_browser_conf.Table_Name_To_Header(p_Table_name)),
