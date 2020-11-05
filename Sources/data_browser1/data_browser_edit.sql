@@ -4924,7 +4924,8 @@ $END
 			else
 				v_Insert_Ref := c_cur.R_COLUMN_NAME;
             end if;
-			if c_cur.IS_SEARCH_KEY = 'N' or v_Insert_Key_Expr IS NOT NULL or v_Key_Cols_Count > 1 then
+			if (c_cur.IS_SEARCH_KEY = 'N' or v_Insert_Key_Expr IS NOT NULL or v_Key_Cols_Count > 1)
+			and NOT(c_cur.IS_VIRTUAL_COLUMN = 'Y' and p_Row_Operation IN ('DUPLICATE', 'COPY_ROWS')) then
 				v_Count := v_Count + 1;
 				v_Column_List := v_Column_List
 				|| case when v_Count > 1 then v_Delimiter end
@@ -4966,20 +4967,21 @@ $END
 			end if;
         end loop;
         -- append virtual columns to select list
-        FOR c_cur IN (
-        	SELECT TABLE_NAME, COLUMN_NAME, DATA_DEFAULT 
-        	FROM USER_TAB_COLS 
-        	WHERE VIRTUAL_COLUMN = 'YES' 
-        	AND DATA_TYPE NOT IN ('RAW', 'BLOB')
-        	AND TABLE_NAME = p_View_name
-        )
-        loop
-			v_Count := v_Count + 1;
-			v_Values_List := v_Values_List
-			|| case when v_Count > 1 then v_Delimiter end
-			|| c_cur.DATA_DEFAULT || ' ' || c_cur.COLUMN_NAME;
-        end loop;
-
+        if p_Row_Operation IN ('MERGE_ROWS') then
+			FOR c_cur IN (
+				SELECT TABLE_NAME, COLUMN_NAME, DATA_DEFAULT 
+				FROM USER_TAB_COLS 
+				WHERE VIRTUAL_COLUMN = 'YES' 
+				AND DATA_TYPE NOT IN ('RAW', 'BLOB')
+				AND TABLE_NAME = p_View_name
+			)
+			loop
+				v_Count := v_Count + 1;
+				v_Values_List := v_Values_List
+				|| case when v_Count > 1 then v_Delimiter end
+				|| c_cur.DATA_DEFAULT || ' ' || c_cur.COLUMN_NAME;
+			end loop;
+		end if;
 		v_Indent := 8;
 		if v_Column_List IS NOT NULL then
 			if p_Row_Operation IN ('COPY_ROWS', 'DUPLICATE') then
