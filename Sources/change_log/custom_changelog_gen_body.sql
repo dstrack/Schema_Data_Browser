@@ -182,7 +182,7 @@ CREATE OR REPLACE PACKAGE BODY custom_changelog_gen IS
 		INTO v_LAST_DDL_TIME
 		FROM (
 			SELECT MAX(LAST_DDL_TIME) LAST_DDL_TIME
-			FROM USER_OBJECTS A
+			FROM SYS.USER_OBJECTS A
 			WHERE A.OBJECT_TYPE IN ('TABLE', 'PACKAGE BODY')
 			AND (A.OBJECT_NAME IN ('CUSTOM_CHANGELOG', 'CHANGELOG_CONF') OR A.OBJECT_TYPE = 'TABLE')
 			UNION ALL
@@ -190,7 +190,7 @@ CREATE OR REPLACE PACKAGE BODY custom_changelog_gen IS
 			FROM CHANGE_LOG_CONFIG A
 			UNION ALL
 			SELECT LAST_REFRESH_DATE
-			FROM USER_MVIEWS
+			FROM SYS.USER_MVIEWS
 			WHERE INSTR(p_Dependent_MViews, MVIEW_NAME) > 0
 		);
 
@@ -212,7 +212,7 @@ CREATE OR REPLACE PACKAGE BODY custom_changelog_gen IS
 	BEGIN
 		SELECT LAST_REFRESH_DATE, STALENESS, REFRESH_METHOD, COMPILE_STATE
 		INTO v_LAST_REFRESH_DATE, v_STALENESS, v_REFRESH_METHOD, v_COMPILE_STATE
-		FROM USER_MVIEWS
+		FROM SYS.USER_MVIEWS
 		WHERE MVIEW_NAME = p_MView_Name
 		;
 		if p_LAST_DDL_TIME IS NOT NULL then 
@@ -327,7 +327,7 @@ CREATE OR REPLACE PACKAGE BODY custom_changelog_gen IS
 		begin
 			SELECT JOB_NAME
 			INTO v_Job_Name
-			FROM USER_SCHEDULER_JOBS
+			FROM SYS.USER_SCHEDULER_JOBS
 			WHERE JOB_ACTION = p_Sql
 			AND JOB_NAME LIKE v_Job_Name_Prefix || '%'
 			AND STATE IN ('SCHEDULED', 'RETRY SCHEDULED', 'RUNNING');
@@ -411,7 +411,7 @@ CREATE OR REPLACE PACKAGE BODY custom_changelog_gen IS
 			SELECT 'DROP INDEX ' || D.INDEX_NAME INDEX_STAT
 			FROM (
 				SELECT 'CUSTOM_REF_ID' || LEVEL CHANGELOG_REF_NAME
-				FROM DUAL CONNECT BY LEVEL <= 9
+				FROM SYS.DUAL CONNECT BY LEVEL <= 9
 			) A, USER_IND_COLUMNS D
 			WHERE D.TABLE_NAME = custom_changelog.Get_ChangeLogTable
 			AND D.COLUMN_NAME = A.CHANGELOG_REF_NAME
@@ -423,7 +423,7 @@ CREATE OR REPLACE PACKAGE BODY custom_changelog_gen IS
 			SELECT 'ALTER TABLE ' || custom_changelog.Get_ChangeLogTable || ' DROP CONSTRAINT ' || D.CONSTRAINT_NAME FOREIGN_KEY_STAT
 			FROM (
 				SELECT 'CUSTOM_REF_ID' || LEVEL CHANGELOG_REF_NAME
-				FROM DUAL CONNECT BY LEVEL <= 9
+				FROM SYS.DUAL CONNECT BY LEVEL <= 9
 			) A, USER_CONS_COLUMNS D
 			WHERE D.TABLE_NAME = custom_changelog.Get_ChangeLogTable
 			AND D.COLUMN_NAME = A.CHANGELOG_REF_NAME
@@ -440,7 +440,7 @@ CREATE OR REPLACE PACKAGE BODY custom_changelog_gen IS
 			SELECT A.TABLE_NAME, A.COLUMN_NAME, A.CHANGELOG_REF_NAME, A.RUN_NO,
 				CASE WHEN NOT EXISTS (
 					SELECT 1
-					FROM USER_INDEXES D
+					FROM SYS.USER_INDEXES D
 					WHERE D.TABLE_NAME = custom_changelog.Get_ChangeLogTable
 					AND D.INDEX_NAME = A.INDEX_NAME
 				) THEN
@@ -452,7 +452,7 @@ CREATE OR REPLACE PACKAGE BODY custom_changelog_gen IS
 				END INDEX_STAT,
 				CASE WHEN NOT EXISTS (
 					SELECT 1
-					FROM USER_CONSTRAINTS D
+					FROM SYS.USER_CONSTRAINTS D
 					WHERE D.TABLE_NAME = custom_changelog.Get_ChangeLogTable
 					AND D.CONSTRAINT_NAME = A.CONSTRAINT_NAME
 				) THEN
@@ -493,7 +493,7 @@ CREATE OR REPLACE PACKAGE BODY custom_changelog_gen IS
 		-- remove base table trigger with reference to Get_ChangeLogFunction
         FOR  stat_cur IN (
             SELECT 'DROP TRIGGER ' || TRIGGER_NAME STATMENT, TRIGGERING_EVENT, TRIGGER_BODY
-            FROM USER_TRIGGERS T
+            FROM SYS.USER_TRIGGERS T
 			JOIN MVBASE_VIEWS B ON T.TABLE_NAME = B.TABLE_NAME
             WHERE T.BASE_OBJECT_TYPE = 'TABLE'
             AND T.TRIGGER_TYPE = 'COMPOUND'
@@ -544,7 +544,7 @@ CREATE OR REPLACE PACKAGE BODY custom_changelog_gen IS
 				else 
 					'ALTER ' || object_type || ' ' || object_name||' COMPILE'
 				end stat
-			FROM USER_OBJECTS T1
+			FROM SYS.USER_OBJECTS T1
 			WHERE status = 'INVALID'
 			AND object_type in ('FUNCTION', 'PACKAGE', 'PACKAGE BODY', 'PROCEDURE', 'VIEW', 'TRIGGER', 'MATERIALIZED VIEW' )
 			AND object_name != 'CUSTOM_CHANGELOG_GEN' -- avoid deadlock
@@ -574,7 +574,7 @@ CREATE OR REPLACE PACKAGE BODY custom_changelog_gen IS
 		FOR  stat_cur IN (
 			SELECT VIEW_NAME, TABLE_NAME,
 				CASE WHEN NOT EXISTS (
-					SELECT 1 FROM USER_SEQUENCES S
+					SELECT 1 FROM SYS.USER_SEQUENCES S
 					WHERE S.SEQUENCE_NAME = T.SEQUENCE_NAME
 				) THEN
 					'CREATE SEQUENCE ' || changelog_conf.Get_Table_Schema || SEQUENCE_NAME ||
@@ -589,7 +589,7 @@ CREATE OR REPLACE PACKAGE BODY custom_changelog_gen IS
 				END ADD_COLUMN_STAT,
 				CASE WHEN NOT EXISTS (
 					SELECT 1
-					FROM USER_COL_COMMENTS C
+					FROM SYS.USER_COL_COMMENTS C
 					WHERE C.COLUMN_NAME = T.COLUMN_NAME
 					AND C.TABLE_NAME = T.TABLE_NAME
 				) THEN
@@ -604,7 +604,7 @@ CREATE OR REPLACE PACKAGE BODY custom_changelog_gen IS
 					'ALTER TABLE ' || TABLE_NAME || ' MODIFY ' ||  COLUMN_NAME || ' NOT NULL'
 				END NN_STAT,
 				CASE WHEN NOT EXISTS (
-					SELECT 1 FROM USER_CONSTRAINTS S
+					SELECT 1 FROM SYS.USER_CONSTRAINTS S
 					WHERE S.CONSTRAINT_NAME = T.CONSTRAINT_NAME
 					AND S.TABLE_NAME = T.TABLE_NAME
 				) THEN
@@ -935,7 +935,7 @@ CREATE OR REPLACE PACKAGE BODY custom_changelog_gen IS
 				':NEW.' || C.COLUMN_NAME || ');' STATMENT
 			FROM (
 				SELECT T.TABLE_NAME
-				FROM USER_TABLES T
+				FROM SYS.USER_TABLES T
 				WHERE T.TABLE_NAME NOT LIKE 'DR$%$_'  -- skip  fulltext index
 				AND T.IOT_NAME IS NULL	-- skip overflow tables of index organized tables
 				AND T.TEMPORARY = 'N'
@@ -943,7 +943,7 @@ CREATE OR REPLACE PACKAGE BODY custom_changelog_gen IS
 				AND T.NESTED = 'NO'
 				AND NOT EXISTS (
 					SELECT 'X'
-					FROM USER_MVIEWS MV
+					FROM SYS.USER_MVIEWS MV
 					WHERE MV.MVIEW_NAME = T.TABLE_NAME
 				)
 			) T
@@ -1142,18 +1142,27 @@ CREATE OR REPLACE PACKAGE BODY custom_changelog_gen IS
 				BIT.TRIGGER_NAME BI_TRIGGER_NAME,
 				case when B.TABLE_NAME = p_Table_Name 
 					then p_Trigger_Name
-				end CL_TRIGGER_NAME
+				end CL_TRIGGER_NAME,
+				case when BIT.TRIGGER_NAME IS NULL 
+				and EXISTS (
+					SELECT 1 
+					FROM MVBASE_UNIQUE_KEYS UK 
+					WHERE UK.TABLE_NAME = B.TABLE_NAME
+					AND UK.TABLE_OWNER = B.OWNER
+					AND (UK.TRIGGER_HAS_NEXTVAL = 'YES' OR TRIGGER_HAS_SYS_GUID = 'YES')
+				) then 'YES' else 'NO' 
+				end OTHER_TRIGGER_HAS_NEXTVAL
 			FROM MVBASE_VIEWS B
 			LEFT OUTER JOIN (
 				SELECT T.TRIGGER_NAME, T.TABLE_NAME
-				FROM USER_TRIGGERS T
+				FROM SYS.USER_TRIGGERS T
 				WHERE T.BASE_OBJECT_TYPE = 'TABLE'
 				AND T.TRIGGER_TYPE = 'BEFORE EACH ROW'
 				AND INSTR(T.TRIGGERING_EVENT, 'UPDATE') > 0
 			) BUT ON BUT.TABLE_NAME = B.TABLE_NAME AND BUT.TRIGGER_NAME = changelog_conf.Get_BuTrigger_Name(B.SHORT_NAME)
 			LEFT OUTER JOIN (
 				SELECT T.TRIGGER_NAME, T.TABLE_NAME
-				FROM USER_TRIGGERS T
+				FROM SYS.USER_TRIGGERS T
 				WHERE T.BASE_OBJECT_TYPE = 'TABLE'
 				AND T.TRIGGER_TYPE = 'BEFORE EACH ROW'
 				AND INSTR(T.TRIGGERING_EVENT, 'INSERT') > 0
@@ -1211,7 +1220,9 @@ CREATE OR REPLACE PACKAGE BODY custom_changelog_gen IS
 				|| ') --');
                 -- Set_Process_Infos(v_rindex, v_slno, v_Proc_Name, p_context, v_Steps, ind, 'trigger');
 				changelog_conf.Get_Sequence_Name(v_stat_tbl(ind).SHORT_NAME, v_Sequence_Name, v_Sequence_Exists);
-				v_BI_Trigger_Body := changelog_conf.Before_Insert_Trigger_body (
+				if (changelog_conf.Get_Database_Version < '12.0' or changelog_conf.Get_Use_On_Null = 'NO')
+				AND v_stat_tbl(ind).OTHER_TRIGGER_HAS_NEXTVAL = 'NO' then
+					v_BI_Trigger_Body := changelog_conf.Before_Insert_Trigger_body (
 						p_Table_Name => v_stat_tbl(ind).TABLE_NAME,
 						p_Primary_Key_Col => v_stat_tbl(ind).SCALAR_KEY_COLUMN,
 						p_Has_Serial_Primary_Key => 'YES',
@@ -1221,7 +1232,7 @@ CREATE OR REPLACE PACKAGE BODY custom_changelog_gen IS
 						p_Column_ModDate => v_stat_tbl(ind).MODFIY_TIMESTAMP_COLUMN_NAME,
 						p_Column_ModUser => v_stat_tbl(ind).MODFIY_USER_COLUMN_NAME
 					);
-
+				end if;
 				IF changelog_conf.Get_Use_Change_Log = 'YES'
 				AND v_stat_tbl(ind).INCLUDE_CHANGELOG = 'YES' AND v_stat_tbl(ind).HAS_SCALAR_KEY = 'YES' THEN
 					-- Compound Trigger for logging DML on base tables
@@ -1315,9 +1326,9 @@ CREATE OR REPLACE PACKAGE BODY custom_changelog_gen IS
 		for cur in (
 			select T.TABLE_NAME, S.LAST_DDL_TIME TABLE_LAST_DDL_TIME,
 				T.TRIGGER_NAME, U.LAST_DDL_TIME, U.STATUS
-			from USER_OBJECTS S
-			join USER_TRIGGERS T on S.OBJECT_NAME = T.TABLE_NAME
-			join USER_OBJECTS U on U.OBJECT_NAME = T.TRIGGER_NAME
+			from SYS.USER_OBJECTS S
+			join SYS.USER_TRIGGERS T on S.OBJECT_NAME = T.TABLE_NAME
+			join SYS.USER_OBJECTS U on U.OBJECT_NAME = T.TRIGGER_NAME
 			where S.OBJECT_TYPE = 'TABLE'
 			and U.OBJECT_TYPE = 'TRIGGER'
 			and T.BASE_OBJECT_TYPE = 'TABLE'
@@ -1979,14 +1990,14 @@ CREATE OR REPLACE PACKAGE BODY custom_changelog_gen IS
 			SELECT DISTINCT A.VIEW_NAME,
 				(
 					SELECT 'DROP VIEW ' || DBMS_ASSERT.ENQUOTE_NAME(T.OBJECT_NAME) STAT
-					FROM USER_OBJECTS T
+					FROM SYS.USER_OBJECTS T
 					WHERE T.OBJECT_TYPE = 'VIEW'
 					AND T.OBJECT_NAME LIKE A.SHORT_NAME || '%' || custom_changelog.Get_ChangeLogViewExt
 					AND ROWNUM = 1
 				) AS DROP_VIEW_CL,
 				(
 					SELECT 'DROP VIEW ' || DBMS_ASSERT.ENQUOTE_NAME(T.OBJECT_NAME) STAT
-					FROM USER_OBJECTS T
+					FROM SYS.USER_OBJECTS T
 					WHERE T.OBJECT_TYPE = 'VIEW'
 					AND T.OBJECT_NAME LIKE A.SHORT_NAME || '%' || custom_changelog.Get_HistoryViewExt
 					AND ROWNUM = 1
@@ -1994,7 +2005,7 @@ CREATE OR REPLACE PACKAGE BODY custom_changelog_gen IS
 			FROM MVBASE_VIEWS A
 			WHERE EXISTS (
 				SELECT 1
-				FROM USER_OBJECTS T
+				FROM SYS.USER_OBJECTS T
 				WHERE T.OBJECT_TYPE = 'VIEW'
 				AND T.OBJECT_NAME LIKE A.SHORT_NAME || '%' || custom_changelog.Get_ChangeLogViewExt
 			)
