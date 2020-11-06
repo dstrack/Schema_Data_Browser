@@ -1731,6 +1731,7 @@ $END
 		v_sql USER_SCHEDULER_JOBS.JOB_ACTION%TYPE;
 	BEGIN
 		v_sql   := 'begin data_browser_check.Test_Query_Generator(p_Max_Errors => 1000, p_Max_Loops => 5000'
+			|| ',p_Execute_Queries=>' || DBMS_ASSERT.ENQUOTE_LITERAL('YES')
 			|| ',p_context=>' || DBMS_ASSERT.ENQUOTE_LITERAL(p_context)
 			|| ',p_app_id=>' || p_app_id
 			|| '); end;';

@@ -1063,7 +1063,7 @@ $END
 				);
 			$END
 			if d_cur.D_REF_TYPE = 'N' then 
-				v_char_Result := data_browser_edit.Get_Formated_Literal (
+				v_char_Result := data_browser_edit.Get_Formated_Default (
 					p_Column_Expr_Type => d_cur.COLUMN_EXPR_TYPE,
 					p_Column_Alias  => d_cur.TABLE_ALIAS || '.' || d_cur.REF_COLUMN_NAME,
 					p_Column_Expr 	=> d_cur.COLUMN_EXPR,
@@ -1095,7 +1095,7 @@ $END
 					CLOSE c_cur;
 				end if;
 			elsif d_cur.D_REF_TYPE = 'C' then 
-				v_char_Result := data_browser_edit.Get_Formated_Literal (
+				v_char_Result := data_browser_edit.Get_Formated_Default (
 					p_Column_Expr_Type => d_cur.COLUMN_EXPR_TYPE,
 					p_Column_Alias  => d_cur.TABLE_ALIAS || '.' || d_cur.REF_COLUMN_NAME,
 					p_Column_Expr 	=> d_cur.COLUMN_EXPR,
@@ -2283,15 +2283,9 @@ $END
 				v_Column_Value := 'A.' || p_Column_Name;
 				v_Column_Expr := v_Column_Value;
 			end if;
-		elsif p_Data_Source = 'QUERY' and p_Column_Expr_Type = 'DATE_POPUP' then
-			v_Column_Value := 'TO_CHAR(A.' || p_Column_Name || ', ' || Enquote_Literal(p_Format_Mask) || ')';
-			v_Column_Expr := 'GREATEST(A.' || p_Column_Name ||', DATE ''0001-01-01'')';
 		elsif p_Data_Source = 'QUERY' then
 			v_Column_Value := 'A.' || p_Column_Name;
 			v_Column_Expr := v_Column_Value;
-		elsif p_Data_Source = 'TABLE' and p_Column_Expr_Type = 'DATE_POPUP' then -- avoid runtime error with strange data
-			v_Column_Value := p_Column_Expr;
-			v_Column_Expr := 'GREATEST(' || p_Column_Alias ||', DATE ''0001-01-01'')';	
 		elsif v_Column_Value IS NULL then
 			v_Column_Value := v_Column_Expr;
 		end if;
@@ -2539,7 +2533,7 @@ $END
 		end;
 	end Get_Apex_Item_Expr;
 
-	FUNCTION Get_Formated_Literal (
+	FUNCTION Get_Formated_Default (
 		p_Column_Expr_Type VARCHAR2,
 		p_Column_Alias  VARCHAR2,
 		p_Column_Expr 	VARCHAR2,
@@ -2567,14 +2561,16 @@ $END
 			-- replace column reference by default value expression leafing conversions in place
 				v_Column_Expr := REPLACE( p_Column_Expr, p_Column_Alias, p_Data_Default );
 			end if;
-			EXECUTE IMMEDIATE 'begin :b := ' || v_Column_Expr || '; end;' USING OUT v_Result;
 			if p_Enquote = 'YES' then  
+				EXECUTE IMMEDIATE 'begin :b := ' || v_Column_Expr || '; end;' USING OUT v_Result;
 				v_Result := Enquote_Literal(v_Result);
+			else 
+				v_Result := v_Column_Expr;
 			end if;
 		end if;
 		$IF data_browser_conf.g_debug $THEN
 			apex_debug.message(
-				p_message => 'Get_Formated_Literal(p_Column_Expr_Type=>%s, p_Column_Alias=>%s, p_Column_Expr=>"%s", p_Data_Default=>"%s", p_Enquote=> %s) returns %s',
+				p_message => 'Get_Formated_Default(p_Column_Expr_Type=>%s, p_Column_Alias=>%s, p_Column_Expr=>"%s", p_Data_Default=>"%s", p_Enquote=> %s) returns %s',
 				p0 => Enquote_Literal(p_Column_Expr_Type),
 				p1 => Enquote_Literal(p_Column_Alias),
 				p2 => (p_Column_Expr),
@@ -2585,12 +2581,12 @@ $END
 			);
 		$END
 		RETURN v_Result;
-$IF data_browser_conf.g_use_exceptions $THEN
+/*$IF data_browser_conf.g_use_exceptions $THEN
 	exception
 	  when others then
 		$IF data_browser_conf.g_debug $THEN
 			apex_debug.info(apex_string.format(
-				p_message => 'Get_Formated_Literal(p_Column_Expr_Type=>%s, p_Column_Alias=>%s, p_Column_Expr=>"%s", p_Data_Default=>"%s", p_Enquote=> %s, v_Column_Expr=>"%s") -- Failed',
+				p_message => 'Get_Formated_Default(p_Column_Expr_Type=>%s, p_Column_Alias=>%s, p_Column_Expr=>"%s", p_Data_Default=>"%s", p_Enquote=> %s, v_Column_Expr=>"%s") -- Failed',
 				p0 => Enquote_Literal(p_Column_Expr_Type),
 				p1 => Enquote_Literal(p_Column_Alias),
 				p2 => (p_Column_Expr),
@@ -2601,13 +2597,13 @@ $IF data_browser_conf.g_use_exceptions $THEN
 		$END
 		-- this exceptions stopps the query generation. --
 		-- raise;
-		return v_Result;
+		return p_Data_Default;
 $ELSE
 	exception
 	  when others then
 		return p_Data_Default;
-$END
-	end;
+$END*/
+	end Get_Formated_Default;
 
 	FUNCTION Get_Form_Edit_Cursor (	-- internal
 		p_Table_name IN VARCHAR2,
@@ -2816,7 +2812,7 @@ $END
 								data_browser_conf.Get_Boolean_No_Value('NUMBER', 'ENQUOTE')
 							when COLUMN_EXPR_TYPE NOT IN ('TEXT_EDITOR', 'DISPLAY_ONLY', 'DISPLAY_AND_SAVE', 'LINK', 'LINK_LIST', 'LINK_ID', 'ROW_SELECTOR', 'FILE_BROWSER', 
 														'DATE_POPUP', 'POPUP_FROM_LOV') then
-								data_browser_edit.Get_Formated_Literal(
+								data_browser_edit.Get_Formated_Default(
 									p_Column_Expr_Type => T.COLUMN_EXPR_TYPE,
 									p_Column_Alias  => T.TABLE_ALIAS || '.' || T.REF_COLUMN_NAME,
 									p_Column_Expr 	=> T.COLUMN_EXPR,
@@ -3339,7 +3335,7 @@ $END
 					p_Data_Type => v_out_tab(ind).DATA_TYPE,
 					p_Input_ID => v_out_tab(ind).INPUT_ID,
 					p_Column_Name => v_out_tab(ind).COLUMN_NAME,
-					p_Default_Value => v_out_tab(ind).DATA_DEFAULT,
+					p_Default_Value => null,
 					p_indent => 4,
 					p_Convert_Expr => case 
 						when v_out_tab(ind).IS_NUMBER_YES_NO_COLUMN = 'Y' 

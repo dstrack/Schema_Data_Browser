@@ -1804,7 +1804,7 @@ IS
     	p_Primary_Key_Call VARCHAR2
 	) RETURN VARCHAR2;
 
-	FUNCTION Get_Formated_Literal (
+	FUNCTION Get_Formated_Default (
 		p_Column_Expr_Type VARCHAR2,
 		p_Column_Alias  VARCHAR2,
 		p_Column_Expr 	VARCHAR2,

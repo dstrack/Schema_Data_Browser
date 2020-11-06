@@ -3189,15 +3189,13 @@ $END
         when p_Data_Type = 'DATE' AND v_Is_DateTime then
             v_Result := 'TO_CHAR(' 
             || p_Column_Name
-            -- || case when p_Use_Trim = 'Y' then 'GREATEST(' || p_Column_Name || q'[, DATE '0001-01-01')]' else p_Column_Name end 
             || ', ' || Enquote_Literal(Get_Export_DateTime_Format) 
-            || ')';	-- avoid display of dates that can not be processed.
+            || ')';
         when p_Data_Type = 'DATE' then
             v_Result := 'TO_CHAR(' 
             || p_Column_Name
-            -- || case when p_Use_Trim = 'Y' then 'GREATEST(' || p_Column_Name || q'[, DATE '0001-01-01')]' else p_Column_Name end
             || ', ' || Enquote_Literal(Get_Export_Date_Format) 
-            || ')';	-- avoid display of dates that can not be processed.
+            || ')';
         when p_Data_Type LIKE 'TIMESTAMP%' and v_Is_DateTime then
             v_Result := 'TO_CHAR(CAST(' || p_Column_Name || ' AS DATE), ' || Enquote_Literal(Get_Export_DateTime_Format) || ')';
         when p_Data_Type LIKE 'TIMESTAMP%' then

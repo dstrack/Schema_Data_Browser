@@ -4095,6 +4095,7 @@ $END
     IS
         v_Delimiter2	VARCHAR2(50);
         v_Expression 	VARCHAR2(2000);
+        v_Default_Value VARCHAR2(2000);
 	BEGIN
 		if p_Input_ID IS NOT NULL then
 			if SUBSTR(p_Input_ID, 1, 1) = 'C' then
