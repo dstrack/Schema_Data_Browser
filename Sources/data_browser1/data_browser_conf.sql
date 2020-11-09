@@ -304,7 +304,7 @@ IS
 	FUNCTION Get_Export_Date_Format RETURN VARCHAR2;
 	FUNCTION Get_Export_DateTime_Format RETURN VARCHAR2;
 	FUNCTION Get_Timestamp_Format(
-		p_Export VARCHAR2 DEFAULT 'Y'
+		p_Is_DateTime VARCHAR2 DEFAULT 'N'
 	) RETURN VARCHAR2;
 	PROCEDURE Set_Export_NumChars (
 		p_Decimal_Character VARCHAR2,
@@ -2247,13 +2247,13 @@ $END
 	END;
 
 	FUNCTION Get_Timestamp_Format(
-		p_Export VARCHAR2 DEFAULT 'Y'
+		p_Is_DateTime VARCHAR2 DEFAULT 'N'
 	) RETURN VARCHAR2
 	IS
 		v_Format_Mask VARCHAR2(255);
 	BEGIN 
 		v_Format_Mask := case when g_Use_App_Date_Time_Format = 'NO' then g_Export_Timestamp_Format else Get_NLS_Timestamp_Format end;
-		if p_Export = 'Y' then	
+		if p_Is_DateTime = 'N' then	
 			return v_Format_Mask;
 		else
 			-- remove milliseconds form format mask, because APEX_ITEM.DATE_POPUP2 does not support it.
@@ -3124,6 +3124,23 @@ $END
 			end;
 	END Get_Column_Expr_Type;
 
+	FUNCTION Match_DateTime_Columns (
+        p_Column_Name VARCHAR2,
+        p_Data_Type VARCHAR2,
+        p_Datetime VARCHAR2 
+	) RETURN VARCHAR2 DETERMINISTIC
+    IS
+		v_Is_DateTime VARCHAR2(3) := NVL(p_Datetime, 'N');
+		v_Column_Name VARCHAR2(128);
+	BEGIN
+		if p_Data_Type = 'DATE' OR p_Data_Type LIKE 'TIMESTAMP%' 
+		and p_Datetime IS NULL then
+			v_Column_Name := SUBSTR(p_Column_Name, INSTR(p_Column_Name, '.') + 1);
+			v_Is_DateTime := SUBSTR(data_browser_conf.Match_DateTime_Columns(v_Column_Name), 1, 1);
+		end if;
+		RETURN v_Is_DateTime;
+	END Match_DateTime_Columns;
+
     FUNCTION Get_ExportColFunction (
         p_Column_Name VARCHAR2,
         p_Data_Type VARCHAR2,
@@ -3137,7 +3154,7 @@ $END
     ) RETURN VARCHAR2 DETERMINISTIC
     IS
 	PRAGMA UDF;
-		v_Is_DateTime BOOLEAN := FALSE;
+		v_Is_DateTime VARCHAR2(3);
 		v_Column_Name VARCHAR2(128);
 		v_Trimset VARCHAR2(10);
 		v_Export_Text_Limit PLS_INTEGER;
@@ -3145,16 +3162,8 @@ $END
 		v_Format_Mask VARCHAR2(1024);
 		v_Result VARCHAR2(1024);
 	BEGIN
-		if p_Data_Type = 'DATE' OR p_Data_Type LIKE 'TIMESTAMP%' then
-			if p_Datetime IS NULL then
-				v_Column_Name := SUBSTR(p_Column_Name, INSTR(p_Column_Name, '.') + 1);
-				v_Is_DateTime := data_browser_conf.Match_DateTime_Columns(v_Column_Name) = 'YES';
-			else
-				v_Is_DateTime := (p_Datetime = 'Y');
-			end if;
-		else 
-			v_Use_Group_Separator := Int_Use_Goup_Separator(p_Data_Precision, p_Data_Scale, p_Use_Group_Separator);
-		end if;
+		v_Is_DateTime := Match_DateTime_Columns(p_Column_Name, p_Data_Type, p_Datetime);
+		v_Use_Group_Separator := Int_Use_Goup_Separator(p_Data_Precision, p_Data_Scale, p_Use_Group_Separator);
 		
         case
         when p_Data_Type = 'NUMBER' AND p_Data_Precision IS NULL and p_Data_Scale IS NULL and v_Use_Group_Separator = 'Y' then 
@@ -3165,9 +3174,6 @@ $END
             || Enquote_Literal(v_Format_Mask)
             || case when p_use_NLS_params = 'Y' then ', ' || Get_Export_NumChars end
             || ')';
-			/*if p_Use_Trim = 'Y' then 
-				v_Result := 'LTRIM(' || v_Result || ')';
-			end if;*/
         when p_Data_Type = 'NUMBER' AND NULLIF(p_Data_Scale, 0) IS NULL then
         	if p_Data_Precision < 4 then 
         		v_Result := 'TO_CHAR(' || p_Column_Name || ')';
@@ -3186,7 +3192,7 @@ $END
             v_Result := 'RAWTOHEX(' || p_Column_Name || ')';
         when p_Data_type = 'BLOB' then
             v_Result := 'TO_CHAR(DBMS_LOB.GETLENGTH(' || p_Column_Name || '))';
-        when p_Data_Type = 'DATE' AND v_Is_DateTime then
+        when p_Data_Type = 'DATE' AND v_Is_DateTime = 'Y' then
             v_Result := 'TO_CHAR(' 
             || p_Column_Name
             || ', ' || Enquote_Literal(Get_Export_DateTime_Format) 
@@ -3196,10 +3202,10 @@ $END
             || p_Column_Name
             || ', ' || Enquote_Literal(Get_Export_Date_Format) 
             || ')';
-        when p_Data_Type LIKE 'TIMESTAMP%' and v_Is_DateTime then
+        when p_Data_Type LIKE 'TIMESTAMP%' and v_Is_DateTime = 'Y' then
             v_Result := 'TO_CHAR(CAST(' || p_Column_Name || ' AS DATE), ' || Enquote_Literal(Get_Export_DateTime_Format) || ')';
         when p_Data_Type LIKE 'TIMESTAMP%' then
-            v_Result := 'TO_CHAR(' || p_Column_Name || ', ' || Enquote_Literal(Get_Timestamp_Format(p_Export => 'Y')) || ')';
+            v_Result := 'TO_CHAR(' || p_Column_Name || ', ' || Enquote_Literal(Get_Timestamp_Format(p_Is_DateTime => 'N')) || ')';
         else 
 			v_Result := p_Column_Name;
         	if p_Use_Trim = 'Y' then 
@@ -3223,18 +3229,11 @@ $END
     ) RETURN NUMBER DETERMINISTIC
     IS
 	PRAGMA UDF;
-		v_Is_DateTime BOOLEAN := FALSE;
+		v_Is_DateTime VARCHAR2(3);
 		v_Column_Name VARCHAR2(128);
 		v_Export_Text_Limit CONSTANT PLS_INTEGER := LEAST(g_Export_Text_Limit, g_TextArea_Max_Length); -- technical limit for apex_item_ref
 	BEGIN
-		if p_Data_Type = 'DATE' OR p_Data_Type LIKE 'TIMESTAMP%' then
-			if p_Datetime IS NULL then
-				v_Column_Name := SUBSTR(p_Column_Name, INSTR(p_Column_Name, '.') + 1);
-				v_Is_DateTime := data_browser_conf.Match_DateTime_Columns(v_Column_Name) = 'YES';
-			else
-				v_Is_DateTime := (p_Datetime = 'Y');
-			end if;
-		end if;
+		v_Is_DateTime := Match_DateTime_Columns(p_Column_Name, p_Data_Type, p_Datetime);
         RETURN case
         when p_Data_Type = 'NUMBER' then
             LENGTH(Get_Number_Format_Mask(p_Data_Precision, p_Data_Scale, p_Use_Group_Separator, p_Export => 'N', p_Use_Trim => 'N'))
@@ -3242,12 +3241,12 @@ $END
         	numbers_utl.g_Default_Data_Precision
         when p_Data_type = 'BLOB' then
         	38	-- number length of blob
-        when v_Is_DateTime then
+        when v_Is_DateTime = 'Y' then
             LENGTH(Get_Export_DateTime_Format)
         when p_Data_Type = 'DATE' then
         	LENGTH(Get_Export_Date_Format)
         when p_Data_Type LIKE 'TIMESTAMP%' then
-            LENGTH(Get_Timestamp_Format(p_Export => 'N'))
+            LENGTH(Get_Timestamp_Format(p_Is_DateTime => v_Is_DateTime))
         when  p_Char_Length > g_Export_Text_Limit OR p_Data_Type IN ('CLOB', 'NCLOB') then
             g_Export_Text_Limit
         else
@@ -3266,29 +3265,21 @@ $END
     ) RETURN VARCHAR2 DETERMINISTIC
     IS
 	PRAGMA UDF;
-		v_Is_DateTime BOOLEAN := FALSE;
+		v_Is_DateTime VARCHAR2(3);
 		v_Column_Name VARCHAR2(128);
 	BEGIN
-		if p_Datetime IS NULL then
-			if p_Data_Type = 'DATE' -- OR p_Data_Type LIKE 'TIMESTAMP%' 
-			then
-				v_Column_Name := SUBSTR(p_Column_Name, INSTR(p_Column_Name, '.') + 1);
-				v_Is_DateTime := data_browser_conf.Match_DateTime_Columns(v_Column_Name) = 'YES';
-			end if;
-		else
-			v_Is_DateTime := (p_Datetime = 'Y');
-		end if;
+		v_Is_DateTime := Match_DateTime_Columns(p_Column_Name, p_Data_Type, p_Datetime);
         RETURN case
         when p_Data_Type = 'NUMBER' then
             Get_Number_Format_Mask(p_Data_Precision, p_Data_Scale, p_Use_Group_Separator, p_Export => 'N')
         when p_Data_Type = 'FLOAT' then
         	Get_Number_Format_Mask(numbers_utl.g_Default_Data_Precision, numbers_utl.g_Default_Data_Scale, p_Use_Group_Separator, p_Export => 'N') -- g_Export_Float_Format
-        when v_Is_DateTime then
+        when v_Is_DateTime = 'Y' then
             Get_Export_DateTime_Format
         when p_Data_Type = 'DATE' then
         	Get_Export_Date_Format
         when p_Data_Type LIKE 'TIMESTAMP%' then
-            Get_Timestamp_Format('Y')
+            Get_Timestamp_Format(p_Is_DateTime => v_Is_DateTime)
         else
             NULL
         end;

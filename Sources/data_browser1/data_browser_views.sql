@@ -1176,8 +1176,8 @@ FROM (
 			case when B.CHECK_CONSTRAINT_NAME = 'AUTOMATICALLY' then 'Y' else 'N' end HAS_AUTOMATIC_CHECK,
 			case when B.CHECK_CONSTRAINT_NAME IS NOT NULL then 'Y' else 'N' end HAS_RANGE_CHECK,
 			B.CHECK_CONDITION,
-			case when T.DATA_TYPE LIKE 'TIMESTAMP%'
-			or (T.DATA_TYPE = 'DATE' and data_browser_pattern.Match_DateTime_Columns(T.COLUMN_NAME) = 'YES')
+			case when (T.DATA_TYPE LIKE 'TIMESTAMP%' or T.DATA_TYPE = 'DATE') 
+			and data_browser_pattern.Match_DateTime_Columns(T.COLUMN_NAME) = 'YES'
 				then 'Y' else 'N'
 			end IS_DATETIME,
 			case when data_browser_pattern.Match_Currency_Columns(T.COLUMN_NAME) = 'YES'

@@ -2863,7 +2863,10 @@ $END*/
 						B.IS_REFERENCE, B.IS_SEARCHABLE_REF, B.IS_SUMMAND, B.IS_VIRTUAL_COLUMN, 
 						B.IS_DATETIME, 
 						B.CHECK_UNIQUE,
-						B.FORMAT_MASK,
+						case when B.DATA_TYPE LIKE 'TIMESTAMP%' and B.IS_DATETIME = 'N' 
+							then data_browser_conf.Get_Timestamp_Format(p_Is_DateTime => 'Y')
+							else B.FORMAT_MASK
+						end FORMAT_MASK,
 						B.LOV_QUERY,
 						case when B.DATA_DEFAULT IS NOT NULL then 
 							case when B.R_TABLE_NAME = B.REF_TABLE_NAME

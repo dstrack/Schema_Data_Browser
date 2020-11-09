@@ -147,15 +147,15 @@ CREATE OR REPLACE PACKAGE BODY import_utl IS
 					case when IS_FILE_FOLDER_REF = 'N' then 
 						RPAD(' ', 4) || 'if '
 						|| LISTAGG(S_REF || ' IS NOT NULL',
-							case when HAS_NULLABLE > 0 OR HAS_SIMPLE_UNIQUE > 0 then chr(10) || RPAD(' ', 4) || 'OR ' else ' AND ' end
+							case when HAS_NULLABLE > 0 OR HAS_SIMPLE_UNIQUE > 0 then data_browser_conf.NL(4) || 'OR ' else ' AND ' end
 						) WITHIN GROUP (ORDER BY R_COLUMN_ID) -- conditions to trigger the search of foreign keys
 						|| ' then ' || chr(10)
 						|| case when D.DEFAULTS_MISSING = 0  AND import_utl.Get_Insert_Foreign_Keys = 'YES' 
 							then RPAD(' ', 6) || 'begin' || chr(10) end
 						|| RPAD(' ', 8) -- find foreign key values
 						|| 'SELECT ' || T.TABLE_ALIAS || '.' || T.R_PRIMARY_KEY_COLS || ' INTO ' 
-						|| D_REF || chr(10) || RPAD(' ', 8)
-						|| 'FROM ' || T.R_VIEW_NAME || ' ' || T.TABLE_ALIAS || ' ' || chr(10) || RPAD(' ', 8)
+						|| D_REF || data_browser_conf.NL(8)
+						|| 'FROM ' || T.R_VIEW_NAME || ' ' || T.TABLE_ALIAS || ' ' || data_browser_conf.NL(8)
 						|| 'WHERE '
 						|| LISTAGG(
 								case when (HAS_NULLABLE > 0 OR HAS_SIMPLE_UNIQUE > 0) AND T.U_MEMBERS > 1
@@ -167,21 +167,21 @@ CREATE OR REPLACE PACKAGE BODY import_utl IS
 								else
 									import_utl.Get_Compare_Case_Insensitive(T.TABLE_ALIAS || '.' || T.R_COLUMN_NAME, S_REF, T.R_DATA_TYPE)
 								end,
-							chr(10) || RPAD(' ', 8) || 'AND ') WITHIN GROUP (ORDER BY R_COLUMN_ID)
+							data_browser_conf.NL(8) || 'AND ') WITHIN GROUP (ORDER BY R_COLUMN_ID)
 						|| ';' 
 					 ---------------------------
-						|| chr(10) || RPAD(' ', 4)
+						|| data_browser_conf.NL(4)
 						|| case when D.DEFAULTS_MISSING = 0 
 						and import_utl.Get_Insert_Foreign_Keys = 'YES' then
-							'  exception when NO_DATA_FOUND then' || chr(10) || RPAD(' ', 8)
+							'  exception when NO_DATA_FOUND then' || data_browser_conf.NL(8)
 							|| 'INSERT INTO ' || T.R_VIEW_NAME || '('
 							|| LISTAGG(T.R_COLUMN_NAME, ', ') WITHIN GROUP (ORDER BY R_COLUMN_ID)
-							|| ')' || chr(10) || RPAD(' ', 8)
+							|| ')' || data_browser_conf.NL(8)
 							|| 'VALUES ('
 							|| LISTAGG(S_REF, ', ') WITHIN GROUP (ORDER BY R_COLUMN_ID)
-							|| ')' || chr(10) || RPAD(' ', 8)
-							|| 'RETURNING (' || T.R_PRIMARY_KEY_COLS || ') INTO ' || D_REF || ';' || chr(10) || RPAD(' ', 4)
-							|| '  end;' || chr(10) || RPAD(' ', 4)
+							|| ')' || data_browser_conf.NL(8)
+							|| 'RETURNING (' || T.R_PRIMARY_KEY_COLS || ') INTO ' || D_REF || ';' || data_browser_conf.NL(4)
+							|| '  end;' || data_browser_conf.NL(4)
 
 						end
 					else 
@@ -199,7 +199,7 @@ CREATE OR REPLACE PACKAGE BODY import_utl IS
 							p_Folder_Cont_Alias 	=> T.FOLDER_CONTAINER_REF,
 							p_Level 				=> 0
 						)
-						|| ';' || chr(10) || RPAD(' ', 4)
+						|| ';' || data_browser_conf.NL(4)
 					end 
 					|| (
 						select LISTAGG(
@@ -207,7 +207,7 @@ CREATE OR REPLACE PACKAGE BODY import_utl IS
 							|| 'v_' || P.D_REF 
 							|| ' := '
 							|| T.D_REF || ';'
-							|| chr(10) || RPAD(' ', 4)
+							|| data_browser_conf.NL(4)
 							, ''
 						) WITHIN GROUP (ORDER BY P.IMP_COLUMN_NAME)
 						from PARENT_LOOKUP_Q P 
@@ -227,8 +227,8 @@ CREATE OR REPLACE PACKAGE BODY import_utl IS
 				' (' || LISTAGG('IMP.' || T.IMP_COLUMN_NAME || ' IS NOT NULL',
 					case when HAS_NULLABLE > 0 OR HAS_SIMPLE_UNIQUE > 0 then ' OR ' else ' AND ' end
 				) WITHIN GROUP (ORDER BY R_COLUMN_ID) -- conditions to trigger the search of foreign keys
-				|| ') ' || chr(10) || RPAD(' ', 8) || ' AND NOT EXISTS ( SELECT 1 FROM ' || T.R_VIEW_NAME || ' ' || T.TABLE_ALIAS || ' '
-				|| chr(10) || RPAD(' ', 12)
+				|| ') ' || data_browser_conf.NL(8) || ' AND NOT EXISTS ( SELECT 1 FROM ' || T.R_VIEW_NAME || ' ' || T.TABLE_ALIAS || ' '
+				|| data_browser_conf.NL(12)
 				|| 'WHERE '
 				|| LISTAGG(
 						case when (HAS_NULLABLE > 0 OR HAS_SIMPLE_UNIQUE > 0) AND T.U_MEMBERS > 1
@@ -239,8 +239,8 @@ CREATE OR REPLACE PACKAGE BODY import_utl IS
 						else
 							import_utl.Get_Compare_Case_Insensitive(T.TABLE_ALIAS || '.' || T.R_COLUMN_NAME, 'IMP.' || T.IMP_COLUMN_NAME, T.R_DATA_TYPE)
 						end,
-					chr(10) || RPAD(' ', 12) || 'AND ') WITHIN GROUP (ORDER BY R_COLUMN_ID)
-				|| chr(10) || RPAD(' ', 8) || ' )'
+					data_browser_conf.NL(12) || 'AND ') WITHIN GROUP (ORDER BY R_COLUMN_ID)
+				|| data_browser_conf.NL(8) || ' )'
 				WHERE_CHECK_EXPR,
 				case when T.NULLABLE = 'N' then
 					'''' || LISTAGG(INITCAP(T.R_COLUMN_NAME), '/') WITHIN GROUP (ORDER BY R_COLUMN_ID)
@@ -338,34 +338,34 @@ CREATE OR REPLACE PACKAGE BODY import_utl IS
 					case when CHECK_CONSTRAINT_TYPE = 'R' and DEFAULTS_MISSING = 0
 						then 'R+'
 						else CHECK_CONSTRAINT_TYPE end) || ' CONSTRAINT_TYPE'
-				|| chr(10) || RPAD(' ', 4)
+				|| data_browser_conf.NL(4)
 				|| 'FROM ' || B.FROM_CHECK_EXPR || ' IMP '
 				|| case when B.WHERE_CHECK_EXPR IS NOT NULL
-					then chr(10) || RPAD(' ', 4)
+					then data_browser_conf.NL(4)
 					|| 'WHERE ' || B.WHERE_CHECK_EXPR end
 			end
 			|| case when B.COLUMN_CHECK_EXPR2 IS NOT NULL then
-				chr(10) || RPAD(' ', 4) || 'UNION ALL' || chr(10) || RPAD(' ', 4)
+				data_browser_conf.NL(4) || 'UNION ALL' || data_browser_conf.NL(4)
 				|| 'SELECT IMP.IMPORTJOB_ID$, IMP.LINK_ID$, IMP.LINE_NO$, '
 				|| DBMS_ASSERT.ENQUOTE_LITERAL(B.COLUMN_NAME) || ' COLUMN_NAME, '
 				|| B.COLUMN_CHECK_EXPR2 || ' MESSAGE, '
 				|| DBMS_ASSERT.ENQUOTE_LITERAL('T') || ' CONSTRAINT_TYPE'
-				|| chr(10) || RPAD(' ', 4)
-				|| 'FROM ' || B.FROM_CHECK_EXPR || ' IMP ' || chr(10) || RPAD(' ', 4)
+				|| data_browser_conf.NL(4)
+				|| 'FROM ' || B.FROM_CHECK_EXPR || ' IMP ' || data_browser_conf.NL(4)
 				|| 'WHERE ' || B.WHERE_CHECK_EXPR2
 			end SQL_EXISTS,
 			case when B.CHECK_CONSTRAINT_TYPE = 'T' and B.COLUMN_CHECK_EXPR IS NOT NULL
 				then B.COLUMN_CHECK_EXPR
 			when B.CHECK_CONSTRAINT_TYPE = 'R' and B.COLUMN_CHECK_EXPR IS NOT NULL
-				then '(SELECT ' || B.COLUMN_CHECK_EXPR || ' MESSAGE' || chr(10) || RPAD(' ', 8)
-				|| ' FROM DUAL ' || chr(10) || RPAD(' ', 8)
+				then '(SELECT ' || B.COLUMN_CHECK_EXPR || ' MESSAGE' || data_browser_conf.NL(8)
+				|| ' FROM DUAL ' || data_browser_conf.NL(8)
 				|| ' WHERE ' || B.WHERE_CHECK_EXPR || ')'
 				|| case when B.COLUMN_CHECK_EXPR2 IS NOT NULL
 					then
-						' || ' || chr(10) || RPAD(' ', 8)
-						|| '(SELECT ' || B.COLUMN_CHECK_EXPR2 || ' MESSAGE' || chr(10) || RPAD(' ', 8)
-						|| ' FROM DUAL ' || chr(10) || RPAD(' ', 8)
-						|| ' WHERE ' || B.WHERE_CHECK_EXPR2 || chr(10) || RPAD(' ', 8) || ' )'
+						' || ' || data_browser_conf.NL(8)
+						|| '(SELECT ' || B.COLUMN_CHECK_EXPR2 || ' MESSAGE' || data_browser_conf.NL(8)
+						|| ' FROM DUAL ' || data_browser_conf.NL(8)
+						|| ' WHERE ' || B.WHERE_CHECK_EXPR2 || data_browser_conf.NL(8) || ' )'
 					end
 			end
 			SQL_EXISTS2,
@@ -506,14 +506,14 @@ CREATE OR REPLACE PACKAGE BODY import_utl IS
 		-- process unique constraints
 		SELECT S.VIEW_NAME TABLE_NAME, 
 			U.U_CONSTRAINT_NAME,
-			'UPDATE ' || S.SHORT_NAME || '_IMP IMP ' || chr(10) || RPAD(' ', 4)
+			'UPDATE ' || S.SHORT_NAME || '_IMP IMP ' || data_browser_conf.NL(4)
 			|| 'SET LINK_ID$ = ( SELECT '
 			|| data_browser_conf.Get_Unique_Key_Expression (
 				p_Unique_Key_Column => S.SEARCH_KEY_COLS,
 				p_Table_Alias => 'A',
 				p_View_Mode => 'IMPORT_VIEW'
 			)
-			|| chr(10) || RPAD(' ', 8) || 'FROM ' || S.VIEW_NAME || ' A '
+			|| data_browser_conf.NL(8) || 'FROM ' || S.VIEW_NAME || ' A '
 			|| LISTAGG (
 					case when F.FOREIGN_KEY_COLS IS NOT NULL then
 						case when F.NULLABLE = 'Y' then 'LEFT OUTER ' end || 'JOIN '
@@ -523,21 +523,21 @@ CREATE OR REPLACE PACKAGE BODY import_utl IS
 							p_Left_Columns=>F.R_PRIMARY_KEY_COLS, p_Left_Alias=> F.TABLE_ALIAS,
 							p_Right_Columns=>F.FOREIGN_KEY_COLS, p_Right_Alias=> 'A')
 					end
-				, chr(10) || RPAD(' ', 8)) WITHIN GROUP (ORDER BY F.R_COLUMN_ID)
-			|| chr(10) || RPAD(' ', 8) || 'WHERE '
+				, data_browser_conf.NL(8)) WITHIN GROUP (ORDER BY F.R_COLUMN_ID)
+			|| data_browser_conf.NL(8) || 'WHERE '
 			|| LISTAGG (
 				case when F.FOREIGN_KEY_COLS IS NOT NULL then
 					import_utl.Get_Compare_Case_Insensitive(F.TABLE_ALIAS || '.' || F.R_COLUMN_NAME, 'IMP.' || F.IMP_COLUMN_NAME, F.R_DATA_TYPE)
 				else
 					import_utl.Get_Compare_Case_Insensitive('A.' || U.COLUMN_NAME, 'IMP.' || U.COLUMN_NAME, U.DATA_TYPE)
 				end,
-				chr(10) || RPAD(' ', 8) || 'AND ') WITHIN GROUP (ORDER BY U.POSITION, F.R_COLUMN_ID)
-			|| chr(10) || RPAD(' ', 4) || ' )' || chr(10) || RPAD(' ', 4)
+				data_browser_conf.NL(8) || 'AND ') WITHIN GROUP (ORDER BY U.POSITION, F.R_COLUMN_ID)
+			|| data_browser_conf.NL(4) || ' )' || data_browser_conf.NL(4)
 			|| 'WHERE ('
 			|| LISTAGG ( 'IMP.' || NVL(F.IMP_COLUMN_NAME, U.COLUMN_NAME) || ' IS NOT NULL',
 					case when U.HAS_NULLABLE > 0 then ' OR ' else ' AND ' end
 				) WITHIN GROUP (ORDER BY U.POSITION, F.R_COLUMN_ID) -- conditions to trigger the search of foreign keys
-			|| ') ' || chr(10) || RPAD(' ', 4) || 'AND IMP.LINK_ID$ IS NULL '
+			|| ') ' || data_browser_conf.NL(4) || 'AND IMP.LINK_ID$ IS NULL '
 			SQL_TEXT
 		FROM MVDATA_BROWSER_VIEWS S
 		JOIN USER_TABLES T ON T.TABLE_NAME = S.SHORT_NAME || '_IMP'
@@ -1235,7 +1235,7 @@ CREATE OR REPLACE PACKAGE BODY import_utl IS
 					p_Report_Mode => 'NO'
 				)
 			|| case when p_As_Of_Timestamp = 'NO' then 
-				chr(10) || RPAD(' ', 4)
+				data_browser_conf.NL(4)
 				|| ', CONSTRAINT ' || data_browser_conf.Compose_Table_Column_Name(v_Import_View_Name, '_PK')
 				|| ' PRIMARY KEY (LINK_ID$) RELY DISABLE'
 			end
@@ -1279,7 +1279,7 @@ CREATE OR REPLACE PACKAGE BODY import_utl IS
 
         v_Stat :=
         'CREATE OR REPLACE TRIGGER ' || v_Import_Trigger_Name  || ' INSTEAD OF INSERT OR UPDATE OR DELETE ON ' || v_Import_View_Name  || ' FOR EACH ROW  ' || chr(10)
-        || 'DECLARE ' || chr(10) || RPAD(' ', 4)
+        || 'DECLARE ' || data_browser_conf.NL(4)
         || 'v_row ' || v_Table_Name || '%ROWTYPE;' || chr(10);
         for c_cur in (
             SELECT DISTINCT 'v_' || D_REF || ' ' || R_VIEW_NAME || '.' || R_PRIMARY_KEY_COLS || '%TYPE;' SQL_TEXT
@@ -1290,17 +1290,17 @@ CREATE OR REPLACE PACKAGE BODY import_utl IS
 			dbms_lob.writeappend(v_Stat, length(v_Str), v_Str);
         end loop;
 
-        v_Str := 'BEGIN' || chr(10) || RPAD(' ', 4) 
-		|| 'if DELETING then ' || chr(10) || RPAD(' ', 8)
-		|| 'DELETE FROM ' || v_Table_Name || ' A ' || chr(10) || RPAD(' ', 8)
+        v_Str := 'BEGIN' || data_browser_conf.NL(4) 
+		|| 'if DELETING then ' || data_browser_conf.NL(8)
+		|| 'DELETE FROM ' || v_Table_Name || ' A ' || data_browser_conf.NL(8)
 		|| 'WHERE ' 
 		|| data_browser_conf.Get_Unique_Key_Expression (
 			p_Unique_Key_Column => v_Primary_Key_Cols,
 			p_Table_Alias => 'A',
 			p_View_Mode => 'IMPORT_VIEW'
 		)
-		|| ' = :new.LINK_ID$;' || chr(10) || RPAD(' ', 8)
-		|| 'return;' || chr(10) || RPAD(' ', 4)
+		|| ' = :new.LINK_ID$;' || data_browser_conf.NL(8)
+		|| 'return;' || data_browser_conf.NL(4)
 		|| 'end if;' || chr(10);
         dbms_lob.writeappend(v_Stat, length(v_Str), v_Str);
        
@@ -1335,17 +1335,17 @@ CREATE OR REPLACE PACKAGE BODY import_utl IS
 			end if;
 			v_Str := 
 			case when dbms_lob.getlength(v_Update_Values_Stat) > 0 then ',' end
-			|| chr(10) || rpad(' ', 12) 
+			|| data_browser_conf.NL(12) 
 			|| c_cur.COLUMN_NAME || ' = v_row.' || c_cur.COLUMN_NAME;
 			dbms_lob.writeappend(v_Update_Values_Stat, length(v_Str), v_Str);
         end loop;
 
-		v_Str := chr(10) || rpad(' ', 4)
+		v_Str := data_browser_conf.NL(4)
 		|| 'if INSERTING then ' || chr(10)
 		|| v_Default_Stat || rpad(' ', 8)
-		|| 'INSERT INTO ' || v_Table_Name|| ' VALUES v_row;' || chr(10) || rpad(' ', 4)
-		|| 'else ' || chr(10) || rpad(' ', 8)
-		|| 'UPDATE ' || v_Table_Name || ' SET ' || v_Update_Values_Stat || chr(10) || rpad(' ', 8)
+		|| 'INSERT INTO ' || v_Table_Name|| ' VALUES v_row;' || data_browser_conf.NL(4)
+		|| 'else ' || data_browser_conf.NL(8)
+		|| 'UPDATE ' || v_Table_Name || ' SET ' || v_Update_Values_Stat || data_browser_conf.NL(8)
 		|| 'WHERE ' 
 		|| data_browser_conf.Get_Unique_Key_Expression (
 			p_Unique_Key_Column => v_Primary_Key_Cols,

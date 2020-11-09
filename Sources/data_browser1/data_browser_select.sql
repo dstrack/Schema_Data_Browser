@@ -106,7 +106,7 @@ is
 				SELECT 'DML$_LOGGING_DATE' COLUMN_NAME, 'Y' IS_AUDIT_COLUMN, 'Y' IS_SEARCHABLE_REF,
 					4 POSITION, 'TIMESTAMP(6) WITH LOCAL TIME ZONE' DATA_TYPE,
 					120 CHAR_LENGTH, 'N' NULLABLE, 'N' HAS_HELP_TEXT, 
-					data_browser_conf.Get_Timestamp_Format(p_Export => 'N') FORMAT_MASK, 
+					data_browser_conf.Get_Timestamp_Format FORMAT_MASK, 
 					'CENTER' COLUMN_ALIGN, 'DML Logging Date' COLUMN_HEADER,
 					'TO_CHAR(' 
 					|| case when AUDIT_DATE_COLUMN_NAME IS NOT NULL then 
@@ -114,7 +114,7 @@ is
 						else 
 							'A.DML$_LOGGING_DATE,'
 						end
-					|| data_browser_conf.enquote_Literal(data_browser_conf.Get_Timestamp_Format(p_Export => 'N'))
+					|| data_browser_conf.enquote_Literal(data_browser_conf.Get_Timestamp_Format)
 					|| ')' COLUMN_EXPR,
 					'DISPLAY_ONLY' COLUMN_EXPR_TYPE, 120 FIELD_LENGTH, 
 					'DML$_LOGGING_DATE' R_COLUMN_NAME
