@@ -150,7 +150,8 @@ IS
 	FUNCTION Normalize_Column_Pattern (p_Pattern VARCHAR2) RETURN VARCHAR2;
 	FUNCTION Match_Column_Pattern (p_Column_Name VARCHAR2, p_Pattern VARCHAR2) RETURN VARCHAR2 DETERMINISTIC; -- YES, NO
 	FUNCTION Matching_Column_Pattern (p_Column_Name VARCHAR2, p_Pattern VARCHAR2) RETURN VARCHAR2;
-
+	FUNCTION Match_DateTime_Columns (p_Column_Name VARCHAR2) RETURN VARCHAR2; -- YES / NO
+	
     FUNCTION Get_Link_ID_Expression (	-- row reference in select list, produces CAST(A.ROWID AS VARCHAR2(128)) references in case of composite or missing unique keys
     	p_Unique_Key_Column VARCHAR2,
     	p_Table_Alias VARCHAR2 DEFAULT NULL,
@@ -438,6 +439,12 @@ IS
     )
     RETURN VARCHAR2 DETERMINISTIC;
 
+	FUNCTION Is_DateTime_Column (
+        p_Column_Name VARCHAR2,
+        p_Data_Type VARCHAR2,
+        p_Datetime VARCHAR2 
+	) RETURN VARCHAR2 DETERMINISTIC;
+
     FUNCTION Get_ExportColFunction (
         p_Column_Name VARCHAR2,
         p_Data_Type VARCHAR2,
@@ -451,17 +458,15 @@ IS
     ) RETURN VARCHAR2 DETERMINISTIC;
 
     FUNCTION Get_Field_Length (
-        p_Column_Name VARCHAR2,
         p_Data_Type VARCHAR2,
         p_Data_Precision NUMBER,
         p_Data_Scale NUMBER,
         p_Char_Length NUMBER,
         p_Use_Group_Separator VARCHAR2 DEFAULT 'N',
-        p_Datetime VARCHAR2 DEFAULT NULL -- Y,N
+        p_Datetime VARCHAR2 DEFAULT 'N' -- Y,N
     ) RETURN NUMBER DETERMINISTIC;
 
     FUNCTION Get_Col_Format_Mask (
-        p_Column_Name VARCHAR2,
         p_Data_Type VARCHAR2,
         p_Data_Precision NUMBER,
         p_Data_Scale NUMBER,
@@ -500,7 +505,7 @@ IS
         p_Data_Type VARCHAR2
     ) RETURN VARCHAR2 DETERMINISTIC;
 
-    FUNCTION Get_Compare_Case_Insensitive RETURN VARCHAR2;
+    FUNCTION Do_Compare_Case_Insensitive RETURN VARCHAR2;
     FUNCTION Get_Compare_Case_Insensitive (
         p_Column_Name VARCHAR2,
     	p_Element VARCHAR2,
@@ -511,7 +516,8 @@ IS
         p_Data_Scale NUMBER,
         p_Char_Length NUMBER,
         p_Use_Group_Separator VARCHAR2 DEFAULT 'N',
-        p_Compare_Case_Insensitive VARCHAR2 DEFAULT Get_Compare_Case_Insensitive
+        p_Datetime VARCHAR2 DEFAULT 'N', -- Y,N
+        p_Compare_Case_Insensitive VARCHAR2 DEFAULT Do_Compare_Case_Insensitive
     )
     RETURN VARCHAR2;
 	FUNCTION Get_Apex_Item_Limit RETURN PLS_INTEGER DETERMINISTIC;
@@ -3124,7 +3130,7 @@ $END
 			end;
 	END Get_Column_Expr_Type;
 
-	FUNCTION Match_DateTime_Columns (
+	FUNCTION Is_DateTime_Column (
         p_Column_Name VARCHAR2,
         p_Data_Type VARCHAR2,
         p_Datetime VARCHAR2 
@@ -3139,7 +3145,7 @@ $END
 			v_Is_DateTime := SUBSTR(data_browser_conf.Match_DateTime_Columns(v_Column_Name), 1, 1);
 		end if;
 		RETURN v_Is_DateTime;
-	END Match_DateTime_Columns;
+	END Is_DateTime_Column;
 
     FUNCTION Get_ExportColFunction (
         p_Column_Name VARCHAR2,
@@ -3154,7 +3160,6 @@ $END
     ) RETURN VARCHAR2 DETERMINISTIC
     IS
 	PRAGMA UDF;
-		v_Is_DateTime VARCHAR2(3);
 		v_Column_Name VARCHAR2(128);
 		v_Trimset VARCHAR2(10);
 		v_Export_Text_Limit PLS_INTEGER;
@@ -3162,7 +3167,6 @@ $END
 		v_Format_Mask VARCHAR2(1024);
 		v_Result VARCHAR2(1024);
 	BEGIN
-		v_Is_DateTime := Match_DateTime_Columns(p_Column_Name, p_Data_Type, p_Datetime);
 		v_Use_Group_Separator := Int_Use_Goup_Separator(p_Data_Precision, p_Data_Scale, p_Use_Group_Separator);
 		
         case
@@ -3192,7 +3196,7 @@ $END
             v_Result := 'RAWTOHEX(' || p_Column_Name || ')';
         when p_Data_type = 'BLOB' then
             v_Result := 'TO_CHAR(DBMS_LOB.GETLENGTH(' || p_Column_Name || '))';
-        when p_Data_Type = 'DATE' AND v_Is_DateTime = 'Y' then
+        when p_Data_Type = 'DATE' AND p_Datetime = 'Y' then
             v_Result := 'TO_CHAR(' 
             || p_Column_Name
             || ', ' || Enquote_Literal(Get_Export_DateTime_Format) 
@@ -3202,10 +3206,10 @@ $END
             || p_Column_Name
             || ', ' || Enquote_Literal(Get_Export_Date_Format) 
             || ')';
-        when p_Data_Type LIKE 'TIMESTAMP%' and v_Is_DateTime = 'Y' then
-            v_Result := 'TO_CHAR(CAST(' || p_Column_Name || ' AS DATE), ' || Enquote_Literal(Get_Export_DateTime_Format) || ')';
+        /*when p_Data_Type LIKE 'TIMESTAMP%' and p_Datetime = 'Y' then
+            v_Result := 'TO_CHAR(CAST(' || p_Column_Name || ' AS DATE), ' || Enquote_Literal(Get_Export_DateTime_Format) || ')';*/
         when p_Data_Type LIKE 'TIMESTAMP%' then
-            v_Result := 'TO_CHAR(' || p_Column_Name || ', ' || Enquote_Literal(Get_Timestamp_Format(p_Is_DateTime => 'N')) || ')';
+            v_Result := 'TO_CHAR(' || p_Column_Name || ', ' || Enquote_Literal(Get_Timestamp_Format(p_Is_DateTime => p_Datetime)) || ')';
         else 
 			v_Result := p_Column_Name;
         	if p_Use_Trim = 'Y' then 
@@ -3219,21 +3223,17 @@ $END
     END Get_ExportColFunction;
 
     FUNCTION Get_Field_Length (
-        p_Column_Name VARCHAR2,
         p_Data_Type VARCHAR2,
         p_Data_Precision NUMBER,
         p_Data_Scale NUMBER,
         p_Char_Length NUMBER,
         p_Use_Group_Separator VARCHAR2 DEFAULT 'N',
-        p_Datetime VARCHAR2 DEFAULT NULL -- Y,N
+        p_Datetime VARCHAR2 DEFAULT 'N' -- Y,N
     ) RETURN NUMBER DETERMINISTIC
     IS
 	PRAGMA UDF;
-		v_Is_DateTime VARCHAR2(3);
-		v_Column_Name VARCHAR2(128);
 		v_Export_Text_Limit CONSTANT PLS_INTEGER := LEAST(g_Export_Text_Limit, g_TextArea_Max_Length); -- technical limit for apex_item_ref
 	BEGIN
-		v_Is_DateTime := Match_DateTime_Columns(p_Column_Name, p_Data_Type, p_Datetime);
         RETURN case
         when p_Data_Type = 'NUMBER' then
             LENGTH(Get_Number_Format_Mask(p_Data_Precision, p_Data_Scale, p_Use_Group_Separator, p_Export => 'N', p_Use_Trim => 'N'))
@@ -3241,12 +3241,12 @@ $END
         	numbers_utl.g_Default_Data_Precision
         when p_Data_type = 'BLOB' then
         	38	-- number length of blob
-        when v_Is_DateTime = 'Y' then
+        when p_Datetime = 'Y' then
             LENGTH(Get_Export_DateTime_Format)
         when p_Data_Type = 'DATE' then
         	LENGTH(Get_Export_Date_Format)
         when p_Data_Type LIKE 'TIMESTAMP%' then
-            LENGTH(Get_Timestamp_Format(p_Is_DateTime => v_Is_DateTime))
+            LENGTH(Get_Timestamp_Format(p_Is_DateTime => p_Datetime))
         when  p_Char_Length > g_Export_Text_Limit OR p_Data_Type IN ('CLOB', 'NCLOB') then
             g_Export_Text_Limit
         else
@@ -3255,7 +3255,6 @@ $END
     END Get_Field_Length;
 
     FUNCTION Get_Col_Format_Mask (
-        p_Column_Name VARCHAR2,
         p_Data_Type VARCHAR2,
         p_Data_Precision NUMBER,
         p_Data_Scale NUMBER,
@@ -3265,21 +3264,19 @@ $END
     ) RETURN VARCHAR2 DETERMINISTIC
     IS
 	PRAGMA UDF;
-		v_Is_DateTime VARCHAR2(3);
 		v_Column_Name VARCHAR2(128);
 	BEGIN
-		v_Is_DateTime := Match_DateTime_Columns(p_Column_Name, p_Data_Type, p_Datetime);
         RETURN case
         when p_Data_Type = 'NUMBER' then
             Get_Number_Format_Mask(p_Data_Precision, p_Data_Scale, p_Use_Group_Separator, p_Export => 'N')
         when p_Data_Type = 'FLOAT' then
         	Get_Number_Format_Mask(numbers_utl.g_Default_Data_Precision, numbers_utl.g_Default_Data_Scale, p_Use_Group_Separator, p_Export => 'N') -- g_Export_Float_Format
-        when v_Is_DateTime = 'Y' then
+        when p_Data_Type = 'DATE'  and p_Datetime = 'Y' then
             Get_Export_DateTime_Format
         when p_Data_Type = 'DATE' then
         	Get_Export_Date_Format
         when p_Data_Type LIKE 'TIMESTAMP%' then
-            Get_Timestamp_Format(p_Is_DateTime => v_Is_DateTime)
+            Get_Timestamp_Format(p_Is_DateTime => p_Datetime)
         else
             NULL
         end;
@@ -3402,7 +3399,7 @@ $END
 	FUNCTION Get_Include_Query_Schema RETURN VARCHAR2 IS BEGIN RETURN g_Include_Query_Schema; END;
 	PROCEDURE Set_Include_Query_Schema (p_Value VARCHAR2) IS BEGIN g_Include_Query_Schema := p_Value; END;
 
-	FUNCTION Get_Compare_Case_Insensitive RETURN VARCHAR2 IS BEGIN RETURN g_Compare_Case_Insensitive; END;
+	FUNCTION Do_Compare_Case_Insensitive RETURN VARCHAR2 IS BEGIN RETURN g_Compare_Case_Insensitive; END;
 
     FUNCTION Get_Compare_Case_Insensitive (
         p_Column_Name VARCHAR2,
@@ -3414,7 +3411,8 @@ $END
         p_Data_Scale NUMBER,
         p_Char_Length NUMBER,
         p_Use_Group_Separator VARCHAR2 DEFAULT 'N',
-        p_Compare_Case_Insensitive VARCHAR2 DEFAULT Get_Compare_Case_Insensitive
+        p_Datetime VARCHAR2 DEFAULT 'N', -- Y,N
+        p_Compare_Case_Insensitive VARCHAR2 DEFAULT Do_Compare_Case_Insensitive
     )
     RETURN VARCHAR2
     IS
@@ -3431,12 +3429,12 @@ $END
 						p_Data_Source	=> p_Data_Source,
 						p_Data_Scale 	=> p_Data_Scale,
 						p_Format_Mask 	=> data_browser_conf.Get_Col_Format_Mask(
-							p_Column_Name 		=> p_Column_Name,
 							p_Data_Type 		=> p_Data_Type,
 							p_Data_Precision 	=> p_Data_Precision,
 							p_Data_Scale 		=> p_Data_Scale,
 							p_Char_Length 		=> p_Char_Length,
-							p_Use_Group_Separator => p_Use_Group_Separator
+							p_Use_Group_Separator => p_Use_Group_Separator,
+							p_Datetime			=> p_Datetime
 						),
 						p_Use_Group_Separator => p_Use_Group_Separator,
 						p_use_NLS_params => v_use_NLS_params
@@ -3460,7 +3458,7 @@ $END
 		v_Search_Keys_Unique		VARCHAR2(10);
 		v_Insert_Foreign_Keys		VARCHAR2(10);
 	BEGIN 
-		v_Compare_Case_Insensitive 	:= COALESCE( p_Compare_Case_Insensitive, data_browser_conf.Get_Compare_Case_Insensitive, 'NO');
+		v_Compare_Case_Insensitive 	:= COALESCE( p_Compare_Case_Insensitive, data_browser_conf.Do_Compare_Case_Insensitive, 'NO');
 		v_Search_Keys_Unique		:= COALESCE( p_Search_Keys_Unique, data_browser_conf.Get_Search_Keys_Unique, 'NO');
 		v_Insert_Foreign_Keys		:= COALESCE( p_Insert_Foreign_Keys, data_browser_conf.Get_Insert_Foreign_Keys, 'NO');
 		
@@ -3484,7 +3482,7 @@ $END
 			p_Search_Keys_Unique := v_Prefs_Array(2);
 			p_Insert_Foreign_Keys := v_Prefs_Array(3);
 		else 
-			p_Compare_Case_Insensitive := data_browser_conf.Get_Compare_Case_Insensitive;
+			p_Compare_Case_Insensitive := data_browser_conf.Do_Compare_Case_Insensitive;
 			p_Search_Keys_Unique := data_browser_conf.Get_Search_Keys_Unique;
 			p_Insert_Foreign_Keys := data_browser_conf.Get_Insert_Foreign_Keys;
 		end if;

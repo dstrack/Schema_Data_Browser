@@ -66,7 +66,7 @@ CREATE OR REPLACE PACKAGE BODY import_utl IS
 			end COLUMN_CHECK_EXPR,
 			COLUMN_ID, POSITION, COLUMN_NAME IMP_COLUMN_NAME, COLUMN_ALIGN, 
 			COLUMN_EXPR_TYPE,
-			HAS_DEFAULT, IS_VIRTUAL_COLUMN,
+			HAS_DEFAULT, IS_VIRTUAL_COLUMN, IS_DATETIME,
 			DATA_TYPE, DATA_SCALE, DATA_PRECISION, CHAR_LENGTH, NULLABLE,
 			E.REF_VIEW_NAME R_VIEW_NAME, REF_COLUMN_NAME, TABLE_ALIAS
 		FROM MVDATA_BROWSER_VIEWS S, TABLE(
@@ -384,12 +384,12 @@ CREATE OR REPLACE PACKAGE BODY import_utl IS
 									p_Data_Type => T.DATA_TYPE, 
 									p_Data_Scale => T.DATA_SCALE, 
 									p_Format_Mask => data_browser_conf.Get_Col_Format_Mask(
-										p_Column_Name 		=> T.COLUMN_NAME,
 										p_Data_Type 		=> T.DATA_TYPE,
 										p_Data_Precision 	=> T.DATA_PRECISION,
 										p_Data_Scale 		=> T.DATA_SCALE,
 										p_Char_Length 		=> T.CHAR_LENGTH,
-										p_Use_Group_Separator => v_Use_Group_Separator
+										p_Use_Group_Separator => v_Use_Group_Separator,
+										p_Datetime  		=> T.IS_DATETIME
 									), 
 									p_Use_Group_Separator => v_Use_Group_Separator,
 									p_use_NLS_params => v_use_NLS_params
@@ -450,12 +450,12 @@ CREATE OR REPLACE PACKAGE BODY import_utl IS
 						p_Data_Type => T.DATA_TYPE, 
 						p_Data_Scale => T.DATA_SCALE, 
 						p_Format_Mask => data_browser_conf.Get_Col_Format_Mask(
-							p_Column_Name 		=> T.COLUMN_NAME,
 							p_Data_Type 		=> T.DATA_TYPE,
 							p_Data_Precision 	=> T.DATA_PRECISION,
 							p_Data_Scale 		=> T.DATA_SCALE,
 							p_Char_Length 		=> T.CHAR_LENGTH,
-							p_Use_Group_Separator => v_Use_Group_Separator
+							p_Use_Group_Separator => v_Use_Group_Separator,
+							p_Datetime  		=> T.IS_DATETIME
 						), 
 						p_Use_Group_Separator => v_Use_Group_Separator,
 						p_use_NLS_params => v_use_NLS_params
@@ -476,7 +476,8 @@ CREATE OR REPLACE PACKAGE BODY import_utl IS
 				FROM TABLE(data_browser_conf.Constraint_Condition_Cursor(p_Owner => SYS_CONTEXT('USERENV', 'CURRENT_SCHEMA')))
 			) A ON A.TABLE_NAME = S.TABLE_NAME
 			JOIN SYS.USER_CONS_COLUMNS B ON A.CONSTRAINT_NAME = B.CONSTRAINT_NAME AND A.TABLE_NAME = B.TABLE_NAME AND A.OWNER = B.OWNER
-			JOIN SYS.USER_TAB_COLUMNS T ON A.TABLE_NAME = T.TABLE_NAME AND B.COLUMN_NAME = T.COLUMN_NAME
+			--JOIN SYS.USER_TAB_COLUMNS T ON A.TABLE_NAME = T.TABLE_NAME AND B.COLUMN_NAME = T.COLUMN_NAME
+			JOIN TABLE (import_utl.FN_Pipe_table_imp_cols(v_Table_Name)) T ON A.TABLE_NAME = T.TABLE_NAME AND B.COLUMN_NAME = T.COLUMN_NAME
 			AND NOT EXISTS (-- no foreign key columns
 				SELECT 1 
 				FROM MVDATA_BROWSER_FKEYS FK

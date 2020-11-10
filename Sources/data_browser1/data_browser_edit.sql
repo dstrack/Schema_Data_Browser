@@ -2255,7 +2255,7 @@ $END
 		elsif p_Data_Source = 'NEW_ROWS' then
 			if p_Data_Default is not null and p_Column_Expr_Type = 'DATE_POPUP' then
 				v_Column_Expr := 'NULL';
-				v_Column_Value := 'FN_TO_DATE(' || p_Data_Default || ', ' || Enquote_Literal(p_Format_Mask) || ')';
+				v_Column_Value := p_Data_Default;
 			elsif p_Column_Name = 'CONTROL_BREAK$' then
 				v_Column_Value := p_Column_Expr;
 				v_Column_Expr := v_Column_Value;
@@ -2276,7 +2276,8 @@ $END
 				v_Column_Expr := v_Column_Value;
 			elsif p_Column_Expr_Type = 'DATE_POPUP' then
 				v_Column_Value := 'A.' || p_Column_Name;
-				v_Column_Expr := 'FN_TO_DATE(A.' || p_Column_Name || ', ' || Enquote_Literal(p_Format_Mask) || ')';
+				v_Column_Expr := p_Column_Expr;
+				--v_Column_Expr := 'FN_TO_DATE(A.' || p_Column_Name || ', ' || Enquote_Literal(p_Format_Mask) || ')';
 			elsif p_Column_Name IN ('IMPORTJOB_ID$', 'LINE_NO$') then
 				v_Column_Value := v_Column_Expr;
 			else
@@ -2673,8 +2674,14 @@ $END*/
 								p_Table_Alias=> TABLE_ALIAS, 
 								p_View_Mode=> p_View_Mode),
 							p_Column_Name   => COLUMN_NAME,
-							p_Column_Label  => COLUMN_NAME, -- case when p_Report_Mode = 'NO' then COLUMN_NAME end,
-							p_Column_Expr 	=> COLUMN_EXPR, 
+							p_Column_Label  => COLUMN_NAME, 
+							p_Column_Expr 	=> -- COLUMN_EXPR, 
+								case when p_Data_Source = 'COLLECTION' and DATA_TYPE = 'DATE' 
+									then 'FN_TO_DATE(A.' || COLUMN_NAME || ', ' || DBMS_ASSERT.ENQUOTE_LITERAL(FORMAT_MASK) || ')'
+								when p_Data_Source = 'COLLECTION' and DATA_TYPE LIKE 'TIMESTAMP%'
+									then 'CAST(TO_TIMESTAMP(A.' || COLUMN_NAME || ', ' || DBMS_ASSERT.ENQUOTE_LITERAL(data_browser_conf.Get_Timestamp_Format) || ') AS DATE)'
+									else COLUMN_EXPR
+								end,
 							p_Tools_html	=>
 								case when COLUMN_EXPR_TYPE = 'TEXT_EDITOR'
 								and p_Data_Source != 'COLLECTION' -- no reference to primary key exists
@@ -2728,9 +2735,15 @@ $END*/
 										p_View_Mode => p_View_Mode
 									) 
 								end ,
-							p_Data_Default 	=> case when DATA_TYPE LIKE 'TIMESTAMP%'
-													and DATA_DEFAULT IS NOT NULL
-													then 'CAST(' || DATA_DEFAULT || ' AS DATE)'
+							p_Data_Default 	=> case when COLUMN_EXPR_TYPE = 'DATE_POPUP'
+												and DATA_DEFAULT IS NOT NULL
+													then data_browser_edit.Get_Formated_Default (
+															p_Column_Expr_Type => COLUMN_EXPR_TYPE,
+															p_Column_Alias  => TABLE_ALIAS || '.' || REF_COLUMN_NAME,
+															p_Column_Expr 	=> COLUMN_EXPR,
+															p_Data_Default 	=> DATA_DEFAULT,
+															p_Enquote		=> 'NO'
+														)
 													else DATA_DEFAULT
 												end,
 							p_Format_Mask	=> FORMAT_MASK,
@@ -2863,10 +2876,11 @@ $END*/
 						B.IS_REFERENCE, B.IS_SEARCHABLE_REF, B.IS_SUMMAND, B.IS_VIRTUAL_COLUMN, 
 						B.IS_DATETIME, 
 						B.CHECK_UNIQUE,
-						case when B.DATA_TYPE LIKE 'TIMESTAMP%' and B.IS_DATETIME = 'N' 
+						/*case when B.DATA_TYPE LIKE 'TIMESTAMP%' and B.IS_DATETIME = 'N' 
 							then data_browser_conf.Get_Timestamp_Format(p_Is_DateTime => 'Y')
 							else B.FORMAT_MASK
-						end FORMAT_MASK,
+						end FORMAT_MASK,*/
+						B.FORMAT_MASK,
 						B.LOV_QUERY,
 						case when B.DATA_DEFAULT IS NOT NULL then 
 							case when B.R_TABLE_NAME = B.REF_TABLE_NAME
@@ -2932,6 +2946,7 @@ $END*/
 							p_View_Mode => p_View_Mode,
 							p_Report_Mode => p_Report_Mode,
 							p_Edit_Mode => 'YES',
+							p_Data_Format => case when p_Data_Source = 'COLLECTION' then 'CSV' else data_browser_select.FN_Current_Data_Format end,
 							p_Parent_Name => p_Parent_Name,
 							p_Parent_Key_Column => p_Parent_Key_Column,
 							p_Parent_Key_Visible => p_Parent_Key_Visible,
@@ -3631,6 +3646,7 @@ $END
 									p_Data_Precision=> T.R_DATA_PRECISION,
 									p_Data_Scale 	=> T.R_DATA_SCALE,
 									p_Char_Length	=> T.R_CHAR_LENGTH,
+									p_Datetime		=> T.IS_DATETIME,
 									p_Use_Group_Separator => case when COLUMN_EXPR_TYPE = 'HIDDEN' then 'N' else 'Y' end,
 									p_Compare_Case_Insensitive => v_Compare_Case_Insensitive
 								)
@@ -3648,6 +3664,7 @@ $END
 								p_Data_Scale 	=> T.R_DATA_SCALE,
 								p_Char_Length	=> T.R_CHAR_LENGTH,
 								p_Use_Group_Separator => case when COLUMN_EXPR_TYPE = 'HIDDEN' then 'N' else 'Y' end,
+								p_Datetime		=> T.IS_DATETIME,
 								p_Compare_Case_Insensitive => v_Compare_Case_Insensitive
 							)
 						end,
@@ -3697,11 +3714,11 @@ $END
 							p_Data_Type 	=> T.R_DATA_TYPE,
 							p_Data_Scale 	=> T.R_DATA_SCALE,
 							p_Format_Mask 	=> data_browser_conf.Get_Col_Format_Mask(
-								p_Column_Name 		=> T.R_COLUMN_NAME,
 								p_Data_Type 		=> T.R_DATA_TYPE,
 								p_Data_Precision 	=> T.R_DATA_PRECISION,
 								p_Data_Scale 		=> T.R_DATA_SCALE,
-								p_Char_Length 		=> T.R_CHAR_LENGTH
+								p_Char_Length 		=> T.R_CHAR_LENGTH,
+								p_Datetime			=> T.IS_DATETIME
 							),
 							p_Use_Group_Separator => 'Y',
 							p_use_NLS_params => v_use_NLS_params
@@ -3778,11 +3795,11 @@ $END
 									p_Data_Type 	=> T.R_DATA_TYPE,
 									p_Data_Scale 	=> T.R_DATA_SCALE,
 									p_Format_Mask 	=> data_browser_conf.Get_Col_Format_Mask(
-										p_Column_Name 		=> T.R_COLUMN_NAME,
 										p_Data_Type 		=> T.R_DATA_TYPE,
 										p_Data_Precision 	=> T.R_DATA_PRECISION,
 										p_Data_Scale 		=> T.R_DATA_SCALE,
-										p_Char_Length 		=> T.R_CHAR_LENGTH
+										p_Char_Length 		=> T.R_CHAR_LENGTH,
+										p_Datetime			=> T.IS_DATETIME
 									),
 									p_use_NLS_params => v_use_NLS_params
 								)
@@ -3895,7 +3912,7 @@ $END
 				S.R_PRIMARY_KEY_COLS, S.R_CONSTRAINT_TYPE,
 				S.R_VIEW_NAME, S.COLUMN_ID, S.NULLABLE,
 				S.R_COLUMN_ID, S.POSITION, S.R_COLUMN_NAME, S.R_NULLABLE, S.R_DATA_TYPE,
-				S.R_DATA_PRECISION, S.R_DATA_SCALE, S.R_CHAR_LENGTH,
+				S.R_DATA_PRECISION, S.R_DATA_SCALE, S.R_CHAR_LENGTH, S.IS_DATETIME,
 				S.TABLE_ALIAS,
 				S.IMP_COLUMN_NAME S_COLUMN_NAME, E.COLUMN_HEADER,
 				S.JOIN_CLAUSE,
@@ -3910,7 +3927,7 @@ $END
 					FILTER_KEY_COLUMN, PARENT_KEY_COLUMN, 
 					R_PRIMARY_KEY_COLS, R_CONSTRAINT_TYPE, R_VIEW_NAME, COLUMN_ID, NULLABLE, 
 					R_COLUMN_ID, R_COLUMN_NAME, POSITION, R_NULLABLE, R_DATA_TYPE, R_DATA_PRECISION, R_DATA_SCALE, 
-					R_CHAR_LENGTH, TABLE_ALIAS, IMP_COLUMN_NAME, JOIN_CLAUSE, 
+					R_CHAR_LENGTH, IS_DATETIME, TABLE_ALIAS, IMP_COLUMN_NAME, JOIN_CLAUSE, 
 					HAS_NULLABLE, HAS_SIMPLE_UNIQUE, 
 					HAS_FOREIGN_KEY, U_CONSTRAINT_NAME, U_MEMBERS, POSITION2		
 				FROM TABLE(data_browser_select.FN_Pipe_table_imp_fk2 (p_Table_name, p_As_Of_Timestamp))
@@ -3922,7 +3939,7 @@ $END
 					FILTER_KEY_COLUMN, PARENT_KEY_COLUMN, 
 					R_PRIMARY_KEY_COLS, R_CONSTRAINT_TYPE, R_VIEW_NAME, COLUMN_ID, NULLABLE, 
 					R_COLUMN_ID, R_COLUMN_NAME, POSITION, R_NULLABLE, R_DATA_TYPE, R_DATA_PRECISION, R_DATA_SCALE, 
-					R_CHAR_LENGTH, TABLE_ALIAS, IMP_COLUMN_NAME, JOIN_CLAUSE, 
+					R_CHAR_LENGTH, IS_DATETIME, TABLE_ALIAS, IMP_COLUMN_NAME, JOIN_CLAUSE, 
 					HAS_NULLABLE, HAS_SIMPLE_UNIQUE, 
 					HAS_FOREIGN_KEY, U_CONSTRAINT_NAME, U_MEMBERS, POSITION2		
 				FROM TABLE(data_browser_select.FN_Pipe_table_imp_fk1 (p_Table_name))
@@ -4048,7 +4065,7 @@ $END
 
 		if DBMS_LOB.GETLENGTH(v_Stat) > 1 then
 			for c_cur IN (
-					select R_VIEW_NAME, R_COLUMN_NAME, COLUMN_NAME, COLUMN_HEADER, 
+					SELECT R_VIEW_NAME, R_COLUMN_NAME, COLUMN_NAME, COLUMN_HEADER, 
 						REQUIRED, CHECK_UNIQUE, FORMAT_MASK, DATA_TYPE, DATA_SCALE, TABLE_ALIAS,
 						IS_PRIMARY_KEY, IS_SEARCH_KEY, APEX_ITEM_IDX, ROW_FACTOR, ROW_OFFSET, APEX_ITEM_REF, INPUT_ID,
 						case when p_Data_Source = 'COLLECTION' then
@@ -4061,7 +4078,7 @@ $END
 								p_Row_Number	=> 'p_Row'
 							)
 						end APEX_ITEM_CALL
-					from table (data_browser_edit.Get_Form_Edit_Cursor (
+					FROM TABLE (data_browser_edit.Get_Form_Edit_Cursor (
 							p_Table_Name => p_Table_name,
 							p_Unique_Key_Column => v_Unique_Key_Column,
 							p_Select_Columns => p_Select_Columns,
@@ -4076,9 +4093,9 @@ $END
 							p_Parent_Key_Item => p_Parent_Key_Item
 						)
 					)
-					where APEX_ITEM_REF IS NOT NULL
-					and NOT(INPUT_ID IS NULL and p_Data_Source = 'COLLECTION') -- before COLUMN_EXPR_TYPE = 'HIDDEN'
-					and APEX_ITEM_IDX != data_browser_conf.Get_MD5_Column_Index
+					WHERE APEX_ITEM_REF IS NOT NULL
+					AND NOT(INPUT_ID IS NULL and p_Data_Source = 'COLLECTION')
+					AND APEX_ITEM_IDX != data_browser_conf.Get_MD5_Column_Index
 			) loop
 				if c_cur.APEX_ITEM_IDX = 1 then
 					v_Apex_Item_Rows_Call := data_browser_edit.Get_Apex_Item_Rows_Call(
