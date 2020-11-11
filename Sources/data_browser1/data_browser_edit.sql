@@ -3645,8 +3645,7 @@ $END
 									p_Data_Type 	=> T.R_DATA_TYPE,
 									p_Data_Precision=> T.R_DATA_PRECISION,
 									p_Data_Scale 	=> T.R_DATA_SCALE,
-									p_Char_Length	=> T.R_CHAR_LENGTH,
-									p_Datetime		=> T.IS_DATETIME,
+									p_Format_Mask	=> T.FORMAT_MASK,
 									p_Use_Group_Separator => case when COLUMN_EXPR_TYPE = 'HIDDEN' then 'N' else 'Y' end,
 									p_Compare_Case_Insensitive => v_Compare_Case_Insensitive
 								)
@@ -3662,9 +3661,8 @@ $END
 								p_Data_Type 	=> T.R_DATA_TYPE,
 								p_Data_Precision=> T.R_DATA_PRECISION,
 								p_Data_Scale 	=> T.R_DATA_SCALE,
-								p_Char_Length	=> T.R_CHAR_LENGTH,
+								p_Format_Mask	=> T.FORMAT_MASK,
 								p_Use_Group_Separator => case when COLUMN_EXPR_TYPE = 'HIDDEN' then 'N' else 'Y' end,
-								p_Datetime		=> T.IS_DATETIME,
 								p_Compare_Case_Insensitive => v_Compare_Case_Insensitive
 							)
 						end,
@@ -3713,13 +3711,7 @@ $END
 							p_Data_Source	=> p_Data_Source,
 							p_Data_Type 	=> T.R_DATA_TYPE,
 							p_Data_Scale 	=> T.R_DATA_SCALE,
-							p_Format_Mask 	=> data_browser_conf.Get_Col_Format_Mask(
-								p_Data_Type 		=> T.R_DATA_TYPE,
-								p_Data_Precision 	=> T.R_DATA_PRECISION,
-								p_Data_Scale 		=> T.R_DATA_SCALE,
-								p_Char_Length 		=> T.R_CHAR_LENGTH,
-								p_Datetime			=> T.IS_DATETIME
-							),
+							p_Format_Mask 	=> T.FORMAT_MASK,
 							p_Use_Group_Separator => 'Y',
 							p_use_NLS_params => v_use_NLS_params
 						)
@@ -3794,13 +3786,7 @@ $END
 									p_Element 		=> T.S_REF,
 									p_Data_Type 	=> T.R_DATA_TYPE,
 									p_Data_Scale 	=> T.R_DATA_SCALE,
-									p_Format_Mask 	=> data_browser_conf.Get_Col_Format_Mask(
-										p_Data_Type 		=> T.R_DATA_TYPE,
-										p_Data_Precision 	=> T.R_DATA_PRECISION,
-										p_Data_Scale 		=> T.R_DATA_SCALE,
-										p_Char_Length 		=> T.R_CHAR_LENGTH,
-										p_Datetime			=> T.IS_DATETIME
-									),
+									p_Format_Mask 	=> T.FORMAT_MASK,
 									p_use_NLS_params => v_use_NLS_params
 								)
 						, ', ') WITHIN GROUP (ORDER BY R_COLUMN_ID, POSITION)
@@ -3913,6 +3899,13 @@ $END
 				S.R_VIEW_NAME, S.COLUMN_ID, S.NULLABLE,
 				S.R_COLUMN_ID, S.POSITION, S.R_COLUMN_NAME, S.R_NULLABLE, S.R_DATA_TYPE,
 				S.R_DATA_PRECISION, S.R_DATA_SCALE, S.R_CHAR_LENGTH, S.IS_DATETIME,
+				data_browser_conf.Get_Col_Format_Mask(
+					p_Data_Type 		=> S.R_DATA_TYPE,
+					p_Data_Precision 	=> S.R_DATA_PRECISION,
+					p_Data_Scale 		=> S.R_DATA_SCALE,
+					p_Char_Length 		=> S.R_CHAR_LENGTH,
+					p_Datetime			=> S.IS_DATETIME
+				) FORMAT_MASK,
 				S.TABLE_ALIAS,
 				S.IMP_COLUMN_NAME S_COLUMN_NAME, E.COLUMN_HEADER,
 				S.JOIN_CLAUSE,

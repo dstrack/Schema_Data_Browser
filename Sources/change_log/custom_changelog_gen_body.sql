@@ -12,6 +12,11 @@ CREATE OR REPLACE PACKAGE BODY custom_changelog_gen IS
     g_Default_Data_Scale        CONSTANT PLS_INTEGER := 16;     -- Default Data Scale for number columns with unknown scale
     g_Format_Max_Length         CONSTANT PLS_INTEGER := 63;     -- maximal length of a format mask 
 
+	FUNCTION FN_Scheduler_Context RETURN BINARY_INTEGER
+	IS 
+	BEGIN RETURN NVL(MOD(NV('APP_SESSION'), POWER(2,31)), 0);
+	END FN_Scheduler_Context;
+
 	PROCEDURE Lookup_custom_ref_Indexes (
 		p_fkey_tables OUT VARCHAR2, 
 		p_fkey_columns OUT VARCHAR2
@@ -246,7 +251,7 @@ CREATE OR REPLACE PACKAGE BODY custom_changelog_gen IS
 	END MView_Refresh;
 	
    PROCEDURE Refresh_MViews (
-    	p_context  				IN binary_integer DEFAULT NVL(MOD(NV('APP_SESSION'), POWER(2,31)), 0),
+    	p_context  				IN binary_integer DEFAULT FN_Scheduler_Context,
     	p_Start_Step 			IN binary_integer DEFAULT 1
     )
     IS
@@ -361,7 +366,7 @@ CREATE OR REPLACE PACKAGE BODY custom_changelog_gen IS
 
     PROCEDURE Refresh_MViews_Job (
     	p_Start_Step 	IN binary_integer DEFAULT 1,
-        p_context binary_integer DEFAULT NVL(MOD(NV('APP_SESSION'), POWER(2,31)), 0)		-- context is of type BINARY_INTEGER
+        p_context binary_integer DEFAULT FN_Scheduler_Context		-- context is of type BINARY_INTEGER
    	)
 	IS
 		v_LAST_DDL_TIME USER_OBJECTS.LAST_DDL_TIME%TYPE;
@@ -1110,7 +1115,7 @@ CREATE OR REPLACE PACKAGE BODY custom_changelog_gen IS
 	PROCEDURE Add_ChangeLog_Table_Trigger (
 		p_Table_Name        IN VARCHAR2 DEFAULT NULL,
 		p_Trigger_Name 		IN VARCHAR2 DEFAULT NULL,
-    	p_context   		IN binary_integer DEFAULT NVL(MOD(NV('APP_SESSION'), POWER(2,31)), 0)
+    	p_context   		IN binary_integer DEFAULT FN_Scheduler_Context
 	)
 	IS
 		v_rindex            binary_integer := dbms_application_info.set_session_longops_nohint;
@@ -1318,7 +1323,7 @@ CREATE OR REPLACE PACKAGE BODY custom_changelog_gen IS
 
 	PROCEDURE Refresh_ChangeLog_Trigger (
 		p_Table_Name        IN VARCHAR2 DEFAULT NULL,
-    	p_context        	IN  binary_integer DEFAULT NVL(MOD(NV('APP_SESSION'), POWER(2,31)), 0)
+    	p_context        	IN  binary_integer DEFAULT FN_Scheduler_Context
 	)
 	IS
 		v_Name_Pattern VARCHAR2(50) := changelog_conf.Get_ChangelogTrigger_Name('%');
@@ -1903,7 +1908,7 @@ CREATE OR REPLACE PACKAGE BODY custom_changelog_gen IS
 
     PROCEDURE Add_ChangeLog_Views (
         p_Table_Name        IN VARCHAR2 DEFAULT NULL,
-    	p_context   		IN binary_integer DEFAULT NVL(MOD(NV('APP_SESSION'), POWER(2,31)), 0)
+    	p_context   		IN binary_integer DEFAULT FN_Scheduler_Context
     )
     IS
 		v_query 			CLOB;
@@ -2231,7 +2236,7 @@ CREATE OR REPLACE PACKAGE BODY custom_changelog_gen IS
 
     PROCEDURE Add_Audit_Columns (
         p_Table_Name    	IN VARCHAR2 DEFAULT NULL,
-    	p_context   		IN binary_integer DEFAULT NVL(MOD(NV('APP_SESSION'), POWER(2,31)), 0)
+    	p_context   		IN binary_integer DEFAULT FN_Scheduler_Context
     )
     IS
         v_rindex            binary_integer := dbms_application_info.set_session_longops_nohint;
@@ -2268,7 +2273,7 @@ CREATE OR REPLACE PACKAGE BODY custom_changelog_gen IS
     END Add_Audit_Columns;
     
 	PROCEDURE Prepare_Tables (
-    	p_context  IN binary_integer DEFAULT NVL(MOD(NV('APP_SESSION'), POWER(2,31)), 0)
+    	p_context  IN binary_integer DEFAULT FN_Scheduler_Context
     )
 	IS
 	BEGIN

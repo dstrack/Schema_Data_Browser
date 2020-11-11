@@ -1405,24 +1405,6 @@ is
 		RETURN case when p_Data_Type LIKE 'TIMESTAMP%' and p_Data_Format IN ('FORM', 'QUERY') then 'Y' else p_Datetime end;
 	END Date_Time_Required;
 
-	FUNCTION Is_DateTime_Format (
-        p_Column_Name VARCHAR2,
-        p_Data_Type VARCHAR2,
-        p_Data_Format VARCHAR2
-	) RETURN VARCHAR2 DETERMINISTIC -- Y / N
-    IS
-		v_Is_DateTime VARCHAR2(3) := 'N';
-		v_Column_Name VARCHAR2(128);
-	BEGIN
-		if p_Data_Type LIKE 'TIMESTAMP%' and p_Data_Format IN ('FORM', 'QUERY') then 
-			v_Is_DateTime := 'Y';
-		elsif p_Data_Type = 'DATE' OR p_Data_Type LIKE 'TIMESTAMP%' then
-			v_Column_Name := SUBSTR(p_Column_Name, INSTR(p_Column_Name, '.') + 1);
-			v_Is_DateTime := SUBSTR(data_browser_conf.Match_DateTime_Columns(v_Column_Name), 1, 1);
-		end if;
-		RETURN v_Is_DateTime;
-	END Is_DateTime_Format;
-	
     FUNCTION Get_ConversionColFunction (
         p_Column_Name VARCHAR2,
         p_Data_Type VARCHAR2,

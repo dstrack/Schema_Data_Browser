@@ -82,6 +82,8 @@ create or replace PACKAGE custom_changelog_gen IS
 	g_Job_Name_Prefix 			CONSTANT VARCHAR2(10) := 'DBROW_';
 	g_Timemark 					NUMBER;
 
+	FUNCTION FN_Scheduler_Context RETURN BINARY_INTEGER;
+
 	PROCEDURE Lookup_custom_ref_Indexes (
 		p_fkey_tables OUT VARCHAR2, 
 		p_fkey_columns OUT VARCHAR2
@@ -92,12 +94,12 @@ create or replace PACKAGE custom_changelog_gen IS
 		p_Dependent_MViews VARCHAR2 DEFAULT NULL
 	);
     PROCEDURE Refresh_MViews (
-    	p_context  				IN binary_integer DEFAULT NVL(MOD(NV('APP_SESSION'), POWER(2,31)), 0),
+    	p_context  				IN binary_integer DEFAULT FN_Scheduler_Context,
     	p_Start_Step 			IN binary_integer DEFAULT 1
     );
     PROCEDURE Refresh_MViews_Job (
     	p_Start_Step 	IN binary_integer DEFAULT 1,
-        p_context binary_integer DEFAULT NVL(MOD(NV('APP_SESSION'), POWER(2,31)), 0)		-- context is of type BINARY_INTEGER
+        p_context binary_integer DEFAULT FN_Scheduler_Context		-- context is of type BINARY_INTEGER
    	);
 	FUNCTION MViews_Stale_Count RETURN NUMBER;
     
@@ -125,7 +127,7 @@ create or replace PACKAGE custom_changelog_gen IS
     PROCEDURE   Add_ChangeLog_Table_Trigger(
 		p_Table_Name        IN VARCHAR2 DEFAULT NULL,
 		p_Trigger_Name 		IN VARCHAR2 DEFAULT NULL,
-    	p_context   		IN binary_integer DEFAULT NVL(MOD(NV('APP_SESSION'), POWER(2,31)), 0)
+    	p_context   		IN binary_integer DEFAULT FN_Scheduler_Context
 	);
     PROCEDURE Drop_ChangeLog_Table_Trigger (
         p_Table_Name        IN VARCHAR2 DEFAULT NULL,
@@ -137,7 +139,7 @@ create or replace PACKAGE custom_changelog_gen IS
     );
 	PROCEDURE Refresh_ChangeLog_Trigger (
 		p_Table_Name        IN VARCHAR2 DEFAULT NULL,
-    	p_context        	IN  binary_integer DEFAULT NVL(MOD(NV('APP_SESSION'), POWER(2,31)), 0)
+    	p_context        	IN  binary_integer DEFAULT FN_Scheduler_Context
 	);
 	FUNCTION Changelog_Is_Active( p_Table_Name VARCHAR2)
 	RETURN VARCHAR2;
@@ -167,14 +169,14 @@ create or replace PACKAGE custom_changelog_gen IS
 	) RETURN VARCHAR2;
     PROCEDURE Add_ChangeLog_Views (
         p_Table_Name        IN VARCHAR2 DEFAULT NULL,
-    	p_context   		IN binary_integer DEFAULT NVL(MOD(NV('APP_SESSION'), POWER(2,31)), 0)
+    	p_context   		IN binary_integer DEFAULT FN_Scheduler_Context
     );
     PROCEDURE Drop_ChangeLog_Views (
         p_Table_Name        IN VARCHAR2 DEFAULT NULL
     );
     
     PROCEDURE Prepare_Tables (
-    	p_context   IN binary_integer DEFAULT NVL(MOD(NV('APP_SESSION'), POWER(2,31)), 0)
+    	p_context   IN binary_integer DEFAULT FN_Scheduler_Context
     );
 END custom_changelog_gen;
 /

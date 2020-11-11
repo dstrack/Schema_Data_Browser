@@ -439,12 +439,6 @@ IS
     )
     RETURN VARCHAR2 DETERMINISTIC;
 
-	FUNCTION Is_DateTime_Column (
-        p_Column_Name VARCHAR2,
-        p_Data_Type VARCHAR2,
-        p_Datetime VARCHAR2 
-	) RETURN VARCHAR2 DETERMINISTIC;
-
     FUNCTION Get_ExportColFunction (
         p_Column_Name VARCHAR2,
         p_Data_Type VARCHAR2,
@@ -514,12 +508,10 @@ IS
         p_Data_Type VARCHAR2,
         p_Data_Precision NUMBER,
         p_Data_Scale NUMBER,
-        p_Char_Length NUMBER,
+        p_Format_Mask VARCHAR2,
         p_Use_Group_Separator VARCHAR2 DEFAULT 'N',
-        p_Datetime VARCHAR2 DEFAULT 'N', -- Y,N
         p_Compare_Case_Insensitive VARCHAR2 DEFAULT Do_Compare_Case_Insensitive
-    )
-    RETURN VARCHAR2;
+    ) RETURN VARCHAR2;
 	FUNCTION Get_Apex_Item_Limit RETURN PLS_INTEGER DETERMINISTIC;
 	FUNCTION Get_Collection_Columns_Limit RETURN PLS_INTEGER DETERMINISTIC;
 	FUNCTION Get_Edit_Columns_Limit RETURN PLS_INTEGER DETERMINISTIC;
@@ -3130,23 +3122,6 @@ $END
 			end;
 	END Get_Column_Expr_Type;
 
-	FUNCTION Is_DateTime_Column (
-        p_Column_Name VARCHAR2,
-        p_Data_Type VARCHAR2,
-        p_Datetime VARCHAR2 
-	) RETURN VARCHAR2 DETERMINISTIC
-    IS
-		v_Is_DateTime VARCHAR2(3) := NVL(p_Datetime, 'N');
-		v_Column_Name VARCHAR2(128);
-	BEGIN
-		if p_Data_Type = 'DATE' OR p_Data_Type LIKE 'TIMESTAMP%' 
-		and p_Datetime IS NULL then
-			v_Column_Name := SUBSTR(p_Column_Name, INSTR(p_Column_Name, '.') + 1);
-			v_Is_DateTime := SUBSTR(data_browser_conf.Match_DateTime_Columns(v_Column_Name), 1, 1);
-		end if;
-		RETURN v_Is_DateTime;
-	END Is_DateTime_Column;
-
     FUNCTION Get_ExportColFunction (
         p_Column_Name VARCHAR2,
         p_Data_Type VARCHAR2,
@@ -3409,12 +3384,10 @@ $END
         p_Data_Type VARCHAR2,
         p_Data_Precision NUMBER,
         p_Data_Scale NUMBER,
-        p_Char_Length NUMBER,
+        p_Format_Mask VARCHAR2,
         p_Use_Group_Separator VARCHAR2 DEFAULT 'N',
-        p_Datetime VARCHAR2 DEFAULT 'N', -- Y,N
         p_Compare_Case_Insensitive VARCHAR2 DEFAULT Do_Compare_Case_Insensitive
-    )
-    RETURN VARCHAR2
+    ) RETURN VARCHAR2
     IS
 		v_use_NLS_params 	CONSTANT VARCHAR2(1) := 'Y'; -- case when p_Data_Source = 'COLLECTION' then 'Y' else 'N' end
     BEGIN
@@ -3428,14 +3401,7 @@ $END
 						p_Element_Type	=> p_Element_Type,
 						p_Data_Source	=> p_Data_Source,
 						p_Data_Scale 	=> p_Data_Scale,
-						p_Format_Mask 	=> data_browser_conf.Get_Col_Format_Mask(
-							p_Data_Type 		=> p_Data_Type,
-							p_Data_Precision 	=> p_Data_Precision,
-							p_Data_Scale 		=> p_Data_Scale,
-							p_Char_Length 		=> p_Char_Length,
-							p_Use_Group_Separator => p_Use_Group_Separator,
-							p_Datetime			=> p_Datetime
-						),
+						p_Format_Mask 	=> p_Format_Mask,
 						p_Use_Group_Separator => p_Use_Group_Separator,
 						p_use_NLS_params => v_use_NLS_params
 					)

@@ -273,12 +273,6 @@ IS
 	);
 	TYPE tab_table_imp_fk IS TABLE OF rec_table_imp_fk;
 
-	FUNCTION Is_DateTime_Format (
-        p_Column_Name VARCHAR2,
-        p_Data_Type VARCHAR2,
-        p_Data_Format VARCHAR2
-	) RETURN VARCHAR2 DETERMINISTIC; -- Y / N
-
 	FUNCTION Date_Time_Required (
         p_Data_Type VARCHAR2,
         p_Data_Format VARCHAR2,

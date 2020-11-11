@@ -134,7 +134,9 @@ IS
 
      PROCEDURE Prepare_ChangeLog_Job (
     	p_context  	IN binary_integer DEFAULT FN_Scheduler_Context,
-    	p_App_ID	IN NUMBER DEFAULT  NV('APP_ID')
+    	p_App_ID	IN NUMBER DEFAULT  NV('APP_ID'),
+        p_page_id NUMBER DEFAULT NV('APP_PAGE_ID'),
+		p_username IN VARCHAR2 DEFAULT NVL(SYS_CONTEXT('APEX$SESSION','APP_USER'), SYS_CONTEXT('USERENV','SESSION_USER'))
     );
 
     PROCEDURE Refresh_After_DDL_Job(
@@ -916,7 +918,9 @@ $END
 
      PROCEDURE Prepare_ChangeLog_Job (
     	p_context  	IN binary_integer DEFAULT FN_Scheduler_Context,
-    	p_App_ID	IN NUMBER DEFAULT  NV('APP_ID')
+    	p_App_ID	IN NUMBER DEFAULT  NV('APP_ID'),
+        p_page_id NUMBER DEFAULT NV('APP_PAGE_ID'),
+		p_username IN VARCHAR2 DEFAULT NVL(SYS_CONTEXT('APEX$SESSION','APP_USER'), SYS_CONTEXT('USERENV','SESSION_USER'))
     )
 	IS
 		v_sql USER_SCHEDULER_JOBS.JOB_ACTION%TYPE;
@@ -929,6 +933,7 @@ $END
 
 		if v_Count > 0 then 
 			v_sql := 'begin ' || chr(10)
+				|| 'apex_session.create_session (p_app_id => '|| p_App_ID || ', p_page_id => '|| p_page_id ||', p_username => '|| DBMS_ASSERT.ENQUOTE_LITERAL(p_username) ||' );'
 				|| 'custom_changelog_gen.Prepare_Tables('
 				|| 'p_context=>'
 				|| DBMS_ASSERT.ENQUOTE_LITERAL(p_context)

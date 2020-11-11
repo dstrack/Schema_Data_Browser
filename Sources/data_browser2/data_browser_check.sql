@@ -57,11 +57,13 @@ AUTHID DEFINER -- problem - create_collection_from_query ParseErr:ORA-00942: Tab
 IS
 	g_use_exceptions CONSTANT BOOLEAN 		:= TRUE;
 
+	FUNCTION FN_Scheduler_Context RETURN BINARY_INTEGER;
+
 	PROCEDURE Load_Query_Generator (
 		p_View_Mode IN VARCHAR2 DEFAULT NULL,
 		p_Table_name IN VARCHAR2 DEFAULT NULL,
 		p_Schema   IN VARCHAR2 DEFAULT SYS_CONTEXT('USERENV', 'CURRENT_SCHEMA'),
-    	p_context  IN  binary_integer DEFAULT NVL(MOD(NV('APP_SESSION'), POWER(2,31)), 0)
+    	p_context  IN  binary_integer DEFAULT FN_Scheduler_Context
 	);
 
 	FUNCTION Next_GUI_Test_Case_ID (
@@ -118,11 +120,11 @@ IS
 		p_Execute_Queries IN VARCHAR2 DEFAULT 'NO',
 		p_Max_Errors IN INTEGER DEFAULT 1000,
 		p_Max_Loops IN INTEGER DEFAULT NULL,
-		p_app_id IN INTEGER DEFAULT NVL(V('APP_ID'), 2000),
+		p_app_id IN INTEGER DEFAULT NVL(NV('APP_ID'), 2000),
 		p_page_id IN INTEGER DEFAULT 30,
 		p_username IN VARCHAR2 DEFAULT NVL(SYS_CONTEXT('APEX$SESSION','APP_USER'), SYS_CONTEXT('USERENV','SESSION_USER')),
 		p_Schema   IN VARCHAR2 DEFAULT SYS_CONTEXT('USERENV', 'CURRENT_SCHEMA'),
-    	p_context  IN  binary_integer DEFAULT NVL(MOD(NV('APP_SESSION'), POWER(2,31)), 0)
+    	p_context  IN  binary_integer DEFAULT FN_Scheduler_Context
 	);
 
 	PROCEDURE Test_Import_Generator (
@@ -131,22 +133,22 @@ IS
 		p_Show_Loops IN VARCHAR2 DEFAULT 'NO',
 		p_Max_Errors IN INTEGER DEFAULT 1000,
 		p_Max_Loops IN INTEGER DEFAULT NULL,
-		p_app_id IN INTEGER DEFAULT NVL(V('APP_ID'), 2000),
+		p_app_id IN INTEGER DEFAULT NVL(NV('APP_ID'), 2000),
 		p_page_id IN INTEGER DEFAULT 30,
 		p_username IN VARCHAR2 DEFAULT NVL(SYS_CONTEXT('APEX$SESSION','APP_USER'), SYS_CONTEXT('USERENV','SESSION_USER')),
 		p_Schema   IN VARCHAR2 DEFAULT SYS_CONTEXT('USERENV', 'CURRENT_SCHEMA'),
-    	p_context  IN  binary_integer DEFAULT NVL(MOD(NV('APP_SESSION'), POWER(2,31)), 0)
+    	p_context  IN  binary_integer DEFAULT FN_Scheduler_Context
 	);
 
     PROCEDURE Load_Query_Generator_Job(
 		p_Enabled VARCHAR2 DEFAULT 'YES',
-    	p_context  IN  binary_integer DEFAULT NVL(MOD(NV('APP_SESSION'), POWER(2,31)), 0)
+    	p_context  IN  binary_integer DEFAULT FN_Scheduler_Context
 	);
 
     PROCEDURE Test_Query_Generator_Job(
 		p_Enabled VARCHAR2 DEFAULT 'YES',
-		p_app_id IN INTEGER DEFAULT NVL(V('APP_ID'), 2000),
-    	p_context  IN  binary_integer DEFAULT NVL(MOD(NV('APP_SESSION'), POWER(2,31)), 0)
+		p_app_id IN INTEGER DEFAULT NVL(NV('APP_ID'), 2000),
+    	p_context  IN  binary_integer DEFAULT FN_Scheduler_Context
 	);
 END data_browser_check;
 /
@@ -160,6 +162,11 @@ IS
 	g_Load_Query_Gen_Proc_Name CONSTANT VARCHAR2(128) := 'Load Query Generator test cases for data browser application';
 	g_Test_Query_Gen_Proc_Name CONSTANT VARCHAR2(128) := 'Test Query Generator for data browser application';
 	g_Test_Import_Gen_Proc_Name CONSTANT VARCHAR2(128) := 'Test Import Generator for data browser application';
+
+	FUNCTION FN_Scheduler_Context RETURN BINARY_INTEGER
+	IS 
+	BEGIN RETURN NVL(MOD(NV('APP_SESSION'), POWER(2,31)), 0);
+	END FN_Scheduler_Context;
 
 	FUNCTION Get_Stat (p_Stat IN VARCHAR2) RETURN NUMBER
 	as
@@ -244,7 +251,7 @@ $END
 		p_View_Mode IN VARCHAR2 DEFAULT NULL,
 		p_Table_name IN VARCHAR2 DEFAULT NULL,
 		p_Schema   IN VARCHAR2 DEFAULT SYS_CONTEXT('USERENV', 'CURRENT_SCHEMA'),
-    	p_context  IN  binary_integer DEFAULT NVL(MOD(NV('APP_SESSION'), POWER(2,31)), 0)
+    	p_context  IN  binary_integer DEFAULT FN_Scheduler_Context
 	)
 	is
 		CURSOR cur_outer_checks IS 
@@ -681,11 +688,11 @@ $END
 		p_Execute_Queries IN VARCHAR2 DEFAULT 'NO',
 		p_Max_Errors IN INTEGER DEFAULT 1000,
 		p_Max_Loops IN INTEGER DEFAULT NULL,
-		p_app_id IN INTEGER DEFAULT NVL(V('APP_ID'), 2000),
+		p_app_id IN INTEGER DEFAULT NVL(NV('APP_ID'), 2000),
 		p_page_id IN INTEGER DEFAULT 30,
 		p_username IN VARCHAR2 DEFAULT NVL(SYS_CONTEXT('APEX$SESSION','APP_USER'), SYS_CONTEXT('USERENV','SESSION_USER')),
 		p_Schema   IN VARCHAR2 DEFAULT SYS_CONTEXT('USERENV', 'CURRENT_SCHEMA'),
-    	p_context  IN  binary_integer DEFAULT NVL(MOD(NV('APP_SESSION'), POWER(2,31)), 0)
+    	p_context  IN  binary_integer DEFAULT FN_Scheduler_Context
 	)
 	IS
 		v_Stat CLOB;
@@ -1257,11 +1264,11 @@ $END
 		p_Show_Loops IN VARCHAR2 DEFAULT 'NO',
 		p_Max_Errors IN INTEGER DEFAULT 1000,
 		p_Max_Loops IN INTEGER DEFAULT NULL,
-		p_app_id IN INTEGER DEFAULT NVL(V('APP_ID'), 2000),
+		p_app_id IN INTEGER DEFAULT NVL(NV('APP_ID'), 2000),
 		p_page_id IN INTEGER DEFAULT 30,
 		p_username IN VARCHAR2 DEFAULT NVL(SYS_CONTEXT('APEX$SESSION','APP_USER'), SYS_CONTEXT('USERENV','SESSION_USER')),
 		p_Schema   IN VARCHAR2 DEFAULT SYS_CONTEXT('USERENV', 'CURRENT_SCHEMA'),
-    	p_context  IN  binary_integer DEFAULT NVL(MOD(NV('APP_SESSION'), POWER(2,31)), 0)
+    	p_context  IN  binary_integer DEFAULT FN_Scheduler_Context
 	)
 	IS
 		v_Query_Stat CLOB;
@@ -1706,7 +1713,7 @@ $END
 
     PROCEDURE Load_Query_Generator_Job(
 		p_Enabled VARCHAR2 DEFAULT 'YES',
-    	p_context  IN  binary_integer DEFAULT NVL(MOD(NV('APP_SESSION'), POWER(2,31)), 0)
+    	p_context  IN  binary_integer DEFAULT FN_Scheduler_Context
 	)
 	IS
 		v_sql USER_SCHEDULER_JOBS.JOB_ACTION%TYPE;
@@ -1724,14 +1731,14 @@ $END
 
     PROCEDURE Test_Query_Generator_Job(
 		p_Enabled VARCHAR2 DEFAULT 'YES',
-		p_app_id IN INTEGER DEFAULT NVL(V('APP_ID'), 2000),
-    	p_context  IN  binary_integer DEFAULT NVL(MOD(NV('APP_SESSION'), POWER(2,31)), 0)
+		p_app_id IN INTEGER DEFAULT NVL(NV('APP_ID'), 2000),
+    	p_context  IN  binary_integer DEFAULT FN_Scheduler_Context
 	)
 	IS
 		v_sql USER_SCHEDULER_JOBS.JOB_ACTION%TYPE;
 	BEGIN
 		v_sql   := 'begin data_browser_check.Test_Query_Generator(p_Max_Errors => 1000, p_Max_Loops => 5000'
-			|| ',p_Execute_Queries=>' || DBMS_ASSERT.ENQUOTE_LITERAL('YES')
+			|| ',p_Execute_Queries=>' || DBMS_ASSERT.ENQUOTE_LITERAL('NO')
 			|| ',p_context=>' || DBMS_ASSERT.ENQUOTE_LITERAL(p_context)
 			|| ',p_app_id=>' || p_app_id
 			|| '); end;';
