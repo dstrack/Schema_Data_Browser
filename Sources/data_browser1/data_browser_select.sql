@@ -433,7 +433,7 @@ is
 				FROM ( -- counter column for each foreign key referencing the current row.
 					SELECT --+ INDEX(S) USE_NL_WITH_INDEX(A)
 						DENSE_RANK() OVER (PARTITION BY E.R_VIEW_NAME ORDER BY E.TABLE_NAME, E.COLUMN_NAME) POSITION,
-						data_browser_conf.Reference_Column_Header (
+						data_browser_select.Reference_Column_Header (
 							p_Column_Name => E.COLUMN_NAME,
 							p_Remove_Prefix => S.COLUMN_PREFIX,
 							p_View_Name => E.VIEW_NAME,
@@ -539,7 +539,7 @@ is
                    SELECT 
 						DENSE_RANK() OVER (PARTITION BY E.R_VIEW_NAME ORDER BY E.TABLE_NAME, E.COLUMN_NAME) POSITION,
 						DENSE_RANK() OVER (PARTITION BY E.VIEW_NAME, A.COLUMN_NAME ORDER BY E.TABLE_ALIAS) RANKING,
-						data_browser_conf.Reference_Column_Header (
+						data_browser_select.Reference_Column_Header (
 							p_Column_Name => E.COLUMN_NAME,
 							p_Remove_Prefix => S.COLUMN_PREFIX,
 							p_View_Name => E.VIEW_NAME,
@@ -700,7 +700,7 @@ is
 				FROM (
 					SELECT --+ INDEX(S) USE_NL_WITH_INDEX(A)
 						DENSE_RANK() OVER (PARTITION BY E.R_VIEW_NAME ORDER BY E.TABLE_NAME, E.COLUMN_NAME) POSITION,
-						data_browser_conf.Reference_Column_Header (
+						data_browser_select.Reference_Column_Header (
 							p_Column_Name => E.COLUMN_NAME,
 							p_Remove_Prefix => S.COLUMN_PREFIX,
 							p_View_Name => E.VIEW_NAME,
@@ -1404,6 +1404,34 @@ is
 	BEGIN
 		RETURN case when p_Data_Type LIKE 'TIMESTAMP%' and p_Data_Format IN ('FORM', 'QUERY') then 'Y' else p_Datetime end;
 	END Date_Time_Required;
+
+    FUNCTION Reference_Column_Header (
+    	p_Column_Name VARCHAR2,
+    	p_Remove_Prefix VARCHAR2,
+    	p_View_Name VARCHAR2,
+    	p_R_View_Name VARCHAR2
+    ) RETURN VARCHAR2 DETERMINISTIC
+    IS
+	PRAGMA UDF;
+		v_Column_Name VARCHAR2(128) := data_browser_conf.Normalize_Column_Name(p_Column_Name => p_Column_Name, p_Remove_Prefix => p_Remove_Prefix);
+		v_View_Name VARCHAR2(128) := data_browser_conf.Normalize_Table_Name(p_Table_Name => p_View_Name);
+		v_R_View_Name VARCHAR2(128) := data_browser_conf.Normalize_Table_Name(p_Table_Name => p_R_View_Name);
+	BEGIN
+		RETURN data_browser_conf.Table_Name_To_Header(
+			case when INSTR(v_R_View_Name, SUBSTR(v_View_Name, 1, INSTR(v_View_Name, '_') - 1)) > 0 --  Detail table name starts with master table name
+				then SUBSTR(v_View_Name, INSTR(v_View_Name, '_') + 1) 	-- Remove master table name from detail table name
+				else v_View_Name										-- detail table name
+			end
+		)
+		|| case when INSTR(v_R_View_Name, v_Column_Name) = 0
+			then ' - ' || data_browser_conf.Column_Name_to_Header(
+							p_Column_Name => p_Column_Name, 
+							p_Remove_Extension => 'YES', 
+							p_Remove_Prefix => p_Remove_Prefix,
+							p_Is_Upper_Name => data_browser_pattern.Match_Upper_Names_Columns(p_Column_Name)
+						)
+		end;
+	END Reference_Column_Header;
 
     FUNCTION Get_ConversionColFunction (
         p_Column_Name VARCHAR2,

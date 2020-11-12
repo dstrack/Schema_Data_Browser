@@ -410,13 +410,6 @@ IS
     	p_Max_Length NUMBER DEFAULT 30
     ) RETURN VARCHAR2 DETERMINISTIC;
 
-    FUNCTION Reference_Column_Header (
-    	p_Column_Name VARCHAR2,
-    	p_Remove_Prefix VARCHAR2,
-    	p_View_Name VARCHAR2,
-    	p_R_View_Name VARCHAR2
-    ) RETURN VARCHAR2 DETERMINISTIC;
-
 	FUNCTION Get_Name_Part (
 		p_Name IN VARCHAR2,
 		p_Part IN NUMBER
@@ -2978,34 +2971,6 @@ $END
 			p_Max_Length => p_Max_Length
 		);
     END Compose_FK_Column_Table_Name;
-
-    FUNCTION Reference_Column_Header (
-    	p_Column_Name VARCHAR2,
-    	p_Remove_Prefix VARCHAR2,
-    	p_View_Name VARCHAR2,
-    	p_R_View_Name VARCHAR2
-    ) RETURN VARCHAR2 DETERMINISTIC
-    IS
-	PRAGMA UDF;
-		v_Column_Name VARCHAR2(128) := data_browser_conf.Normalize_Column_Name(p_Column_Name => p_Column_Name, p_Remove_Prefix => p_Remove_Prefix);
-		v_View_Name VARCHAR2(128) := data_browser_conf.Normalize_Table_Name(p_Table_Name => p_View_Name);
-		v_R_View_Name VARCHAR2(128) := data_browser_conf.Normalize_Table_Name(p_Table_Name => p_R_View_Name);
-	BEGIN
-		RETURN data_browser_conf.Table_Name_To_Header(
-			case when INSTR(v_R_View_Name, SUBSTR(v_View_Name, 1, INSTR(v_View_Name, '_') - 1)) > 0 --  Detail table name starts with master table name
-				then SUBSTR(v_View_Name, INSTR(v_View_Name, '_') + 1) 	-- Remove master table name from detail table name
-				else v_View_Name										-- detail table name
-			end
-		)
-		|| case when INSTR(v_R_View_Name, v_Column_Name) = 0
-			then ' - ' || data_browser_conf.Column_Name_to_Header(
-							p_Column_Name => p_Column_Name, 
-							p_Remove_Extension => 'YES', 
-							p_Remove_Prefix => p_Remove_Prefix,
-							p_Is_Upper_Name => data_browser_pattern.Match_Upper_Names_Columns(p_Column_Name)
-						)
-		end;
-	END Reference_Column_Header;
 
 	FUNCTION Get_Name_Part (
 		p_Name IN VARCHAR2,

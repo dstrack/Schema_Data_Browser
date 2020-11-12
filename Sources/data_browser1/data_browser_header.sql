@@ -279,6 +279,13 @@ IS
         p_Datetime VARCHAR2 DEFAULT NULL
     ) RETURN VARCHAR2 DETERMINISTIC; -- Y / N
 
+    FUNCTION Reference_Column_Header (
+    	p_Column_Name VARCHAR2,
+    	p_Remove_Prefix VARCHAR2,
+    	p_View_Name VARCHAR2,
+    	p_R_View_Name VARCHAR2
+    ) RETURN VARCHAR2 DETERMINISTIC;
+
     FUNCTION Get_ConversionColFunction (
         p_Column_Name VARCHAR2,
         p_Data_Type VARCHAR2,
