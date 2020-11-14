@@ -167,7 +167,11 @@ IS
 	TYPE rec_Accessible_Schema IS RECORD (
 		SCHEMA_NAME VARCHAR2(128),
 		APP_VERSION_NUMBER VARCHAR2(64),
-		USER_ACCESS_LEVEL NUMBER
+		SPACE_USED_BYTES NUMBER,
+		USER_ACCESS_LEVEL NUMBER,
+		SCHEMA_ICON VARCHAR2(2000),
+		DESCRIPTION VARCHAR2(2000),
+		CONFIGURATION_NAME VARCHAR2(128)
 	);
 	TYPE tab_Accessible_Schema IS TABLE OF rec_Accessible_Schema;
 
@@ -1141,7 +1145,10 @@ IS
 	BEGIN
 		for c_cur in (
 			select distinct /*+ RESULT_CACHE */ 
-				B.owner           
+				B.owner,
+				case when B.owner = SYS_CONTEXT('USERENV', 'CURRENT_SCHEMA') then 
+					(SELECT SUM(A.BYTES) FROM sys.USER_SEGMENTS A) 
+				end USED_BYTES
 			from APEX_WORKSPACE_SCHEMAS S
 			join APEX_APPLICATIONS APP on S.WORKSPACE_NAME = APP.WORKSPACE
 			join sys.ALL_TABLES B on S.SCHEMA = B.owner and B.table_name = 'DATA_BROWSER_CONFIG'
@@ -1154,7 +1161,9 @@ IS
 				chr(10)||'union all ' 
 			end         
 			|| 'select /*+ RESULT_CACHE */ ' || dbms_assert.enquote_literal(c_cur.owner) 
-			|| ' SCHEMA_NAME, A.APP_VERSION_NUMBER, B.USER_LEVEL' || chr(10)
+			|| ' SCHEMA_NAME, A.APP_VERSION_NUMBER, '
+			||  dbms_assert.enquote_literal(c_cur.USED_BYTES) || ' SPACE_USED_BYTES, B.USER_LEVEL,'
+			||  'A.SCHEMA_ICON, A.DESCRIPTION, A.CONFIGURATION_NAME' || chr(10)
 			|| 'from ' || c_cur.owner || '.DATA_BROWSER_CONFIG A, ' || c_cur.owner || '.APP_USERS B, param P'|| chr(10)
 			|| 'where A.ID = 1 and B.UPPER_LOGIN_NAME = P.LOGIN_NAME';
 		end loop;

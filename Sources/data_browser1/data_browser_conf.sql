@@ -4020,4 +4020,6 @@ END data_browser_conf;
 /
 show errors
 
+-- make table visible in view SYS.ALL_TABLES
+grant select on DATA_BROWSER_CONFIG to PUBLIC;
 

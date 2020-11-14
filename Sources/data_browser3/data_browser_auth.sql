@@ -512,11 +512,14 @@ $END
     IS
         v_id   		V_CONTEXT_USERS.USER_ID%TYPE;
     	v_Data		V_CONTEXT_USERS.Password_Hash%TYPE;
+    	v_Username	V_CONTEXT_USERS.Login_Name%TYPE;
+    	v_EMail 	V_CONTEXT_USERS.Email_Address%TYPE;
     BEGIN
-
+    	v_Username := UPPER(TRIM(p_Username));
+		v_EMail := NVL(p_Email, APEX_UTIL.GET_EMAIL(v_Username));
     	SELECT MAX(USER_ID)
     	INTO v_id
-    	FROM V_CONTEXT_USERS WHERE UPPER_LOGIN_NAME = UPPER(TRIM(p_Username));
+    	FROM V_CONTEXT_USERS WHERE UPPER_LOGIN_NAME = v_Username;
     	if v_id IS NULL then
 			execute immediate 'begin :new_id := ' || g_NewUserIDFunction || '; end;' using out v_id;
 			v_Data := hex_hash(v_id, p_Password);
@@ -572,12 +575,13 @@ $END
 				);
 			end;
 		end if;
-	END;
+	END Add_Admin;
 
 	PROCEDURE Add_Developers
 	IS
 	BEGIN
-		custom_changelog.set_current_workspace(SYS_CONTEXT('USERENV', 'CURRENT_SCHEMA'));
+		-- can not be called in installer
+		--custom_changelog.set_current_workspace(SYS_CONTEXT('USERENV', 'CURRENT_SCHEMA'));
 
 		INSERT INTO V_CONTEXT_USERS (Login_Name, First_Name, Last_Name, EMail_Address, User_Level)
 		select D.USER_NAME, D.FIRST_NAME, D.LAST_NAME, D.EMAIL,
@@ -593,7 +597,7 @@ $END
 			WHERE U.UPPER_LOGIN_NAME = D.USER_NAME
 		);
 		commit;
-	END;
+	END Add_Developers;
 
 	PROCEDURE First_Run (
 		p_Admin_User VARCHAR2 DEFAULT SYS_CONTEXT('APEX$SESSION','APP_USER'),
@@ -630,6 +634,9 @@ $END
 					p_User_level => 1,
 					p_Password_Reset => 'N'
 				);
+			end if;
+			select count(*) into v_Count from V_CONTEXT_USERS where UPPER_LOGIN_NAME = 'GUEST';
+			if v_Count = 0 then 
 				data_browser_auth.Add_User(
 					p_Username => 'Guest',
 					p_Password => 'Guess/2945',
@@ -638,7 +645,7 @@ $END
 				);
 			end if;
 		end if;
-	end;
+	end First_Run;
 
 	-- validate browser session cookie, replace zero session with cookie session
 	-- called in apex custom authorization schema
@@ -753,7 +760,7 @@ $END
 		else -- Direct connection over tcp/ip network
 			return SUBSTR(SYS_CONTEXT ('USERENV', 'IP_ADDRESS'), 1, 255);
 		end if;
-	END;
+	END client_ip_address;
 
 	-- Verify Function Name : quick check for valid session
 	FUNCTION check_session_schema RETURN BOOLEAN
@@ -817,7 +824,7 @@ $END
 			apex_util.set_session_state(p_name => 'FSP_AFTER_LOGIN_URL',p_value => v_redirect_url);
         end if;
 
-	END;
+	END post_authenticate;
 
 	-- weco_ctx.strong_password_check (:P9_CURR_USER, :P9_NEW_PW, :P9_PW);
 
@@ -907,7 +914,7 @@ $END
 		  v_result := v_result || ' ' || APEX_LANG.LANG('Password can not be reused.');
 	  END IF;
 	  return v_result;
-	END;
+	END strong_password_check;
 
 -- change password in custom user table for <p_Username>. New password is <p_Password>
 	PROCEDURE change_password(
@@ -922,7 +929,7 @@ $END
 			Account_Expiration_Date = case when Password_Reset = 'Y' then NULL else Account_Expiration_Date end,
 			LAST_LOGIN_DATE = SYSDATE
 		WHERE UPPER_LOGIN_NAME = UPPER(TRIM(p_Username));
-	END;
+	END change_password;
 
 	-- change password of apex account for <p_Username>. New password is <p_Password>
 	PROCEDURE change_apex_password(
@@ -931,7 +938,7 @@ $END
 	IS
 	BEGIN
 		APEX_UTIL.CHANGE_CURRENT_USER_PW (p_Password);
-	END;
+	END change_apex_password;
 
 	-- post_logout called in apex custom authorization schema
 	PROCEDURE post_logout
@@ -940,7 +947,7 @@ $END
       v_Message	VARCHAR2(300) := 'Logout';
 	BEGIN
 		log_message(v_Message, v_User);
-	END;
+	END post_logout;
 
 END data_browser_auth;
 /
@@ -967,6 +974,7 @@ END;
 end;
 /
 
+grant select on APP_USERS to PUBLIC;
 
 /*
 

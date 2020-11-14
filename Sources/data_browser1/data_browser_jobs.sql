@@ -943,6 +943,7 @@ $END
 				|| ', p_context=>'
 				|| DBMS_ASSERT.ENQUOTE_LITERAL(p_context)
 				|| ');' || chr(10)
+				|| 'apex_session.delete_session;' || chr(10)
 				||' end;';
 			data_browser_jobs.Load_Job(
 				p_Job_Name => 'PT_CHANGELOG',

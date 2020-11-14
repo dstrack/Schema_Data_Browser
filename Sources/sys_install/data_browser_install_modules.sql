@@ -3,6 +3,7 @@ prompt Installing Data Browser App from Strack Software Development
 prompt ============================================================
 @~/projekte/strack_software/strack-software-delete-check-plugin/delete_check_plsql_code.sql
 @~/projekte/strack_software/strack-software-upload-to-collection-plugin/upload_to_collection_plsql_code.sql
+@~/projekte/strack_software/strack-software-upload-to-collection-plugin/v_apex_collections.sql
 @~/Projekte/strack_software/strack-software-unzip-parallel-plugin/as_zip.sql
 @~/projekte/strack_software/strack-software-unzip-parallel-plugin/unzip_parallel.sql
 
@@ -45,6 +46,7 @@ prompt ============================================================
 
 @@data_browser3/app_users_tables.sql
 @@data_browser3/data_browser_auth.sql
+@@data_browser3/data_browser_demo_users.sql
 @@data_browser3/data_browser_login.sql
 @@data_browser3/import_utl_tables.sql
 @@data_browser3/import_utl_head.sql
