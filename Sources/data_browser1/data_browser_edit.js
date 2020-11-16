@@ -170,36 +170,31 @@ function scroll_DetailViewsList() {
     $('div#RIGHT_CONTAINER div.t-Region-body').scrollTop(xtop-150);
 }
 
-function check_form_validations(p_table_name, p_data_source)
-{
-    function Async_get_Message() {
-        var gh = p;
-        if (gh.readyState == 4) {
-            var msg_array = gh.responseText.split('\n');
-            msg_array.forEach(function (item, index) {
-                var line_array = item.split('\t');
-                var field_id = line_array[0];
-                var message_text = line_array[1];
-                if (typeof field_id !== 'undefined' && field_id.length > 0) {
-                    var element = $('div#TABLE_DATA_VIEW :input#' + field_id);
-                    if (element) {
-                        $(element).addClass('apex-tabular-form-error');
-                        $(element).parent().find('span.t-Form-error').remove();
-                        $(element).after('<span class="t-Form-error" style="white-space: normal;">'+message_text+'</span>');
-                    }
-                }
-            })
-        }
+function check_form_validations(p_table_name, p_data_source) {
+  apex.server.process(
+    'Form_Validation_Process',
+    {x01: p_table_name,
+     x02: p_data_source},  
+    {
+      success: function (pData) {
+		var msg_array = pData.split('\n');
+		msg_array.forEach(function (item, index) {
+			var line_array = item.split('\t');
+			var field_id = line_array[0];
+			var message_text = line_array[1];
+			if (typeof field_id !== 'undefined' && field_id.length > 0) {
+				var element = $('div#TABLE_DATA_VIEW :input#' + field_id);
+				if (element) {
+					$(element).addClass('apex-tabular-form-error');
+					$(element).parent().find('span.t-Form-error').remove();
+					$(element).after('<span class="t-Form-error" style="white-space: normal;">'+message_text+'</span>');
+				}
+			}
+		})
+      },
+      dataType: "text"
     }
-    var page_id = $v('pFlowStepId');
-    p_data_source = typeof p_data_source !== 'undefined' ? p_data_source : 'TABLE';
-    if (p_table_name.length > 0) {
-        var get = new htmldb_Get(null,$v('pFlowId'),'APPLICATION_PROCESS=Form_Validation_Process',0);
-        get.add('APP_PRO_TABLE_NAME', p_table_name);
-        get.add('APP_PRO_DATA_SOURCE', p_data_source);
-        get.GetAsync(Async_get_Message); 
-    }
-    return true;
+  );
 }
 
 function check_required_event(element) {
@@ -221,21 +216,31 @@ function check_required_event(element) {
 function check_range_event(element, p_table_name) {
     function validate_form_checks(p_Column_Name, p_Column_Value, p_Key_Value)
     {
-        function Async_get_Message() {
-            function get_responseItemValue(p, index) {
-                if (p.responseXML) {
-                    var node = p.responseXML.getElementsByTagName("item")[index];
-                    if (node && node.firstChild) {
-                        return node.firstChild.nodeValue;
-                    }
-                }
-                return '';
-            }
-            var gh = p;
-            if (gh.readyState == 4) {
-                var l_Message = get_responseItemValue(gh, 0);
+		function get_responseItemValue(p, index) {
+			if (p.childNodes) {
+				var node = p.childNodes[index];
+				if (node && node.firstChild) {
+					return node.firstChild.textContent;
+				}
+			}
+			return '';
+		}
+        var page_id = $v('pFlowStepId');
+        var v_table_name = typeof p_table_name !== 'undefined' ? p_table_name : $v('P'+page_id+'_TABLE_NAME');
+        if (p_Column_Value.length > 0 && v_table_name.length > 0) {
+            console.log('checking ' + v_table_name + '.' + p_Column_Name + ' : ' + p_Column_Value + ', Key_Value : ' + p_Key_Value);
+            apex.server.process(
+            'Form_Checks_Process',
+            {x01: v_table_name,
+            x02: p_Column_Name,
+            x03: p_Column_Value,
+            x04: '',
+            x05: p_Key_Value,
+            x06: ''},
+			{
+			  success: function (pData) {
+                var l_Message = get_responseItemValue(pData, 0);
                 if (l_Message.length > 0) {
-                    // alert(l_Message); 
                     $(element).addClass('apex-tabular-form-error');
                     $(element.parentNode).find('span.t-Form-error').remove();
                     $(element).after('<span class="t-Form-error" style="white-space: normal;">'+l_Message+'</span>');
@@ -245,18 +250,9 @@ function check_range_event(element, p_table_name) {
                     $(element.parentNode).find('span.t-Form-error').remove();
                     return true;
                 }
-            }
-        }
-        var page_id = $v('pFlowStepId');
-        var v_table_name = typeof p_table_name !== 'undefined' ? p_table_name : $v('P'+page_id+'_TABLE_NAME');
-        if (p_Column_Value.length > 0 && v_table_name.length > 0) {
-            var get = new htmldb_Get(null,$v('pFlowId'),'APPLICATION_PROCESS=Form_Checks_Process',0);
-            get.add('APP_PRO_TABLE_NAME', v_table_name);
-            get.add('APP_PRO_COLUMN_NAME', p_Column_Name);
-            get.add('APP_PRO_COLUMN_VALUE', p_Column_Value);
-            get.add('APP_PRO_KEY_VALUE', p_Key_Value);
-            console.log('checking ' + v_table_name + '.' + p_Column_Name + ' : ' + p_Column_Value + ', Key_Value : ' + p_Key_Value);
-            get.GetAsync(Async_get_Message); 
+			  },
+			  dataType: "xml"
+			});
         }
     }
 	// find row selector 
@@ -273,7 +269,6 @@ function check_range_event(element, p_table_name) {
 
     validate_form_checks(column_name, column_value, key_value);
 }
-
 
 function adjustTreeHeight() {
     // dynamic resize for the tree region 
