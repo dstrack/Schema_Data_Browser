@@ -24,7 +24,7 @@ Application to analyse your DB and APEX Applications
 3. Installation OF Sys components for schema management (optional)
 	
 -- In a shared server environment
-	If you use the app with 'APEX Authorization' in a schema, this step may be omitted.
+	If you have to use the app with 'APEX Authorization', this step is omitted.
 
 -- in the Oracle ATP cloud
 	cd Schema_Browser_Release 
@@ -40,7 +40,9 @@ Application to analyse your DB and APEX Applications
 
 	-- The procedure data_browser_schema.Add_Apex_Workspace_Schema can be innovated repeatedly, 
 	-- to prepare additional schemas. The installation of the Supporting Objects
-	-- must then be done manually in the Apex Workspace for these schemas.	exit
+	-- must then be done manually in the Apex Workspace for these schemas.	
+	
+	exit
 	
 -- in an on premise DB
 	cd Schema_Browser_Release 
@@ -52,7 +54,7 @@ Application to analyse your DB and APEX Applications
 	@custom_ctx.sql
 	@data_browser_schema_sys_package.sql
 	@data_browser_sys_add_schema.sql -- the first schema_name in the Oracle ATP cloud is the workspace_name.
-									 -- Later, more can be added by button on the homepage.
+					-- Later, more can be added by button on the homepage.
 	exit
 
 ## Import and install the APEX Application.
@@ -72,24 +74,24 @@ Application to analyse your DB and APEX Applications
 	Other authorized users are entered in the App_Users table.
 	The other fields can remain empty for now.
 
-2. Verwendung der APEX Authorisation
+2. When using APEX Authorisation
 	In shared server environments where no additional permissions are available,
 	this functional reduced version must be used.
 
 2.1. Upload file **Data_Browser_Apex_App.sql**.
 	Supporting Objects : Yes 
 	
-	The installation takes about 2 minutes locally, Oracle Cloud about 7 minutes.
+	The installation takes about 2 minutes locally, Oracle Cloud about 3 minutes.
 
 3. Trial period / license
-	Without a license, the program runs for 3 months in full functionality and then switches to a read only mode.
+	Without a license, the program runs for 2 months in full functionality and then switches to a read only mode.
 	The remaining probationary period will be displayed on the homepage at the bottom.
 	If you like the program, you can order a license from Strack.Software@t-online.de before the trial expires.
 
 ## Configuration
 1. Settings menu
-	If the homepage is now logged in, it is recommended using the Settings menu
-	Enter global rules for naming conventions as search engines in the appropriate cells.
+	After login as an Admin you can use the the Settings menu to configure your schema.
+	Enter global rules for naming conventions as search pattern in the appropriate cells.
 	Often lists of LIKE patterns are available as default values. The fields have help texts which inform you about the meaning.
 	Saving the settings triggers jobs that update a data dictionary of the app.
 	Then select a typical spreadsheet and see if the rules grab the expected fields.
@@ -97,13 +99,13 @@ Application to analyse your DB and APEX Applications
 
 2. Manage schema
 	The Manage Schema page manages the always-visible columns for labels, navigation links, and LOVs.
-	With the definition of field lists of natural unique keys, the automatic key lookup for imports
+	With the definition of field lists for natural unique keys, the automatic key lookup for imports
 	but also the uniqueness of all displayed labels guaranteed.
 
 3. Client App
 	In some projects, the app can be combined as a backstage for data maintenance and a hard-coded Apex app as a specialized application.
-	A client app can be listed in the homepage if this is accessible via the access control settings
-	is selected as a customer application. The app can be selected if it is previously installed in the same scheme.
+	A client app can be listed in the homepage. In the menu Settings / Edit Settings, region 'Access Control' you can
+	select as a customer application. The app can be selected if it is previously installed in the same scheme.
 
 4. Data Reporter App
 	After installing the Data Reporter App, the Data Browser Supporting Objects must be reinstalled,
