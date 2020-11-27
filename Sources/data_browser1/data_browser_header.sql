@@ -217,12 +217,6 @@ IS
     g_q_ref_cols_tab		data_browser_select.tab_data_browser_q_refs;
 	g_q_ref_cols_md5 		VARCHAR2(300) := 'X';
 
-	FUNCTION FN_Pipe_browser_q_refs_flat (
-		p_View_Name VARCHAR2, 
-		p_Data_Format VARCHAR2 DEFAULT 'FORM', 
-		p_Include_Schema VARCHAR2 DEFAULT data_browser_conf.Get_Include_Query_Schema
-	) RETURN data_browser_select.tab_data_browser_q_refs PIPELINED;
-
 	FUNCTION FN_Pipe_browser_q_refs (
 		p_View_Name VARCHAR2, 
 		p_Data_Format VARCHAR2 DEFAULT 'FORM', 
@@ -1242,7 +1236,7 @@ IS
 		-- dependent on table name and view mode --
     	p_Order_by IN OUT VARCHAR2,					-- Example : NAME
     	p_Order_Direction IN OUT VARCHAR2,			-- Example : 'ASC' or 'ASC NULLS LAST' or 'DESC' or 'DESC NULLS LAST'
-		p_Join_Options IN OUT VARCHAR2,				-- YES, NO
+		p_Join_Options IN OUT VARCHAR2,				-- Example : B;K:C;K:C_B;K:C_C;K:D;K
 		p_Rows IN OUT NUMBER,						-- 10, 20, 30...
 		p_Columns_Limit IN OUT NUMBER,
 		p_Select_Columns IN OUT VARCHAR2,
@@ -1258,7 +1252,7 @@ IS
 		p_View_Mode 		IN VARCHAR2,		-- FORM_VIEW, RECORD_VIEW, NAVIGATION_VIEW, NESTED_VIEW, IMPORT_VIEW, EXPORT_VIEW
     	p_Order_by 			IN VARCHAR2,		-- Example : NAME
     	p_Order_Direction 	IN VARCHAR2,		-- Example : 'ASC' or 'ASC NULLS LAST' or 'DESC' or 'DESC NULLS LAST'
-		p_Join_Options 		IN VARCHAR2,		-- YES, NO
+		p_Join_Options 		IN VARCHAR2,		-- Example : B;K:C;K:C_B;K:C_C;K:D;K
 		p_Rows 				IN NUMBER,			-- 10, 20, 30...
 		p_Select_Columns 	IN VARCHAR2,
 		p_Control_Break 	IN VARCHAR2,
@@ -1975,6 +1969,7 @@ IS
     	p_Unique_Key_Column VARCHAR2,
 		p_Row_Operation VARCHAR2,				-- DUPLICATE, COPY_ROWS, MERGE_ROWS
     	p_Select_Columns VARCHAR2 DEFAULT NULL,	
+    	p_Join_Options VARCHAR2 DEFAULT NULL,
 		p_Columns_Limit IN NUMBER,
 		p_View_Mode IN VARCHAR2,
     	p_Data_Source VARCHAR2 DEFAULT 'TABLE',	-- NEW_ROWS, TABLE, COLLECTION, MEMORY.

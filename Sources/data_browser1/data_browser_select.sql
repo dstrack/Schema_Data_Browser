@@ -934,8 +934,8 @@ is
 					end COLUMN_HEADER,
 					S.COLUMN_PREFIX,
 					case 
-					when T.IS_VIRTUAL_COLUMN ='Y' then 
-						T.DATA_DEFAULT
+					--when T.IS_VIRTUAL_COLUMN ='Y' then -- calculated cols must me formated
+					--	T.DATA_DEFAULT
 					when T.IS_OBFUSCATED = 'Y' then
 						data_browser_conf.Get_Obfuscate_Call('A.' || T.COLUMN_NAME)
 					when T.IS_PRIMARY_KEY = 'Y' 		-- primary key shouldn´t be a input field
@@ -1694,201 +1694,7 @@ is
 		END LOOP;
 		CLOSE keys_cur;
 	END FN_Pipe_browser_fc_refs;
-
-	/*
-	List of displayed column names for each user table foreign key target tables.
-	The columns names match a pattern in the list of g_Display_Columns_Pattern 
-	or the column names are members of unique key definitions
-	or the column names are displayed columns of second level foreign keys of composite primary keys.
-	*/
-	FUNCTION FN_Pipe_browser_q_refs_flat (
-		p_View_Name VARCHAR2, 
-		p_Data_Format VARCHAR2 DEFAULT 'FORM', 
-		p_Include_Schema VARCHAR2 DEFAULT data_browser_conf.Get_Include_Query_Schema
-	) RETURN data_browser_select.tab_data_browser_q_refs PIPELINED
-	IS
-        CURSOR keys_cur (v_View_Name VARCHAR2, v_Data_Format VARCHAR2, v_Include_Schema VARCHAR2)
-        IS -- find qualified unique key for target table of foreign key reference
-		WITH FOREIGN_KEY_PARENTS AS (
-			-- For each foreign key column of a table x a list of candidate parent keys source columns from 
-			-- the same table x is calculated. Used to restrict LOV Lists';
-			SELECT VIEW_NAME, COLUMN_NAME, R_VIEW_NAME, CONSTRAINT_NAME, DELETE_RULE, FK_NULLABLE,
-				R_VIEW_NAME2, FILTER_KEY_COLUMN, R_CONSTRAINT_NAME2, R_DELETE_RULE2, R_NULLABLE2,
-				VIEW_NAME2, PARENT_KEY_COLUMN, PARENT_DELETE_RULE, PARENT_NULLABLE
-			FROM (
-				SELECT E.VIEW_NAME, E.FOREIGN_KEY_COLS COLUMN_NAME, E.R_VIEW_NAME, E.CONSTRAINT_NAME, E.DELETE_RULE, E.FK_NULLABLE,
-					F.R_VIEW_NAME2, F.FILTER_KEY_COLUMN, F.R_CONSTRAINT_NAME2, F.R_DELETE_RULE2, F.R_NULLABLE2,
-					F.VIEW_NAME2, F.PARENT_KEY_COLUMN, F.PARENT_DELETE_RULE, F.PARENT_NULLABLE
-				FROM MVDATA_BROWSER_FKEYS E, (
-					SELECT F.VIEW_NAME R_VIEW_NAME, 
-						F.FOREIGN_KEY_COLS FILTER_KEY_COLUMN, 
-						F.R_VIEW_NAME R_VIEW_NAME2, 
-						F.CONSTRAINT_NAME R_CONSTRAINT_NAME2, 
-						F.DELETE_RULE R_DELETE_RULE2, 
-						F.FK_NULLABLE R_NULLABLE2,
-						G.VIEW_NAME VIEW_NAME2, 
-						G.FOREIGN_KEY_COLS PARENT_KEY_COLUMN, 
-						G.CONSTRAINT_NAME PARENT_CONSTRAINT_NAME, 
-						G.DELETE_RULE PARENT_DELETE_RULE, 
-						G.FK_NULLABLE PARENT_NULLABLE
-					FROM MVDATA_BROWSER_FKEYS F, MVDATA_BROWSER_FKEYS G 
-					WHERE G.R_VIEW_NAME = F.R_VIEW_NAME AND G.OWNER = F.OWNER -- back reference to base view 
-					AND F.VIEW_NAME != G.VIEW_NAME -- no recursive relations (parent_id)
-				) F 
-				WHERE E.R_VIEW_NAME = F.R_VIEW_NAME (+) AND E.VIEW_NAME = F.VIEW_NAME2 (+)
-			)
-			WHERE R_DELETE_RULE2 = 'CASCADE' AND R_NULLABLE2 = 'N' -- referenced table is container 
-			AND PARENT_DELETE_RULE = 'CASCADE' AND PARENT_NULLABLE = 'N' -- referenced table is container 
-			AND DELETE_RULE = 'CASCADE'
-		)
-		SELECT --+ RESULT_CACHE 
-			VIEW_NAME, TABLE_NAME,
-			IMP_COLUMN_NAME, 
-			DEST_COLUMN_NAME,
-			COLUMN_PREFIX, IS_UPPER_NAME,
-			data_browser_conf.Column_Name_to_Header(
-				p_Column_Name => COLUMN_HEADER, 
-				p_Remove_Extension => 'NO', 
-				p_Is_Upper_Name => IS_UPPER_NAME
-			) COLUMN_HEADER,
-			WARNING_MSG,
-			PRIMARY_KEY_COLS, SEARCH_KEY_COLS, SHORT_NAME, COLUMN_ID, R_COLUMN_ID, POSITION, R_COLUMN_NAME, NULLABLE,
-			FOREIGN_KEY_COLS, R_PRIMARY_KEY_COLS, R_CONSTRAINT_TYPE, R_VIEW_NAME, R_TABLE_NAME,
-			TABLE_ALIAS,
-			R_TABLE_ALIAS,
-			R_NULLABLE, R_DATA_TYPE, R_DATA_SCALE, R_DATA_PRECISION, R_DATA_DEFAULT,
-			R_CHAR_LENGTH,
-			COLUMN_ALIGN, FIELD_LENGTH,
-			JOIN_VIEW_NAME,
-			case when JOIN_COND IS NOT NULL then 
-				case when NULLABLE = 'Y' then 'LEFT OUTER ' end || 'JOIN '
-				|| case when v_Include_Schema = 'YES' then 
-					SYS_CONTEXT('USERENV', 'CURRENT_SCHEMA') || '.'
-				end
-				|| JOIN_COND
-			end JOIN_CLAUSE,
-			COLUMN_EXPR,
-			COLUMN_NAME, HAS_HELP_TEXT, HAS_DEFAULT, IS_BLOB, IS_PASSWORD,
-			IS_AUDIT_COLUMN, IS_DATETIME, IS_READONLY, DISPLAY_IN_REPORT, 
-			IS_DISPLAYED_KEY_COLUMN, IS_REFERENCE,
-			HAS_NULLABLE, U_CONSTRAINT_NAME, U_MEMBERS, U_MATCHING,
-			J_VIEW_NAME,
-			J_COLUMN_NAME,
-			IS_FILE_FOLDER_REF,
-			FILTER_KEY_COLUMN, PARENT_KEY_COLUMN
-		FROM (
-			SELECT DISTINCT F.TABLE_NAME, F.VIEW_NAME,
-					F.FOREIGN_KEY_COLS COLUMN_NAME,
-					F.PRIMARY_KEY_COLS,
-					F.SEARCH_KEY_COLS,
-					F.SHORT_NAME,
-					F.COLUMN_ID,
-					F.R_COLUMN_ID,
-					F.POSITION+G.R_COLUMN_ID/10000 POSITION,
-					NVL(G.R_COLUMN_NAME, G.R_PRIMARY_KEY_COLS) R_COLUMN_NAME,
-					case when G.R_COLUMN_NAME IS NULL then 'No description columns found. (Q)' end WARNING_MSG,
-					F.NULLABLE,
-					F.FOREIGN_KEY_COLS,
-					G.R_PRIMARY_KEY_COLS,
-					G.R_CONSTRAINT_TYPE,
-					G.R_VIEW_NAME,
-					G.R_TABLE_NAME,
-					F.TABLE_ALIAS,
-					data_browser_conf.Concat_List(F.TABLE_ALIAS, G.TABLE_ALIAS, '_') R_TABLE_ALIAS,
-					G.R_NULLABLE,
-					G.R_DATA_TYPE,
-					G.R_DATA_SCALE,
-					G.R_DATA_PRECISION,
-					G.R_DATA_DEFAULT, 
-					G.R_CHAR_LENGTH,
-					G.COLUMN_ALIGN,
-					G.FIELD_LENGTH,
-					G.R_VIEW_NAME JOIN_VIEW_NAME,
-					case when G.FOREIGN_KEY_COLS IS NOT NULL then
-						G.R_VIEW_NAME
-						|| ' ' || data_browser_conf.Concat_List(F.TABLE_ALIAS, G.TABLE_ALIAS, '_')
-						|| ' ON ' 
-						|| data_browser_conf.Get_Join_Expression(
-							p_Left_Columns=>G.R_PRIMARY_KEY_COLS, p_Left_Alias=> data_browser_conf.Concat_List(F.TABLE_ALIAS, G.TABLE_ALIAS, '_'),
-							p_Right_Columns=>G.FOREIGN_KEY_COLS, p_Right_Alias=> F.TABLE_ALIAS)
-					end JOIN_COND,
-					data_browser_select.Get_ConversionColFunction (
-						p_Column_Name => data_browser_conf.Concat_List(F.TABLE_ALIAS, G.TABLE_ALIAS, '_') || '.' || NVL(G.R_COLUMN_NAME, G.R_PRIMARY_KEY_COLS),
-						p_Data_Type => G.R_DATA_TYPE,
-						p_Data_Precision => G.R_DATA_PRECISION,
-						p_Data_Scale => G.R_DATA_SCALE,
-						p_Char_Length => G.R_CHAR_LENGTH,
-						p_Data_Format => case when G.R_COLUMN_NAME IS NOT NULL then v_Data_Format else 'CSV' end,
-						p_Use_Trim => 'Y'
-					) COLUMN_EXPR,
-					case when G.U_MEMBERS = 1 and F.VIEW_NAME != G.R_VIEW_NAME then
-							data_browser_conf.Compose_Column_Name(
-								p_First_Name => F.NORM_COLUMN_NAME,
-								p_Second_Name => G.NORM_COLUMN_NAME,
-								p_Deduplication => 'NO', 
-								p_Max_Length => 29
-							)
-						else
-							data_browser_conf.Compose_3Column_Names(
-								p_First_Name => F.NORM_COLUMN_NAME,
-								p_Second_Name => G.NORM_COLUMN_NAME,
-								p_Third_Name => NVL(G.R_COLUMN_NAME, G.R_PRIMARY_KEY_COLS),
-								p_Max_Length => 29)		
-						end 
-					AS IMP_COLUMN_NAME,
-					F.NORM_COLUMN_NAME DEST_COLUMN_NAME,
-					F.COLUMN_PREFIX, G.IS_UPPER_NAME,
-					case when G.U_MEMBERS = 1 and F.VIEW_NAME != G.R_VIEW_NAME then -- simple column name when only one member is displayed
-							data_browser_conf.Compose_Column_Name(
-								p_First_Name => F.NORM_COLUMN_NAME,
-								p_Second_Name => G.NORM_COLUMN_NAME,
-								p_Deduplication => 'NO', 
-								p_Max_Length => 128
-							)
-						else
-							data_browser_conf.Compose_3Column_Names(
-								p_First_Name => F.NORM_COLUMN_NAME,
-								p_Second_Name => G.NORM_COLUMN_NAME,
-								p_Third_Name => NVL(G.R_COLUMN_NAME, G.R_PRIMARY_KEY_COLS),
-								p_Max_Length => 128)		
-						end 
-					AS COLUMN_HEADER,
-					G.HAS_HELP_TEXT, G.HAS_DEFAULT, G.IS_BLOB, G.IS_PASSWORD,
-					G.IS_AUDIT_COLUMN, G.IS_DATETIME, G.IS_READONLY, G.DISPLAY_IN_REPORT,
-					F.IS_DISPLAYED_KEY_COLUMN,
-					G.IS_REFERENCE,
-					G.HAS_NULLABLE, G.U_CONSTRAINT_NAME,
-					G.U_MEMBERS, G.U_MATCHING,
-					F.R_VIEW_NAME J_VIEW_NAME,
-					F.R_COLUMN_NAME J_COLUMN_NAME,
-					F.IS_FILE_FOLDER_REF,
-					H.FILTER_KEY_COLUMN, -- column of table F.R_VIEW_NAME
-					H.PARENT_KEY_COLUMN -- column of table F.VIEW_NAME
-				FROM MVDATA_BROWSER_F_REFS F
-				, MVDATA_BROWSER_F_REFS G  -- , (select 'EMPLOYEES' v_View_Name, 'FORM' v_Data_Format from dual) par
-				, FOREIGN_KEY_PARENTS H 
-				WHERE G.VIEW_NAME = F.R_VIEW_NAME AND G.FOREIGN_KEY_COLS = F.R_COLUMN_NAME
-				AND F.R_VIEW_NAME = H.R_VIEW_NAME (+) AND F.VIEW_NAME = H.VIEW_NAME2 (+) AND F.FOREIGN_KEY_COLS = H.COLUMN_NAME (+)
-				AND F.VIEW_NAME = v_View_Name
-			);
-
-    	v_q_ref_cols_md5 	VARCHAR2(300);
-        v_is_cached			VARCHAR2(10);
-	BEGIN
-		v_q_ref_cols_md5 := wwv_flow_item.md5 (p_View_Name, p_Data_Format, p_Include_Schema);
-		v_is_cached	:= case when g_q_ref_cols_md5 != v_q_ref_cols_md5 then 'load' else 'cached!' end;
-		if v_is_cached != 'cached!' then
-			OPEN keys_cur(p_View_Name, p_Data_Format, p_Include_Schema);
-			FETCH keys_cur BULK COLLECT INTO g_q_ref_cols_tab;
-			CLOSE keys_cur;
-			g_q_ref_cols_md5 := v_q_ref_cols_md5;
-		end if;
-		FOR ind IN 1 .. g_q_ref_cols_tab.COUNT LOOP
-			pipe row (g_q_ref_cols_tab(ind));
-		END LOOP;
-	END FN_Pipe_browser_q_refs_flat;
-
-
+	
 	/*
 	List of displayed column names for each user table foreign key target tables.
 	The columns names match a pattern in the list of g_Display_Columns_Pattern 
@@ -2373,7 +2179,6 @@ is
 		return (p_Data_Format = 'FORM' or p_Column_Name NOT IN ('LINE_NO$', 'IMPORTJOB_ID$'));
 	end FN_Show_Import_Job;
 
-	-- FN_Display_In_Report(p_Report_Mode, p_View_Mode, g_Describe_Cols_tab(ind), v_Select_Columns)
 	FUNCTION FN_Display_In_Report (
 		p_Report_Mode VARCHAR2,		-- YES,NO,ALL
 		p_View_Mode VARCHAR2,
@@ -2395,6 +2200,7 @@ is
 					or p_cols_rec.DISPLAY_IN_REPORT = 'Y');
 			else
 				return ((p_Report_Mode = 'YES' and p_cols_rec.DISPLAY_IN_REPORT = 'Y') 
+					or p_View_Mode IN ('IMPORT_VIEW', 'EXPORT_VIEW')
 					or (p_Report_Mode IN ('ALL', 'NO') and p_View_Mode != 'RECORD_VIEW')
 					or (p_View_Mode = 'RECORD_VIEW' and p_cols_rec.TABLE_ALIAS = 'A'));	-- show audit columns
 			end if;
@@ -4359,8 +4165,9 @@ $END
 							p_View_Mode => p_View_Mode
 						) 
 					when g_Describe_Cols_tab(ind).IS_VIRTUAL_COLUMN = 'Y' then
-				    	case when p_Data_Source != 'COLLECTION'
-				    		then g_Describe_Cols_tab(ind).TABLE_ALIAS || '.' || g_Describe_Cols_tab(ind).REF_COLUMN_NAME
+				    	case when p_Data_Source = 'COLLECTION'
+				    		then g_Describe_Cols_tab(ind).DATA_DEFAULT
+				    	--	then g_Describe_Cols_tab(ind).TABLE_ALIAS || '.' || g_Describe_Cols_tab(ind).REF_COLUMN_NAME
 				    	else
 				    		v_Column_Expr
 				    	end

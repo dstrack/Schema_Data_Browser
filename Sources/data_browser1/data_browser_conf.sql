@@ -910,30 +910,30 @@ $ELSE
 	'from APEX_WORKSPACE_APEX_USERS U, APEX_APPLICATIONS A' || chr(10) ||
 	'where U.WORKSPACE_NAME = A.WORKSPACE' || chr(10) ||
 	'and U.IS_APPLICATION_DEVELOPER = ''Yes''' || chr(10) ||
-	'and A.APPLICATION_ID = V(''APP_ID'')' || chr(10) ||
+	'and A.APPLICATION_ID = NV(''APP_ID'')' || chr(10) ||
 	'and U.USER_NAME = SYS_CONTEXT(''APEX$SESSION'',''APP_USER'')';
 	c_Custom_Admin_Enabled_Query CONSTANT VARCHAR2(2000) :=	-- currently not used
 	'select 1' || chr(10) ||
 	'from APEX_WORKSPACE_APEX_USERS U, APEX_APPLICATIONS A' || chr(10) ||
 	'where U.WORKSPACE_NAME = A.WORKSPACE' || chr(10) ||
 	'and U.IS_ADMIN = ''Yes''' || chr(10) ||
-	'and A.APPLICATION_ID = V(''APP_ID'')' || chr(10) ||
-	'and U.USER_NAME = NVL(SYS_CONTEXT(''APEX$SESSION'',''APP_USER''), USER)';
+	'and A.APPLICATION_ID = NV(''APP_ID'')' || chr(10) ||
+	'and U.USER_NAME = SYS_CONTEXT(''APEX$SESSION'',''APP_USER'')';
 $END
 	c_Apex_Developer_Enabled_Query	CONSTANT VARCHAR2(2000) 	:=			-- Authorization Scheme to enable assess to developer information functions. Exists-Subquery that returns rows when the login user is permitted.
 	'select 1' || chr(10) ||
 	'from APEX_WORKSPACE_APEX_USERS U, APEX_APPLICATIONS A' || chr(10) ||
 	'where U.WORKSPACE_NAME = A.WORKSPACE' || chr(10) ||
 	'and U.IS_APPLICATION_DEVELOPER = ''Yes''' || chr(10) ||
-	'and A.APPLICATION_ID = V(''APP_ID'')' || chr(10) ||
+	'and A.APPLICATION_ID = NV(''APP_ID'')' || chr(10) ||
 	'and U.USER_NAME = SYS_CONTEXT(''APEX$SESSION'',''APP_USER'')';
 	c_Apex_Admin_Enabled_Query 	CONSTANT VARCHAR2(2000) 	:=			-- Authorization Scheme to enable assess to user administration tables. Exists-Subquery that returns rows when the login user is permitted.
 	'select 1' || chr(10) ||
 	'from APEX_WORKSPACE_APEX_USERS U, APEX_APPLICATIONS A' || chr(10) ||
 	'where U.WORKSPACE_NAME = A.WORKSPACE' || chr(10) ||
 	'and U.IS_ADMIN = ''Yes''' || chr(10) ||
-	'and A.APPLICATION_ID = V(''APP_ID'')' || chr(10) ||
-	'and U.USER_NAME = NVL(SYS_CONTEXT(''APEX$SESSION'',''APP_USER''), USER)';
+	'and A.APPLICATION_ID = NV(''APP_ID'')' || chr(10) ||
+	'and U.USER_NAME = SYS_CONTEXT(''APEX$SESSION'',''APP_USER'')';
 
 	g_Developer_Enabled_Query	VARCHAR2(2000) 	:= c_Apex_Developer_Enabled_Query;	-- Authorization Scheme to enable assess to developer information functions. Exists-Subquery that returns rows when the login user is permitted.
 	g_Admin_Enabled_Query 		VARCHAR2(2000) 	:= c_Apex_Admin_Enabled_Query;		-- Authorization Scheme to enable assess to user administration tables. Exists-Subquery that returns rows when the login user is permitted.

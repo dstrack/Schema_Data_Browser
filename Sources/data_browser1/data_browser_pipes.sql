@@ -168,6 +168,7 @@ IS
 		SCHEMA_NAME VARCHAR2(128),
 		APP_VERSION_NUMBER VARCHAR2(64),
 		SPACE_USED_BYTES NUMBER,
+		TABLESPACE_NAMES VARCHAR2(2000),
 		USER_ACCESS_LEVEL NUMBER,
 		SCHEMA_ICON VARCHAR2(2000),
 		DESCRIPTION VARCHAR2(2000),
@@ -1145,14 +1146,11 @@ IS
 	BEGIN
 		for c_cur in (
 			select distinct /*+ RESULT_CACHE */ 
-				B.owner,
-				case when B.owner = SYS_CONTEXT('USERENV', 'CURRENT_SCHEMA') then 
-					(SELECT SUM(A.BYTES) FROM sys.USER_SEGMENTS A) 
-				end USED_BYTES
+				B.owner, SUM(case when C.column_name = 'TABLESPACE_NAMES' then 1 end) ts_col
 			from APEX_WORKSPACE_SCHEMAS S
 			join APEX_APPLICATIONS APP on S.WORKSPACE_NAME = APP.WORKSPACE
-			join sys.ALL_TABLES B on S.SCHEMA = B.owner and B.table_name = 'DATA_BROWSER_CONFIG'
-			join sys.ALL_TABLES C on S.SCHEMA = C.owner and C.table_name = 'APP_USERS'
+			join SYS.ALL_TABLES B on S.SCHEMA = B.owner and B.table_name = 'APP_USERS'
+			join SYS.ALL_TAB_COLUMNS C on S.SCHEMA = C.owner and C.table_name = 'DATA_BROWSER_CONFIG'
 			where APP.APPLICATION_ID = p_application_id
 			group by B.owner
 		) loop 
@@ -1162,7 +1160,11 @@ IS
 			end         
 			|| 'select /*+ RESULT_CACHE */ ' || dbms_assert.enquote_literal(c_cur.owner) 
 			|| ' SCHEMA_NAME, A.APP_VERSION_NUMBER, '
-			||  dbms_assert.enquote_literal(c_cur.USED_BYTES) || ' SPACE_USED_BYTES, B.USER_LEVEL,'
+			|| case when c_cur.ts_col = 1 
+				then 'A.BYTES_USED SPACE_USED_BYTES, A.TABLESPACE_NAMES, '
+				else 'null SPACE_USED_BYTES, null TABLESPACE_NAMES, '
+			end 
+			|| 'B.USER_LEVEL,'
 			||  'A.SCHEMA_ICON, A.DESCRIPTION, A.CONFIGURATION_NAME' || chr(10)
 			|| 'from ' || c_cur.owner || '.DATA_BROWSER_CONFIG A, ' || c_cur.owner || '.APP_USERS B, param P'|| chr(10)
 			|| 'where A.ID = 1 and B.UPPER_LOGIN_NAME = P.LOGIN_NAME';

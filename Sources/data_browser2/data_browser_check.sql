@@ -1522,6 +1522,7 @@ $END
 					p_View_name => view_cur.VIEW_NAME,
 					p_Unique_Key_Column => view_cur.LINK_KEY,
 					p_Row_Operation => 'MERGE_ROWS',
+					p_Join_Options => view_cur.JOIN_OPTIONS,
 					p_Columns_Limit => view_cur.COLUMNS_LIMIT,
 					p_View_Mode => view_cur.VIEW_MODE,
 					p_Data_Source => 'COLLECTION',

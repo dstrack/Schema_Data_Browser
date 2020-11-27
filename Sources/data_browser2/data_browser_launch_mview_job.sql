@@ -5,6 +5,7 @@ begin
     'begin' || chr(10)
     || 'data_browser_jobs.Refresh_MViews(p_context=>0);' || chr(10)
     || 'data_browser_jobs.Refresh_ChangeLog_Job(p_context=>0);' || chr(10) 
+    || 'data_browser_jobs.Schema_Stats_Job;'|| chr(10) 
     || 'end;';
     dbms_scheduler.create_job(
         job_name => 'DBROW_INIT_MVIEWS',

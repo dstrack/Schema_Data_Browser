@@ -2506,13 +2506,18 @@ $END
 			|| '||'
 			|| data_browser_blobs.FN_Text_Tool_Body_Html (
 				p_Column_Label => p_Column_Label || '_' || v_Item_Char,
-				p_Column_Expr => case when p_Data_Source = 'TABLE' then v_Column_Expr -- p_Column_Alias - problem - ORA-06502: PL/SQL: numeric or value error: character string buffer too small
-									when p_Data_Source IN ('COLLECTION','MEMORY', 'QUERY') then v_Column_Expr
+				p_Column_Expr => case when p_Data_Source IN ('TABLE', 'COLLECTION','MEMORY', 'QUERY') 
+								then v_Column_Expr
 								else 'NULL' end,
 				p_CSS_Class => 'clickable'
 			) -- the total length must not exceed 4K
 		when p_Column_Expr_Type = 'LINK_ID' and p_Data_Source = 'TABLE' and p_Tools_html IS NOT NULL then
 			p_Tools_html
+		when p_Column_Expr_Type = 'DISPLAY_ONLY' and p_Field_Length > data_browser_conf.Get_TextArea_Min_Length then 
+			data_browser_blobs.FN_Text_Tool_Body_Html (
+				p_Column_Label => p_Column_Label || '_' || v_Item_Char,
+				p_Column_Expr => v_Column_Expr
+			)
 		when p_Column_Expr_Type IN ('DISPLAY_ONLY', 'LINK', 'LINK_LIST', 'LINK_ID') then
 			v_Column_Expr
 		when p_Column_Expr_Type = 'ROW_SELECTOR' then
@@ -4821,6 +4826,7 @@ $END
     	p_Unique_Key_Column VARCHAR2,
 		p_Row_Operation VARCHAR2,				-- DUPLICATE, COPY_ROWS, MERGE_ROWS
     	p_Select_Columns VARCHAR2 DEFAULT NULL,	
+    	p_Join_Options VARCHAR2 DEFAULT NULL,
 		p_Columns_Limit IN NUMBER,
 		p_View_Mode IN VARCHAR2,
     	p_Data_Source VARCHAR2 DEFAULT 'TABLE',	-- NEW_ROWS, TABLE, COLLECTION, MEMORY.
@@ -4884,6 +4890,7 @@ $END
 					p_Table_name => p_View_name,
 					p_Unique_Key_Column => v_Unique_Key_Column,
 					p_Select_Columns => p_Select_Columns,
+					p_Join_Options => p_Join_Options,
 					p_Columns_Limit => p_Columns_Limit,
 					p_Data_Columns_Only => 'YES',
 					p_View_Mode => case when p_Data_Source = 'COLLECTION' then p_View_Mode else 'FORM_VIEW' end,
@@ -5254,6 +5261,7 @@ $END
 				p_Unique_Key_Column => v_Unique_Key_Column,
 				p_Row_Operation => v_Row_Op,
 				p_Select_Columns => p_Select_Columns,
+				p_Join_Options => p_Join_Options,
 				p_Columns_Limit => p_Columns_Limit,
 				p_View_Mode => p_View_Mode,
 				p_Data_Source => p_Data_Source,
@@ -5956,6 +5964,7 @@ $END
 					p_Unique_Key_Column => p_Unique_Key_Column,
 					p_Row_Operation => 'MERGE_ROWS',
 					p_Select_Columns => p_Select_Columns,
+					p_Join_Options => p_Join_Options,
 					p_Columns_Limit => p_Columns_Limit,
 					p_View_Mode => p_View_Mode,
 					p_Data_Source => 'COLLECTION',

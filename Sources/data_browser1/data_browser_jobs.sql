@@ -174,11 +174,10 @@ IS
 	);
 
 	PROCEDURE Refresh_Schema_Stats (
-		p_Schema_Name VARCHAR2,
     	p_context binary_integer DEFAULT FN_Scheduler_Context
 	);
 
-	PROCEDURE Schema_Stats_Job (p_Schema_Name VARCHAR2 DEFAULT SYS_CONTEXT('USERENV', 'CURRENT_SCHEMA'));
+	PROCEDURE Schema_Stats_Job;
 
 	PROCEDURE Refresh_Tree_View(
     	p_context binary_integer DEFAULT FN_Scheduler_Context,
@@ -1140,34 +1139,31 @@ $END
 
 
 	PROCEDURE Refresh_Schema_Stats (
-		p_Schema_Name VARCHAR2,
     	p_context binary_integer DEFAULT FN_Scheduler_Context
 	)
 	IS
         v_rindex 		binary_integer := dbms_application_info.set_session_longops_nohint;
         v_slno   		binary_integer;
-        v_Steps  		constant binary_integer := 3;
+        v_Steps  		constant binary_integer := 1;
 	BEGIN
         Set_Process_Infos(v_rindex, v_slno, g_Ref_Schema_Stats_Proc_Name, p_context, v_Steps, 0, 'steps');
-		dbms_stats.gather_schema_stats(ownname => p_Schema_Name);
+		UPDATE DATA_BROWSER_CONFIG
+		SET (Bytes_Used, Tablespace_Names) = (
+			SELECT SUM(BYTES), LISTAGG(DISTINCT TABLESPACE_NAME, ', ') WITHIN GROUP (ORDER BY TABLESPACE_NAME)
+			FROM SYS.USER_SEGMENTS
+		);
         Set_Process_Infos(v_rindex, v_slno, g_Ref_Schema_Stats_Proc_Name, p_context, v_Steps, 1, 'steps');
-		DBMS_MVIEW.REFRESH('MVDATA_BROWSER_VIEWS');
-        Set_Process_Infos(v_rindex, v_slno, g_Ref_Schema_Stats_Proc_Name, p_context, v_Steps, 2, 'steps');
-		DBMS_MVIEW.REFRESH('MVDATA_BROWSER_FKEYS');
-        Set_Process_Infos(v_rindex, v_slno, g_Ref_Schema_Stats_Proc_Name, p_context, v_Steps, 3, 'steps');
 	exception
 	  when others then
 		Set_Process_Infos(v_rindex, v_slno, g_Ref_Schema_Stats_Proc_Name, p_context, v_Steps, v_Steps, 'steps');
 		raise;
 	END Refresh_Schema_Stats;
 	
-    PROCEDURE Schema_Stats_Job (p_Schema_Name VARCHAR2 DEFAULT SYS_CONTEXT('USERENV', 'CURRENT_SCHEMA'))
+    PROCEDURE Schema_Stats_Job
 	IS
         v_context binary_integer := FN_Scheduler_Context;		-- context is of type BINARY_INTEGER
 		v_sql USER_SCHEDULER_JOBS.JOB_ACTION%TYPE  :=
-			'begin data_browser_jobs.Refresh_Schema_Stats(p_Schema_Name =>'
-			|| DBMS_ASSERT.ENQUOTE_LITERAL(p_Schema_Name)
-			|| ',p_context=>'
+			'begin data_browser_jobs.Refresh_Schema_Stats(p_context=>'
 			|| DBMS_ASSERT.ENQUOTE_LITERAL(v_context)
 			|| ');' 
 			||' end;';
@@ -1189,7 +1185,7 @@ $END
         v_rindex 		binary_integer := dbms_application_info.set_session_longops_nohint;
         v_slno   		binary_integer;
         v_Steps  		binary_integer := 1;
-		CURSOR Tables_cur1
+		CURSOR user_tabs_cur
 		IS
 			SELECT SYS_CONTEXT('USERENV', 'CURRENT_SCHEMA') OWNER, TABLE_NAME
 			FROM SYS.USER_TAB_STATISTICS T
@@ -1200,7 +1196,7 @@ $END
 			AND data_browser_pattern.Match_Excluded_Tables(T.TABLE_NAME) = 'NO'
 			;
 			
-		CURSOR Tables_cur2
+		CURSOR all_tabs_cur
 		IS
 			SELECT OWNER, TABLE_NAME
 			FROM SYS.ALL_TAB_STATISTICS T
@@ -1211,17 +1207,17 @@ $END
 			AND data_browser_pattern.Match_Included_Tables(T.TABLE_NAME) = 'YES'
 			AND data_browser_pattern.Match_Excluded_Tables(T.TABLE_NAME) = 'NO'
 			;
-		TYPE tables_tbl2 IS TABLE OF Tables_cur2%ROWTYPE;
+		TYPE tables_tbl2 IS TABLE OF all_tabs_cur%ROWTYPE;
 		v_in_recs 	tables_tbl2;
 	BEGIN
 		if p_Schema_Name = SYS_CONTEXT('USERENV', 'CURRENT_SCHEMA') then 
-			OPEN Tables_cur1;
-			FETCH Tables_cur1 BULK COLLECT INTO v_in_recs;
-			CLOSE Tables_cur1;
+			OPEN user_tabs_cur;
+			FETCH user_tabs_cur BULK COLLECT INTO v_in_recs;
+			CLOSE user_tabs_cur;
 		else
-			OPEN Tables_cur2;
-			FETCH Tables_cur2 BULK COLLECT INTO v_in_recs;
-			CLOSE Tables_cur2;
+			OPEN all_tabs_cur;
+			FETCH all_tabs_cur BULK COLLECT INTO v_in_recs;
+			CLOSE all_tabs_cur;
 		end if;
 		IF v_in_recs.FIRST IS NOT NULL THEN
 			v_Steps := v_in_recs.COUNT + 2;
@@ -1239,11 +1235,11 @@ $END
         Set_Process_Infos(v_rindex, v_slno, g_Ref_Tree_View_Proc_Name, p_context, v_Steps, v_Steps, 'tables');
 	exception
 	  when others then
-	    if Tables_cur1%ISOPEN then
-			CLOSE Tables_cur1;
+	    if user_tabs_cur%ISOPEN then
+			CLOSE user_tabs_cur;
 		end if;
-	    if Tables_cur2%ISOPEN then
-			CLOSE Tables_cur2;
+	    if all_tabs_cur%ISOPEN then
+			CLOSE all_tabs_cur;
 		end if;
 		Set_Process_Infos(v_rindex, v_slno, g_Ref_Tree_View_Proc_Name, p_context, v_Steps, v_Steps, 'tables');
 		raise;
