@@ -2200,7 +2200,6 @@ is
 					or p_cols_rec.DISPLAY_IN_REPORT = 'Y');
 			else
 				return ((p_Report_Mode = 'YES' and p_cols_rec.DISPLAY_IN_REPORT = 'Y') 
-					or p_View_Mode IN ('IMPORT_VIEW', 'EXPORT_VIEW')
 					or (p_Report_Mode IN ('ALL', 'NO') and p_View_Mode != 'RECORD_VIEW')
 					or (p_View_Mode = 'RECORD_VIEW' and p_cols_rec.TABLE_ALIAS = 'A'));	-- show audit columns
 			end if;

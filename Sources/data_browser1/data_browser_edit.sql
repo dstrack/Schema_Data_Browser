@@ -2513,7 +2513,8 @@ $END
 			) -- the total length must not exceed 4K
 		when p_Column_Expr_Type = 'LINK_ID' and p_Data_Source = 'TABLE' and p_Tools_html IS NOT NULL then
 			p_Tools_html
-		when p_Column_Expr_Type = 'DISPLAY_ONLY' and p_Field_Length > data_browser_conf.Get_TextArea_Min_Length then 
+		when p_Column_Expr_Type = 'DISPLAY_ONLY' and p_Field_Length > data_browser_conf.Get_TextArea_Min_Length
+		and  p_Column_Name != 'CONTROL_BREAK$' then 
 			data_browser_blobs.FN_Text_Tool_Body_Html (
 				p_Column_Label => p_Column_Label || '_' || v_Item_Char,
 				p_Column_Expr => v_Column_Expr
