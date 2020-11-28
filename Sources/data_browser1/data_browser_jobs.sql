@@ -1147,11 +1147,22 @@ $END
         v_Steps  		constant binary_integer := 1;
 	BEGIN
         Set_Process_Infos(v_rindex, v_slno, g_Ref_Schema_Stats_Proc_Name, p_context, v_Steps, 0, 'steps');
+$IF DBMS_DB_VERSION.VERSION >= 19 $THEN
 		UPDATE DATA_BROWSER_CONFIG
 		SET (Bytes_Used, Tablespace_Names) = (
 			SELECT SUM(BYTES), LISTAGG(DISTINCT TABLESPACE_NAME, ', ') WITHIN GROUP (ORDER BY TABLESPACE_NAME)
 			FROM SYS.USER_SEGMENTS
 		);
+$ELSE
+		UPDATE DATA_BROWSER_CONFIG
+		SET Bytes_Used = (
+			SELECT SUM(BYTES)
+			FROM SYS.USER_SEGMENTS
+		), Tablespace_Names = (
+			SELECT DEFAULT_TABLESPACE
+			FROM SYS.USER_USERS
+		);
+$END
         Set_Process_Infos(v_rindex, v_slno, g_Ref_Schema_Stats_Proc_Name, p_context, v_Steps, 1, 'steps');
 	exception
 	  when others then

@@ -580,15 +580,13 @@ $END
 	PROCEDURE Add_Developers
 	IS
 	BEGIN
-		-- can not be called in installer
-		--custom_changelog.set_current_workspace(SYS_CONTEXT('USERENV', 'CURRENT_SCHEMA'));
-
-		INSERT INTO V_CONTEXT_USERS (Login_Name, First_Name, Last_Name, EMail_Address, User_Level)
+		INSERT INTO V_CONTEXT_USERS (Login_Name, First_Name, Last_Name, EMail_Address, User_Level, Password_Reset)
 		select D.USER_NAME, D.FIRST_NAME, D.LAST_NAME, D.EMAIL,
 			case when D.IS_ADMIN = 'Yes' then 1
 				when D.IS_APPLICATION_DEVELOPER = 'Yes' then 2
 				else 3
-			end User_Level
+			end User_Level,
+			'N' Password_Reset
 		from APEX_WORKSPACE_DEVELOPERS D
 		 where WORKSPACE_ID = APEX_CUSTOM_AUTH.GET_SECURITY_GROUP_ID
 		and NOT EXISTS (

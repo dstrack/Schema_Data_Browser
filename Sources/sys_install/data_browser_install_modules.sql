@@ -46,7 +46,6 @@ prompt ============================================================
 
 @@data_browser3/app_users_tables.sql
 @@data_browser3/data_browser_auth.sql
-@@data_browser3/data_browser_demo_users.sql
 @@data_browser3/data_browser_login.sql
 @@data_browser3/import_utl_tables.sql
 @@data_browser3/import_utl_head.sql
@@ -64,6 +63,7 @@ set verify on feed on serveroutput on size unlimited
 
 @@data_browser2/data_browser_inst_defaults.sql
 @@data_browser2/data_browser_install_sup_obj.sql
+@@data_browser3/data_browser_demo_users.sql
 @@data_browser2/data_browser_inst_cleanup.sql
 @@data_browser2/data_browser_launch_mview_job.sql
 

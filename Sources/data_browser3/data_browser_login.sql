@@ -133,12 +133,6 @@ CREATE OR REPLACE PACKAGE BODY data_browser_login AS
    	RETURN VARCHAR2
    	IS
 	BEGIN
-		if OWA.NUM_CGI_VARS IS NOT NULL then
-			RETURN LOWER(OWA_UTIL.get_cgi_env ('REQUEST_PROTOCOL')) || '://'
-				|| OWA_UTIL.get_cgi_env ('HTTP_HOST')
-				|| OWA_UTIL.get_cgi_env ('SCRIPT_NAME');
-		end if;
-
 		RETURN apex_util.host_url('SCRIPT');
 	END;
 
@@ -410,9 +404,7 @@ CREATE OR REPLACE PACKAGE BODY data_browser_login AS
 			p_Last_Name := v_Last_Name;
 		end if;
 		if p_Login_Name IS NULL then
-			p_Login_Name := data_browser_login.Get_Unique_Login_Name(p_First_Name, p_Last_Name);
-		else 
-			p_Login_Name := data_browser_login.Get_Unique_Login_Name(p_Login_Name);
+			p_Login_Name := TRIM('.' FROM TRIM(p_First_Name) || '.' || TRIM(p_Last_Name));
 		end if;
 	END Split_EMail_Adress;
 	
