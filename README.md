@@ -20,14 +20,17 @@ Application to analyse your DB and APEX Applications
 2. SQLDEVELOPER Settings
 
 	Environment / Encoding = UTF-8
-
+	Database / Worksheet / Standardpath for Scripts
+	
+	...Schema_Data_Browser/Sources/sys_install 
+	
 3. Installation of SYS components for schema management (optional)
 	
 -- In a shared server environment
 	If you have to use the app with 'APEX Authorization', this step is omitted.
 
 -- in the Oracle ATP cloud
-	cd Schema_Browser_Release 
+	cd Schema_Data_Browser/Sources/sys_install 
 	sqlplus /nolog 
 	
 	connect admin 
@@ -45,7 +48,7 @@ Application to analyse your DB and APEX Applications
 	exit
 	
 -- in an on premise DB
-	cd Schema_Browser_Release 
+	cd Schema_Data_Browser/Sources/sys_install 
 	sqlplus /nolog 
 	
 	connect sys as sysdba 
