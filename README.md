@@ -64,7 +64,8 @@ Application to analyse your DB and APEX Applications
 	have been granted, which were set up in step 3.	
 	
 1.1. Upload file **Data_Browser_Custom_App.sql**.
-	Supporting Objects : Yes 
+	
+	Install Supporting Objects : Yes 
 	
 	The installation takes about 2 minutes locally, Oracle Cloud about 3 minutes.
 
@@ -79,7 +80,8 @@ Application to analyse your DB and APEX Applications
 	this functional reduced version must be used.
 
 2.1. Upload file **Data_Browser_Apex_App.sql**.
-	Supporting Objects : Yes 
+	
+	Install Supporting Objects : Yes 
 	
 	The installation takes about 2 minutes locally, Oracle Cloud about 3 minutes.
 
