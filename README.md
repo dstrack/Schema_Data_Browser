@@ -21,7 +21,7 @@ Application to analyse your DB and APEX Applications
 
 	Environment / Encoding = UTF-8
 
-3. Installation OF Sys components for schema management (optional)
+3. Installation of SYS components for schema management (optional)
 	
 -- In a shared server environment
 	If you have to use the app with 'APEX Authorization', this step is omitted.
