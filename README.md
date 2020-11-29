@@ -15,6 +15,7 @@ Application to analyse your DB and APEX Applications
 1. Encoding setting for sqlplus under Windows / DOS
 
 	set NLS_LANG=GERMAN_GERMANY.AL32UTF8 
+	
 	chcp 65001
 
 2. SQLDEVELOPER Settings
