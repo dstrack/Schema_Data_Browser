@@ -90,24 +90,27 @@ Application to analyse your DB and APEX Applications
 
 ## Configuration
 1. Settings menu
+
 	After login as an Admin you can use the the Settings menu to configure your schema.
 	Enter global rules for naming conventions as search pattern in the appropriate cells.
 	Often lists of LIKE patterns are available as default values. The fields have help texts which inform you about the meaning.
 	Saving the settings triggers jobs that update a data dictionary of the app.
-	Then select a typical spreadsheet and see if the rules grab the expected fields.
 	The app hides its own tables by default.
 
 2. Manage schema
+
 	The Manage Schema page manages the always-visible columns for labels, navigation links, and LOVs.
 	With the definition of field lists for natural unique keys, the automatic key lookup for imports
-	but also the uniqueness of all displayed labels guaranteed.
+	but also the uniqueness of all displayed labels can be guaranteed.
 
 3. Client App
-	In some projects, the app can be combined as a backstage for data maintenance and a hard-coded Apex app as a specialized application.
+
+	In some projects, the app can be combined as a backstage for data maintenance and a convertional Apex app as a specialized application.
 	A client app can be listed in the homepage. In the menu Settings / Edit Settings, region 'Access Control' you can
 	select as a customer application. The app can be selected if it is previously installed in the same scheme.
 
 4. Data Reporter App
+
 	After installing the Data Reporter App, the Data Browser Supporting Objects must be reinstalled,
 	if a connection is to be established via the Data_Browser_Reporter package.
 
