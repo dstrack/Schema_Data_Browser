@@ -66,7 +66,7 @@ Application to analyse your DB and APEX Applications
 1.1. Upload file **Data_Browser_Custom_App.sql**.
 	Supporting Objects : Yes 
 	
-	The installation takes about 2 minutes locally, Oracle Cloud about 7 minutes.
+	The installation takes about 2 minutes locally, Oracle Cloud about 3 minutes.
 
 1.2. At the first start, there will be a page in which your admin name, password and e-mail address will be queried.
 	The most convenient way is to reuse the data stored in the browser as program admin data.
