@@ -3824,7 +3824,7 @@ $END
 				end -- INSERT --
 			end
 			|| 
-			add_error_call (
+			data_browser_edit.add_error_call (
 				p_Column_Name => T.COLUMN_NAME,
 				p_Apex_Item_Cell_Id => MIN(T.APEX_ITEM_CELL_ID),
 				p_Message => 'Lookup for "%0" failed. - Error : %1.',
@@ -3871,15 +3871,17 @@ $END
 				S.FOLDER_PARENT_COLUMN_NAME,
 				S.FOLDER_NAME_COLUMN_NAME,
 				S.FOLDER_CONTAINER_COLUMN_NAME,
-				case when p_Data_Source = 'COLLECTION' then
-					'p_cur.' || FC.INPUT_ID
-				when FC.APEX_ITEM_IDX IS NOT NULL then
-					data_browser_edit.Get_Apex_Item_Call (
-						p_Idx 			=> FC.APEX_ITEM_IDX,
-						p_Row_Factor	=> FC.ROW_FACTOR,
-						p_Row_Offset	=> FC.ROW_OFFSET,
-						p_Row_Number	=> 'p_Row'
-					)
+				case when S.IS_FILE_FOLDER_REF = 'Y' then
+					case when p_Data_Source = 'COLLECTION' then
+						'p_cur.' || FC.INPUT_ID
+					when FC.APEX_ITEM_IDX IS NOT NULL then
+						data_browser_edit.Get_Apex_Item_Call (
+							p_Idx 			=> FC.APEX_ITEM_IDX,
+							p_Row_Factor	=> FC.ROW_FACTOR,
+							p_Row_Offset	=> FC.ROW_OFFSET,
+							p_Row_Number	=> 'p_Row'
+						)
+					end 
 				end FOLDER_CONTAINER_REF,
 				data_browser_edit.Get_Apex_Item_Ref (
 					p_Idx 			=> F.APEX_ITEM_IDX,
@@ -4118,7 +4120,7 @@ $END
 					'is' || NL(8) ||
 						'v_Key_Value varchar2(4000);' || NL(8) ||
 						'v_CResult varchar2(4000);' || NL(8) ||
-						'v_NResult number;' || NL(4) ||
+						'v_NResult number;' || NL(8) ||
 						declare_error_call(p_Table_name, p_Unique_Key_Column) || 
 					'begin ' || NL(8) ||
 					v_Init_Key_Stat

@@ -1,9 +1,10 @@
 Schema & Data Browser 
 
-V 1.9.05 Release Note
+V 1.9.06 Release Note
 Data Browser Improvements:
 
 * Improved query generation for import/export views and for history, counters, links, totals, and folder path LOV.
+* Improved support for datetime and timestamp formating and conversions
 * Better joins descriptions for Import / Export forms in the Actions / Columns modal dialog.
 * Improved navigation in the Actions / Show Query modal dialog. The view mode can be chosen in a tab-pane.
 * Improved trigger generation for updatable views. Added a key lookup for composite keys with a file path.
@@ -15,19 +16,23 @@ Data Browser Improvements:
   New buttons enable you to generate and download updatable views and UI-defaults.
 * Improved refresh of report regions.
 * Improved Dialog for Sorting and Grouping
-* Early validation of entered data against the schema constraints and size limits via AJAX calls is now enabled.
+
+New features:
+* Alter Audit Info Columns 
+	In the Menu Settings / Edit History Settings you can now use the section 'Alter Audit Info Columns' 
+	to systematically add automatically managed adit info columns.
+* When editing a form, early validation of entered data against the schema constraints and size limits via AJAX calls is now enabled.
 * On the home page, the list of My Databases is now displayed when the application is using APEX authentication. 
   This list informed you about the accessible schemas and their space usage and it enables you to switch the active schema by clicking on an entry. 
   Multiple schemas have to be assigned to the APEX workspace and the supporting objects of the application have to be installed in those schemas 
   to make them accessible for this application.
-
 
 Sources:
 * The PL/SQL packages weco_mail, weco_auth_mgr, and table app_preferences have been removed.
 * The Pre-Installation-Validations for the privileges to execute dbms_lock, dbms_tcp, and dbms_smtp have been removed.
 * in the custom authorization scheme, the package apex_mail is used instead of weco_mail.
 * All of the PL/SQL and javascript source files that are installed by the application 
-  are listed in the repository sources directory of the git repository.
+  are listed in the sources directory of the git repository.
 * Removed references to apex_ajax and instead use apex.server.process and plugin apex-plugin-clob-load.
 * The demo time period is now 2 months.	
 

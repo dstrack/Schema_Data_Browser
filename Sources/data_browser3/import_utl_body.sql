@@ -148,7 +148,7 @@ CREATE OR REPLACE PACKAGE BODY import_utl IS
 						RPAD(' ', 4) || 'if '
 						|| LISTAGG(S_REF || ' IS NOT NULL',
 							case when HAS_NULLABLE > 0 OR HAS_SIMPLE_UNIQUE > 0 then data_browser_conf.NL(4) || 'OR ' else ' AND ' end
-						) WITHIN GROUP (ORDER BY R_COLUMN_ID) -- conditions to trigger the search of foreign keys
+						) WITHIN GROUP (ORDER BY R_COLUMN_ID, POSITION) -- conditions to trigger the search of foreign keys
 						|| ' then ' || chr(10)
 						|| case when D.DEFAULTS_MISSING = 0  AND import_utl.Get_Insert_Foreign_Keys = 'YES' 
 							then RPAD(' ', 6) || 'begin' || chr(10) end
@@ -167,7 +167,7 @@ CREATE OR REPLACE PACKAGE BODY import_utl IS
 								else
 									import_utl.Get_Compare_Case_Insensitive(T.TABLE_ALIAS || '.' || T.R_COLUMN_NAME, S_REF, T.R_DATA_TYPE)
 								end,
-							data_browser_conf.NL(8) || 'AND ') WITHIN GROUP (ORDER BY R_COLUMN_ID)
+							data_browser_conf.NL(8) || 'AND ') WITHIN GROUP (ORDER BY R_COLUMN_ID, POSITION)
 						|| ';' 
 					 ---------------------------
 						|| data_browser_conf.NL(4)
@@ -175,10 +175,10 @@ CREATE OR REPLACE PACKAGE BODY import_utl IS
 						and import_utl.Get_Insert_Foreign_Keys = 'YES' then
 							'  exception when NO_DATA_FOUND then' || data_browser_conf.NL(8)
 							|| 'INSERT INTO ' || T.R_VIEW_NAME || '('
-							|| LISTAGG(T.R_COLUMN_NAME, ', ') WITHIN GROUP (ORDER BY R_COLUMN_ID)
+							|| LISTAGG(T.R_COLUMN_NAME, ', ') WITHIN GROUP (ORDER BY R_COLUMN_ID, POSITION)
 							|| ')' || data_browser_conf.NL(8)
 							|| 'VALUES ('
-							|| LISTAGG(S_REF, ', ') WITHIN GROUP (ORDER BY R_COLUMN_ID)
+							|| LISTAGG(S_REF, ', ') WITHIN GROUP (ORDER BY R_COLUMN_ID, POSITION)
 							|| ')' || data_browser_conf.NL(8)
 							|| 'RETURNING (' || T.R_PRIMARY_KEY_COLS || ') INTO ' || D_REF || ';' || data_browser_conf.NL(4)
 							|| '  end;' || data_browser_conf.NL(4)
@@ -220,13 +220,13 @@ CREATE OR REPLACE PACKAGE BODY import_utl IS
 				SQL_TEXT,
 				---------------------------
 				T.COLUMN_NAME,
-				DBMS_ASSERT.ENQUOTE_LITERAL(LISTAGG(INITCAP(T.R_COLUMN_NAME), '/') WITHIN GROUP (ORDER BY R_COLUMN_ID)
+				DBMS_ASSERT.ENQUOTE_LITERAL(LISTAGG(INITCAP(T.R_COLUMN_NAME), '/') WITHIN GROUP (ORDER BY R_COLUMN_ID, POSITION)
 				|| ' für ' || INITCAP(T.R_VIEW_NAME) || ' ist nicht vorhanden.')
 				COLUMN_CHECK_EXPR,
 				S.SHORT_NAME || '_IMP' FROM_CHECK_EXPR,
 				' (' || LISTAGG('IMP.' || T.IMP_COLUMN_NAME || ' IS NOT NULL',
 					case when HAS_NULLABLE > 0 OR HAS_SIMPLE_UNIQUE > 0 then ' OR ' else ' AND ' end
-				) WITHIN GROUP (ORDER BY R_COLUMN_ID) -- conditions to trigger the search of foreign keys
+				) WITHIN GROUP (ORDER BY R_COLUMN_ID, POSITION) -- conditions to trigger the search of foreign keys
 				|| ') ' || data_browser_conf.NL(8) || ' AND NOT EXISTS ( SELECT 1 FROM ' || T.R_VIEW_NAME || ' ' || T.TABLE_ALIAS || ' '
 				|| data_browser_conf.NL(12)
 				|| 'WHERE '
@@ -239,15 +239,15 @@ CREATE OR REPLACE PACKAGE BODY import_utl IS
 						else
 							import_utl.Get_Compare_Case_Insensitive(T.TABLE_ALIAS || '.' || T.R_COLUMN_NAME, 'IMP.' || T.IMP_COLUMN_NAME, T.R_DATA_TYPE)
 						end,
-					data_browser_conf.NL(12) || 'AND ') WITHIN GROUP (ORDER BY R_COLUMN_ID)
+					data_browser_conf.NL(12) || 'AND ') WITHIN GROUP (ORDER BY R_COLUMN_ID, POSITION)
 				|| data_browser_conf.NL(8) || ' )'
 				WHERE_CHECK_EXPR,
 				case when T.NULLABLE = 'N' then
-					'''' || LISTAGG(INITCAP(T.R_COLUMN_NAME), '/') WITHIN GROUP (ORDER BY R_COLUMN_ID)
+					'''' || LISTAGG(INITCAP(T.R_COLUMN_NAME), '/') WITHIN GROUP (ORDER BY R_COLUMN_ID, POSITION)
 					|| case when T.U_MEMBERS = 1 then ' ist ' else ' sind ' end || 'leer.'''
 				end COLUMN_CHECK_EXPR2,
 				case when T.NULLABLE = 'N' then
-					LISTAGG('IMP.' || T.IMP_COLUMN_NAME || ' IS NULL', ' AND ') WITHIN GROUP (ORDER BY R_COLUMN_ID)
+					LISTAGG('IMP.' || T.IMP_COLUMN_NAME || ' IS NULL', ' AND ') WITHIN GROUP (ORDER BY R_COLUMN_ID, POSITION)
 				end WHERE_CHECK_EXPR2,
 				'R' CHECK_CONSTRAINT_TYPE,
 				---------------------------
@@ -259,7 +259,9 @@ CREATE OR REPLACE PACKAGE BODY import_utl IS
 				SELECT /*+ USE_MERGE(S E F) */
 					S.*, 
 					E.IMP_COLUMN_NAME S_COLUMN_NAME,
-					'v_' || FC.IMP_COLUMN_NAME FOLDER_CONTAINER_REF
+					case when IS_FILE_FOLDER_REF = 'Y' then 
+						'v_' || FC.IMP_COLUMN_NAME 
+					end FOLDER_CONTAINER_REF
 				FROM (
 					-- 2. level foreign keys
 					SELECT 	VIEW_NAME, TABLE_NAME, SEARCH_KEY_COLS, SHORT_NAME, COLUMN_NAME, 
@@ -268,7 +270,7 @@ CREATE OR REPLACE PACKAGE BODY import_utl IS
 						D_COLUMN_NAME, 
 						IS_FILE_FOLDER_REF, FOLDER_PARENT_COLUMN_NAME, FOLDER_NAME_COLUMN_NAME, FOLDER_CONTAINER_COLUMN_NAME, 
 						R_PRIMARY_KEY_COLS, R_CONSTRAINT_TYPE, R_VIEW_NAME, COLUMN_ID, NULLABLE, 
-						R_COLUMN_ID, R_COLUMN_NAME, R_NULLABLE, R_DATA_TYPE, R_DATA_PRECISION, R_DATA_SCALE, 
+						R_COLUMN_ID, R_COLUMN_NAME, POSITION, R_NULLABLE, R_DATA_TYPE, R_DATA_PRECISION, R_DATA_SCALE, 
 						R_CHAR_LENGTH, TABLE_ALIAS, IMP_COLUMN_NAME, JOIN_CLAUSE, HAS_NULLABLE, HAS_SIMPLE_UNIQUE, 
 						HAS_FOREIGN_KEY, U_CONSTRAINT_NAME, U_MEMBERS, POSITION2		
 					FROM TABLE(data_browser_select.FN_Pipe_table_imp_fk2 (v_Table_Name, import_utl.Get_As_Of_Timestamp, p_Data_Format))
@@ -281,7 +283,7 @@ CREATE OR REPLACE PACKAGE BODY import_utl IS
 						D_COLUMN_NAME, 
 						IS_FILE_FOLDER_REF, FOLDER_PARENT_COLUMN_NAME, FOLDER_NAME_COLUMN_NAME, FOLDER_CONTAINER_COLUMN_NAME, 
 						R_PRIMARY_KEY_COLS, R_CONSTRAINT_TYPE, R_VIEW_NAME, COLUMN_ID, NULLABLE, 
-						R_COLUMN_ID, R_COLUMN_NAME, R_NULLABLE, R_DATA_TYPE, R_DATA_PRECISION, R_DATA_SCALE, 
+						R_COLUMN_ID, R_COLUMN_NAME, POSITION, R_NULLABLE, R_DATA_TYPE, R_DATA_PRECISION, R_DATA_SCALE, 
 						R_CHAR_LENGTH, TABLE_ALIAS, IMP_COLUMN_NAME, JOIN_CLAUSE, HAS_NULLABLE, HAS_SIMPLE_UNIQUE, 
 						HAS_FOREIGN_KEY, U_CONSTRAINT_NAME, U_MEMBERS, POSITION2
 					FROM TABLE(data_browser_select.FN_Pipe_table_imp_fk1 (v_Table_Name)) S
@@ -320,14 +322,15 @@ CREATE OR REPLACE PACKAGE BODY import_utl IS
 			) D ON D.VIEW_NAME = T.R_VIEW_NAME
 			WHERE R_COLUMN_ID IS NOT NULL
 			GROUP BY T.TABLE_NAME, T.VIEW_NAME, 
-				D.DEFAULTS_MISSING, T.TABLE_ALIAS, T.R_PRIMARY_KEY_COLS, T.COLUMN_NAME,
+				D.DEFAULTS_MISSING, T.TABLE_ALIAS, T.R_PRIMARY_KEY_COLS, 
+				T.COLUMN_NAME,
 				T.R_VIEW_NAME, T.COLUMN_ID, S.SHORT_NAME,
 				T.HAS_NULLABLE, T.HAS_SIMPLE_UNIQUE, T.U_MEMBERS, 
 				T.NULLABLE, T.D_REF, T.D_COLUMN_NAME, T.POSITION2,
 				T.IS_FILE_FOLDER_REF, T.FOLDER_PARENT_COLUMN_NAME, T.FOLDER_NAME_COLUMN_NAME, 
 				T.FOLDER_CONTAINER_COLUMN_NAME, T.FOLDER_CONTAINER_REF
 			HAVING (MAX(T.U_CONSTRAINT_NAME) IS NOT NULL or import_utl.Get_Search_Keys_Unique = 'NO')
-			ORDER BY SUM(HAS_FOREIGN_KEY), T.TABLE_ALIAS DESC, T.U_MEMBERS, T.COLUMN_ID, T.POSITION2, T.D_REF
+			ORDER BY SUM(HAS_FOREIGN_KEY), T.TABLE_ALIAS DESC, T.U_MEMBERS, T.COLUMN_ID, T.D_REF
 		) 
 		SELECT SQL_TEXT,
 			case when B.COLUMN_CHECK_EXPR IS NOT NULL then
