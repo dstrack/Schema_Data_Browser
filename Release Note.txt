@@ -4,7 +4,7 @@ V 1.9.06 Release Note
 Data Browser Improvements:
 
 * Improved query generation for import/export views and for history, counters, links, totals, and folder path LOV.
-* Improved support for datetime and timestamp formating and conversions
+* Improved support for DateTime and timestamp formatting and conversions
 * Better joins descriptions for Import / Export forms in the Actions / Columns modal dialog.
 * Improved navigation in the Actions / Show Query modal dialog. The view mode can be chosen in a tab-pane.
 * Improved trigger generation for updatable views. Added a key lookup for composite keys with a file path.

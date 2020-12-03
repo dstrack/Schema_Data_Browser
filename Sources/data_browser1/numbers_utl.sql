@@ -148,7 +148,7 @@ IS
                         then SUBSTR(LPAD('0', CEIL((v_Data_Precision)/3)*4, 'G999'), -(v_Data_Precision+FLOOR((v_Data_Precision-1)/3)) )
                         else LPAD('0', v_Data_Precision, '9')
                     end
-                    || case when v_Data_Scale > 0 then RPAD('D', v_Data_Scale+1, v_fraction_char) end
+                    || case when v_Data_Scale > 0 then RPAD('D0', v_Data_Scale+1, v_fraction_char) end
                 , 1, numbers_utl.g_Format_Max_Length); -- maximum length 
         end if;
     END Get_Number_Format_Mask;

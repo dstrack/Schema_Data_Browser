@@ -546,8 +546,13 @@ $END
 	FUNCTION Temporary_Password
 	RETURN VARCHAR2
 	IS
+		v_result VARCHAR2(20);
 	BEGIN
-		RETURN REPLACE(INITCAP(REGEXP_REPLACE(dbms_random.string('X',12), '(.{4})(.{4})(.{4})', '\1_\2_\3')), '_', '-');
+		loop 
+			v_result := REPLACE(INITCAP(REGEXP_REPLACE(dbms_random.string('X',12), '(.{4})(.{4})(.{4})', '\1_\2_\3')), '_', '-');
+			exit when v_result NOT IN ( UPPER(v_result), LOWER(v_result));
+		end loop;
+		RETURN v_result;
 	END;
 
 	PROCEDURE Add_Admin (

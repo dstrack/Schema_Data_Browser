@@ -1110,7 +1110,7 @@ IS
 				v_row.CONSTRAINT_TYPE := v_in_rows(ind).CONSTRAINT_TYPE;
 				v_row.COLUMN_NAME := v_in_rows(ind).COLUMN_NAME;
 				v_row.POSITION := v_in_rows(ind).POSITION;
-				v_row.DEFAULT_TEXT := SUBSTR(TO_CLOB(v_in_rows(ind).DEFAULT_TEXT), 1, 800); -- special conversion of LONG type; give a margin of 200 bytes for char expansion
+				v_row.DEFAULT_TEXT := RTRIM(SUBSTR(TO_CLOB(v_in_rows(ind).DEFAULT_TEXT), 1, 800)); -- special conversion of LONG type; give a margin of 200 bytes for char expansion
 				v_row.VIEW_COLUMN_NAME := CASE 
 					WHEN changelog_conf.Match_Column_Pattern(v_in_rows(ind).COLUMN_NAME, v_exclude_cols_Array) = 'NO'
 						THEN v_in_rows(ind).COLUMN_NAME END;
@@ -1208,7 +1208,7 @@ $END
 				v_row.CONSTRAINT_TYPE := v_in_rows(ind).CONSTRAINT_TYPE;
 				v_row.COLUMN_NAME := v_in_rows(ind).COLUMN_NAME;
 				v_row.POSITION := v_in_rows(ind).POSITION;
-				v_row.DEFAULT_TEXT := SUBSTR(TO_CLOB(v_in_rows(ind).DEFAULT_TEXT), 1, 800); -- special conversion of LONG type; give a margin of 200 bytes for char expansion
+				v_row.DEFAULT_TEXT := RTRIM(SUBSTR(TO_CLOB(v_in_rows(ind).DEFAULT_TEXT), 1, 800)); -- special conversion of LONG type; give a margin of 200 bytes for char expansion
 				v_row.VIEW_COLUMN_NAME := CASE 
 					WHEN changelog_conf.Match_Column_Pattern(v_in_rows(ind).COLUMN_NAME, v_exclude_cols_Array) = 'NO'
 						THEN v_in_rows(ind).COLUMN_NAME END;
@@ -1648,7 +1648,7 @@ $END
 				v_row.DATA_TYPE 			:= v_in_rows(ind).DATA_TYPE;
 				v_row.NULLABLE 				:= v_in_rows(ind).NULLABLE;
 				v_row.DEFAULT_LENGTH 		:= v_in_rows(ind).DEFAULT_LENGTH;
-				v_row.DEFAULT_TEXT 			:= SUBSTR(TO_CLOB(v_in_rows(ind).DATA_DEFAULT), 1, 800); -- special conversion of LONG type; give a margin of 200 bytes for char expansion
+				v_row.DEFAULT_TEXT 			:= RTRIM(SUBSTR(TO_CLOB(v_in_rows(ind).DATA_DEFAULT), 1, 800)); -- special conversion of LONG type; give a margin of 200 bytes for char expansion
 				v_row.DATA_PRECISION 		:= v_in_rows(ind).DATA_PRECISION;
 				v_row.DATA_SCALE 			:= v_in_rows(ind).DATA_SCALE;
 				v_row.CHAR_LENGTH 			:= v_in_rows(ind).CHAR_LENGTH;			

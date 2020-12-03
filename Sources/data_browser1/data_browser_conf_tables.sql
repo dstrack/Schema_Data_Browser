@@ -167,3 +167,6 @@ begin
 end;
 /
 show errors
+
+-- make table visible in view SYS.ALL_TABLES
+GRANT SELECT ON DATA_BROWSER_CONFIG TO PUBLIC;

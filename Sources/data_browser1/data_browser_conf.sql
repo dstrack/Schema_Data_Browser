@@ -3127,7 +3127,7 @@ $END
 				|| ')';
             end if;
         when p_Data_Type = 'FLOAT' then
-            v_Format_Mask := Get_Number_Format_Mask(numbers_utl.g_Default_Data_Precision, numbers_utl.g_Default_Data_Scale, v_Use_Group_Separator, p_Export => 'Y', p_Use_Trim => p_Use_Trim);
+            v_Format_Mask := Get_Number_Format_Mask(numbers_utl.g_Default_Data_Precision, null, v_Use_Group_Separator, p_Export => 'Y', p_Use_Trim => p_Use_Trim);
             v_Result := 'TO_CHAR(' || p_Column_Name || ', '
             || Enquote_Literal(v_Format_Mask)
             || case when p_use_NLS_params = 'Y' then ', ' || Get_Export_NumChars end
@@ -3210,7 +3210,7 @@ $END
         when p_Data_Type = 'NUMBER' then
             Get_Number_Format_Mask(p_Data_Precision, p_Data_Scale, p_Use_Group_Separator, p_Export => 'N')
         when p_Data_Type = 'FLOAT' then
-        	Get_Number_Format_Mask(numbers_utl.g_Default_Data_Precision, numbers_utl.g_Default_Data_Scale, p_Use_Group_Separator, p_Export => 'N') -- g_Export_Float_Format
+        	Get_Number_Format_Mask(numbers_utl.g_Default_Data_Precision, null, p_Use_Group_Separator, p_Export => 'N') -- g_Export_Float_Format
         when p_Data_Type = 'DATE'  and p_Datetime = 'Y' then
             Get_Export_DateTime_Format
         when p_Data_Type = 'DATE' then
@@ -3230,7 +3230,7 @@ $END
 	PRAGMA UDF;
         v_Format_Mask CONSTANT VARCHAR2(255) := case 
 			when p_Format_Mask = 'TM9' 
-				then Get_Number_Format_Mask(numbers_utl.g_Default_Data_Precision, numbers_utl.g_Default_Data_Scale, p_Use_Group_Separator => 'Y', p_Export => 'Y')
+				then Get_Number_Format_Mask(numbers_utl.g_Default_Data_Precision, null, p_Use_Group_Separator => 'Y', p_Export => 'Y')
 				else p_Format_Mask
 			end;
 	BEGIN
@@ -3255,7 +3255,7 @@ $END
 	PRAGMA UDF;
         v_Format_Mask CONSTANT VARCHAR2(255) := 
         	case when p_Format_Mask = 'TM9' 
-				then Get_Number_Format_Mask(numbers_utl.g_Default_Data_Precision, numbers_utl.g_Default_Data_Scale, p_Use_Group_Separator => 'Y', p_Export => 'Y')
+				then Get_Number_Format_Mask(numbers_utl.g_Default_Data_Precision, null, p_Use_Group_Separator => 'Y', p_Export => 'Y')
 				else p_Format_Mask
 			end;
     BEGIN
@@ -3655,7 +3655,7 @@ $END
 					v_row.NULLABLE 				:= v_in_rows(ind).NULLABLE;
 					v_row.NUM_DISTINCT 			:= v_in_rows(ind).NUM_DISTINCT;
 					v_row.DEFAULT_LENGTH 		:= v_in_rows(ind).DEFAULT_LENGTH;
-					v_row.DEFAULT_TEXT 			:= SUBSTR(TO_CLOB(v_in_rows(ind).DATA_DEFAULT), 1, 800); -- special conversion of LONG type; give a margin of 200 bytes for char expansion
+					v_row.DEFAULT_TEXT 			:= RTRIM(SUBSTR(TO_CLOB(v_in_rows(ind).DATA_DEFAULT), 1, 800)); -- special conversion of LONG type; give a margin of 200 bytes for char expansion
 					v_row.DATA_PRECISION 		:= v_in_rows(ind).DATA_PRECISION;
 					v_row.DATA_SCALE 			:= v_in_rows(ind).DATA_SCALE;
 					v_row.CHAR_LENGTH 			:= v_in_rows(ind).CHAR_LENGTH;			
@@ -3677,7 +3677,7 @@ $END
 					v_row.NULLABLE 				:= v_in_rows(ind).NULLABLE;
 					v_row.NUM_DISTINCT 			:= v_in_rows(ind).NUM_DISTINCT;
 					v_row.DEFAULT_LENGTH 		:= v_in_rows(ind).DEFAULT_LENGTH;
-					v_row.DEFAULT_TEXT 			:= SUBSTR(TO_CLOB(v_in_rows(ind).DATA_DEFAULT), 1, 800); -- special conversion of LONG type; give a margin of 200 bytes for char expansion
+					v_row.DEFAULT_TEXT 			:= RTRIM(SUBSTR(TO_CLOB(v_in_rows(ind).DATA_DEFAULT), 1, 800)); -- special conversion of LONG type; give a margin of 200 bytes for char expansion
 					v_row.DATA_PRECISION 		:= v_in_rows(ind).DATA_PRECISION;
 					v_row.DATA_SCALE 			:= v_in_rows(ind).DATA_SCALE;
 					v_row.CHAR_LENGTH 			:= v_in_rows(ind).CHAR_LENGTH;			
@@ -4018,8 +4018,3 @@ BEGIN
 	Load_Config;
 END data_browser_conf;
 /
-show errors
-
--- make table visible in view SYS.ALL_TABLES
-grant select on DATA_BROWSER_CONFIG to PUBLIC;
-

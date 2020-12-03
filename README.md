@@ -31,34 +31,39 @@ Application to analyse your DB and APEX Applications
 	If you have to use the app with 'APEX Authorization', this step is omitted.
 
 -- in the Oracle ATP cloud
-	cd Schema_Data_Browser/Sources/sys_install 
+	cd Schema_Data_Browser/Sources 
 	sqlplus /nolog 
 	
 	connect admin 
 
-	@custom_keys.sql					-- Protected storage for crypto keys and hash salt
-	@custom_ctx.sql						-- Custom context for special session parameters.
-	@data_browser_schema_sys_package.sql
+	@sys_install/custom_keys.sql					-- Protected storage for crypto keys and hash salt
+	@sys_install/custom_ctx.sql						-- Custom context for special session parameters.
+	@sys_install/data_browser_schema_sys_package.sql
 	exec data_browser_schema.Add_Apex_Workspace_Schema(p_Schema_Name=>'&WORKSPACE.', p_Apex_Workspace_Name=>'&WORKSPACE.');
 	-- Use the Oracle ATP Cloud Workspace Name.
 
-	-- The procedure data_browser_schema.Add_Apex_Workspace_Schema can be innovated repeatedly, 
-	-- to prepare additional schemas. The installation of the Supporting Objects
-	-- must then be done manually in the Apex Workspace for these schemas.	
+	-- to prepare additional schemas execute the following steps
+	@sys_install/data_browser_sys_add_schema.sql
+	exit
 	
+	sqlplus /nolog 
+	-- connect to the new schema 
+	-- installation of the Supporting Objects
+	@sys_install/data_browser_install_modules	
 	exit
 	
 -- in an on premise DB
-	cd Schema_Data_Browser/Sources/sys_install 
+	cd Schema_Data_Browser/Sources 
 	sqlplus /nolog 
 	
 	connect sys as sysdba 
 
-	@custom_keys.sql
-	@custom_ctx.sql
-	@data_browser_schema_sys_package.sql
-	@data_browser_sys_add_schema.sql -- the first schema_name in the Oracle ATP cloud is the workspace_name.
-					-- Later, more can be added by button on the homepage.
+	@sys_install/custom_keys.sql
+	@sys_install/custom_ctx.sql
+	@sys_install/data_browser_schema_sys_package.sql
+	@sys_install/data_browser_sys_add_schema.sql 
+	-- the first schema_name in the Oracle ATP cloud is the workspace_name.
+	-- Later, more can be added by button on the homepage.
 	exit
 
 ## Import and install the APEX Application.
@@ -92,7 +97,7 @@ Application to analyse your DB and APEX Applications
 3. Trial period / license
 	Without a license, the program runs for 2 months in full functionality and then switches to a read only mode.
 	The remaining probationary period will be displayed on the homepage at the bottom.
-	If you like the program, you can order a license from Strack.Software@t-online.de before the trial expires.
+	If you like the program, you can order a license by sending a mail to Strack.Software@t-online.de before the trial expires.
 
 ## Configuration
 1. Settings menu

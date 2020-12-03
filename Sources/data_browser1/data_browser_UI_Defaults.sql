@@ -164,13 +164,13 @@ IS
 			T.TABLE_NAME,
 			C.COLUMN_NAME,
 			C.COLUMN_HEADER LABEL,
-			/*data_browser_edit.Get_Form_Field_Help_Text(
+			data_browser_edit.Get_Form_Field_Help_Text(
 				p_Table_name => T.VIEW_NAME,
 				p_Column_Name => REF_COLUMN_NAME,
 				p_View_Mode => v_View_Mode,
 				p_Show_Statistics => 'NO'
-			)*/
-			C.COMMENTS HELP_TEXT,
+			) HELP_TEXT,
+			-- C.COMMENTS HELP_TEXT,
 			case when IS_AUDIT_COLUMN = 'Y'
 				then 'AUDIT_INFO' else 'FORM_FIELDS'
 			end GROUP_NAME,

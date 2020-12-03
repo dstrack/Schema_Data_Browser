@@ -5,8 +5,10 @@ begin
 end;
 /
 
+declare
+	v_APP_ID NUMBER := NVL(APEX_APPLICATION.G_FLOW_ID, 2000);
 begin
-    data_browser_conf.Set_App_Library_Version(APEX_APPLICATION.G_FLOW_ID );
+    data_browser_conf.Set_App_Library_Version(v_APP_ID);
 end;
 /
 begin

@@ -12,8 +12,8 @@ prompt ============================================================
 @@data_browser1/data_browser_specs.sql
 @@data_browser1/numbers_utl.sql
 @@data_browser1/data_browser_conf.sql
-@@data_browser1/data_browser_jobs.sql
 @@data_browser1/data_browser_pattern.sql
+@@data_browser1/data_browser_jobs.sql
 @@change_log/change_log_conf_table.sql
 @@change_log/changelog_conf.sql
 @@change_log/user_namespaces_table.sql
@@ -22,9 +22,9 @@ prompt ============================================================
 @@change_log/mvbase_unique_keys.sql
 @@change_log/mvbase_alter_uniquekeys.sql
 @@change_log/mvbase_views.sql
+@@data_browser2/app_protocol_table.sql
 @@change_log/custom_changelog_gen_head.sql
 @@change_log/custom_changelog_gen_body.sql
-@@data_browser2/app_protocol_table.sql
 @@data_browser1/data_browser_pref_tables.sql
 @@data_browser1/data_browser_pipes.sql
 @@data_browser1/data_browser_views.sql
@@ -67,5 +67,4 @@ set verify on feed on serveroutput on size unlimited
 @@data_browser2/data_browser_inst_cleanup.sql
 @@data_browser2/data_browser_launch_mview_job.sql
 
-exec data_browser_conf.Set_App_Library_Version(p_Application_ID => 2000);
 set verify on feed on serveroutput on size unlimited
