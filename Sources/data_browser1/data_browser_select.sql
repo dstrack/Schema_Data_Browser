@@ -2798,7 +2798,7 @@ is
 		if v_out_tab.COUNT > 0 then
 			v_Table_Alias := RTRIM(v_out_tab(1).TABLE_ALIAS, '.');
 			v_From_Clause := NL(p_Indent + (p_Level-1)*4) 
-			|| ' FROM ' || data_browser_select.FN_Table_Prefix 
+			|| 'FROM ' || data_browser_select.FN_Table_Prefix 
 			|| data_browser_conf.Enquote_Name_Required(p_Table_Name) || ' ' || v_Table_Alias;
 			v_Column_Expr := data_browser_conf.Get_Link_ID_Expression (	-- row reference in select list, produces CAST(A.ROWID AS VARCHAR2(128)) references in case of composite or missing unique keys
 				p_Unique_Key_Column => p_Search_Key_Col,
@@ -2834,8 +2834,8 @@ is
 					if (ind = 1 or v_out_tab(ind).R_TABLE_ALIAS != v_out_tab(ind - 1).R_TABLE_ALIAS) and v_out_tab(ind).R_TABLE_ALIAS IS NOT NULL then
 						v_From_Clause := v_From_Clause
 						|| NL(p_Indent + (p_Level-1)*4) 
-						|| case when v_out_tab(ind).NULLABLE = 'Y' then ' LEFT OUTER' end
-						|| ' JOIN ' || data_browser_select.FN_Table_Prefix
+						|| case when v_out_tab(ind).NULLABLE = 'Y' then 'LEFT OUTER ' end
+						|| 'JOIN ' || data_browser_select.FN_Table_Prefix
 						|| v_out_tab(ind).R_VIEW_NAME || ' ' || v_out_tab(ind).R_TABLE_ALIAS
 						|| ' ON ' || v_out_tab(ind).R_TABLE_ALIAS || '.' || v_out_tab(ind).R_PRIMARY_KEY_COLS || ' = ' || v_out_tab(ind).C_COLUMN_EXPR;
 					end if;
@@ -2887,7 +2887,8 @@ is
 					|| v_From_Clause
 					|| v_Inner_Condition
 					|| case when v_Order_By IS NOT NULL then 
-						' ORDER BY ' || v_Order_By
+						NL(p_Indent)
+						|| 'ORDER BY ' || v_Order_By
 					end;
 			end if;
 		end if;

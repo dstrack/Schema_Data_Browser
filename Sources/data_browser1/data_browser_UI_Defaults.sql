@@ -168,7 +168,8 @@ IS
 				p_Table_name => T.VIEW_NAME,
 				p_Column_Name => REF_COLUMN_NAME,
 				p_View_Mode => v_View_Mode,
-				p_Show_Statistics => 'NO'
+				p_Show_Statistics => 'NO',
+				p_Show_Title => 'NO'
 			) HELP_TEXT,
 			-- C.COMMENTS HELP_TEXT,
 			case when IS_AUDIT_COLUMN = 'Y'

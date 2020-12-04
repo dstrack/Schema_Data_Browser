@@ -1748,7 +1748,8 @@ IS
 		p_Parent_Name VARCHAR2 DEFAULT NULL,
 		p_View_Mode	VARCHAR2 DEFAULT 'FORM_VIEW',
     	p_Join_Options VARCHAR2 DEFAULT NULL,
-    	p_Show_Statistics VARCHAR2 DEFAULT 'NO'
+    	p_Show_Statistics VARCHAR2 DEFAULT 'NO',
+		p_Show_Title VARCHAR2 DEFAULT 'YES'
 	) RETURN VARCHAR2;
 
 	PROCEDURE Get_Form_Field_Help_Text ( -- External
@@ -1758,6 +1759,7 @@ IS
 		p_View_Mode	VARCHAR2 DEFAULT 'FORM_VIEW',
     	p_Join_Options VARCHAR2 DEFAULT NULL,
     	p_Show_Statistics VARCHAR2 DEFAULT 'NO',
+		p_Show_Title VARCHAR2 DEFAULT 'YES',
     	p_Help_Text OUT VARCHAR2,
     	p_Ref_Table_Name OUT VARCHAR2,
     	p_Ref_Column_Name OUT VARCHAR2

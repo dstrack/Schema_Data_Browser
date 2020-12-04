@@ -147,7 +147,8 @@ CREATE OR REPLACE PACKAGE BODY import_utl IS
 					case when IS_FILE_FOLDER_REF = 'N' then 
 						RPAD(' ', 4) || 'if '
 						|| LISTAGG(S_REF || ' IS NOT NULL',
-							case when HAS_NULLABLE > 0 OR HAS_SIMPLE_UNIQUE > 0 then data_browser_conf.NL(4) || 'OR ' else ' AND ' end
+							data_browser_conf.NL(4) 
+							|| case when HAS_NULLABLE > 0 OR HAS_SIMPLE_UNIQUE > 0 then 'or ' else 'and ' end
 						) WITHIN GROUP (ORDER BY R_COLUMN_ID, POSITION) -- conditions to trigger the search of foreign keys
 						|| ' then ' || chr(10)
 						|| case when D.DEFAULTS_MISSING = 0  AND import_utl.Get_Insert_Foreign_Keys = 'YES' 

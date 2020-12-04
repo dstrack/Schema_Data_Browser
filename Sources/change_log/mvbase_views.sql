@@ -307,13 +307,14 @@ FROM (
                 DEFERRABLE, DEFERRED, STATUS, VALIDATED,
                 LISTAGG(F.COLUMN_NAME, ', ') WITHIN GROUP (ORDER BY F.POSITION) 
                     OVER (PARTITION BY F.TABLE_NAME, F.TABLE_OWNER, F.CONSTRAINT_NAME) FOREIGN_KEY_COLS,
-                LISTAGG(case when F.COLUMN_NAME NOT IN (changelog_conf.Get_ColumnWorkspace, changelog_conf.Get_ColumnDeletedMark) then F.COLUMN_NAME end, ', ') WITHIN GROUP (ORDER BY F.POSITION) 
+                LISTAGG(case when F.COLUMN_NAME NOT IN (changelog_conf.Get_ColumnWorkspace, changelog_conf.Get_ColumnDeletedMark) 
+                			then F.COLUMN_NAME end, ', ') WITHIN GROUP (ORDER BY F.POSITION) 
                     OVER (PARTITION BY F.TABLE_NAME, F.TABLE_OWNER, F.CONSTRAINT_NAME) FOREIGN_KEY_COLS2
             FROM TABLE ( changelog_conf.FN_Pipe_Foreign_Key_Columns ) F
         ) A, MVBASE_ALTER_UNIQUEKEYS P, MVBASE_ALTER_UNIQUEKEYS B, MVBASE_VIEWS FV
         WHERE A.R_CONSTRAINT_NAME = P.CONSTRAINT_NAME -- reference target
         AND A.TABLE_NAME = B.TABLE_NAME
-        AND A.TABLE_NAME = FV.TABLE_NAME(+) AND A.OWNER = FV.OWNER (+)-- initially the view does not exist
+        AND A.TABLE_NAME = FV.TABLE_NAME AND A.OWNER = FV.OWNER 
         AND P.CONSTRAINT_TYPE IN ('P', 'U')
         AND B.POSITION = 1
     ) FK

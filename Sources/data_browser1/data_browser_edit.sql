@@ -1699,7 +1699,8 @@ $END
 		p_Parent_Name VARCHAR2 DEFAULT NULL,
 		p_View_Mode	VARCHAR2 DEFAULT 'FORM_VIEW',
     	p_Join_Options VARCHAR2 DEFAULT NULL,
-    	p_Show_Statistics VARCHAR2 DEFAULT 'NO'
+    	p_Show_Statistics VARCHAR2 DEFAULT 'NO',
+		p_Show_Title VARCHAR2 DEFAULT 'YES'
 	) RETURN VARCHAR2
 	is
 		v_Help_Text			VARCHAR2(32767);
@@ -1713,6 +1714,7 @@ $END
 			p_View_Mode	=> p_View_Mode,
 			p_Join_Options => p_Join_Options,
 			p_Show_Statistics => p_Show_Statistics,
+			p_Show_Title => p_Show_Title,
 			p_Help_Text => v_Help_Text,
 			p_Ref_Table_Name => v_Ref_Table_Name,
 			p_Ref_Column_Name => v_Ref_Column_Name
@@ -1727,13 +1729,14 @@ $END
 		p_View_Mode	VARCHAR2 DEFAULT 'FORM_VIEW',
     	p_Join_Options VARCHAR2 DEFAULT NULL,
     	p_Show_Statistics VARCHAR2 DEFAULT 'NO',
+		p_Show_Title VARCHAR2 DEFAULT 'YES',
     	p_Help_Text OUT VARCHAR2,
     	p_Ref_Table_Name OUT VARCHAR2,
     	p_Ref_Column_Name OUT VARCHAR2
 	)
 	is
 		v_Help_Text		VARCHAR2(32767);
-		v_Delimiter		CONSTANT VARCHAR2(10) := '.' || chr(10);
+		v_Delimiter		CONSTANT VARCHAR2(10) := chr(10);
 	begin
 		if p_Column_Name = 'ROW_SELECTOR$' then
 			v_Help_Text := 'Select : '  || chr(10)|| chr(10) || APEX_LANG.LANG('Select rows for Actions') || v_Delimiter;
@@ -1743,7 +1746,7 @@ $END
 		for c_cur IN ( -- single column checks
 				select S.R_VIEW_NAME, S.R_TABLE_NAME, S.COLUMN_NAME, S.R_COLUMN_NAME, S.COLUMN_HEADER,
 					S.REF_VIEW_NAME, S.REF_TABLE_NAME, S.REF_COLUMN_NAME, 
-					D.CHECK_CONDITION, D.CONSTRAINT_NAME,
+					D.CHECK_CONDITION, D.CONSTRAINT_NAME, D.CHECK_CONSTRAINT_NAME,
 					S.REQUIRED, S.CHECK_UNIQUE, S.FORMAT_MASK, 
 					C.DATA_TYPE, C.DATA_PRECISION, C.DATA_SCALE, C.CHAR_LENGTH,
 					C.HAS_DEFAULT,  
@@ -1785,7 +1788,11 @@ $END
 				where S.COLUMN_NAME = p_Column_Name
 				and T.VIEW_NAME = p_Table_name
 		) loop
-			v_Help_Text := data_browser_conf.Table_Name_To_Header(c_cur.R_VIEW_NAME) || ' - ' || c_cur.COLUMN_HEADER || ' :' || chr(10)|| chr(10);
+			if p_Show_Title = 'YES' then
+				v_Help_Text := data_browser_conf.Table_Name_To_Header(c_cur.R_VIEW_NAME) || ' - ' || c_cur.COLUMN_HEADER || ' :' || chr(10)|| chr(10);
+			else 
+				v_Help_Text := null;
+			end if;
 			p_Ref_Table_Name  := c_cur.R_VIEW_NAME;
 			p_Ref_Column_Name := c_cur.R_COLUMN_NAME;
 			
@@ -1928,7 +1935,7 @@ $END
 					) || v_Delimiter;
 				end if;
 				if c_cur.CHECK_CONDITION IS NOT NULL
-				and c_cur.CONSTRAINT_NAME != 'AUTOMATICALLY' then
+				and c_cur.CHECK_CONSTRAINT_NAME != 'AUTOMATICALLY' then
 					v_Help_Text := v_Help_Text || APEX_LANG.LANG('The permitted range is') || ' : ' || c_cur.CHECK_CONDITION || v_Delimiter;
 				end if;
 			end if;
@@ -2783,9 +2790,12 @@ $END*/
 						T.DATA_PRECISION, T.DATA_SCALE, T.CHAR_LENGTH, T.NULLABLE, 
 						T.IS_PRIMARY_KEY, T.IS_SEARCH_KEY, T.IS_FOREIGN_KEY, T.IS_DISP_KEY_COLUMN,
 						case when (COLUMN_EXPR_TYPE IN ('SELECT_LIST', 'SELECT_LIST_FROM_QUERY', 'POPUPKEY_FROM_LOV')
-								OR IS_CHAR_YES_NO_COLUMN = 'Y'
-								OR IS_NUMBER_YES_NO_COLUMN = 'Y')
-							AND HAS_DEFAULT = 'Y' then 'N'
+										OR IS_CHAR_YES_NO_COLUMN = 'Y'
+										OR IS_NUMBER_YES_NO_COLUMN = 'Y')
+									AND HAS_DEFAULT = 'Y' 
+								then 'N'
+							when COLUMN_EXPR_TYPE IN ('DISPLAY_ONLY', 'DISPLAY_AND_SAVE')
+								then 'N'
 							else REQUIRED
 						end REQUIRED,
 						HAS_HELP_TEXT, HAS_DEFAULT, IS_BLOB, IS_PASSWORD, 
@@ -3617,11 +3627,14 @@ $END
 			TO_CLOB(data_browser_conf.NL(8) || 'if '
 			|| case when p_DML_Command IN ('INSERT', 'LOOKUP', 'SAVE') then 
 				case when p_Data_Source = 'COLLECTION' then 'p_cur.'||T.INPUT_ID else D_REF end
-				|| ' IS NULL AND ' -- is lookup required
+				|| ' IS NULL ' 
+				|| data_browser_conf.NL(8) 
+				|| 'AND ' -- is lookup required
 			end
 			|| '(')					-- are all/some terms known
 			|| LISTAGG(S_REF || ' IS NOT NULL',
-				case when HAS_NULLABLE > 0 OR HAS_SIMPLE_UNIQUE > 0 then ' OR ' else ' AND ' end
+				data_browser_conf.NL(8) 
+				|| case when HAS_NULLABLE > 0 OR HAS_SIMPLE_UNIQUE > 0 then 'OR ' else 'AND ' end
 			) WITHIN GROUP (ORDER BY R_COLUMN_ID, POSITION) -- conditions to trigger the search of foreign keys
 			|| ') then ' || data_browser_conf.NL(10)
 			|| 'begin ' 
