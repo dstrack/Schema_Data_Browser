@@ -1,11 +1,11 @@
 set define '&' verify off feed off serveroutput on size unlimited
 prompt Installing Data Browser App from Strack Software Development 
 prompt ============================================================
-@~/projekte/strack_software/strack-software-delete-check-plugin/delete_check_plsql_code.sql
-@~/projekte/strack_software/strack-software-upload-to-collection-plugin/upload_to_collection_plsql_code.sql
-@~/projekte/strack_software/strack-software-upload-to-collection-plugin/v_apex_collections.sql
-@~/Projekte/strack_software/strack-software-unzip-parallel-plugin/as_zip.sql
-@~/projekte/strack_software/strack-software-unzip-parallel-plugin/unzip_parallel.sql
+@@plugins/delete_check_plsql_code.sql
+@@plugins/upload_to_collection_plsql_code.sql
+@@plugins/v_apex_collections.sql
+@@plugins/as_zip.sql
+@@plugins/unzip_parallel.sql
 
 @@data_browser1/data_browser_conf_tables.sql
 @@data_browser1/data_browser_conf_upgrade.sql
