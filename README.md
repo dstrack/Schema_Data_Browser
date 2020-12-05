@@ -79,9 +79,9 @@ Application to analyse your DB and APEX Applications
 	The installation takes about 2 minutes locally, Oracle Cloud about 3 minutes.
 
 1.2. At the first start, there will be a page in which your admin name, password and e-mail address will be queried.
-	The most convenient way is to reuse the data stored in the browser as program admin data.
+	The most convenient way is to reuse the data stored in the browser as program admin credentials.
 	The password is stored as a salted hash value in the App_Users table.
-	Other authorized users are entered in the App_Users table.
+	Other authorized users can be entered in the App_Users table in the data browser page.
 	The other fields can remain empty for now.
 
 2. When using APEX Authorisation
@@ -102,7 +102,7 @@ Application to analyse your DB and APEX Applications
 ## Configuration
 1. Settings menu
 
-	After login as an Admin you can use the the Settings menu to configure your schema.
+	After login as an APEX Admin or Developer you can use the the Settings menu to configure your schema.
 	Enter global rules for naming conventions as search pattern in the appropriate cells.
 	Often lists of LIKE patterns are available as default values. The fields have help texts which inform you about the meaning.
 	Saving the settings triggers jobs that update a data dictionary of the app.
@@ -110,7 +110,7 @@ Application to analyse your DB and APEX Applications
 
 2. Manage schema
 
-	The Manage Schema page manages the always-visible columns for labels, navigation links, and LOVs.
+	The Manage Schema page manages the always-visible displayed columns for labels, navigation links, and LOVs.
 	With the definition of field lists for natural unique keys, the automatic key lookup for imports
 	but also the uniqueness of all displayed labels can be guaranteed.
 
