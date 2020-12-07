@@ -185,6 +185,7 @@ is
 				case when E.COLUMN_NAME IS NULL
 					and T.COLUMN_NAME != NVL(S.ROW_VERSION_COLUMN_NAME, '-')
 					and T.IS_ORDERING_COLUMN = 'N'
+					and T.IS_SEARCH_KEY = 'N'
 					and T.YES_NO_COLUMN_TYPE IS NULL then
 						data_browser_conf.Get_Col_Format_Mask(
 							p_Data_Type 		=> T.DATA_TYPE, 
@@ -262,6 +263,7 @@ is
 					when E.COLUMN_NAME IS NULL
 					and T.COLUMN_NAME != NVL(S.ROW_VERSION_COLUMN_NAME, '-')
 					and T.IS_ORDERING_COLUMN = 'N'
+					and T.IS_SEARCH_KEY = 'N'
 					and T.YES_NO_COLUMN_TYPE IS NULL then -- normal columns
 						data_browser_select.Get_ConversionColFunction (
 							p_COLUMN_NAME => case when T.IS_SUMMAND = 'Y' and v_Calc_Totals = 'YES' then 
@@ -934,8 +936,6 @@ is
 					end COLUMN_HEADER,
 					S.COLUMN_PREFIX,
 					case 
-					--when T.IS_VIRTUAL_COLUMN ='Y' then -- calculated cols must me formated
-					--	T.DATA_DEFAULT
 					when T.IS_OBFUSCATED = 'Y' then
 						data_browser_conf.Get_Obfuscate_Call('A.' || T.COLUMN_NAME)
 					when T.IS_PRIMARY_KEY = 'Y' 		-- primary key shouldn´t be a input field
@@ -948,7 +948,9 @@ is
 						data_browser_conf.Get_Formated_User_Name('A.' || T.COLUMN_NAME)
 					when T.IS_FOREIGN_KEY = 'N'
 					and T.COLUMN_NAME != NVL(S.ROW_VERSION_COLUMN_NAME, '-')
-					and T.IS_ORDERING_COLUMN = 'N' then
+					and T.IS_ORDERING_COLUMN = 'N' 
+					and T.IS_SEARCH_KEY = 'N'
+					then
 						data_browser_select.Get_ConversionColFunction (
 							p_Column_Name 		=> 'A.' || T.COLUMN_NAME,
 							p_Data_Type 		=> T.DATA_TYPE,

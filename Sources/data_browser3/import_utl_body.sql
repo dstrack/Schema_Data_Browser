@@ -144,7 +144,7 @@ CREATE OR REPLACE PACKAGE BODY import_utl IS
 			SELECT T.VIEW_NAME TABLE_NAME, 
 				 ---------------------------
 				case when MAX(T.U_CONSTRAINT_NAME) IS NOT NULL or import_utl.Get_Search_Keys_Unique = 'NO' then
-					case when IS_FILE_FOLDER_REF = 'N' then 
+					case when MAX(IS_FILE_FOLDER_REF) = 'N' then 
 						RPAD(' ', 4) || 'if '
 						|| LISTAGG(S_REF || ' IS NOT NULL',
 							data_browser_conf.NL(4) 
@@ -194,10 +194,10 @@ CREATE OR REPLACE PACKAGE BODY import_utl IS
 							p_Search_Key_Col  		=> T.R_PRIMARY_KEY_COLS,
 							p_Search_Path   		=> ':new.' || MAX(T.S_COLUMN_NAME),
 							p_Search_Value   		=> T.D_REF,
-							p_Folder_Par_Col_Name  	=> T.FOLDER_PARENT_COLUMN_NAME,
-							p_Folder_Name_Col_Name  => T.FOLDER_NAME_COLUMN_NAME,
-							p_Folder_Cont_Col_Name  => T.FOLDER_CONTAINER_COLUMN_NAME,
-							p_Folder_Cont_Alias 	=> T.FOLDER_CONTAINER_REF,
+							p_Folder_Par_Col_Name  	=> MAX(T.FOLDER_PARENT_COLUMN_NAME),
+							p_Folder_Name_Col_Name  => MAX(T.FOLDER_NAME_COLUMN_NAME),
+							p_Folder_Cont_Col_Name  => MAX(T.FOLDER_CONTAINER_COLUMN_NAME),
+							p_Folder_Cont_Alias 	=> MAX(T.FOLDER_CONTAINER_REF),
 							p_Level 				=> 0
 						)
 						|| ';' || data_browser_conf.NL(4)
@@ -327,9 +327,7 @@ CREATE OR REPLACE PACKAGE BODY import_utl IS
 				T.COLUMN_NAME,
 				T.R_VIEW_NAME, T.COLUMN_ID, S.SHORT_NAME,
 				T.HAS_NULLABLE, T.HAS_SIMPLE_UNIQUE, T.U_MEMBERS, 
-				T.NULLABLE, T.D_REF, T.D_COLUMN_NAME, T.POSITION2,
-				T.IS_FILE_FOLDER_REF, T.FOLDER_PARENT_COLUMN_NAME, T.FOLDER_NAME_COLUMN_NAME, 
-				T.FOLDER_CONTAINER_COLUMN_NAME, T.FOLDER_CONTAINER_REF
+				T.NULLABLE, T.D_REF, T.D_COLUMN_NAME, T.POSITION2
 			HAVING (MAX(T.U_CONSTRAINT_NAME) IS NOT NULL or import_utl.Get_Search_Keys_Unique = 'NO')
 			ORDER BY SUM(HAS_FOREIGN_KEY), T.TABLE_ALIAS DESC, T.U_MEMBERS, T.COLUMN_ID, T.D_REF
 		) 

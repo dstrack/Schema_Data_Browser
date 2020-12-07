@@ -3609,7 +3609,7 @@ $END
 					S.R_VIEW_NAME 		D_VIEW_NAME,
 					S.IMP_COLUMN_NAME
 				FROM MVDATA_BROWSER_F_REFS S
-                --, (SELECT 'SALES' v_Table_name, 'NO' p_As_Of_Timestamp, 'FORM' p_Data_Format FROM DUAL ) PAR
+                --, (SELECT 'SW_FILES' v_Table_name, 'NO' p_As_Of_Timestamp, 'FORM' p_Data_Format FROM DUAL ) PAR
 				, TABLE(data_browser_select.FN_Pipe_browser_q_refs(
 					p_View_Name => S.VIEW_NAME, p_Data_Format => 'FORM')) Q 
 				where Q.VIEW_NAME = S.VIEW_NAME
@@ -3638,11 +3638,10 @@ $END
 			) WITHIN GROUP (ORDER BY R_COLUMN_ID, POSITION) -- conditions to trigger the search of foreign keys
 			|| ') then ' || data_browser_conf.NL(10)
 			|| 'begin ' 
-			|| data_browser_edit.CM(' /* FK-Lookup ' || T.TABLE_NAME || '.' || T.COLUMN_NAME || ' */ ') 
 			--------------------------------------------------------------------------------------------
 			|| data_browser_conf.NL(12) -- find foreign key values
 			|| 'begin ' || data_browser_conf.NL(14) -- try insert
-			|| case when IS_FILE_FOLDER_REF = 'N' then 
+			|| case when MAX(IS_FILE_FOLDER_REF) = 'N' then 
 			   'SELECT ' || T.TABLE_ALIAS || '.' || T.R_PRIMARY_KEY_COLS || ' INTO '
 				|| case when p_Data_Source = 'COLLECTION' then 
 						case when T.D_REF_TYPE = 'N' then 'v_NResult' else 'v_CResult' end
@@ -3650,7 +3649,6 @@ $END
 				|| data_browser_edit.CM(' /* FK_Count:' || SUM(S_HAS_FOREIGN_KEY) || ', Cols_Cnt:' || T.U_MEMBERS || ' */ ') 
 				|| data_browser_conf.NL(14)
 				|| 'FROM ' || data_browser_conf.Enquote_Name_Required(T.R_VIEW_NAME) || ' ' || T.TABLE_ALIAS || ' '
-				-- || LISTAGG (T.JOIN_CLAUSE, data_browser_conf.NL(12)) WITHIN GROUP (ORDER BY T.R_COLUMN_ID)
 				|| data_browser_conf.NL(14)
 				|| 'WHERE '
 				|| LISTAGG(
@@ -3694,10 +3692,10 @@ $END
 					p_Search_Value   		=> case when p_Data_Source = 'COLLECTION' then 
 												case when T.D_REF_TYPE = 'N' then 'v_NResult' else 'v_CResult' end
 											else D_REF end,
-					p_Folder_Par_Col_Name  	=> T.FOLDER_PARENT_COLUMN_NAME,
-					p_Folder_Name_Col_Name  => T.FOLDER_NAME_COLUMN_NAME,
-					p_Folder_Cont_Col_Name  => T.FOLDER_CONTAINER_COLUMN_NAME,
-					p_Folder_Cont_Alias 	=> T.FOLDER_CONTAINER_REF,
+					p_Folder_Par_Col_Name  	=> MAX(T.FOLDER_PARENT_COLUMN_NAME),
+					p_Folder_Name_Col_Name  => MAX(T.FOLDER_NAME_COLUMN_NAME),
+					p_Folder_Cont_Col_Name  => MAX(T.FOLDER_CONTAINER_COLUMN_NAME),
+					p_Folder_Cont_Alias 	=> MAX(T.FOLDER_CONTAINER_REF),
 					p_Level 				=> 2
 				)
 			end 
@@ -3714,7 +3712,7 @@ $END
 				|| data_browser_edit.CM(' /* ' || T.COLUMN_NAME || ' */ ')
 				|| data_browser_conf.NL(12)
 				|| case when D.DEFAULTS_MISSING = 0
-				and IS_FILE_FOLDER_REF = 'N'
+				and MAX(IS_FILE_FOLDER_REF) = 'N'
 				and v_Insert_Foreign_Keys = 'YES'
 				and data_browser_utl.Check_Edit_Enabled(p_Table_Name => T.R_VIEW_NAME, p_View_Mode => p_View_Mode) = 'YES' then
 					-- INSERT new values ---------------------------------------------------------------------
@@ -3792,7 +3790,7 @@ $END
 			else ------- p_Data_Source != 'COLLECTION'------------------------------------------------------
 				data_browser_conf.NL(12)
 					|| case when D.DEFAULTS_MISSING = 0
-					and IS_FILE_FOLDER_REF = 'N'
+					and MAX(IS_FILE_FOLDER_REF) = 'N'
 					and v_Insert_Foreign_Keys = 'YES'
 					and data_browser_utl.Check_Edit_Enabled(p_Table_Name => T.R_VIEW_NAME, p_View_Mode => p_View_Mode) = 'YES'  then
 					-- INSERT new values ---------------------------------------------------------------------
@@ -3843,7 +3841,7 @@ $END
 				p_Message => 'Lookup for "%0" failed. - Error : %1.',
 				p_Column_Header => LISTAGG(T.COLUMN_HEADER, ', ') WITHIN GROUP (ORDER BY R_COLUMN_ID, POSITION),
 				p1 => 'DBMS_UTILITY.FORMAT_ERROR_STACK',
-				p_Class => 'LOOKUP'
+				p_Class => case when p_DML_Command = 'LOOKUP' then 'DATA' else 'LOOKUP' end
 			)
 			|| data_browser_conf.NL(10)
 			|| 'end;' || data_browser_conf.NL(8)
@@ -3944,7 +3942,9 @@ $END
 					R_CHAR_LENGTH, IS_DATETIME, TABLE_ALIAS, IMP_COLUMN_NAME, JOIN_CLAUSE, 
 					HAS_NULLABLE, HAS_SIMPLE_UNIQUE, 
 					HAS_FOREIGN_KEY, U_CONSTRAINT_NAME, U_MEMBERS, POSITION2		
-				FROM TABLE(data_browser_select.FN_Pipe_table_imp_fk2 (p_Table_name, p_As_Of_Timestamp))
+				FROM 
+					-- (SELECT 'SW_FILES' p_Table_name, 'NO' p_As_Of_Timestamp FROM DUAL ) PAR,
+					TABLE(data_browser_select.FN_Pipe_table_imp_fk2 (p_Table_name, p_As_Of_Timestamp))
 				UNION
 				-- 1. level foreign keys
 				SELECT 	VIEW_NAME, TABLE_NAME, SEARCH_KEY_COLS, SHORT_NAME, COLUMN_NAME, 
@@ -3956,7 +3956,9 @@ $END
 					R_CHAR_LENGTH, IS_DATETIME, TABLE_ALIAS, IMP_COLUMN_NAME, JOIN_CLAUSE, 
 					HAS_NULLABLE, HAS_SIMPLE_UNIQUE, 
 					HAS_FOREIGN_KEY, U_CONSTRAINT_NAME, U_MEMBERS, POSITION2		
-				FROM TABLE(data_browser_select.FN_Pipe_table_imp_fk1 (p_Table_name))
+				FROM 
+					-- (SELECT 'SW_FILES' p_Table_name, 'NO' p_As_Of_Timestamp FROM DUAL ) PAR,
+					TABLE(data_browser_select.FN_Pipe_table_imp_fk1 (p_Table_name))
 			) S
 			JOIN REFERENCES_Q E ON E.R_VIEW_NAME = S.S_VIEW_NAME AND E.REF_COLUMN_NAME = S.R_COLUMN_NAME
 				AND (E.TABLE_ALIAS = S.TABLE_ALIAS OR E.TABLE_ALIAS IS NULL)
@@ -3991,7 +3993,7 @@ $END
 			)
 			GROUP BY S.VIEW_NAME
 		) D ON D.VIEW_NAME = T.R_VIEW_NAME
-		-- , (SELECT 'SALES' p_Table_name, 'YES' p_Use_Empty_Columns, 0 p_Exec_Phase, 'COLLECTION' p_Data_Source, 'UPDATE' p_DML_Command, '' p_Unique_Key_Column
+		-- , (SELECT 'SW_FILES' p_Table_name, 'YES' p_Use_Empty_Columns, 0 p_Exec_Phase, 'COLLECTION' p_Data_Source, 'Y' v_use_NLS_params, 'UPDATE' p_DML_Command, 'ID' p_Unique_Key_Column
 		-- , 'NO' v_Compare_Case_Insensitive, 'NO' v_Search_Keys_Unique, 'YES' v_Insert_Foreign_Keys, 'IMPORT_VIEW' p_View_Mode FROM DUAL ) PAR
 		WHERE R_COLUMN_ID IS NOT NULL
 		AND S.VIEW_NAME = p_Table_name
@@ -4003,9 +4005,7 @@ $END
 			T.COLUMN_NAME, T.INPUT_ID, 
 			T.R_VIEW_NAME, T.COLUMN_ID, S.SHORT_NAME,
 			T.HAS_NULLABLE, T.HAS_SIMPLE_UNIQUE, U_MEMBERS, 
-			T.NULLABLE, D_REF, D_REF_TYPE, 
-			T.IS_FILE_FOLDER_REF, T.FOLDER_PARENT_COLUMN_NAME, T.FOLDER_NAME_COLUMN_NAME, 
-			T.FOLDER_CONTAINER_COLUMN_NAME, T.FOLDER_CONTAINER_REF
+			T.NULLABLE, D_REF, D_REF_TYPE
             -- , p_Table_name, p_Use_Empty_Columns, p_Exec_Phase, p_Data_Source, p_DML_Command, p_Unique_Key_Column
             -- , v_Compare_Case_Insensitive, v_Search_Keys_Unique, v_Insert_Foreign_Keys, p_View_Mode
 		HAVING (MAX(T.U_CONSTRAINT_NAME) IS NOT NULL or v_Search_Keys_Unique = 'NO')
@@ -4147,7 +4147,7 @@ $END
 						'v_Error_Message varchar2(32767);' || NL(4) ||
 					'procedure ' || v_Procedure_Name || ' ( p_Row number )' || NL(4) ||
 					'is' || NL(8) ||
-						'v_Key_Value varchar2(4000);' || NL(4) ||
+						'v_Key_Value varchar2(4000);' || NL(8) ||
 						declare_error_call(p_Table_name, p_Unique_Key_Column) || 
 					'begin ' || NL(8) ||
 					v_Init_Key_Stat

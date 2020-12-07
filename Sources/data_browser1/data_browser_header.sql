@@ -1492,7 +1492,7 @@ IS
     	p_Unique_Key_Column VARCHAR2 DEFAULT NULL,
 		p_Search_Value IN VARCHAR2,
     	p_Detail_Table VARCHAR2 DEFAULT NULL,
-    	p_Detail_Key_ID VARCHAR2 DEFAULT NULL,
+    	p_Detail_Key_Col VARCHAR2 DEFAULT NULL,
     	p_Link_Page_ID NUMBER DEFAULT V('APP_PAGE_ID'),	-- Page ID of target links
     	p_Link_Items VARCHAR2 -- Item names for Parent_Table, Parent_Key_Column, Parent_Key_ID, Detail_Table, Detail_Key_Column, Detail_Key_ID
 	)
