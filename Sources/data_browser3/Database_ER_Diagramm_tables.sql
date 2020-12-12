@@ -45,30 +45,6 @@ begin
 		EXECUTE IMMEDIATE v_Stat;
 	end if;
 
-	SELECT COUNT(*) INTO v_Count
-	from user_tab_cols where table_name = 'DATA_BROWSER_DIAGRAM' and column_name = 'CANVAS_WIDTH';
-	if v_Count = 0 then
-		EXECUTE IMMEDIATE 'ALTER TABLE DATA_BROWSER_DIAGRAM ADD (
-			CANVAS_WIDTH	NUMBER
-		)';
-	end if;
-
-	SELECT COUNT(*) INTO v_Count
-	from user_tab_cols where table_name = 'DATA_BROWSER_DIAGRAM' and column_name = 'EXCITE_METHOD';
-	if v_Count = 0 then
-		EXECUTE IMMEDIATE q'[ALTER TABLE DATA_BROWSER_DIAGRAM ADD (
-			EXCITE_METHOD VARCHAR2(50) DEFAULT 'none' NOT NULL CONSTRAINT DATA_BROW_DIAG_EXCITE_METHOD_CK CHECK (EXCITE_METHOD IN ('none', 'downstream', 'upstream', 'connected'))
-		)]';
-	end if;
-
-	SELECT COUNT(*) INTO v_Count
-	from user_tab_cols where table_name = 'DATA_BROWSER_DIAGRAM' and column_name = 'PINWEIGHT';
-	if v_Count = 0 then
-		EXECUTE IMMEDIATE 'ALTER TABLE DATA_BROWSER_DIAGRAM ADD (
-			PINWEIGHT FLOAT DEFAULT 10 NOT NULL
-		)';
-	end if;
-
 	SELECT COUNT(*) INTO v_count
 	FROM USER_TABLES WHERE TABLE_NAME = 'DATA_BROWSER_DIAGRAM_COORD';
 	if v_count = 0 then 
@@ -84,21 +60,7 @@ begin
 		) ORGANIZATION INDEX COMPRESS 1
 		]';
 		EXECUTE IMMEDIATE v_Stat;
-	end if;
 
-	SELECT COUNT(*) INTO v_Count
-	from user_tab_cols where table_name = 'DATA_BROWSER_DIAGRAM_COORD' and column_name = 'ACTIVE';
-	if v_Count = 0 then
-		EXECUTE IMMEDIATE q'[ALTER TABLE DATA_BROWSER_DIAGRAM_COORD ADD (
-			ACTIVE VARCHAR2(1) DEFAULT 'Y' NOT NULL CONSTRAINT DATA_BROW_DIAG_COORD_AKTIV_CK CHECK (ACTIVE in ('Y','N'))
-		)]';
-	end if;
-
-	SELECT COUNT(*) INTO v_count
-	from user_constraints 
-	where table_name = 'DATA_BROWSER_DIAGRAM_COORD' 
-	and constraint_name = 'DATA_BROWSER_DIAGRAM_COORD_FK';
-	if v_count = 0 then 
 		v_stat := '
 		ALTER TABLE DATA_BROWSER_DIAGRAM_COORD ADD 
 			CONSTRAINT DATA_BROWSER_DIAGRAM_COORD_FK FOREIGN KEY (DIAGRAM_ID) 
@@ -106,13 +68,7 @@ begin
 		';
 		EXECUTE IMMEDIATE v_Stat;
 	end if;
-	v_stat := q'[
-	ALTER TABLE DATA_BROWSER_DIAGRAM MODIFY (
-		STIFFNESS FLOAT DEFAULT 400,
-		REPULSION FLOAT DEFAULT 2000
-	)
-	]';
-	EXECUTE IMMEDIATE v_Stat;
+
 end;
 /
 show errors
