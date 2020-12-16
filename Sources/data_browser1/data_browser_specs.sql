@@ -43,7 +43,7 @@ begin
 	AND S.owner = 'PUBLIC'
     GROUP BY S.TABLE_OWNER;
 
-    dbms_output.put_line('-- creating packge data_browser_specs');
+    dbms_output.put_line('-- creating package data_browser_specs');
     dbms_output.put_line('-- current schema : ' || v_Schema_Name);
     dbms_output.put_line('-- apex schema    : ' || v_apex_schema);
 
