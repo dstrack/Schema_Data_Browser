@@ -92,12 +92,17 @@ Application to analyse your DB and APEX Applications
 	
 	Install Supporting Objects : Yes 
 	
-	The installation takes about 2 minutes locally, Oracle Cloud about 3 minutes.
+	The installation takes about 2 minutes locally, in the Oracle Cloud about 3 minutes.
 
 3. Trial period / license
+	This app is available to everyone completely free of charge for personal, non-commercial use.
+	Use the following settings under 'Software Licence' in the First Run Page or under the Settings / Edit Settings menu.
+	App License Owner: Free for Developer
+	App License Number: DB84-1870-7987-7003-4222
+
 	Without a license, the program runs for 2 months in full functionality and then switches to a read only mode.
 	The remaining probationary period will be displayed on the homepage at the bottom.
-	If you like the program, you can order a license by sending a mail to Strack.Software@t-online.de before the trial expires.
+	If you like the program, you can order a license for a small fee by sending a mail to Strack.Software@t-online.de before the trial expires.
 
 ## Configuration
 1. Settings menu
