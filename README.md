@@ -97,7 +97,9 @@ Application to analyse your DB and APEX Applications
 3. Trial period / license
 	This app is available to everyone completely free of charge for personal, non-commercial use.
 	Use the following settings under 'Software Licence' in the First Run Page or under the Settings / Edit Settings menu.
+	
 	App License Owner: Free for Developer
+	
 	App License Number: DB84-1870-7987-7003-4222
 
 	Without a license, the program runs for 2 months in full functionality and then switches to a read only mode.
