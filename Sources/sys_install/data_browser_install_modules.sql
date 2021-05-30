@@ -35,7 +35,8 @@ prompt ============================================================
 @@data_browser1/data_browser_joins.sql
 @@data_browser1/data_browser_select_functions.sql
 @@data_browser1/data_browser_select.sql
-@@data_browser1/data_browser_utl_wrap.sql
+@@data_browser1/data_browser_ctl_wrap.sql
+@@data_browser1/data_browser_utl.sql
 @@data_browser1/data_browser_utl_views.sql
 @@data_browser1/data_browser_blobs.sql
 @@data_browser1/data_browser_ui_defaults.sql

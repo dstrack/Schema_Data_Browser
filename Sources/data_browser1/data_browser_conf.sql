@@ -118,11 +118,41 @@ IS
 	g_Software_Copyright		CONSTANT VARCHAR2(64) := 'Strack Software Development, Berlin, Germany';
 
 	g_use_exceptions 			CONSTANT BOOLEAN 		:= TRUE;	-- when enabled, errors are handled via exceptions; disable to find proper error line number.
-	g_runtime_exceptions		CONSTANT BOOLEAN 		:= FALSE;	-- when enabled, runtime parameter errors are handled via exceptions; disable to tolerate missing parameters
-	g_debug 					CONSTANT BOOLEAN 		:= FALSE;
+	g_runtime_exceptions		CONSTANT BOOLEAN 	:= FALSE;	-- when enabled, runtime parameter errors are handled via exceptions; disable to tolerate missing parameters
+	g_debug 					CONSTANT BOOLEAN 				:= FALSE;
 	
 	PROCEDURE Save_Config_Defaults;
 	PROCEDURE Load_Config;
+	
+	FUNCTION Enquote_Parameter ( p_Text VARCHAR2, p_value_max_length PLS_INTEGER DEFAULT 1000 )
+	RETURN VARCHAR2 DETERMINISTIC;
+	-- build an expression that captures the parameters of an package procedure for logging.
+	-- invoke with output: EXECUTE IMMEDIATE data_browser_conf.Dyn_Log_Call_Parameter(false) USING OUT v_log_message, IN <param...>
+	-- invoke with apex_debug: EXECUTE IMMEDIATE data_browser_conf.Dyn_Log_Call_Parameter USING <param...>
+	-- the count of the arguments will be checked at runtime.
+	
+	-- helper query for listing the procedures with parameters of a package
+	/*
+		SELECT INITCAP(PACKAGE_NAME) || '.' || INITCAP(OBJECT_NAME) OBJECT_NAME, 
+        'EXECUTE IMMEDIATE Data_Browser_Conf.Dyn_Log_Call_Parameter'
+        || case when OVERLOAD is not null then '(p_overload => ' || OVERLOAD || ')' end
+        || chr(10) || 'USING '
+        || LISTAGG(LOWER(SUBSTR(ARGUMENT_NAME, 1, 2))||INITCAP(SUBSTR(ARGUMENT_NAME, 3)) , ', ') WITHIN GROUP (ORDER BY SEQUENCE) 
+        || ';' LOG_CALL
+		FROM SYS.ALL_ARGUMENTS 
+		WHERE PACKAGE_NAME = 'DATA_BROWSER_SELECT'
+        AND ARGUMENT_NAME IS NOT NULL
+		AND OWNER = SYS_CONTEXT('USERENV', 'CURRENT_SCHEMA')
+        GROUP BY PACKAGE_NAME,OBJECT_NAME,OVERLOAD
+        ORDER BY PACKAGE_NAME,OBJECT_NAME,OVERLOAD;
+	*/
+
+	FUNCTION Dyn_Log_Call_Parameter(
+		p_Use_Apex_Debug BOOLEAN DEFAULT TRUE,
+		p_level APEX_DEBUG.T_LOG_LEVEL DEFAULT APEX_DEBUG.C_LOG_LEVEL_INFO,
+		p_value_max_length INTEGER DEFAULT 1000,
+		p_overload INTEGER DEFAULT 0
+	) RETURN VARCHAR2;
 
     FUNCTION Get_Apex_Version RETURN VARCHAR2;
 	PROCEDURE Touch_Configuration;
@@ -1163,6 +1193,96 @@ $END
     	NULL;
     END Load_Config;
 
+	FUNCTION Enquote_Parameter ( p_Text VARCHAR2, p_value_max_length PLS_INTEGER DEFAULT 1000 )
+	RETURN VARCHAR2 DETERMINISTIC
+	IS
+		v_Quote CONSTANT VARCHAR2(1) := chr(39);
+	BEGIN
+		RETURN v_Quote || REPLACE(SUBSTR(p_Text, 1, p_value_max_length), v_Quote, v_Quote||v_Quote) || v_Quote ;
+	END;
+	-- build an expression that captures the parameters of an package procedure for logging.
+	-- the procedure or function must be listed in the package header.
+	-- when a procedure or function is overloaded then used the p_overload=>1 for the first and p_overload=>2 for the second variant.
+	-- invoke with: EXECUTE IMMEDIATE data_browser_conf.Dyn_Log_Call_Parameter_Str USING OUT v_char_Result;
+	-- the count of the arguments will be checked at runtime.
+	FUNCTION Dyn_Log_Call_Parameter(
+		p_Use_Apex_Debug BOOLEAN DEFAULT TRUE,
+		p_level APEX_DEBUG.T_LOG_LEVEL DEFAULT APEX_DEBUG.C_LOG_LEVEL_INFO,
+		p_value_max_length INTEGER DEFAULT 1000,
+		p_overload INTEGER DEFAULT 0
+	) RETURN VARCHAR2
+	IS
+		c_calling_subprog constant varchar2(128) := utl_call_stack.concatenate_subprogram(utl_call_stack.subprogram(2)); -- alternative: OWA_UTIL.WHO_CALLED_ME
+		c_newline VARCHAR2(10) := 'chr(10)'||chr(10);
+		c_conop VARCHAR2(10) := ' || ';
+		v_argument_name VARCHAR2(200);
+		v_result_str VARCHAR2(32767);
+		v_over  dbms_describe.number_table;
+		v_posn  dbms_describe.number_table;
+		v_levl  dbms_describe.number_table;
+		v_arg_name dbms_describe.varchar2_table;
+		v_dtyp  dbms_describe.number_table;
+		v_defv  dbms_describe.number_table;
+		v_inout dbms_describe.number_table;
+		v_len   dbms_describe.number_table;
+		v_prec  dbms_describe.number_table;
+		v_scal  dbms_describe.number_table;
+		v_n     dbms_describe.number_table;
+		v_spare dbms_describe.number_table;
+		v_idx	INTEGER := 0;
+	BEGIN
+		dbms_describe.describe_procedure(
+			object_name => c_calling_subprog, 
+			reserved1 => NULL, 
+			reserved2 => NULL,
+			overload => v_over, 
+			position => v_posn, 
+			level => v_levl, 
+			argument_name => v_arg_name, 
+			datatype => v_dtyp, 
+			default_value => v_defv, 
+			in_out => v_inout, 
+			length => v_len, 
+			precision => v_prec, 
+			scale => v_scal, 
+			radix => v_n, 
+			spare => v_spare
+		);
+		loop 
+			v_idx := v_idx + 1;
+			exit when v_idx > v_arg_name.count;
+			exit when length(v_result_str) > 32000;
+			if v_posn(v_idx) != 0  -- Position 0 returns the values for the return type of a function. 
+			and v_over(v_idx) = p_overload
+			then
+				v_argument_name := lower(substr(v_arg_name(v_idx), 1, 2)) || initcap(substr(v_arg_name(v_idx), 3));
+				v_result_str := v_result_str 
+				|| case when v_result_str IS NOT NULL
+					then c_conop || dbms_assert.enquote_literal(', ') || c_conop || c_newline || c_conop 
+				end
+				|| dbms_assert.enquote_literal( v_argument_name || '=>') 
+				|| c_conop
+				|| case when v_dtyp(v_idx) IN (2,3) -- number types
+					then ':' || v_argument_name
+					else 'data_browser_conf.Enquote_Parameter(:' || v_argument_name || ', ' || p_value_max_length || ')'
+				end;
+			end if;
+		end loop;
+		if v_result_str IS NOT NULL then 
+			v_result_str := dbms_assert.enquote_literal( initcap(c_calling_subprog) || '(') 
+			|| c_conop || v_result_str || c_conop || dbms_assert.enquote_literal(')');
+		else 
+			v_result_str := dbms_assert.enquote_literal( initcap(c_calling_subprog));
+		end if;
+		if p_Use_Apex_Debug then 
+			RETURN 'declare v_log VARCHAR2(32767); begin v_log := ' || v_result_str || '; '
+			|| 'apex_debug.message(p_message=>v_log,p_max_length => 3500, p_level => ' || to_char(p_level) || ');'
+			|| 'end;';
+		else
+			RETURN 'begin :x := ' || v_result_str || '; end;';
+		end if;
+	END Dyn_Log_Call_Parameter;
+	
     FUNCTION Get_Apex_Version RETURN VARCHAR2 
     IS 
     BEGIN 

@@ -5,7 +5,7 @@ Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
 
-    http://www.apache.org/licenses/LICENSE-2.0
+	http://www.apache.org/licenses/LICENSE-2.0
 
 Unless required by applicable law or agreed to in writing, software
 distributed under the License is distributed on an "AS IS" BASIS,
@@ -18,16 +18,16 @@ limitations under the License.
 CREATE OR REPLACE PACKAGE BODY data_browser_select
 is
 	CURSOR Describe_Cols_cur (
-		v_View_Name VARCHAR2, 				-- Table Name or View Name of master table
+		v_View_Name VARCHAR2,				-- Table Name or View Name of master table
 		v_Unique_Key_Column VARCHAR2,		-- Unique Key Column or NULL. Used to build a Link_ID_Expression
 		v_View_Mode VARCHAR2,				-- RECORD_VIEW, FORM_VIEW, HISTORY, NAVIGATION_VIEW, NESTED_VIEW
-		v_Data_Format VARCHAR2, 			-- FORM, HTML, CSV, NATIVE. Format of the final projection columns.
+		v_Data_Format VARCHAR2,				-- FORM, HTML, CSV, NATIVE. Format of the final projection columns.
 		v_Select_Columns VARCHAR2,			-- Select Column names of the final projection, Optional
 		v_Parent_Name VARCHAR2,				-- Parent View or Table name. if set columns from the view are included in the Column list in View_Mode NAVIGATION_VIEW
-    	v_Parent_Key_Column VARCHAR2,		-- Column Name with foreign key to Parent Table
-		v_Link_Page_ID NUMBER, 				-- Page ID of target links in View_Mode NAVIGATION_VIEW
-    	v_Detail_Page_ID NUMBER,			-- Page ID of target links in View_Mode NAVIGATION_VIEW, NESTED_VIEW
-    	v_Calc_Totals VARCHAR2				-- YES, NO, adds a 'SUM(X)' for each summand or counter column
+		v_Parent_Key_Column VARCHAR2,		-- Column Name with foreign key to Parent Table
+		v_Link_Page_ID NUMBER,				-- Page ID of target links in View_Mode NAVIGATION_VIEW
+		v_Detail_Page_ID NUMBER,			-- Page ID of target links in View_Mode NAVIGATION_VIEW, NESTED_VIEW
+		v_Calc_Totals VARCHAR2				-- YES, NO, adds a 'SUM(X)' for each summand or counter column
 	)
 	IS
 		WITH BROWSER_VIEW AS (
@@ -140,7 +140,7 @@ is
 				SELECT 'DML$_ACTION' COLUMN_NAME, 'Y' IS_AUDIT_COLUMN, 'Y' IS_SEARCHABLE_REF,
 					6 POSITION, 'VARCHAR2' DATA_TYPE,
 					120 CHAR_LENGTH, 'N' NULLABLE, 'N' HAS_HELP_TEXT, '' FORMAT_MASK, 
-					'LEFT' COLUMN_ALIGN, 'DML Action' COLUMN_HEADER, q'[apex_lang.lang(case A.DML$_ACTION when 'I' then 'Inserted' when 'U' then 'Updated' when 'D' then 'Deleted'  when 'S' then 'Selected' end)]' COLUMN_EXPR,
+					'LEFT' COLUMN_ALIGN, 'DML Action' COLUMN_HEADER, q'[apex_lang.lang(case A.DML$_ACTION when 'I' then 'Inserted' when 'U' then 'Updated' when 'D' then 'Deleted'	when 'S' then 'Selected' end)]' COLUMN_EXPR,
 					'DISPLAY_ONLY' COLUMN_EXPR_TYPE, 120 FIELD_LENGTH, 
 					'DML$_ACTION' R_COLUMN_NAME
 				FROM SYS.DUAL
@@ -162,10 +162,10 @@ is
 				T.IS_SIMPLE_IN_LIST, T.STATIC_LOV_EXPR, T.HAS_AUTOMATIC_CHECK, T.HAS_RANGE_CHECK,
 				case when E.COLUMN_NAME IS NOT NULL then 
 						case when T.NULLABLE = 'N' and E.DELETE_RULE = 'CASCADE' 
-							then 'C' 	-- Container 
-							else 'Y' 	-- Yes
+							then 'C'	-- Container 
+							else 'Y'	-- Yes
 							end
-					else 'N' 			-- No
+					else 'N'			-- No
 				end IS_REFERENCE,
 				case when T.DATA_TYPE IN ('BLOB', 'LONG')
 					then 'N'
@@ -188,10 +188,10 @@ is
 					and T.IS_SEARCH_KEY = 'N'
 					and T.YES_NO_COLUMN_TYPE IS NULL then
 						data_browser_conf.Get_Col_Format_Mask(
-							p_Data_Type 		=> T.DATA_TYPE, 
-							p_Data_Precision 	=> T.DATA_PRECISION, 
-							p_Data_Scale 		=> T.DATA_SCALE, 
-							p_Char_Length 		=> T.CHAR_LENGTH, 
+							p_Data_Type			=> T.DATA_TYPE, 
+							p_Data_Precision	=> T.DATA_PRECISION, 
+							p_Data_Scale		=> T.DATA_SCALE, 
+							p_Char_Length		=> T.CHAR_LENGTH, 
 							p_Use_Group_Separator => case when v_Data_Format IN ('FORM', 'HTML', 'QUERY') then 'Y' else 'N' end, 
 							p_Datetime			=> data_browser_select.Date_Time_Required(T.DATA_TYPE, v_Data_Format, T.IS_DATETIME)
 						)
@@ -202,13 +202,13 @@ is
 					T.STATIC_LOV_EXPR
 				when E.DISPLAYED_COLUMN_NAMES IS NOT NULL then
 					data_browser_select.Key_Values_Path_Query (
-						p_Table_Name    	=> E.R_VIEW_NAME,
+						p_Table_Name		=> E.R_VIEW_NAME,
 						p_Display_Col_Names => E.DISPLAYED_COLUMN_NAMES,
 						p_Extra_Col_Names	=> NULL,
-						p_Search_Key_Col    => E.R_PRIMARY_KEY_COLS,
-						p_Search_Value    	=> NULL,
-						p_View_Mode    		=> v_View_Mode,
-						p_Exclude_Col_Name  => case when E.PARENT_KEY_COLUMN = v_Parent_Key_Column then E.FILTER_KEY_COLUMN end,
+						p_Search_Key_Col	=> E.R_PRIMARY_KEY_COLS,
+						p_Search_Value		=> NULL,
+						p_View_Mode			=> v_View_Mode,
+						p_Exclude_Col_Name	=> case when E.PARENT_KEY_COLUMN = v_Parent_Key_Column then E.FILTER_KEY_COLUMN end,
 						p_Active_Col_Name	=> E.ACTIVE_LOV_COLUMN_NAME,
 						p_Active_Data_Type	=> E.ACTIVE_LOV_DATA_TYPE,
 						p_Folder_Par_Col_Name	=> E.FOLDER_PARENT_COLUMN_NAME,
@@ -226,16 +226,16 @@ is
 					when v_View_Mode != 'RECORD_VIEW' and E.DISPLAYED_COLUMN_NAMES IS NOT NULL then
 						'(' || -- Display from List of values
 						data_browser_select.Key_Values_Path_Query (
-							p_Table_Name    	=> E.R_VIEW_NAME,
+							p_Table_Name		=> E.R_VIEW_NAME,
 							p_Display_Col_Names => E.DISPLAYED_COLUMN_NAMES,
 							p_Extra_Col_Names	=> null,
-							p_Search_Key_Col    => E.R_PRIMARY_KEY_COLS,
+							p_Search_Key_Col	=> E.R_PRIMARY_KEY_COLS,
 							p_Search_Value		=> null,
-							p_View_Mode    		=> v_View_Mode,
-							p_Filter_Cond       => data_browser_conf.Get_Join_Expression( -- support for composite keys
+							p_View_Mode			=> v_View_Mode,
+							p_Filter_Cond		=> data_browser_conf.Get_Join_Expression( -- support for composite keys
 								p_Left_Columns=>E.R_PRIMARY_KEY_COLS, p_Left_Alias=> 'L1',
 								p_Right_Columns=>E.COLUMN_NAME, p_Right_Alias=> 'A'),
-							p_Exclude_Col_Name  => case when E.PARENT_KEY_COLUMN = v_Parent_Key_Column then E.FILTER_KEY_COLUMN end,
+							p_Exclude_Col_Name	=> case when E.PARENT_KEY_COLUMN = v_Parent_Key_Column then E.FILTER_KEY_COLUMN end,
 							p_Folder_Par_Col_Name	=> E.FOLDER_PARENT_COLUMN_NAME,
 							p_Folder_Name_Col_Name => E.FOLDER_NAME_COLUMN_NAME,
 							p_Folder_Cont_Col_Name => E.FOLDER_CONTAINER_COLUMN_NAME,
@@ -253,7 +253,7 @@ is
 							'SUM(A.' || T.COLUMN_NAME || ')'
 						else 
 							'A.' || T.COLUMN_NAME
-						end	
+						end 
 					when T.YES_NO_COLUMN_TYPE IS NOT NULL and E.COLUMN_NAME IS NULL and v_Data_Format != 'QUERY' then
 						data_browser_conf.Get_Yes_No_Static_Function('A.' || T.COLUMN_NAME, T.YES_NO_COLUMN_TYPE)
 					when T.COLUMN_NAME = S.MIME_TYPE_COLUMN_NAME and v_Data_Format NOT IN ('NATIVE', 'CSV') then
@@ -277,7 +277,7 @@ is
 							p_USE_TRIM => 'Y', -- trimming of formated numbers is required for input fields.
 							p_DATETIME => T.IS_DATETIME
 						)
-				    else									-- special columns
+					else									-- special columns
 						data_browser_select.Get_ConversionColFunction (
 							p_COLUMN_NAME => 'A.' || T.COLUMN_NAME,
 							p_DATA_TYPE => T.DATA_TYPE,
@@ -293,7 +293,7 @@ is
 				and T.COLUMN_NAME = S.FILE_CONTENT_COLUMN_NAME
 				and T.IS_BLOB = 'Y' then
 					'FILE_BROWSER'
-				when T.IS_SEARCH_KEY = 'Y' 		-- primary key shouldn´t be input field
+				when T.IS_SEARCH_KEY = 'Y'		-- primary key shouldn´t be input field
 				and S.HAS_SCALAR_KEY = 'YES'	-- primary key is managed automatically
 				and T.IS_DISPLAYED_KEY_COLUMN = 'N' 
 				and E.COLUMN_NAME IS NULL then	-- In View Mode FORM_VIEW foreign keys are popup fields
@@ -394,7 +394,7 @@ is
 				'LINK' COLUMN_EXPR_TYPE, 1024 FIELD_LENGTH,
 				case when v_View_Mode = 'NAVIGATION_VIEW' then 
 					'Y' else 'N'
-				end DISPLAY_IN_REPORT, 	-- Reference-Counters are shown in NAVIGATION_VIEW by default
+				end DISPLAY_IN_REPORT,	-- Reference-Counters are shown in NAVIGATION_VIEW by default
 				R_TABLE_NAME, R_VIEW_NAME, R_COLUMN_NAME,
 				REF_TABLE_NAME, REF_VIEW_NAME, REF_COLUMN_NAME, COMMENTS
 			FROM (
@@ -467,7 +467,7 @@ is
 					FROM MVDATA_BROWSER_SIMPLE_COLS A
 					JOIN BROWSER_VIEW S ON S.VIEW_NAME = A.VIEW_NAME
 					JOIN MVDATA_BROWSER_REFERENCES E ON E.R_PRIMARY_KEY_COLS = A.COLUMN_NAME AND E.R_VIEW_NAME = S.VIEW_NAME
-					WHERE A.VIEW_NAME =  v_View_Name
+					WHERE A.VIEW_NAME =	 v_View_Name
 				) S
 			) S
 			UNION ALL --------------------------------------------------------------------------------------
@@ -497,7 +497,7 @@ is
 				'DISPLAY_ONLY' COLUMN_EXPR_TYPE, 40 FIELD_LENGTH,
 				case when v_View_Mode IN ('NAVIGATION_VIEW', 'NESTED_VIEW') then 
 					'Y' else 'N'
-				end DISPLAY_IN_REPORT, 	-- Summands are shown in NAVIGATION_VIEW, NESTED_VIEW by default
+				end DISPLAY_IN_REPORT,	-- Summands are shown in NAVIGATION_VIEW, NESTED_VIEW by default
 				R_TABLE_NAME, R_VIEW_NAME, R_COLUMN_NAME,
 				R_TABLE_NAME REF_TABLE_NAME, R_VIEW_NAME REF_VIEW_NAME, R_COLUMN_NAME REF_COLUMN_NAME, COMMENTS
 			FROM (
@@ -538,7 +538,7 @@ is
 					S.COLUMN_NAME R_COLUMN_NAME,
 					COMMENTS
 				FROM ( -- counter column for each foreign key referencing the current row.
-                   SELECT 
+				   SELECT 
 						DENSE_RANK() OVER (PARTITION BY E.R_VIEW_NAME ORDER BY E.TABLE_NAME, E.COLUMN_NAME) POSITION,
 						DENSE_RANK() OVER (PARTITION BY E.VIEW_NAME, A.COLUMN_NAME ORDER BY E.TABLE_ALIAS) RANKING,
 						data_browser_select.Reference_Column_Header (
@@ -551,20 +551,20 @@ is
 						A.DATA_TYPE, A.DATA_PRECISION, A.DATA_SCALE, A.DATA_DEFAULT, 
 						A.CHAR_LENGTH, A.IS_DATETIME, A.NULLABLE, A.COMMENTS,
 						data_browser_conf.Get_Col_Format_Mask(
-							p_Data_Type 		=> A.DATA_TYPE, 
-							p_Data_Precision 	=> A.DATA_PRECISION, 
-							p_Data_Scale 		=> A.DATA_SCALE, 
-							p_Char_Length 		=> A.CHAR_LENGTH, 
+							p_Data_Type			=> A.DATA_TYPE, 
+							p_Data_Precision	=> A.DATA_PRECISION, 
+							p_Data_Scale		=> A.DATA_SCALE, 
+							p_Char_Length		=> A.CHAR_LENGTH, 
 							p_Use_Group_Separator => case when v_Data_Format IN ('FORM', 'HTML', 'QUERY') then 'Y' else 'N' end, 
 							p_Datetime			=> A.IS_DATETIME
-                        ) FORMAT_MASK,
+						) FORMAT_MASK,
 						E.VIEW_NAME R_VIEW_NAME,
 						E.TABLE_NAME R_TABLE_NAME,
 						E.COLUMN_NAME R_COLUMN_NAME,
 						S.COLUMN_PREFIX,
 						E.R_UNIQUE_KEY_COLS UNIQUE_KEY_COLS,
 						case when v_Calc_Totals = 'YES' then 'SUM(' end
-                        ||'(SELECT ' 
+						||'(SELECT ' 
 						|| case when A.IS_MINUEND = 'Y' then '-' end
 						|| 'SUM(' || E.TABLE_ALIAS || '.' || A.COLUMN_NAME || ')' || data_browser_conf.NL(4)
 						|| ' FROM ' || SUBSTR(E.JOINS, 7)  || data_browser_conf.NL(4)
@@ -577,9 +577,9 @@ is
 							|| ' = ' || data_browser_conf.Get_Boolean_Yes_Value(E.ACTIVE_LOV_DATA_TYPE, 'ENQUOTE')
 						end
 						|| data_browser_conf.NL(4)
-                        || ')' 
+						|| ')' 
 						|| case when v_Calc_Totals = 'YES' then ')' end
-                        TOTAL_QUERY
+						TOTAL_QUERY
 					FROM (
 						SELECT R.*,
 							  D.ACTIVE_LOV_COLUMN_NAME, D.ACTIVE_LOV_DATA_TYPE
@@ -589,7 +589,7 @@ is
 								SYS_CONNECT_BY_PATH(
 									data_browser_conf.Enquote_Name_Required(VIEW_NAME) || ' ' || CHR(ASCII('A') + LEVEL)
 									|| case when level > 1 then
-										' ON '  
+										' ON '	
 										|| data_browser_conf.Get_Join_Expression(
 											p_Left_Columns=>COLUMN_NAME, p_Left_Alias=> CHR(ASCII('A') + LEVEL),
 											p_Right_Columns=>R_PRIMARY_KEY_COLS , p_Right_Alias=> CHR(ASCII('A') + LEVEL -1))
@@ -604,13 +604,13 @@ is
 							 FROM MVDATA_BROWSER_REFERENCES 
 							START WITH R_VIEW_NAME = v_View_Name
 							CONNECT BY NOCYCLE R_VIEW_NAME = PRIOR VIEW_NAME AND LEVEL <= 5
-		                ) R JOIN MVDATA_BROWSER_DESCRIPTIONS D ON R.VIEW_NAME = D.VIEW_NAME
-                    ) E 
-                    CROSS JOIN BROWSER_VIEW S 
-                    JOIN MVDATA_BROWSER_SIMPLE_COLS A ON E.VIEW_NAME = A.VIEW_NAME
-                    WHERE A.DATA_TYPE IN ('NUMBER', 'FLOAT')
-                    AND A.COLUMN_NAME != E.COLUMN_NAME -- exclude the  foreign key column
-                    AND (A.IS_SUMMAND = 'Y' OR A.IS_MINUEND = 'Y')
+						) R JOIN MVDATA_BROWSER_DESCRIPTIONS D ON R.VIEW_NAME = D.VIEW_NAME
+					) E 
+					CROSS JOIN BROWSER_VIEW S 
+					JOIN MVDATA_BROWSER_SIMPLE_COLS A ON E.VIEW_NAME = A.VIEW_NAME
+					WHERE A.DATA_TYPE IN ('NUMBER', 'FLOAT')
+					AND A.COLUMN_NAME != E.COLUMN_NAME -- exclude the  foreign key column
+					AND (A.IS_SUMMAND = 'Y' OR A.IS_MINUEND = 'Y')
 				) S
 				WHERE S.RANKING = 1
 			) S
@@ -640,14 +640,14 @@ is
 				COLUMN_HEADER,
 				data_browser_select.Child_Link_List_Query (
 					p_Table_Name  => CHILD_VIEW,
-					p_Display_Col_Names  => DISPLAYED_COLUMN_NAMES,
+					p_Display_Col_Names	 => DISPLAYED_COLUMN_NAMES,
 					p_Search_Key_Col => DETAIL_KEY,
-					p_Search_Value  => 'A.' || DETAIL_ID,
-					p_View_Mode     => v_View_Mode,
-					p_Data_Format   => v_Data_Format,
-					p_Key_Column 	=> KEY_COLUMNS, -- DETAIL_ID, -- bug with EBA_DP_VIEWER_GROUP_REF
-					p_Target1 		=> TARGET1PAR || '||' || TARGET1VAL,
-					p_Target2 		=> TARGET2PAR || '||' || TARGET2VAL,
+					p_Search_Value	=> 'A.' || DETAIL_ID,
+					p_View_Mode		=> v_View_Mode,
+					p_Data_Format	=> v_Data_Format,
+					p_Key_Column	=> KEY_COLUMNS, -- DETAIL_ID, -- bug with EBA_DP_VIEWER_GROUP_REF
+					p_Target1		=> TARGET1PAR || '||' || TARGET1VAL,
+					p_Target2		=> TARGET2PAR || '||' || TARGET2VAL,
 					p_Detail_Page_ID=> v_Detail_Page_ID,
 					p_Link_Page_ID	=> v_Link_Page_ID
 				) COLUMN_EXPR,
@@ -675,22 +675,22 @@ is
 					'PAR.TARGET1||'
 					|| DBMS_ASSERT.ENQUOTE_LITERAL(':')
 					TARGET1PAR,
-					DBMS_ASSERT.ENQUOTE_LITERAL(S.R_VIEW_NAME 	-- TABLE_NAME
+					DBMS_ASSERT.ENQUOTE_LITERAL(S.R_VIEW_NAME	-- TABLE_NAME
 					|| ',' || S.VIEW_NAME || ',')				-- PARENT_NAME
 					TARGET1VAL, -- one row of referenced table
 					'PAR.TARGET2||'
 					|| DBMS_ASSERT.ENQUOTE_LITERAL(':')
 					TARGET2PAR,
 					DBMS_ASSERT.ENQUOTE_LITERAL(
-						S.VIEW_NAME || ',' 		-- TABLE_NAME
-						|| v_Parent_Name || ','	-- PARENT_NAME
+						S.VIEW_NAME || ','		-- TABLE_NAME
+						|| v_Parent_Name || ',' -- PARENT_NAME
 					)
 					|| '||'
 					|| data_browser_conf.Get_Link_ID_Expression(p_Unique_Key_Column=> S.UNIQUE_KEY_COLS, p_Table_Alias=> 'A', p_View_Mode=> v_View_Mode) -- LINK_ID
 					|| '||'
 					|| DBMS_ASSERT.ENQUOTE_LITERAL(','
-					|| S.R_VIEW_NAME || ',' 	-- DETAIL_TABLE
-					|| S.R_COLUMN_NAME) 		-- DETAIL_KEY
+					|| S.R_VIEW_NAME || ','		-- DETAIL_TABLE
+					|| S.R_COLUMN_NAME)			-- DETAIL_KEY
 					TARGET2VAL, -- all matching rows of referenced table
 					S.CHILD_VIEW,
 					S.CHILD_TABLE,
@@ -725,7 +725,7 @@ is
 					JOIN BROWSER_VIEW S ON S.VIEW_NAME = A.VIEW_NAME
 					JOIN MVDATA_BROWSER_REFERENCES E ON E.R_PRIMARY_KEY_COLS = A.COLUMN_NAME AND E.R_VIEW_NAME = S.VIEW_NAME
 					JOIN MVDATA_BROWSER_DESCRIPTIONS D ON D.VIEW_NAME = E.VIEW_NAME
-					WHERE A.VIEW_NAME =  v_View_Name
+					WHERE A.VIEW_NAME =	 v_View_Name
 				) S
 			) S
 		)
@@ -746,19 +746,19 @@ is
 	------------------------------------------------------------------------------------------	
 	*/
 	CURSOR Describe_Imp_Cols_cur (
-		v_View_Name VARCHAR2, 				-- Table Name or View Name of master table
+		v_View_Name VARCHAR2,				-- Table Name or View Name of master table
 		v_Unique_Key_Column VARCHAR2,		-- Unique Key Column or NULL. Used to build a Link_ID_Expression
 		v_View_Mode VARCHAR2,				-- IMPORT_VIEW, EXPORT_VIEW. If IMPORT_VIEW and Data_Columns_Only = NO then columns named IMPORTJOB_ID$ and LINE_NO$ are included in the generated Column list
-		v_Data_Format VARCHAR2, 			-- FORM, HTML, CSV, NATIVE. Format of the final projection columns.
+		v_Data_Format VARCHAR2,				-- FORM, HTML, CSV, NATIVE. Format of the final projection columns.
 		v_Select_Columns VARCHAR2,			-- Select Column names of the final projection, Optional
 		v_Parent_Name VARCHAR2,				-- Parent View or Table name. if set columns from the view are included in the Column list in View_Mode NAVIGATION_VIEW
-    	v_Parent_Key_Column VARCHAR2,		-- Column Name with foreign key to Parent Table
-    	v_Parent_Key_Visible VARCHAR2,
+		v_Parent_Key_Column VARCHAR2,		-- Column Name with foreign key to Parent Table
+		v_Parent_Key_Visible VARCHAR2,
 		v_Join_Options VARCHAR2				-- Encoded join options. When empty, only key columns of joined tables are included in the generated Column list
 	)
 	IS
 		WITH JOIN_OPTIONS AS ( -- decode join options from v_Join_Options. Example : 'B;K:C;K:D;N'
-			select  --+ CARDINALITY(10)
+			select	--+ CARDINALITY(10)
 			SUBSTR(COLUMN_VALUE, 1, OFFSET1-1) TABLE_ALIAS, -- A, B, C, D, E ...
 				SUBSTR(COLUMN_VALUE, OFFSET1+1) COLUMNS_INCLUDED -- one of: K, A, N
 			from (
@@ -780,8 +780,8 @@ is
 				when HAS_COLLECTION_CHAR_INDEX = 1 then
 					'C' || LPAD(
 						SUM(case when HAS_COLLECTION_CHAR_INDEX = 1 then 1 else 0 end)
-							OVER (ORDER BY COLUMN_ORDER NULLS LAST, 						-- ordered from left to right by v_Select_Columns
-									case when DISPLAY_IN_REPORT = 'Y' then 0 else 1 end, 	-- or use default order (visible first)
+							OVER (ORDER BY COLUMN_ORDER NULLS LAST,							-- ordered from left to right by v_Select_Columns
+									case when DISPLAY_IN_REPORT = 'Y' then 0 else 1 end,	-- or use default order (visible first)
 									COLUMN_ID, R_COLUMN_ID, POSITION RANGE BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
 					), 3, '0')	-- collection fields for input columns
 				when HAS_COLLECTION_NUM_INDEX = 1 and COLLECTION_NUM_INDEX > 5-- over limit of 5 number fields in apex_collections
@@ -790,8 +790,8 @@ is
 						data_browser_conf.Get_Collection_Columns_Limit + 1 -
 						SUM(case when (HAS_COLLECTION_NUM_INDEX = 1 and COLLECTION_NUM_INDEX > 5)
 									or HAS_COLLECTION_HIDDEN_INDEX = 1 and COLLECTION_HIDDEN_INDEX > 0 then 1 else 0 end)
-							OVER (ORDER BY COLUMN_ORDER NULLS LAST, 						-- ordered from left to right by v_Select_Columns
-									case when DISPLAY_IN_REPORT = 'Y' then 0 else 1 end, 	-- or use default order (visible first)
+							OVER (ORDER BY COLUMN_ORDER NULLS LAST,							-- ordered from left to right by v_Select_Columns
+									case when DISPLAY_IN_REPORT = 'Y' then 0 else 1 end,	-- or use default order (visible first)
 									COLUMN_ID, R_COLUMN_ID, POSITION RANGE BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
 					), 3, '0')	-- apex_collections fields for hidden unique key columns, when more than 5 are needed.
 			end INPUT_ID,
@@ -938,7 +938,7 @@ is
 					case 
 					when T.IS_OBFUSCATED = 'Y' then
 						data_browser_conf.Get_Obfuscate_Call('A.' || T.COLUMN_NAME)
-					when T.IS_PRIMARY_KEY = 'Y' 		-- primary key shouldn´t be a input field
+					when T.IS_PRIMARY_KEY = 'Y'			-- primary key shouldn´t be a input field
 					and T.IS_DISPLAYED_KEY_COLUMN = 'N' -- field is invisible
 					and S.HAS_SCALAR_KEY = 'YES' then	-- primary key is managed automatically
 						'A.' || T.COLUMN_NAME
@@ -952,32 +952,32 @@ is
 					and T.IS_SEARCH_KEY = 'N'
 					then
 						data_browser_select.Get_ConversionColFunction (
-							p_Column_Name 		=> 'A.' || T.COLUMN_NAME,
-							p_Data_Type 		=> T.DATA_TYPE,
-							p_Data_Precision 	=> T.DATA_PRECISION,
-							p_Data_Scale 		=> T.DATA_SCALE,
-							p_Char_Length 		=> T.CHAR_LENGTH,
-							p_Data_Format 		=> v_Data_Format,
-							p_Use_Trim 			=> 'Y',
-							p_Datetime 			=> data_browser_select.Date_Time_Required(T.DATA_TYPE, v_Data_Format, T.IS_DATETIME)
+							p_Column_Name		=> 'A.' || T.COLUMN_NAME,
+							p_Data_Type			=> T.DATA_TYPE,
+							p_Data_Precision	=> T.DATA_PRECISION,
+							p_Data_Scale		=> T.DATA_SCALE,
+							p_Char_Length		=> T.CHAR_LENGTH,
+							p_Data_Format		=> v_Data_Format,
+							p_Use_Trim			=> 'Y',
+							p_Datetime			=> data_browser_select.Date_Time_Required(T.DATA_TYPE, v_Data_Format, T.IS_DATETIME)
 						) 
 					else
 						'A.' || T.COLUMN_NAME
 					end COLUMN_EXPR,
 					T.HAS_HELP_TEXT, T.HAS_DEFAULT, T.IS_BLOB, T.IS_PASSWORD,
 					case 
-					when T.IS_SEARCH_KEY = 'Y' 		-- primary key shouldn´t be a input field
+					when T.IS_SEARCH_KEY = 'Y'		-- primary key shouldn´t be a input field
 					and T.IS_DISPLAYED_KEY_COLUMN = 'N' -- field is invisible
 					and S.HAS_SCALAR_KEY = 'YES' then	-- primary key is managed automatically
 						null
 					when T.IS_FOREIGN_KEY = 'N' then
 						data_browser_conf.Get_Col_Format_Mask(
-							p_Data_Type 		=> T.DATA_TYPE, 
-							p_Data_Precision 	=> T.DATA_PRECISION, 
-							p_Data_Scale 		=> T.DATA_SCALE, 
-							p_Char_Length 		=> T.CHAR_LENGTH, 
+							p_Data_Type			=> T.DATA_TYPE, 
+							p_Data_Precision	=> T.DATA_PRECISION, 
+							p_Data_Scale		=> T.DATA_SCALE, 
+							p_Char_Length		=> T.CHAR_LENGTH, 
 							p_Use_Group_Separator => case when v_Data_Format IN ('FORM', 'HTML', 'QUERY') then 'Y' else 'N' end, 
-							p_Datetime  		=> data_browser_select.Date_Time_Required(T.DATA_TYPE, v_Data_Format, T.IS_DATETIME)
+							p_Datetime			=> data_browser_select.Date_Time_Required(T.DATA_TYPE, v_Data_Format, T.IS_DATETIME)
 						)
 					end FORMAT_MASK,
 					null LOV_QUERY,
@@ -985,7 +985,7 @@ is
 					when T.COLUMN_NAME = S.FILE_CONTENT_COLUMN_NAME
 					and T.IS_BLOB = 'Y' then
 						'FILE_BROWSER'
-					when T.IS_SEARCH_KEY = 'Y' 			-- primary key shouldn´t be a input field
+					when T.IS_SEARCH_KEY = 'Y'			-- primary key shouldn´t be a input field
 					and S.HAS_SCALAR_KEY = 'YES'	-- primary key is managed automatically
 					and T.IS_DISPLAYED_KEY_COLUMN = 'N' then -- field is invisible
 						case when data_browser_select.FN_List_Offest(v_Select_Columns, T.COLUMN_NAME) = 0 then -- not visible
@@ -1020,7 +1020,7 @@ is
 					T.VIEW_NAME R_VIEW_NAME, 
 					T.COLUMN_NAME R_COLUMN_NAME,
 					T.TABLE_NAME REF_TABLE_NAME, 
-					T.VIEW_NAME REF_VIEW_NAME, 	-- Adress of source and target in foreign key lookup
+					T.VIEW_NAME REF_VIEW_NAME,	-- Adress of source and target in foreign key lookup
 					T.COLUMN_NAME REF_COLUMN_NAME,
 					T.COMMENTS
 				FROM MVDATA_BROWSER_SIMPLE_COLS T
@@ -1058,25 +1058,25 @@ is
 					S.COLUMN_PREFIX,
 					'(' || -- Display folder path
 					data_browser_select.Key_Path_Query (
-						p_Table_Name    	=> F.R_VIEW_NAME,
-						p_Search_Key_Col    => F.R_PRIMARY_KEY_COLS,
-						p_Search_Value    	=> null,
+						p_Table_Name		=> F.R_VIEW_NAME,
+						p_Search_Key_Col	=> F.R_PRIMARY_KEY_COLS,
+						p_Search_Value		=> null,
 						p_Folder_Par_Col_Name  => F.FOLDER_PARENT_COLUMN_NAME,
 						p_Folder_Name_Col_Name => F.FOLDER_NAME_COLUMN_NAME,
 						p_Folder_Cont_Col_Name => F.FOLDER_CONTAINER_COLUMN_NAME,
 						p_Folder_Cont_Alias => case when F.VIEW_NAME = F.R_VIEW_NAME then 'A' 
 													when exists (select 1 from JOIN_OPTIONS J 
 															where F.TABLE_ALIAS = J.TABLE_ALIAS 
-															and J.COLUMNS_INCLUDED IN ('A', 'K') ) then  
+															and J.COLUMNS_INCLUDED IN ('A', 'K') ) then	 
 														F.TABLE_ALIAS 
 												end,
-						p_View_Mode    		=> v_View_Mode,
+						p_View_Mode			=> v_View_Mode,
 						p_Filter_Cond		=> data_browser_conf.Get_Join_Expression( -- support for composite keys
 							p_Left_Columns=> F.R_PRIMARY_KEY_COLS, p_Left_Alias=> 'L1',
 							p_Right_Columns=> T.COLUMN_NAME, p_Right_Alias=> 'A'),
 						p_Order_by			=> null -- not needed
 					)
-					|| data_browser_conf.NL(4) || ') ' -- display single value 					
+					|| data_browser_conf.NL(4) || ') ' -- display single value					
 					COLUMN_EXPR,
 					S.HAS_HELP_TEXT,
 					S.HAS_DEFAULT,
@@ -1085,14 +1085,14 @@ is
 					null FORMAT_MASK,
 					'select distinct path d, path r from (' ||
 					data_browser_select.Key_Path_Query (
-						p_Table_Name    	=> F.R_VIEW_NAME,
-						p_Search_Key_Col    => F.R_PRIMARY_KEY_COLS,
-						p_Search_Value    	=> null,
+						p_Table_Name		=> F.R_VIEW_NAME,
+						p_Search_Key_Col	=> F.R_PRIMARY_KEY_COLS,
+						p_Search_Value		=> null,
 						p_Folder_Par_Col_Name  => F.FOLDER_PARENT_COLUMN_NAME,
 						p_Folder_Name_Col_Name => F.FOLDER_NAME_COLUMN_NAME,
 						p_Folder_Cont_Col_Name => F.FOLDER_CONTAINER_COLUMN_NAME,
 						p_Folder_Cont_Alias => NULL, -- problem - variable reference 
-						p_View_Mode    		=> v_View_Mode,
+						p_View_Mode			=> v_View_Mode,
 						p_Filter_Cond		=> null,
 						p_Order_by			=> NVL(F.ORDERING_COLUMN_NAME, '1')
 					) || ')'		
@@ -1110,7 +1110,7 @@ is
 					S.VIEW_NAME R_VIEW_NAME, 
 					S.FOREIGN_KEY_COLS R_COLUMN_NAME,
 					S.R_TABLE_NAME REF_TABLE_NAME, 
-					S.R_VIEW_NAME REF_VIEW_NAME, 		-- Adress of source and target in foreign key lookup
+					S.R_VIEW_NAME REF_VIEW_NAME,		-- Adress of source and target in foreign key lookup
 					S.R_COLUMN_NAME REF_COLUMN_NAME,
 					'' COMMENTS
 				FROM MVDATA_BROWSER_SIMPLE_COLS T
@@ -1140,14 +1140,14 @@ is
 					S.COLUMN_HEADER,
 					S.COLUMN_PREFIX,
 					data_browser_select.Get_ConversionColFunction (
-						p_Column_Name 		=> S.TABLE_ALIAS || '.' || S.R_COLUMN_NAME,
-						p_Data_Type 		=> S.R_DATA_TYPE,
-						p_Data_Precision 	=> S.R_DATA_PRECISION,
-						p_Data_Scale 		=> S.R_DATA_SCALE,
-						p_Char_Length 		=> S.R_CHAR_LENGTH,
-						p_Data_Format 		=> case when S.IS_REFERENCE = 'N' then v_Data_Format else 'CSV' end,
-						p_Use_Trim 			=> 'Y',
-						p_Datetime  		=> data_browser_select.Date_Time_Required(S.R_DATA_TYPE, v_Data_Format, S.IS_DATETIME)
+						p_Column_Name		=> S.TABLE_ALIAS || '.' || S.R_COLUMN_NAME,
+						p_Data_Type			=> S.R_DATA_TYPE,
+						p_Data_Precision	=> S.R_DATA_PRECISION,
+						p_Data_Scale		=> S.R_DATA_SCALE,
+						p_Char_Length		=> S.R_CHAR_LENGTH,
+						p_Data_Format		=> case when S.IS_REFERENCE = 'N' then v_Data_Format else 'CSV' end,
+						p_Use_Trim			=> 'Y',
+						p_Datetime			=> data_browser_select.Date_Time_Required(S.R_DATA_TYPE, v_Data_Format, S.IS_DATETIME)
 					) COLUMN_EXPR,
 					S.HAS_HELP_TEXT,
 					S.HAS_DEFAULT,
@@ -1155,16 +1155,16 @@ is
 					S.IS_PASSWORD,
 					case when S.IS_REFERENCE = 'N' then
 						data_browser_conf.Get_Col_Format_Mask(
-							p_Data_Type 		=> S.R_DATA_TYPE, 
-							p_Data_Precision 	=> S.R_DATA_PRECISION, 
-							p_Data_Scale 		=> S.R_DATA_SCALE, 
-							p_Char_Length 		=> S.R_CHAR_LENGTH, 
+							p_Data_Type			=> S.R_DATA_TYPE, 
+							p_Data_Precision	=> S.R_DATA_PRECISION, 
+							p_Data_Scale		=> S.R_DATA_SCALE, 
+							p_Char_Length		=> S.R_CHAR_LENGTH, 
 							p_Use_Group_Separator => case when v_Data_Format IN ('FORM', 'HTML', 'QUERY') then 'Y' else 'N' end,
-							p_Datetime  		=> data_browser_select.Date_Time_Required(S.R_DATA_TYPE, v_Data_Format, S.IS_DATETIME)
+							p_Datetime			=> data_browser_select.Date_Time_Required(S.R_DATA_TYPE, v_Data_Format, S.IS_DATETIME)
 						)
 					end FORMAT_MASK,
 					'' LOV_QUERY,
-					case when S.IS_REFERENCE != 'N'  -- In View Mode Import/Export the foreign key columns are hidden.
+					case when S.IS_REFERENCE != 'N'	 -- In View Mode Import/Export the foreign key columns are hidden.
 					and data_browser_select.FN_List_Offest(v_Select_Columns, S.IMP_COLUMN_NAME) = 0 -- not visible
 						then 'HIDDEN'
 					else
@@ -1182,7 +1182,7 @@ is
 					S.VIEW_NAME R_VIEW_NAME, 
 					S.FOREIGN_KEY_COLS R_COLUMN_NAME,
 					S.R_TABLE_NAME REF_TABLE_NAME, 
-					S.R_VIEW_NAME REF_VIEW_NAME, 		-- Adress of source and target in foreign key lookup
+					S.R_VIEW_NAME REF_VIEW_NAME,		-- Adress of source and target in foreign key lookup
 					S.R_COLUMN_NAME REF_COLUMN_NAME,
 					'' COMMENTS
 				FROM MVDATA_BROWSER_F_REFS S
@@ -1193,10 +1193,10 @@ is
 				AND (J.COLUMNS_INCLUDED IN ('A', 'K') OR v_Join_Options IS NULL) 
 				AND data_browser_select.FN_Filter_Parent_Key(
 					p_Parent_Key_Visible => v_Parent_Key_Visible,
-					p_Parent_Name 		=> v_Parent_Name,
+					p_Parent_Name		=> v_Parent_Name,
 					p_Parent_Key_Column => v_Parent_Key_Column,
-					p_Ref_View_Name 	=> S.R_VIEW_NAME,
-					p_R_Column_Name 	=> S.FOREIGN_KEY_COLS
+					p_Ref_View_Name		=> S.R_VIEW_NAME,
+					p_R_Column_Name		=> S.FOREIGN_KEY_COLS
 				) = 'NO'
 				UNION ALL -- q_refs: all 2. level natural key columns of indirect references from frefs => alias B_A. 
 							--------------------------------------------------------------
@@ -1223,16 +1223,16 @@ is
 					S.IS_PASSWORD,
 					case when S.IS_REFERENCE = 'N' then
 						data_browser_conf.Get_Col_Format_Mask(
-							p_Data_Type 		=> S.R_DATA_TYPE, 
-							p_Data_Precision 	=> S.R_DATA_PRECISION, 
-							p_Data_Scale 		=> S.R_DATA_SCALE, 
-							p_Char_Length 		=> S.R_CHAR_LENGTH, 
+							p_Data_Type			=> S.R_DATA_TYPE, 
+							p_Data_Precision	=> S.R_DATA_PRECISION, 
+							p_Data_Scale		=> S.R_DATA_SCALE, 
+							p_Char_Length		=> S.R_CHAR_LENGTH, 
 							p_Use_Group_Separator => case when v_Data_Format IN ('FORM', 'HTML', 'QUERY') then 'Y' else 'N' end,
-							p_Datetime  		=> data_browser_select.Date_Time_Required(S.R_DATA_TYPE, v_Data_Format, S.IS_DATETIME)
+							p_Datetime			=> data_browser_select.Date_Time_Required(S.R_DATA_TYPE, v_Data_Format, S.IS_DATETIME)
 						)
 					end FORMAT_MASK,
 					'' LOV_QUERY,
-					case when S.IS_REFERENCE != 'N'  -- In View Mode Import/Export the foreign key columns are hidden.
+					case when S.IS_REFERENCE != 'N'	 -- In View Mode Import/Export the foreign key columns are hidden.
 					and data_browser_select.FN_List_Offest(v_Select_Columns, S.IMP_COLUMN_NAME) = 0 -- not visible
 						then 'HIDDEN'
 					else
@@ -1263,10 +1263,10 @@ is
 				AND (J.COLUMNS_INCLUDED IN ('A', 'K') OR v_Join_Options IS NULL)
 				AND data_browser_select.FN_Filter_Parent_Key(
 					p_Parent_Key_Visible => v_Parent_Key_Visible,
-					p_Parent_Name 		=> v_Parent_Name,
+					p_Parent_Name		=> v_Parent_Name,
 					p_Parent_Key_Column => v_Parent_Key_Column,
-					p_Ref_View_Name 	=> S.J_VIEW_NAME,
-					p_R_Column_Name 	=> S.COLUMN_NAME
+					p_Ref_View_Name		=> S.J_VIEW_NAME,
+					p_R_Column_Name		=> S.COLUMN_NAME
 				) = 'NO'
 				---------------------------------------------------------------
 				UNION ALL -- fc_refs: all 1. level table columns of direct references from table A => alias B.
@@ -1287,14 +1287,14 @@ is
 					S.COLUMN_HEADER,
 					S.COLUMN_PREFIX,
 					data_browser_select.Get_ConversionColFunction (
-						p_Column_Name 		=> S.TABLE_ALIAS || '.' || S.R_COLUMN_NAME,
-						p_Data_Type 		=> S.R_DATA_TYPE,
-						p_Data_Precision 	=> S.R_DATA_PRECISION,
-						p_Data_Scale 		=> S.R_DATA_SCALE,
-						p_Char_Length 		=> S.R_CHAR_LENGTH,
-						p_Data_Format 		=> case when S.IS_REFERENCE = 'N' then v_Data_Format else 'CSV' end,
-						p_Use_Trim 			=> 'Y',
-						p_Datetime  		=> data_browser_select.Date_Time_Required(S.R_DATA_TYPE, v_Data_Format, S.IS_DATETIME)
+						p_Column_Name		=> S.TABLE_ALIAS || '.' || S.R_COLUMN_NAME,
+						p_Data_Type			=> S.R_DATA_TYPE,
+						p_Data_Precision	=> S.R_DATA_PRECISION,
+						p_Data_Scale		=> S.R_DATA_SCALE,
+						p_Char_Length		=> S.R_CHAR_LENGTH,
+						p_Data_Format		=> case when S.IS_REFERENCE = 'N' then v_Data_Format else 'CSV' end,
+						p_Use_Trim			=> 'Y',
+						p_Datetime			=> data_browser_select.Date_Time_Required(S.R_DATA_TYPE, v_Data_Format, S.IS_DATETIME)
 					) COLUMN_EXPR,
 					S.HAS_HELP_TEXT,
 					s.HAS_DEFAULT,
@@ -1302,12 +1302,12 @@ is
 					S.IS_PASSWORD,
 					case when S.IS_REFERENCE = 'N' then
 						data_browser_conf.Get_Col_Format_Mask(
-							p_Data_Type 		=> S.R_DATA_TYPE, 
-							p_Data_Precision 	=> S.R_DATA_PRECISION, 
-							p_Data_Scale 		=> S.R_DATA_SCALE, 
-							p_Char_Length 		=> S.R_CHAR_LENGTH, 
+							p_Data_Type			=> S.R_DATA_TYPE, 
+							p_Data_Precision	=> S.R_DATA_PRECISION, 
+							p_Data_Scale		=> S.R_DATA_SCALE, 
+							p_Char_Length		=> S.R_CHAR_LENGTH, 
 							p_Use_Group_Separator => case when v_Data_Format IN ('FORM', 'HTML', 'QUERY') then 'Y' else 'N' end,
-							p_Datetime  		=> data_browser_select.Date_Time_Required(S.R_DATA_TYPE, v_Data_Format, S.IS_DATETIME)
+							p_Datetime			=> data_browser_select.Date_Time_Required(S.R_DATA_TYPE, v_Data_Format, S.IS_DATETIME)
 						)
 					end FORMAT_MASK, 
 					'' LOV_QUERY,
@@ -1362,12 +1362,12 @@ is
 					S.IS_BLOB,
 					S.IS_PASSWORD,
 					data_browser_conf.Get_Col_Format_Mask(
-						p_Data_Type 		=> S.R_DATA_TYPE, 
-						p_Data_Precision 	=> S.R_DATA_PRECISION, 
-						p_Data_Scale 		=> S.R_DATA_SCALE, 
-						p_Char_Length 		=> S.R_CHAR_LENGTH, 
+						p_Data_Type			=> S.R_DATA_TYPE, 
+						p_Data_Precision	=> S.R_DATA_PRECISION, 
+						p_Data_Scale		=> S.R_DATA_SCALE, 
+						p_Char_Length		=> S.R_CHAR_LENGTH, 
 						p_Use_Group_Separator => case when v_Data_Format IN ('FORM', 'HTML', 'QUERY') then 'Y' else 'N' end,
-						p_Datetime  		=> data_browser_select.Date_Time_Required(S.R_DATA_TYPE, v_Data_Format, S.IS_DATETIME)
+						p_Datetime			=> data_browser_select.Date_Time_Required(S.R_DATA_TYPE, v_Data_Format, S.IS_DATETIME)
 					) FORMAT_MASK, 
 					'' LOV_QUERY,
 					'DISPLAY_ONLY' COLUMN_EXPR_TYPE,
@@ -1395,33 +1395,33 @@ is
 			)
 			WHERE VIEW_NAME = v_View_Name
 		)
-    	ORDER BY COLUMN_ORDER;
+		ORDER BY COLUMN_ORDER;
 
 	FUNCTION Date_Time_Required (
-        p_Data_Type VARCHAR2,
-        p_Data_Format VARCHAR2,
-        p_Datetime VARCHAR2 DEFAULT NULL
-    ) RETURN VARCHAR2 DETERMINISTIC -- Y / N
+		p_Data_Type VARCHAR2,
+		p_Data_Format VARCHAR2,
+		p_Datetime VARCHAR2 DEFAULT NULL
+	) RETURN VARCHAR2 DETERMINISTIC -- Y / N
 	IS 
 	BEGIN
 		RETURN case when p_Data_Type LIKE 'TIMESTAMP%' and p_Data_Format IN ('FORM', 'QUERY') then 'Y' else p_Datetime end;
 	END Date_Time_Required;
 
-    FUNCTION Reference_Column_Header (
-    	p_Column_Name VARCHAR2,
-    	p_Remove_Prefix VARCHAR2,
-    	p_View_Name VARCHAR2,
-    	p_R_View_Name VARCHAR2
-    ) RETURN VARCHAR2 DETERMINISTIC
-    IS
+	FUNCTION Reference_Column_Header (
+		p_Column_Name VARCHAR2,
+		p_Remove_Prefix VARCHAR2,
+		p_View_Name VARCHAR2,
+		p_R_View_Name VARCHAR2
+	) RETURN VARCHAR2 DETERMINISTIC
+	IS
 	PRAGMA UDF;
 		v_Column_Name VARCHAR2(128) := data_browser_conf.Normalize_Column_Name(p_Column_Name => p_Column_Name, p_Remove_Prefix => p_Remove_Prefix);
 		v_View_Name VARCHAR2(128) := data_browser_conf.Normalize_Table_Name(p_Table_Name => p_View_Name);
 		v_R_View_Name VARCHAR2(128) := data_browser_conf.Normalize_Table_Name(p_Table_Name => p_R_View_Name);
 	BEGIN
 		RETURN data_browser_conf.Table_Name_To_Header(
-			case when INSTR(v_R_View_Name, SUBSTR(v_View_Name, 1, INSTR(v_View_Name, '_') - 1)) > 0 --  Detail table name starts with master table name
-				then SUBSTR(v_View_Name, INSTR(v_View_Name, '_') + 1) 	-- Remove master table name from detail table name
+			case when INSTR(v_R_View_Name, SUBSTR(v_View_Name, 1, INSTR(v_View_Name, '_') - 1)) > 0 --	Detail table name starts with master table name
+				then SUBSTR(v_View_Name, INSTR(v_View_Name, '_') + 1)	-- Remove master table name from detail table name
 				else v_View_Name										-- detail table name
 			end
 		)
@@ -1435,20 +1435,20 @@ is
 		end;
 	END Reference_Column_Header;
 
-    FUNCTION Get_ConversionColFunction (
-        p_Column_Name VARCHAR2,
-        p_Data_Type VARCHAR2,
-        p_Data_Precision NUMBER,
-        p_Data_Scale NUMBER,
-        p_Char_Length NUMBER,
-        p_Data_Format VARCHAR2 DEFAULT 'FORM',
-        p_Use_Trim VARCHAR2 DEFAULT 'Y',	-- trim leading spaces from formated numbers; trim text to limit
-        p_Datetime VARCHAR2 DEFAULT NULL 	-- Y,N
-    ) RETURN VARCHAR2 DETERMINISTIC
-    IS
+	FUNCTION Get_ConversionColFunction (
+		p_Column_Name VARCHAR2,
+		p_Data_Type VARCHAR2,
+		p_Data_Precision NUMBER,
+		p_Data_Scale NUMBER,
+		p_Char_Length NUMBER,
+		p_Data_Format VARCHAR2 DEFAULT 'FORM',
+		p_Use_Trim VARCHAR2 DEFAULT 'Y',	-- trim leading spaces from formated numbers; trim text to limit
+		p_Datetime VARCHAR2 DEFAULT NULL	-- Y,N
+	) RETURN VARCHAR2 DETERMINISTIC
+	IS
 	PRAGMA UDF;
-		v_use_NLS_params 		CONSTANT VARCHAR2(1) := 'Y'; -- case when p_Data_Format IN ('FORM', 'HTML', 'QUERY') then 'N' else 'Y' end;
-		v_Use_Group_Separator 	CONSTANT VARCHAR2(1) := case when p_Data_Format IN ('FORM', 'HTML', 'QUERY') then 'Y' else 'N' end;
+		v_use_NLS_params		CONSTANT VARCHAR2(1) := 'Y'; -- case when p_Data_Format IN ('FORM', 'HTML', 'QUERY') then 'N' else 'Y' end;
+		v_Use_Group_Separator	CONSTANT VARCHAR2(1) := case when p_Data_Format IN ('FORM', 'HTML', 'QUERY') then 'Y' else 'N' end;
 		v_Datetime				CONSTANT VARCHAR2(1) := data_browser_select.Date_Time_Required(p_Data_Type, p_Data_Format, p_Datetime);
 	BEGIN
 		if p_Data_Format != 'NATIVE' then
@@ -1466,7 +1466,7 @@ is
 		else
 			return p_Column_Name;
 		end if;
-    END Get_ConversionColFunction;
+	END Get_ConversionColFunction;
 
 	/*
 	qc_refs: all 2. level table columns of indirect references from frefs => alias B_A. 
@@ -1475,8 +1475,8 @@ is
 	FUNCTION FN_Pipe_browser_qc_refs (p_View_Name VARCHAR2, p_Data_Format VARCHAR2 DEFAULT 'FORM')
 	RETURN data_browser_select.tab_data_browser_qc_refs PIPELINED
 	IS
-        CURSOR keys_cur (v_View_Name VARCHAR2)
-        IS
+		CURSOR keys_cur (v_View_Name VARCHAR2)
+		IS
 		-- find qualified unique key for target table of foreign key reference
 		SELECT VIEW_NAME, TABLE_NAME, COLUMN_NAME, COLUMN_ID, NULLABLE, POSITION,
 			R_VIEW_NAME, R_TABLE_NAME,
@@ -1571,7 +1571,7 @@ is
 			WHERE FC.R_VIEW_NAME = E.VIEW_NAME AND FC.R_COLUMN_NAME = E.COLUMN_NAME
 		);
 
-        v_in_rows tab_data_browser_qc_refs;
+		v_in_rows tab_data_browser_qc_refs;
 	BEGIN
 		OPEN keys_cur(p_View_Name);
 		LOOP
@@ -1592,8 +1592,8 @@ is
 	FUNCTION FN_Pipe_browser_fc_refs (p_View_Name VARCHAR2)
 	RETURN data_browser_select.tab_data_browser_fc_refs PIPELINED
 	IS
-        CURSOR keys_cur (v_View_Name VARCHAR2)
-        IS
+		CURSOR keys_cur (v_View_Name VARCHAR2)
+		IS
 		SELECT
 			VIEW_NAME, TABLE_NAME, FK_COLUMN_NAME COLUMN_NAME, COLUMN_ID, NULLABLE, R_COLUMN_ID, POSITION,
 			FOREIGN_KEY_COLS, NORM_COLUMN_NAME,
@@ -1684,7 +1684,7 @@ is
 			and F.TABLE_ALIAS = FC.TABLE_ALIAS
 		);
 
-        v_in_rows tab_data_browser_fc_refs;
+		v_in_rows tab_data_browser_fc_refs;
 	BEGIN
 		OPEN keys_cur(p_View_Name);
 		LOOP
@@ -1709,8 +1709,8 @@ is
 		p_Include_Schema VARCHAR2 DEFAULT data_browser_conf.Get_Include_Query_Schema
 	) RETURN data_browser_select.tab_data_browser_q_refs PIPELINED
 	IS
-        CURSOR keys_cur (v_View_Name VARCHAR2, v_Data_Format VARCHAR2, v_Include_Schema VARCHAR2)
-        IS -- find qualified unique key for target table of foreign key reference
+		CURSOR keys_cur (v_View_Name VARCHAR2, v_Data_Format VARCHAR2, v_Include_Schema VARCHAR2)
+		IS -- find qualified unique key for target table of foreign key reference
 		WITH FOREIGN_KEY_PARENTS AS (
 			-- For each foreign key column of a table x a list of candidate parent keys source columns from 
 			-- the same table x is calculated. Used to restrict LOV Lists';
@@ -1873,11 +1873,11 @@ is
 		WHERE F.J_VIEW_NAME = H.R_VIEW_NAME (+) AND F.VIEW_NAME = H.VIEW_NAME2 (+) AND F.FOREIGN_KEY_COLS = H.COLUMN_NAME (+)
 		;
 
-    	v_q_ref_cols_md5 	VARCHAR2(300);
-        v_is_cached			VARCHAR2(10);
+		v_q_ref_cols_md5	VARCHAR2(300);
+		v_is_cached			VARCHAR2(10);
 	BEGIN
 		v_q_ref_cols_md5 := wwv_flow_item.md5 (p_View_Name, p_Data_Format, p_Include_Schema);
-		v_is_cached	:= case when g_q_ref_cols_md5 != v_q_ref_cols_md5 then 'load' else 'cached!' end;
+		v_is_cached := case when g_q_ref_cols_md5 != v_q_ref_cols_md5 then 'load' else 'cached!' end;
 		if v_is_cached != 'cached!' then
 			OPEN keys_cur(p_View_Name, p_Data_Format, p_Include_Schema);
 			FETCH keys_cur BULK COLLECT INTO g_q_ref_cols_tab;
@@ -1893,17 +1893,17 @@ is
 	FUNCTION FN_Pipe_table_imp_fk1 (p_Table_Name VARCHAR2)
 	RETURN data_browser_select.tab_table_imp_fk PIPELINED
 	IS
-        CURSOR views_cur (v_Table_Name VARCHAR2)
-        IS
+		CURSOR views_cur (v_Table_Name VARCHAR2)
+		IS
 		-- 1. level foreign keys
 		SELECT --+ INDEX(S)
 			S.VIEW_NAME, S.TABLE_NAME, S.PRIMARY_KEY_COLS, S.SHORT_NAME,
 			S.FOREIGN_KEY_COLS COLUMN_NAME,
-			S.R_VIEW_NAME 		S_VIEW_NAME,
-			S.IMP_COLUMN_NAME 	S_REF,
-			S.VIEW_NAME         D_VIEW_NAME,					-- lookup ids of imported table + related
-			S.FOREIGN_KEY_COLS 	D_REF,
-			S.FOREIGN_KEY_COLS 	D_COLUMN_NAME,
+			S.R_VIEW_NAME		S_VIEW_NAME,
+			S.IMP_COLUMN_NAME	S_REF,
+			S.VIEW_NAME			D_VIEW_NAME,					-- lookup ids of imported table + related
+			S.FOREIGN_KEY_COLS	D_REF,
+			S.FOREIGN_KEY_COLS	D_COLUMN_NAME,
 			S.IS_FILE_FOLDER_REF,
 			G.FOLDER_PARENT_COLUMN_NAME,
 			G.FOLDER_NAME_COLUMN_NAME,
@@ -1923,10 +1923,10 @@ is
 		FROM MVDATA_BROWSER_F_REFS S
 		LEFT OUTER JOIN MVDATA_BROWSER_REFERENCES G ON S.VIEW_NAME = G.VIEW_NAME AND S.FOREIGN_KEY_COLS = G.COLUMN_NAME AND S.IS_FILE_FOLDER_REF = 'Y'
 		LEFT OUTER JOIN MVDATA_BROWSER_U_REFS U ON U.VIEW_NAME = S.R_VIEW_NAME AND U.COLUMN_NAME = S.R_COLUMN_NAME AND U.RANK = 1  -- unique key columns for each foreign key
-        -- , (SELECT 'SALES' p_Table_name, 'NO' p_As_Of_Timestamp FROM DUAL ) PAR
+		-- , (SELECT 'SALES' p_Table_name, 'NO' p_As_Of_Timestamp FROM DUAL ) PAR
 		WHERE S.TABLE_NAME = NVL(v_Table_Name, S.TABLE_NAME)
 		AND S.R_COLUMN_ID IS NOT NULL;
-        v_in_row rec_table_imp_fk;
+		v_in_row rec_table_imp_fk;
 	BEGIN
 		OPEN views_cur(p_Table_Name);
 		LOOP
@@ -1944,27 +1944,27 @@ is
 	)
 	RETURN data_browser_select.tab_table_imp_fk PIPELINED
 	IS
-        CURSOR views_cur (v_Table_Name VARCHAR2)
-        IS
+		CURSOR views_cur (v_Table_Name VARCHAR2)
+		IS
 		-- 2. level foreign keys
-		SELECT  --+ INDEX(Q) USE_NL_WITH_INDEX(S)
+		SELECT	--+ INDEX(Q) USE_NL_WITH_INDEX(S)
 			Q.VIEW_NAME, Q.TABLE_NAME, Q.SEARCH_KEY_COLS, Q.SHORT_NAME,
-			Q.FOREIGN_KEY_COLS 	COLUMN_NAME,
-			Q.R_VIEW_NAME 		S_VIEW_NAME,
-			Q.IMP_COLUMN_NAME 	S_REF,
-			Q.J_VIEW_NAME 		D_VIEW_NAME,
+			Q.FOREIGN_KEY_COLS	COLUMN_NAME,
+			Q.R_VIEW_NAME		S_VIEW_NAME,
+			Q.IMP_COLUMN_NAME	S_REF,
+			Q.J_VIEW_NAME		D_VIEW_NAME,
 			Q.DEST_COLUMN_NAME D_REF,
 			Q.DEST_COLUMN_NAME D_COLUMN_NAME,
 			Q.IS_FILE_FOLDER_REF,
 			null FOLDER_PARENT_COLUMN_NAME,
 			null FOLDER_NAME_COLUMN_NAME,
 			null FOLDER_CONTAINER_COLUMN_NAME,
-            Q.FILTER_KEY_COLUMN, Q.PARENT_KEY_COLUMN, 
+			Q.FILTER_KEY_COLUMN, Q.PARENT_KEY_COLUMN, 
 			Q.R_PRIMARY_KEY_COLS, Q.R_CONSTRAINT_TYPE,
 			Q.R_TABLE_NAME, Q.R_VIEW_NAME, Q.COLUMN_ID, Q.NULLABLE,
 			Q.R_COLUMN_ID, Q.R_COLUMN_NAME, Q.POSITION, Q.R_NULLABLE, Q.R_DATA_TYPE,
 			Q.R_DATA_PRECISION, Q.R_DATA_SCALE, Q.R_CHAR_LENGTH, Q.IS_DATETIME,
-			Q.R_TABLE_ALIAS 	TABLE_ALIAS, 
+			Q.R_TABLE_ALIAS		TABLE_ALIAS, 
 			Q.IMP_COLUMN_NAME,
 			case when p_As_Of_Timestamp = 'YES'
 				then REPLACE (Q.JOIN_CLAUSE, Q.JOIN_VIEW_NAME, custom_changelog.Get_ChangeLogViewName(Q.JOIN_VIEW_NAME))
@@ -1977,7 +1977,7 @@ is
 		FROM TABLE(data_browser_select.FN_Pipe_browser_q_refs(p_View_Name => v_Table_Name, p_Data_Format => p_Data_Format)) Q 
 		where Q.IS_FILE_FOLDER_REF = 'N';
 		
-        v_in_row rec_table_imp_fk;
+		v_in_row rec_table_imp_fk;
 	BEGIN
 		OPEN views_cur(p_Table_Name);
 		LOOP
@@ -2021,11 +2021,11 @@ is
 		return INSTR(FN_Terminate_List(p_Select_Columns), FN_Terminate_List(p_Column_Name));
 	end FN_List_Offest;
 	
-    FUNCTION Field_Has_CInput_ID (	-- function returns 1, when the field is an character input field.
-    	p_Column_Expr_Type IN VARCHAR2
-    )
-    RETURN INTEGER DETERMINISTIC	-- 0, 1
-    IS
+	FUNCTION Field_Has_CInput_ID (	-- function returns 1, when the field is an character input field.
+		p_Column_Expr_Type IN VARCHAR2
+	)
+	RETURN INTEGER DETERMINISTIC	-- 0, 1
+	IS
 	PRAGMA UDF;
 	BEGIN
 		RETURN case when p_Column_Expr_Type IN ('HIDDEN', 'LINK', 'LINK_LIST', 'LINK_ID', 'ROW_SELECTOR') 
@@ -2033,14 +2033,14 @@ is
 		end;
 	END Field_Has_CInput_ID;
 
-    FUNCTION Field_Has_HCInput_ID (	-- function returns 1, when the field is an character input field.
-    	p_Column_Expr_Type IN VARCHAR2,
-        p_Data_Type VARCHAR2,
-    	p_Is_Search_Key VARCHAR2 DEFAULT 'N',	-- Y, N
-    	p_Is_Foreign_Key VARCHAR2 DEFAULT 'N'	-- Y, N
-    )
-    RETURN INTEGER DETERMINISTIC	-- 0, 1
-    IS
+	FUNCTION Field_Has_HCInput_ID ( -- function returns 1, when the field is an character input field.
+		p_Column_Expr_Type IN VARCHAR2,
+		p_Data_Type VARCHAR2,
+		p_Is_Search_Key VARCHAR2 DEFAULT 'N',	-- Y, N
+		p_Is_Foreign_Key VARCHAR2 DEFAULT 'N'	-- Y, N
+	)
+	RETURN INTEGER DETERMINISTIC	-- 0, 1
+	IS
 	PRAGMA UDF;
 	BEGIN
 		RETURN case when p_Column_Expr_Type = 'HIDDEN' and p_Data_Type != 'NUMBER'
@@ -2048,14 +2048,14 @@ is
 				then 1 else 0 end;
 	END Field_Has_HCInput_ID;
 
-    FUNCTION Field_Has_NInput_ID (	-- function returns 1, when the field is a hidden serial primary or foreign key
-    	p_Column_Expr_Type VARCHAR2,
-        p_Data_Type VARCHAR2,
-    	p_Is_Search_Key VARCHAR2 DEFAULT 'N',	-- Y, N
-    	p_Is_Foreign_Key VARCHAR2 DEFAULT 'N'	-- Y, N
-    )
-    RETURN INTEGER DETERMINISTIC	-- 0, 1
-    IS
+	FUNCTION Field_Has_NInput_ID (	-- function returns 1, when the field is a hidden serial primary or foreign key
+		p_Column_Expr_Type VARCHAR2,
+		p_Data_Type VARCHAR2,
+		p_Is_Search_Key VARCHAR2 DEFAULT 'N',	-- Y, N
+		p_Is_Foreign_Key VARCHAR2 DEFAULT 'N'	-- Y, N
+	)
+	RETURN INTEGER DETERMINISTIC	-- 0, 1
+	IS
 	PRAGMA UDF;
 	BEGIN
 		RETURN case when p_Column_Expr_Type = 'HIDDEN' and p_Data_Type = 'NUMBER'
@@ -2111,19 +2111,10 @@ is
 		) then 'NO' else 'YES' end;
 	
 		$IF data_browser_conf.g_debug $THEN
-			apex_debug.message(
-				p_message => 
-				'data_browser_select.FN_Filter_Parent_Key(p_Parent_Key_Visible => %s, p_Parent_Name => %s, p_Parent_Key_Column => %s, ' || chr(10)
-				|| 'p_Ref_View_Name => %s, p_R_Column_Name => %s) -- result : %s',
-				p0 => DBMS_ASSERT.ENQUOTE_LITERAL(p_Parent_Key_Visible),
-				p1 => DBMS_ASSERT.ENQUOTE_LITERAL(p_Parent_Name),
-				p2 => DBMS_ASSERT.ENQUOTE_LITERAL(p_Parent_Key_Column),
-				p3 => DBMS_ASSERT.ENQUOTE_LITERAL(p_Ref_View_Name),
-				p4 => DBMS_ASSERT.ENQUOTE_LITERAL(p_R_Column_Name),
-				p5 => DBMS_ASSERT.ENQUOTE_LITERAL(v_Result),
-				p_max_length => 3500
-				, p_level => apex_debug.c_log_level_app_trace
-			);
+			EXECUTE IMMEDIATE data_browser_conf.Dyn_Log_Call_Parameter(p_level => apex_debug.c_log_level_app_trace)
+			USING p_Parent_Key_Visible,p_Parent_Name,p_Parent_Key_Column,p_Ref_View_Name,p_R_Column_Name;
+			
+			apex_debug.message(p_message => v_Result, p_max_length => 3500, p_level => apex_debug.c_log_level_app_trace);
 		$END
 
 		return v_Result;
@@ -2151,7 +2142,7 @@ is
 	end FN_Current_Data_Format;
 
 	FUNCTION FN_Show_Row_Selector (
-		p_Data_Format VARCHAR2,	-- FORM, HTML, CSV, NATIVE. Format of the final projection columns.
+		p_Data_Format VARCHAR2, -- FORM, HTML, CSV, NATIVE. Format of the final projection columns.
 		p_Edit_Mode VARCHAR2,	-- YES, NO
 		p_Report_Mode VARCHAR2,-- YES, NO
 		p_View_Mode VARCHAR2,
@@ -2162,7 +2153,7 @@ is
 	begin
 		if p_Column_Name = 'ROW_SELECTOR$' then 
 			return (p_Edit_Mode = 'YES' and p_Report_Mode = 'YES' and p_Data_Format IN ('FORM', 'CSV', 'NATIVE') 
-				or p_View_Mode = 'HISTORY')  and p_Data_Columns_Only = 'NO';
+				or p_View_Mode = 'HISTORY')	 and p_Data_Columns_Only = 'NO';
 		elsif p_Column_Name IN ('CONTROL_BREAK$', 'LINK_ID$') then
 			return p_Data_Columns_Only = 'NO';
 		elsif p_Column_Name IN ('IMPORTJOB_ID$', 'LINE_NO$') then
@@ -2173,7 +2164,7 @@ is
 	end FN_Show_Row_Selector;
 
 	FUNCTION FN_Show_Import_Job (
-		p_Data_Format VARCHAR2,	-- FORM, HTML, CSV, NATIVE. Format of the final projection columns.
+		p_Data_Format VARCHAR2, -- FORM, HTML, CSV, NATIVE. Format of the final projection columns.
 		p_Column_Name VARCHAR2
 	) RETURN BOOLEAN DETERMINISTIC
 	is
@@ -2198,12 +2189,12 @@ is
 			return p_cols_rec.DISPLAY_IN_REPORT = 'Y';				-- show only in reports
 		elsif p_Select_Columns = '::' then -- default columns for view mode
 			if p_cols_rec.COLUMN_EXPR_TYPE IN ('LINK', 'LINK_LIST') then 
-				return (p_Report_Mode = 'ALL' 			-- show all columns
+				return (p_Report_Mode = 'ALL'			-- show all columns
 					or p_cols_rec.DISPLAY_IN_REPORT = 'Y');
 			else
 				return ((p_Report_Mode = 'YES' and p_cols_rec.DISPLAY_IN_REPORT = 'Y') 
 					or (p_Report_Mode IN ('ALL', 'NO') and p_View_Mode != 'RECORD_VIEW')
-					or (p_View_Mode = 'RECORD_VIEW' and p_cols_rec.TABLE_ALIAS = 'A'));	-- show audit columns
+					or (p_View_Mode = 'RECORD_VIEW' and p_cols_rec.TABLE_ALIAS = 'A')); -- show audit columns
 			end if;
 		else 
 			return INSTR(p_Select_Columns, FN_Terminate_List(p_cols_rec.COLUMN_NAME)) > 0;
@@ -2219,7 +2210,7 @@ is
 		p_Select_Columns VARCHAR2
 	) RETURN VARCHAR2 DETERMINISTIC
 	is
-        v_Parent_Key_Visible VARCHAR2(10);
+		v_Parent_Key_Visible VARCHAR2(10);
 	begin
 		if p_Select_Columns IS NOT NULL or p_Edit_Mode = 'YES' then 
 			v_Parent_Key_Visible := 'YES';
@@ -2268,7 +2259,7 @@ is
 	end FN_Apex_Item_Use_Column;
 
 	FUNCTION Bold_Total_Html (
-		p_Data_Format VARCHAR2,	-- FORM, QUERY, CSV, NATIVE. Format of the final projection columns.
+		p_Data_Format VARCHAR2, -- FORM, QUERY, CSV, NATIVE. Format of the final projection columns.
 		p_Value VARCHAR2,
 		p_Is_Total VARCHAR2 DEFAULT NULL,
 		p_Is_Subtotal VARCHAR2 DEFAULT NULL
@@ -2287,7 +2278,7 @@ is
 	end Bold_Total_Html;
 
 	FUNCTION Navigation_Counter_HTML(
-		p_Data_Format VARCHAR2,	-- FORM, HTML, CSV, NATIVE. Format of the final projection columns.
+		p_Data_Format VARCHAR2, -- FORM, HTML, CSV, NATIVE. Format of the final projection columns.
 		p_CounterQuery VARCHAR2,
 		p_Target VARCHAR2,
 		p_Link_Page_ID PLS_INTEGER,
@@ -2321,7 +2312,7 @@ is
 	end Navigation_Counter_HTML;
 
 	FUNCTION Nested_Link_HTML(
-		p_Data_Format VARCHAR2,	-- FORM, HTML, CSV, NATIVE. Format of the final projection columns.
+		p_Data_Format VARCHAR2, -- FORM, HTML, CSV, NATIVE. Format of the final projection columns.
 		p_CounterQuery VARCHAR2, -- SQL Expression
 		p_Attributes VARCHAR2,	-- SQL Expression
 		p_Is_Total VARCHAR2 DEFAULT NULL,
@@ -2354,7 +2345,7 @@ is
 
 
 	FUNCTION Detail_Link_Html (
-		p_Data_Format VARCHAR2,	-- FORM, QUERY, CSV, NATIVE. Format of the final projection columns.
+		p_Data_Format VARCHAR2, -- FORM, QUERY, CSV, NATIVE. Format of the final projection columns.
 		p_Table_name VARCHAR2,
 		p_Parent_Table VARCHAR2 DEFAULT NULL,			-- Parent View or Table name.
 		p_Link_Page_ID NUMBER,	-- Page ID of target links
@@ -2363,7 +2354,7 @@ is
 		p_Parent_Value VARCHAR2 DEFAULT NULL,
 		p_Is_Total VARCHAR2 DEFAULT NULL,
 		p_Is_Subtotal VARCHAR2 DEFAULT NULL,
-        p_View_Mode VARCHAR2 DEFAULT 'FORM_VIEW'
+		p_View_Mode VARCHAR2 DEFAULT 'FORM_VIEW'
 	) RETURN VARCHAR2
 	is
 	PRAGMA UDF;
@@ -2404,10 +2395,10 @@ is
 			then '<span class="a-Icon icon-asterisk"></span>' -- red asterisk symbol
 		end
 		|| case when p_Check_Unique = 'Y' then 
-				'<span style="font-size: 60%; vertical-align: top; margin-left: 2px;">&#x1f511;</span>' 	-- key symbol
+				'<span style="font-size: 60%; vertical-align: top; margin-left: 2px;">&#x1f511;</span>'		-- key symbol
 			when p_Display_Key_Column = 'Y' then 
-				'<span style="font-size: 60%; vertical-align: top; margin-left: 2px;">&#x1f5dd;</span>'  	-- old key symbol
-				--  &#x1f9f2; -- magnet symbol
+				'<span style="font-size: 60%; vertical-align: top; margin-left: 2px;">&#x1f5dd;</span>'		-- old key symbol
+				--	&#x1f9f2; -- magnet symbol
 		end;
 		return case when v_Result IS NOT NULL then
 			'<span class="t-Form-required">' || v_Result || '</span>'
@@ -2447,19 +2438,19 @@ is
 		g_Describe_Cols_md5 := 'X';
 	END;
 
-    FUNCTION Current_Job_ID RETURN NUMBER
-    IS
+	FUNCTION Current_Job_ID RETURN NUMBER
+	IS
 	PRAGMA UDF;
-    BEGIN return g_Export_Job_ID; END;
+	BEGIN return g_Export_Job_ID; END;
 
-    FUNCTION Get_First_ID_Expression (	-- row reference in select list
-    	p_Unique_Key_Column VARCHAR2,
-    	p_Table_Alias VARCHAR2 DEFAULT NULL
-    )
-    RETURN VARCHAR2 DETERMINISTIC
-    IS
+	FUNCTION Get_First_ID_Expression (	-- row reference in select list
+		p_Unique_Key_Column VARCHAR2,
+		p_Table_Alias VARCHAR2 DEFAULT NULL
+	)
+	RETURN VARCHAR2 DETERMINISTIC
+	IS
 		v_Column_Array apex_t_varchar2;
-		v_Result 		VARCHAR2(1024);
+		v_Result		VARCHAR2(1024);
 		v_Table_Alias	VARCHAR2(20) := case when p_Table_Alias IS NOT NULL then p_Table_Alias || '.' end;
 	BEGIN
 		if p_Unique_Key_Column IS NULL then
@@ -2475,18 +2466,18 @@ is
 		end if;
 	END Get_First_ID_Expression;
 
-    FUNCTION Get_Unique_Key_Expression (	-- row reference in where clause, produces A.ROWID references in case of composite or missing unique keys
-    	p_Table_Name VARCHAR2,
-    	p_Unique_Key_Column VARCHAR2,
-    	p_View_Mode VARCHAR2 DEFAULT 'FORM_VIEW'
-    ) RETURN VARCHAR2 
+	FUNCTION Get_Unique_Key_Expression (	-- row reference in where clause, produces A.ROWID references in case of composite or missing unique keys
+		p_Table_Name VARCHAR2,
+		p_Unique_Key_Column VARCHAR2,
+		p_View_Mode VARCHAR2 DEFAULT 'FORM_VIEW'
+	) RETURN VARCHAR2 
 	IS
 		v_Unique_Key_Column VARCHAR2(1024) := p_Unique_Key_Column;
 	BEGIN
-        if v_Unique_Key_Column IS NULL then
-        	SELECT T.SEARCH_KEY_COLS
-        	INTO v_Unique_Key_Column
-        	FROM MVDATA_BROWSER_VIEWS T
+		if v_Unique_Key_Column IS NULL then
+			SELECT T.SEARCH_KEY_COLS
+			INTO v_Unique_Key_Column
+			FROM MVDATA_BROWSER_VIEWS T
 			WHERE T.VIEW_NAME = p_Table_Name;
 		end if;
 		return data_browser_conf.Get_Unique_Key_Expression (	
@@ -2496,7 +2487,7 @@ is
 	END Get_Unique_Key_Expression;
 
 	FUNCTION Highlight_Search_Expr (
-		p_Data_Format VARCHAR2,	-- FORM, HTML, CSV, NATIVE. Format of the final projection columns.
+		p_Data_Format VARCHAR2, -- FORM, HTML, CSV, NATIVE. Format of the final projection columns.
 		p_Column_Expr VARCHAR2,
 		p_Column_Expr_Type VARCHAR2,
 		p_Is_Searchable_Ref VARCHAR2,
@@ -2560,7 +2551,7 @@ is
 	END Get_Apex_Item_Hidden;
 
 	FUNCTION Get_Row_Selector_Expr (
-		p_Data_Format VARCHAR2,	-- FORM, HTML, CSV, NATIVE. Format of the final projection columns.
+		p_Data_Format VARCHAR2, -- FORM, HTML, CSV, NATIVE. Format of the final projection columns.
 		p_Column_Expr VARCHAR2,
 		p_Column_Name VARCHAR2
 	) RETURN VARCHAR2
@@ -2593,7 +2584,7 @@ is
 	END Get_Row_Selector_Expr;
 	
 	FUNCTION Markup_Differences_Expr (
-		p_Data_Format VARCHAR2,	-- FORM, HTML, CSV, NATIVE. Format of the final projection columns.
+		p_Data_Format VARCHAR2, -- FORM, HTML, CSV, NATIVE. Format of the final projection columns.
 		p_Key_Column VARCHAR2,
 		p_Column_Expr VARCHAR2,
 		p_Column_Name VARCHAR2,
@@ -2616,30 +2607,30 @@ is
 		end;
 	END Markup_Differences_Expr;
 
-    FUNCTION Key_Values_Query (
-        p_Table_Name    VARCHAR2,
-        p_Display_Col_Names VARCHAR2,	-- display columns,
-        p_Extra_Col_Names VARCHAR2 DEFAULT NULL, -- extra columns,
-        p_Search_Key_Col VARCHAR2,		-- return column (usually the primary key of p_Table_Name)
-        p_Search_Value  VARCHAR2 DEFAULT NULL, -- used to produce only a single output row for known value or reference
-        p_View_Mode VARCHAR2,
-        p_Filter_Cond VARCHAR2 DEFAULT NULL,
-        p_Exclude_Col_Name VARCHAR2 DEFAULT NULL,
+	FUNCTION Key_Values_Query (
+		p_Table_Name	VARCHAR2,
+		p_Display_Col_Names VARCHAR2,	-- display columns,
+		p_Extra_Col_Names VARCHAR2 DEFAULT NULL, -- extra columns,
+		p_Search_Key_Col VARCHAR2,		-- return column (usually the primary key of p_Table_Name)
+		p_Search_Value	VARCHAR2 DEFAULT NULL, -- used to produce only a single output row for known value or reference
+		p_View_Mode VARCHAR2,
+		p_Filter_Cond VARCHAR2 DEFAULT NULL,
+		p_Exclude_Col_Name VARCHAR2 DEFAULT NULL,
 		p_Active_Col_Name VARCHAR2 DEFAULT NULL,
 		p_Active_Data_Type VARCHAR2 DEFAULT NULL,		-- NUMBER, CHAR
-        p_Order_by VARCHAR2 DEFAULT NULL,
-        p_Level INTEGER DEFAULT 1,
-        p_Indent INTEGER DEFAULT 4
-    ) RETURN VARCHAR2
+		p_Order_by VARCHAR2 DEFAULT NULL,
+		p_Level INTEGER DEFAULT 1,
+		p_Indent INTEGER DEFAULT 4
+	) RETURN VARCHAR2
 	IS
 	PRAGMA UDF;
 		v_Column_List VARCHAR2(4000);
 		v_From_Clause VARCHAR2(4000);
 		v_Column_Expr VARCHAR2(4000);
 		v_Table_Alias	VARCHAR2(20);
-		v_Delimiter	CONSTANT VARCHAR2(512) :=  '||''' || data_browser_conf.Get_Rec_Desc_Delimiter || '''' || NL(p_Indent+4 + (p_Level-1)*4) || '|| ';
-		v_Group_Delimiter CONSTANT VARCHAR2(512) :=  '||''' || data_browser_conf.Get_Rec_Desc_Group_Delimiter || '''' || NL(p_Indent + 4 + (p_Level-1)*4) || '|| ';
-		v_Alias_Prefix CONSTANT VARCHAR2(20) :=  'L' || p_Level;
+		v_Delimiter CONSTANT VARCHAR2(512) :=  '||''' || data_browser_conf.Get_Rec_Desc_Delimiter || '''' || NL(p_Indent+4 + (p_Level-1)*4) || '|| ';
+		v_Group_Delimiter CONSTANT VARCHAR2(512) :=	 '||''' || data_browser_conf.Get_Rec_Desc_Group_Delimiter || '''' || NL(p_Indent + 4 + (p_Level-1)*4) || '|| ';
+		v_Alias_Prefix CONSTANT VARCHAR2(20) :=	 'L' || p_Level;
 		v_Alias_Required VARCHAR2(5) := 
 			case when p_Filter_Cond IS NOT NULL
 				or p_Active_Data_Type IS NOT NULL
@@ -2671,7 +2662,7 @@ is
 					LISTAGG( case when R_SUB_QUERY IS NOT NULL then 
 									R_SUB_QUERY
 								  when R_COLUMN_NAME is not null then 
-								  	data_browser_conf.Get_Foreign_Key_Expression(p_Foreign_Key_Column=>R_COLUMN_NAME, p_Table_Alias=> R_TABLE_ALIAS)
+									data_browser_conf.Get_Foreign_Key_Expression(p_Foreign_Key_Column=>R_COLUMN_NAME, p_Table_Alias=> R_TABLE_ALIAS)
 								  end
 							, Group_Delimiter)
 						WITHIN GROUP (ORDER BY POSITION, R_POSITION
@@ -2681,23 +2672,23 @@ is
 					/*	SELECT TABLE_NAME Table_Name,
 								DISPLAYED_COLUMN_NAMES Display_Col_Names,
 								SEARCH_KEY_COLS Search_Key_Col,
-								NULL 	Exclude_Col_Name,
-								'FORM_VIEW'	View_Mode,
-								'YES' 	Alias_Required,
-								'L1' 	Alias_Prefix, 
+								NULL	Exclude_Col_Name,
+								'FORM_VIEW' View_Mode,
+								'YES'	Alias_Required,
+								'L1'	Alias_Prefix, 
 								' - '	Group_Delimiter,
 								1		Call_Level,
-								4       P_INDENT
+								4		P_INDENT
 						FROM MVDATA_BROWSER_DESCRIPTIONS
 						WHERE TABLE_NAME = 'SW_FILES'
 					*/
 						SELECT p_Table_Name Table_Name,
 							p_Display_Col_Names Display_Col_Names,
-							p_Search_Key_Col 	Search_Key_Col,
-							p_Exclude_Col_Name 	Exclude_Col_Name,
-							p_View_Mode 		View_Mode,
-							v_Alias_Required 	Alias_Required,
-							v_Alias_Prefix 		Alias_Prefix, 
+							p_Search_Key_Col	Search_Key_Col,
+							p_Exclude_Col_Name	Exclude_Col_Name,
+							p_View_Mode			View_Mode,
+							v_Alias_Required	Alias_Required,
+							v_Alias_Prefix		Alias_Prefix, 
 							v_Group_Delimiter	Group_Delimiter,
 							p_Level				Call_Level
 						FROM DUAL
@@ -2705,10 +2696,10 @@ is
 						SELECT --+ CARDINALITY(2)
 							C.COLUMN_VALUE COLUMN_NAME,
 							ROWNUM POSITION,
-					        PA.Alias_Prefix || data_browser_conf.Sequence_To_Table_Alias(ROWNUM-1) R_TABLE_ALIAS
+							PA.Alias_Prefix || data_browser_conf.Sequence_To_Table_Alias(ROWNUM-1) R_TABLE_ALIAS
 						FROM PARAM PA,
 							TABLE( apex_string.split(PA.Display_Col_Names, ', ') ) C
-						WHERE (C.COLUMN_VALUE != PA.Search_Key_Col or PA.Display_Col_Names = PA.Search_Key_Col or PA.Search_Key_Col IS NULL ) -- don´t display return column value, unless it is the only column to display  
+						WHERE (C.COLUMN_VALUE != PA.Search_Key_Col or PA.Display_Col_Names = PA.Search_Key_Col or PA.Search_Key_Col IS NULL ) -- don´t display return column value, unless it is the only column to display	 
 						and (C.COLUMN_VALUE != PA.Exclude_Col_Name or PA.Display_Col_Names = PA.Exclude_Col_Name  or PA.Exclude_Col_Name IS NULL)
 					)
 					SELECT --+ USE_NL_WITH_INDEX(C) USE_NL_WITH_INDEX(F) USE_NL_WITH_INDEX(G)
@@ -2729,14 +2720,14 @@ is
 						case 
 						when F.IS_FILE_FOLDER_REF = 'Y' AND R.FOLDER_PARENT_COLUMN_NAME = F.R_COLUMN_NAME then 
 							'(' || data_browser_select.Key_Path_Query (
-								p_Table_Name    	=> S.VIEW_NAME,
-								p_Search_Key_Col    => S.PRIMARY_KEY_COLS,
-								p_Search_Value    	=> null,
+								p_Table_Name		=> S.VIEW_NAME,
+								p_Search_Key_Col	=> S.PRIMARY_KEY_COLS,
+								p_Search_Value		=> null,
 								p_Folder_Par_Col_Name  => R.FOLDER_PARENT_COLUMN_NAME,
 								p_Folder_Name_Col_Name => S.FOLDER_NAME_COLUMN_NAME,
 								p_Folder_Cont_Col_Name => R.FOLDER_CONTAINER_COLUMN_NAME,
 								p_Folder_Cont_Alias => 'L' || PA.Call_Level,
-								p_View_Mode    		=> PA.View_Mode,
+								p_View_Mode			=> PA.View_Mode,
 								p_Filter_Cond => data_browser_conf.Get_Join_Expression(
 									p_Left_Columns=>F.R_PRIMARY_KEY_COLS, p_Left_Alias=> 'L' || (PA.Call_Level + 1),
 									p_Right_Columns=>F.R_PRIMARY_KEY_COLS, p_Right_Alias=> 'L' || PA.Call_Level),
@@ -2749,9 +2740,9 @@ is
 								p_Table_Name		=> G.R_VIEW_NAME,
 								p_Display_Col_Names => G.DISPLAYED_COLUMN_NAMES,
 								p_Extra_Col_Names	=> null,
-								p_Search_Key_Col 	=> G.R_PRIMARY_KEY_COLS,
+								p_Search_Key_Col	=> G.R_PRIMARY_KEY_COLS,
 								p_Search_Value		=> null,
-								p_View_Mode 		=> PA.View_Mode,
+								p_View_Mode			=> PA.View_Mode,
 								p_Filter_Cond => data_browser_conf.Get_Join_Expression(
 									p_Left_Columns=>G.R_PRIMARY_KEY_COLS, p_Left_Alias=> 'L' || (PA.Call_Level + 1),
 									p_Right_Columns=>F.R_COLUMN_NAME, p_Right_Alias=> T.R_TABLE_ALIAS),
@@ -2763,7 +2754,7 @@ is
 								p_Active_Col_Name => G.ACTIVE_LOV_COLUMN_NAME,
 								p_Active_Data_Type => G.ACTIVE_LOV_DATA_TYPE,
 								p_Order_by			=> null,
-								p_Level 			=> PA.Call_Level + 1
+								p_Level				=> PA.Call_Level + 1
 							) || data_browser_conf.NL(p_Indent + PA.Call_Level*4) || ')'
 							|| data_browser_conf.NL(p_Indent + PA.Call_Level*4)
 						end R_SUB_QUERY,
@@ -2777,8 +2768,8 @@ is
 						AND (F.IS_FILE_FOLDER_REF = 'N' OR R.FOLDER_PARENT_COLUMN_NAME = F.R_COLUMN_NAME)
 					LEFT OUTER JOIN MVDATA_BROWSER_REFERENCES G ON G.VIEW_NAME = F.R_VIEW_NAME AND G.COLUMN_NAME = F.R_COLUMN_NAME
 					WHERE C.VIEW_NAME = PA.Table_Name
-                    AND (F.R_COLUMN_NAME IS NULL OR PA.Exclude_Col_Name IS NULL OR F.R_COLUMN_NAME != PA.Exclude_Col_Name )
-                    AND (T.COLUMN_NAME != S.FOLDER_NAME_COLUMN_NAME OR S.FOLDER_NAME_COLUMN_NAME IS NULL)
+					AND (F.R_COLUMN_NAME IS NULL OR PA.Exclude_Col_Name IS NULL OR F.R_COLUMN_NAME != PA.Exclude_Col_Name )
+					AND (T.COLUMN_NAME != S.FOLDER_NAME_COLUMN_NAME OR S.FOLDER_NAME_COLUMN_NAME IS NULL)
 				)
 				GROUP BY VIEW_NAME, TABLE_ALIAS, COLUMN_NAME, POSITION, NULLABLE, -- one line or each foreign key
 					DATA_TYPE, DATA_PRECISION, DATA_SCALE, CHAR_LENGTH, IS_DATETIME,
@@ -2787,12 +2778,12 @@ is
 			ORDER BY VIEW_NAME, POSITION, R_POSITION;
 
 		TYPE View_Cols_Tab IS TABLE OF Display_Values_cur%ROWTYPE;
-		v_out_tab 			View_Cols_Tab;
-        v_Inner_Condition	VARCHAR2(32767);
-        v_Extra_Col_Names	VARCHAR2(4000);
-        v_Order_By 			VARCHAR2(4000);
-        v_Order_Array 		apex_t_varchar2;
- 	BEGIN
+		v_out_tab			View_Cols_Tab;
+		v_Inner_Condition	VARCHAR2(32767);
+		v_Extra_Col_Names	VARCHAR2(4000);
+		v_Order_By			VARCHAR2(4000);
+		v_Order_Array		apex_t_varchar2;
+	BEGIN
 		OPEN Display_Values_cur;
 		FETCH Display_Values_cur BULK COLLECT INTO v_out_tab;
 		CLOSE Display_Values_cur;
@@ -2802,7 +2793,7 @@ is
 			v_From_Clause := NL(p_Indent + (p_Level-1)*4) 
 			|| 'FROM ' || data_browser_select.FN_Table_Prefix 
 			|| data_browser_conf.Enquote_Name_Required(p_Table_Name) || ' ' || v_Table_Alias;
-			v_Column_Expr := data_browser_conf.Get_Link_ID_Expression (	-- row reference in select list, produces CAST(A.ROWID AS VARCHAR2(128)) references in case of composite or missing unique keys
+			v_Column_Expr := data_browser_conf.Get_Link_ID_Expression ( -- row reference in select list, produces CAST(A.ROWID AS VARCHAR2(128)) references in case of composite or missing unique keys
 				p_Unique_Key_Column => p_Search_Key_Col,
 				p_Table_Alias => v_Table_Alias,
 				p_View_Mode => p_View_Mode
@@ -2815,7 +2806,7 @@ is
 				for c_idx IN 1..v_Order_Array.count loop
 					v_Order_By := v_Order_By
 					|| case when c_idx > 1 then ', ' end
-					||  v_Table_Alias || '.' || TRIM(v_Order_Array(c_idx));
+					||	v_Table_Alias || '.' || TRIM(v_Order_Array(c_idx));
 				end loop;
 			end if;
 			if p_Extra_Col_Names IS NOT NULL then
@@ -2859,7 +2850,7 @@ is
 					p_Add_NL => 'NO'
 				);						
 			else
-				if  p_Filter_Cond IS NOT NULL then
+				if	p_Filter_Cond IS NOT NULL then
 					v_Inner_Condition := data_browser_conf.Build_Condition(
 						p_Condition => v_Inner_Condition,
 						p_Term => p_Filter_Cond,
@@ -2885,7 +2876,7 @@ is
 					|| v_Inner_Condition;
 			else
 				RETURN 'SELECT ' || NVL(v_Column_List, v_Column_Expr) || ' D, ' || NL(p_Indent + 4)
-					||  v_Column_Expr || ' R ' || v_Extra_Col_Names
+					||	v_Column_Expr || ' R ' || v_Extra_Col_Names
 					|| v_From_Clause
 					|| v_Inner_Condition
 					|| case when v_Order_By IS NOT NULL then 
@@ -2901,55 +2892,34 @@ is
 		end if;
 	END Key_Values_Query;
 
-    FUNCTION Key_Values_Path_Query (
-        p_Table_Name    VARCHAR2,
-        p_Display_Col_Names VARCHAR2,	-- display columns,
-        p_Extra_Col_Names VARCHAR2 DEFAULT NULL, -- extra columns,
-        p_Search_Key_Col VARCHAR2,		-- return column (usually the primary key of p_Table_Name)
-        p_Search_Value  VARCHAR2, -- used to produce only a single output row for known value or reference
-        p_View_Mode VARCHAR2,
-        p_Filter_Cond VARCHAR2 DEFAULT NULL,
-        p_Exclude_Col_Name VARCHAR2,
-        p_Folder_Par_Col_Name VARCHAR2,
-        p_Folder_Name_Col_Name VARCHAR2,
-        p_Folder_Cont_Col_Name VARCHAR2,
-        p_Folder_Cont_Alias VARCHAR2 DEFAULT NULL,
+	FUNCTION Key_Values_Path_Query (
+		p_Table_Name	VARCHAR2,
+		p_Display_Col_Names VARCHAR2,	-- display columns,
+		p_Extra_Col_Names VARCHAR2 DEFAULT NULL, -- extra columns,
+		p_Search_Key_Col VARCHAR2,		-- return column (usually the primary key of p_Table_Name)
+		p_Search_Value	VARCHAR2, -- used to produce only a single output row for known value or reference
+		p_View_Mode VARCHAR2,
+		p_Filter_Cond VARCHAR2 DEFAULT NULL,
+		p_Exclude_Col_Name VARCHAR2,
+		p_Folder_Par_Col_Name VARCHAR2,
+		p_Folder_Name_Col_Name VARCHAR2,
+		p_Folder_Cont_Col_Name VARCHAR2,
+		p_Folder_Cont_Alias VARCHAR2 DEFAULT NULL,
 		p_Active_Col_Name VARCHAR2,
 		p_Active_Data_Type VARCHAR2,		-- NUMBER, CHAR
-        p_Order_by VARCHAR2, 
-        p_Level INTEGER DEFAULT 1,
-        p_Indent INTEGER DEFAULT 4
-    ) RETURN VARCHAR2
+		p_Order_by VARCHAR2, 
+		p_Level INTEGER DEFAULT 1,
+		p_Indent INTEGER DEFAULT 4
+	) RETURN VARCHAR2
 	is
 	PRAGMA UDF;
 		v_Result VARCHAR2(32767);
 	begin
 		$IF data_browser_conf.g_debug $THEN
-			apex_debug.message(
-				p_message => 
-				'data_browser_select.Key_Values_Path_Query(p_Table_Name => %s, p_Display_Col_Names => %s, p_Extra_Col_Names => %s, p_Search_Key_Col => %s, ' || chr(10)
-				|| 'p_Search_Value => %s, p_View_Mode => %s, p_Filter_Cond => %s, p_Exclude_Col_Name => %s, ' || chr(10)
-				|| 'p_Folder_Par_Col_Name => %s, p_Folder_Name_Col_Name => %s, p_Folder_Cont_Col_Name => %s, p_Folder_Cont_Alias => %s,' || chr(10)
-				|| 'p_Active_Col_Name => %s, p_Active_Data_Type => %s, p_Order_by => %s, p_Level => %s) ',
-				p0 => DBMS_ASSERT.ENQUOTE_LITERAL(p_Table_name),
-				p1 => DBMS_ASSERT.ENQUOTE_LITERAL(p_Display_Col_Names),
-				p2 => DBMS_ASSERT.ENQUOTE_LITERAL(p_Extra_Col_Names),
-				p3 => DBMS_ASSERT.ENQUOTE_LITERAL(p_Search_Key_Col),
-				p4 => DBMS_ASSERT.ENQUOTE_LITERAL(p_Search_Value),
-				p5 => DBMS_ASSERT.ENQUOTE_LITERAL(p_View_Mode),
-				p6 => data_browser_conf.ENQUOTE_LITERAL(p_Filter_Cond),
-				p7 => DBMS_ASSERT.ENQUOTE_LITERAL(p_Exclude_Col_Name),
-				p8 => DBMS_ASSERT.ENQUOTE_LITERAL(p_Folder_Par_Col_Name),
-				p9 => DBMS_ASSERT.ENQUOTE_LITERAL(p_Folder_Name_Col_Name),
-				p10 => DBMS_ASSERT.ENQUOTE_LITERAL(p_Folder_Cont_Col_Name),
-				p11 => DBMS_ASSERT.ENQUOTE_LITERAL(p_Folder_Cont_Alias),
-				p12 => DBMS_ASSERT.ENQUOTE_LITERAL(p_Active_Col_Name),
-				p13 => DBMS_ASSERT.ENQUOTE_LITERAL(p_Active_Data_Type),
-				p14 => DBMS_ASSERT.ENQUOTE_LITERAL(p_Order_by),
-				p15 => p_Level,
-				p_max_length => 3500
-				--, p_level => apex_debug.c_log_level_app_trace
-			);
+			EXECUTE IMMEDIATE data_browser_conf.Dyn_Log_Call_Parameter -- (p_level => apex_debug.c_log_level_app_trace)
+			USING p_Table_name,p_Display_Col_Names,p_Extra_Col_Names,p_Search_Key_Col,p_Search_Value,
+			p_View_Mode,p_Filter_Cond,p_Exclude_Col_Name,p_Folder_Par_Col_Name,p_Folder_Name_Col_Name,
+			p_Folder_Cont_Col_Name,p_Folder_Cont_Alias,p_Active_Col_Name,p_Active_Data_Type,p_Order_by,p_Level,p_Indent;
 		$END
 		v_Result :=
 		case when p_Folder_Name_Col_Name IS NOT NULL
@@ -2957,33 +2927,33 @@ is
 			and p_Folder_Cont_Alias IS NOT NULL
 		then 
 			data_browser_select.Key_Path_Query (
-				p_Table_Name    	=> p_Table_Name,
-				p_Search_Key_Col    => p_Search_Key_Col,
-				p_Search_Value    	=> p_Search_Value,
+				p_Table_Name		=> p_Table_Name,
+				p_Search_Key_Col	=> p_Search_Key_Col,
+				p_Search_Value		=> p_Search_Value,
 				p_Folder_Par_Col_Name  => p_Folder_Par_Col_Name,
 				p_Folder_Name_Col_Name => p_Folder_Name_Col_Name,
 				p_Folder_Cont_Col_Name => p_Folder_Cont_Col_Name,
 				p_Folder_Cont_Alias => p_Folder_Cont_Alias,
-				p_View_Mode    		=> p_View_Mode,
+				p_View_Mode			=> p_View_Mode,
 				p_Filter_Cond		=> p_Filter_Cond,
 				p_Order_by			=> p_Order_by,
 				p_Level				=> p_Level
 			)
 		else
 			data_browser_select.Key_Values_Query (
-				p_Table_Name    	=> p_Table_Name,
+				p_Table_Name		=> p_Table_Name,
 				p_Display_Col_Names => p_Display_Col_Names,
 				p_Extra_Col_Names	=> p_Extra_Col_Names,
-				p_Search_Key_Col    => p_Search_Key_Col,
-				p_Search_Value    	=> p_Search_Value,
-				p_View_Mode    		=> p_View_Mode,
+				p_Search_Key_Col	=> p_Search_Key_Col,
+				p_Search_Value		=> p_Search_Value,
+				p_View_Mode			=> p_View_Mode,
 				p_Filter_Cond		=> p_Filter_Cond,
-				p_Exclude_Col_Name  => p_Exclude_Col_Name,
+				p_Exclude_Col_Name	=> p_Exclude_Col_Name,
 				p_Active_Col_Name	=> p_Active_Col_Name,
 				p_Active_Data_Type	=> p_Active_Data_Type,
 				p_Order_by			=> p_Order_by,
 				p_Level				=> p_Level,
-        		p_Indent			=> p_Indent
+				p_Indent			=> p_Indent
 			)
 		end;
 		$IF data_browser_conf.g_debug $THEN
@@ -2997,11 +2967,11 @@ is
 		return v_Result;
 	end Key_Values_Path_Query;
 
-    FUNCTION Key_Values_Query (
-        p_Table_Name    VARCHAR2
+	FUNCTION Key_Values_Query (
+		p_Table_Name	VARCHAR2
 	) RETURN VARCHAR2
 	is
-		v_query 		VARCHAR2(32767);
+		v_query			VARCHAR2(32767);
 	begin
 		SELECT
 			data_browser_select.Key_Values_Path_Query(
@@ -3019,7 +2989,7 @@ is
 				p_Folder_Cont_Col_Name => FOLDER_CONTAINER_COLUMN_NAME,
 				p_Order_by => NVL(ORDERING_COLUMN_NAME, '1'),
 				p_Indent => 1
-            ) LOV_QUERY
+			) LOV_QUERY
 		INTO v_query
 		FROM MVDATA_BROWSER_DESCRIPTIONS
 		WHERE VIEW_NAME = p_Table_Name;
@@ -3038,24 +3008,24 @@ $END
 		RETURN REPLACE( p_Query, chr(10), data_browser_conf.NL(p_Indent)) || chr(10);
 	END;
 
-    FUNCTION Key_Path_Query (
-        p_Table_Name    VARCHAR2,
-        p_Search_Key_Col VARCHAR2,		-- return column (usually the primary key of p_Table_Name)
-        p_Search_Value  VARCHAR2 DEFAULT NULL, -- used to produce only a single output row for known value or reference
-        p_Folder_Par_Col_Name VARCHAR2,
-        p_Folder_Name_Col_Name VARCHAR2,
-        p_Folder_Cont_Col_Name VARCHAR2,
-        p_Folder_Cont_Alias VARCHAR2 DEFAULT NULL,
-        p_View_Mode VARCHAR2,
-        p_Filter_Cond VARCHAR2,
-        p_Order_by VARCHAR2,
-        p_Level INTEGER DEFAULT 1
-    ) RETURN VARCHAR2
+	FUNCTION Key_Path_Query (
+		p_Table_Name	VARCHAR2,
+		p_Search_Key_Col VARCHAR2,		-- return column (usually the primary key of p_Table_Name)
+		p_Search_Value	VARCHAR2 DEFAULT NULL, -- used to produce only a single output row for known value or reference
+		p_Folder_Par_Col_Name VARCHAR2,
+		p_Folder_Name_Col_Name VARCHAR2,
+		p_Folder_Cont_Col_Name VARCHAR2,
+		p_Folder_Cont_Alias VARCHAR2 DEFAULT NULL,
+		p_View_Mode VARCHAR2,
+		p_Filter_Cond VARCHAR2,
+		p_Order_by VARCHAR2,
+		p_Level INTEGER DEFAULT 1
+	) RETURN VARCHAR2
 	is
 	PRAGMA UDF;
-        v_Inner_Condition	VARCHAR2(32767);
-        v_Query				VARCHAR2(32767);
- 	begin
+		v_Inner_Condition	VARCHAR2(32767);
+		v_Query				VARCHAR2(32767);
+	begin
 		if p_Search_Value IS NOT NULL then
 			v_Inner_Condition := data_browser_conf.Build_Condition(
 				p_Condition => v_Inner_Condition,
@@ -3063,7 +3033,7 @@ $END
 				p_Add_NL => 'NO'
 			);						
 		else
-			if  p_Filter_Cond IS NOT NULL then
+			if	p_Filter_Cond IS NOT NULL then
 				v_Inner_Condition := data_browser_conf.Build_Condition(
 					p_Condition => v_Inner_Condition,
 					p_Term => p_Filter_Cond,
@@ -3078,15 +3048,15 @@ $END
 		end
 		|| NL(6)
 		|| 'FROM (' || NL(8)
-		|| 	'SELECT ' || data_browser_conf.Enquote_Name_Required(p_Search_Key_Col) || ', SYS_CONNECT_BY_PATH(TRANSLATE(' 
-		||  data_browser_conf.Enquote_Name_Required(p_Folder_Name_Col_Name) || q'[, '/', '-'), '/') PATH]' || NL(8)
-		||  'FROM (SELECT ' || data_browser_conf.Enquote_Name_Required(p_Search_Key_Col) || ', '
+		||	'SELECT ' || data_browser_conf.Enquote_Name_Required(p_Search_Key_Col) || ', SYS_CONNECT_BY_PATH(TRANSLATE(' 
+		||	data_browser_conf.Enquote_Name_Required(p_Folder_Name_Col_Name) || q'[, '/', '-'), '/') PATH]' || NL(8)
+		||	'FROM (SELECT ' || data_browser_conf.Enquote_Name_Required(p_Search_Key_Col) || ', '
 		|| case when p_Folder_Cont_Col_Name IS NOT NULL and p_Folder_Cont_Alias IS NULL then 
 			data_browser_conf.Enquote_Name_Required(p_Folder_Cont_Col_Name) || ', '
 		end
 		|| data_browser_conf.Enquote_Name_Required(p_Folder_Par_Col_Name) || ', '
 		|| data_browser_conf.Enquote_Name_Required(p_Folder_Name_Col_Name) || NL(12)
-		|| 	'FROM ' || data_browser_select.FN_Table_Prefix || data_browser_conf.Enquote_Name_Required(p_Table_Name) 
+		||	'FROM ' || data_browser_select.FN_Table_Prefix || data_browser_conf.Enquote_Name_Required(p_Table_Name) 
 		|| ' L' || (p_Level+1)
 		|| case when p_Folder_Cont_Col_Name IS NOT NULL and p_Folder_Cont_Alias IS NOT NULL then 
 			NL(12)
@@ -3095,9 +3065,9 @@ $END
 			|| ' = ' || p_Folder_Cont_Alias
 			|| '.' || data_browser_conf.Enquote_Name_Required(p_Folder_Cont_Col_Name)
 		end
-		||  NL(8)
+		||	NL(8)
 		|| ') START WITH ' || data_browser_conf.Enquote_Name_Required(p_Folder_Par_Col_Name) || ' IS NULL' || NL(8)
-		|| 	'CONNECT BY ' || data_browser_conf.Enquote_Name_Required(p_Folder_Par_Col_Name) 
+		||	'CONNECT BY ' || data_browser_conf.Enquote_Name_Required(p_Folder_Par_Col_Name) 
 		|| ' = PRIOR ' || data_browser_conf.Enquote_Name_Required(p_Search_Key_Col) || NL(6)
 		|| case when p_Folder_Cont_Col_Name IS NOT NULL and p_Folder_Cont_Alias IS NULL then 
 			'  AND ' || data_browser_conf.Enquote_Name_Required(p_Folder_Cont_Col_Name)
@@ -3119,34 +3089,34 @@ $END
 		end if;
 	end Key_Path_Query;
 
-    FUNCTION Key_Path_Lookup_Query (
-        p_Table_Name    VARCHAR2,
-        p_Search_Key_Col VARCHAR2,		-- return column (usually the primary key of p_Table_Name)
-        p_Search_Path  VARCHAR2 DEFAULT NULL, -- used to lookup only a single output row for known path
-        p_Search_Value  VARCHAR2 DEFAULT NULL, -- output variable for found identity value.
-        p_Folder_Par_Col_Name VARCHAR2,
-        p_Folder_Name_Col_Name VARCHAR2,
-        p_Folder_Cont_Col_Name VARCHAR2 DEFAULT NULL,
-        p_Folder_Cont_Alias VARCHAR2 DEFAULT NULL,
-        p_Level INTEGER DEFAULT 1
-    ) RETURN VARCHAR2
+	FUNCTION Key_Path_Lookup_Query (
+		p_Table_Name	VARCHAR2,
+		p_Search_Key_Col VARCHAR2,		-- return column (usually the primary key of p_Table_Name)
+		p_Search_Path  VARCHAR2 DEFAULT NULL, -- used to lookup only a single output row for known path
+		p_Search_Value	VARCHAR2 DEFAULT NULL, -- output variable for found identity value.
+		p_Folder_Par_Col_Name VARCHAR2,
+		p_Folder_Name_Col_Name VARCHAR2,
+		p_Folder_Cont_Col_Name VARCHAR2 DEFAULT NULL,
+		p_Folder_Cont_Alias VARCHAR2 DEFAULT NULL,
+		p_Level INTEGER DEFAULT 1
+	) RETURN VARCHAR2
 	is
 	PRAGMA UDF;
-        v_Query				VARCHAR2(32767);
- 	begin
+		v_Query				VARCHAR2(32767);
+	begin
 		v_Query := 'SELECT ' || p_Search_Key_Col || ' INTO '
 		|| p_Search_Value 
 		|| NL(8+p_Level*4)
 		|| 'FROM (' || NL(12+p_Level*4)
-		|| 	'SELECT ' || data_browser_conf.Enquote_Name_Required(p_Search_Key_Col) || ', SYS_CONNECT_BY_PATH(TRANSLATE(' 
-		||  data_browser_conf.Enquote_Name_Required(p_Folder_Name_Col_Name) || q'[, '/', '-'), '/') PATH]' || NL(12+p_Level*4)
-		|| 	'FROM (SELECT ' || data_browser_conf.Enquote_Name_Required(p_Search_Key_Col) || ', ' 
+		||	'SELECT ' || data_browser_conf.Enquote_Name_Required(p_Search_Key_Col) || ', SYS_CONNECT_BY_PATH(TRANSLATE(' 
+		||	data_browser_conf.Enquote_Name_Required(p_Folder_Name_Col_Name) || q'[, '/', '-'), '/') PATH]' || NL(12+p_Level*4)
+		||	'FROM (SELECT ' || data_browser_conf.Enquote_Name_Required(p_Search_Key_Col) || ', ' 
 		|| case when p_Folder_Cont_Col_Name IS NOT NULL and p_Folder_Cont_Alias IS NULL then 
 			data_browser_conf.Enquote_Name_Required(p_Folder_Cont_Col_Name) || ', '
 		end
-		||  data_browser_conf.Enquote_Name_Required(p_Folder_Par_Col_Name) || ', '
-		||  data_browser_conf.Enquote_Name_Required(p_Folder_Name_Col_Name) || NL(16+p_Level*4)
-		|| 	'FROM ' || data_browser_select.FN_Table_Prefix || data_browser_conf.Enquote_Name_Required(p_Table_Name)
+		||	data_browser_conf.Enquote_Name_Required(p_Folder_Par_Col_Name) || ', '
+		||	data_browser_conf.Enquote_Name_Required(p_Folder_Name_Col_Name) || NL(16+p_Level*4)
+		||	'FROM ' || data_browser_select.FN_Table_Prefix || data_browser_conf.Enquote_Name_Required(p_Table_Name)
 		|| ' L' || (p_Level+1)
 		|| case when p_Folder_Cont_Col_Name IS NOT NULL and p_Folder_Cont_Alias IS NOT NULL then 
 			NL(16+p_Level*4)
@@ -3155,8 +3125,8 @@ $END
 			|| ' = ' || p_Folder_Cont_Alias
 		end
 		|| NL(12+p_Level*4)
-		||  ') START WITH ' || data_browser_conf.Enquote_Name_Required(p_Folder_Par_Col_Name) || ' IS NULL' || NL(12+p_Level*4)
-		|| 	'CONNECT BY ' || data_browser_conf.Enquote_Name_Required(p_Folder_Par_Col_Name) 
+		||	') START WITH ' || data_browser_conf.Enquote_Name_Required(p_Folder_Par_Col_Name) || ' IS NULL' || NL(12+p_Level*4)
+		||	'CONNECT BY ' || data_browser_conf.Enquote_Name_Required(p_Folder_Par_Col_Name) 
 		|| ' = PRIOR ' || data_browser_conf.Enquote_Name_Required(p_Search_Key_Col) || NL(8+p_Level*4)
 		|| case when p_Folder_Cont_Col_Name IS NOT NULL and p_Folder_Cont_Alias IS NULL then 
 			'  AND ' || data_browser_conf.Enquote_Name_Required(p_Folder_Cont_Col_Name)
@@ -3169,23 +3139,23 @@ $END
 	end Key_Path_Lookup_Query;
 
 
-    FUNCTION Get_Parent_LOV_Query (
-        p_Table_Name    IN VARCHAR2,
-    	p_Parent_Table VARCHAR2 DEFAULT NULL,			-- Parent View or Table name.
-    	p_Parent_Key_Column VARCHAR2 DEFAULT NULL,		-- Column Name with foreign key to Parent Table
-    	p_Parent_Key_Item VARCHAR2 DEFAULT NULL,		-- Page Item Name, Filter Value and default value for foreign key column
+	FUNCTION Get_Parent_LOV_Query (
+		p_Table_Name	IN VARCHAR2,
+		p_Parent_Table VARCHAR2 DEFAULT NULL,			-- Parent View or Table name.
+		p_Parent_Key_Column VARCHAR2 DEFAULT NULL,		-- Column Name with foreign key to Parent Table
+		p_Parent_Key_Item VARCHAR2 DEFAULT NULL,		-- Page Item Name, Filter Value and default value for foreign key column
 		p_Filter_Used_Values VARCHAR2 DEFAULT 'NO'
 	) RETURN VARCHAR2
 	is
-		v_filter 					VARCHAR2(32767);
-		v_query 					VARCHAR2(32767);
-		v_Foreign_Key_Columns  		MVDATA_BROWSER_DESCRIPTIONS.SEARCH_KEY_COLS%TYPE;
-		v_Displayed_Column_Names   	MVDATA_BROWSER_DESCRIPTIONS.DISPLAYED_COLUMN_NAMES%TYPE;
-		v_Active_Lov_Column_Name   	MVDATA_BROWSER_DESCRIPTIONS.ACTIVE_LOV_COLUMN_NAME%TYPE;
-		v_Active_Lov_Data_Type  	MVDATA_BROWSER_DESCRIPTIONS.ACTIVE_LOV_DATA_TYPE%TYPE;
-		v_Ordering_Column_Name   	MVDATA_BROWSER_DESCRIPTIONS.ORDERING_COLUMN_NAME%TYPE;
+		v_filter					VARCHAR2(32767);
+		v_query						VARCHAR2(32767);
+		v_Foreign_Key_Columns		MVDATA_BROWSER_DESCRIPTIONS.SEARCH_KEY_COLS%TYPE;
+		v_Displayed_Column_Names	MVDATA_BROWSER_DESCRIPTIONS.DISPLAYED_COLUMN_NAMES%TYPE;
+		v_Active_Lov_Column_Name	MVDATA_BROWSER_DESCRIPTIONS.ACTIVE_LOV_COLUMN_NAME%TYPE;
+		v_Active_Lov_Data_Type		MVDATA_BROWSER_DESCRIPTIONS.ACTIVE_LOV_DATA_TYPE%TYPE;
+		v_Ordering_Column_Name		MVDATA_BROWSER_DESCRIPTIONS.ORDERING_COLUMN_NAME%TYPE;
 		v_Folder_Parent_Column_Name MVDATA_BROWSER_DESCRIPTIONS.FOLDER_PARENT_COLUMN_NAME%TYPE;
-		v_Folder_Name_Column_Name   MVDATA_BROWSER_DESCRIPTIONS.FOLDER_NAME_COLUMN_NAME%TYPE;
+		v_Folder_Name_Column_Name	MVDATA_BROWSER_DESCRIPTIONS.FOLDER_NAME_COLUMN_NAME%TYPE;
 		v_Folder_Cont_Col_Name		MVDATA_BROWSER_DESCRIPTIONS.FOLDER_CONTAINER_COLUMN_NAME%TYPE;
 		v_Table_Alias				MVDATA_BROWSER_REFERENCES.TABLE_ALIAS%TYPE;
 		v_Parent_Key_Column			MVDATA_BROWSER_REFERENCES.PARENT_KEY_COLUMN%TYPE;
@@ -3201,8 +3171,8 @@ $END
 			FROM MVDATA_BROWSER_DESCRIPTIONS S
 			JOIN MVDATA_BROWSER_REFERENCES E ON S.VIEW_NAME = E.R_VIEW_NAME 
 			WHERE E.VIEW_NAME = p_Table_Name
-			AND   E.R_VIEW_NAME = p_Parent_Table
-			AND   E.COLUMN_NAME = p_Parent_Key_Column;
+			AND	  E.R_VIEW_NAME = p_Parent_Table
+			AND	  E.COLUMN_NAME = p_Parent_Key_Column;
 
 			if p_Filter_Used_Values = 'YES' then
 				v_filter := '(EXISTS (SELECT 1 FROM '
@@ -3243,17 +3213,17 @@ $END
 		return 'select null d, null r from dual';
 	end Get_Parent_LOV_Query;
 
-    FUNCTION Get_LOV_Query (
-        p_Table_Name    IN VARCHAR2,
-    	p_Parent_Table VARCHAR2 DEFAULT NULL,			-- Parent View or Table name.
-    	p_Parent_Key_Column VARCHAR2 DEFAULT NULL,		-- Column Name with foreign key to Parent Table
-    	p_Parent_Key_Item VARCHAR2 DEFAULT NULL,		-- Page Item Name, Filter Value and default value for foreign key column
-    	p_Filter_Cond VARCHAR2 DEFAULT NULL,
+	FUNCTION Get_LOV_Query (
+		p_Table_Name	IN VARCHAR2,
+		p_Parent_Table VARCHAR2 DEFAULT NULL,			-- Parent View or Table name.
+		p_Parent_Key_Column VARCHAR2 DEFAULT NULL,		-- Column Name with foreign key to Parent Table
+		p_Parent_Key_Item VARCHAR2 DEFAULT NULL,		-- Page Item Name, Filter Value and default value for foreign key column
+		p_Filter_Cond VARCHAR2 DEFAULT NULL,
 		p_Order_by VARCHAR2 DEFAULT NULL
 	) RETURN VARCHAR2
 	is
-		v_filter 					VARCHAR2(32767);
-		v_query 					VARCHAR2(32767);
+		v_filter					VARCHAR2(32767);
+		v_query						VARCHAR2(32767);
 	begin
 		if p_Table_Name IS NOT NULL then 
 			if p_Parent_Key_Column IS NOT NULL 
@@ -3294,19 +3264,19 @@ $END
 		return 'select null d, null r from dual';
 	end Get_LOV_Query;
 
-    FUNCTION LOV_CURSOR (
-        p_Table_Name    IN VARCHAR2,
-    	p_Parent_Table VARCHAR2 DEFAULT NULL,			-- Parent View or Table name.
-    	p_Parent_Key_Column VARCHAR2 DEFAULT NULL,		-- Column Name with foreign key to Parent Table
-    	p_Parent_Key_Item VARCHAR2 DEFAULT NULL,		-- Page Item Name, Filter Value and default value for foreign key column
-    	p_Filter_Cond VARCHAR2 DEFAULT NULL,
+	FUNCTION LOV_CURSOR (
+		p_Table_Name	IN VARCHAR2,
+		p_Parent_Table VARCHAR2 DEFAULT NULL,			-- Parent View or Table name.
+		p_Parent_Key_Column VARCHAR2 DEFAULT NULL,		-- Column Name with foreign key to Parent Table
+		p_Parent_Key_Item VARCHAR2 DEFAULT NULL,		-- Page Item Name, Filter Value and default value for foreign key column
+		p_Filter_Cond VARCHAR2 DEFAULT NULL,
 		p_Order_by VARCHAR2 DEFAULT NULL
 	) 
 	RETURN data_browser_conf.tab_col_value PIPELINED 
 	is -- NULL COLUMN_NAME, COLUMN_HEADER, COLUMN_DATA
-        stat_cur    SYS_REFCURSOR;
-		v_Query 	VARCHAR2(32767);
-		v_out_rec 	data_browser_conf.rec_col_value := data_browser_conf.rec_col_value();
+		stat_cur	SYS_REFCURSOR;
+		v_Query		VARCHAR2(32767);
+		v_out_rec	data_browser_conf.rec_col_value := data_browser_conf.rec_col_value();
 	BEGIN 
 		v_Query := Get_LOV_Query (
 			p_Table_Name => p_Table_Name,
@@ -3324,21 +3294,21 @@ $END
 		CLOSE stat_cur;
 	end LOV_CURSOR;
 
-    FUNCTION Get_Calendar_Query (
-        p_Table_Name    IN VARCHAR2,
-    	p_Parent_Key_Column VARCHAR2 DEFAULT NULL,		-- Column Name with foreign key to Parent Table
-    	p_Parent_Key_Item VARCHAR2 DEFAULT NULL			-- Page Item Name, Filter Value and default value for foreign key column
+	FUNCTION Get_Calendar_Query (
+		p_Table_Name	IN VARCHAR2,
+		p_Parent_Key_Column VARCHAR2 DEFAULT NULL,		-- Column Name with foreign key to Parent Table
+		p_Parent_Key_Item VARCHAR2 DEFAULT NULL			-- Page Item Name, Filter Value and default value for foreign key column
 	) RETURN VARCHAR2
 	is
-		v_filter 					VARCHAR2(32767);
-		v_Query 					VARCHAR2(32767);
+		v_filter					VARCHAR2(32767);
+		v_Query						VARCHAR2(32767);
 		v_Default_Query				VARCHAR2(32767) := 'select 1 ID, sysdate START_DATE, sysdate END_DATE, null CSS_CLASS, null DESCRIPTION, null REMARKS from dual';
-		v_Unique_Key_Column  		MVDATA_BROWSER_DESCRIPTIONS.SEARCH_KEY_COLS%TYPE;
-		v_Displayed_Column_Names   	MVDATA_BROWSER_DESCRIPTIONS.DISPLAYED_COLUMN_NAMES%TYPE;
-		v_Active_Lov_Column_Name   	MVDATA_BROWSER_DESCRIPTIONS.ACTIVE_LOV_COLUMN_NAME%TYPE;
-		v_Active_Lov_Data_Type  	MVDATA_BROWSER_DESCRIPTIONS.ACTIVE_LOV_DATA_TYPE%TYPE;
+		v_Unique_Key_Column			MVDATA_BROWSER_DESCRIPTIONS.SEARCH_KEY_COLS%TYPE;
+		v_Displayed_Column_Names	MVDATA_BROWSER_DESCRIPTIONS.DISPLAYED_COLUMN_NAMES%TYPE;
+		v_Active_Lov_Column_Name	MVDATA_BROWSER_DESCRIPTIONS.ACTIVE_LOV_COLUMN_NAME%TYPE;
+		v_Active_Lov_Data_Type		MVDATA_BROWSER_DESCRIPTIONS.ACTIVE_LOV_DATA_TYPE%TYPE;
 		v_Folder_Parent_Column_Name MVDATA_BROWSER_DESCRIPTIONS.FOLDER_PARENT_COLUMN_NAME%TYPE;
-		v_Folder_Name_Column_Name   MVDATA_BROWSER_DESCRIPTIONS.FOLDER_NAME_COLUMN_NAME%TYPE;
+		v_Folder_Name_Column_Name	MVDATA_BROWSER_DESCRIPTIONS.FOLDER_NAME_COLUMN_NAME%TYPE;
 		v_Folder_Cont_Col_Name		MVDATA_BROWSER_DESCRIPTIONS.FOLDER_CONTAINER_COLUMN_NAME%TYPE;
 		v_Calendar_Start_Date_Column MVDATA_BROWSER_DESCRIPTIONS.CALEND_START_DATE_COLUMN_NAME%TYPE;
 		v_Calendar_End_Date_Column MVDATA_BROWSER_DESCRIPTIONS.CALENDAR_END_DATE_COLUMN_NAME%TYPE;
@@ -3375,7 +3345,7 @@ $END
 			);
 			v_Query := 'select R ID, ' 
 			|| case when v_Calendar_Start_Date_Column is not null then dbms_assert.enquote_name(v_Calendar_Start_Date_Column) else 'NULL' end || ' START_DATE, '
-			||  case when v_Calendar_End_Date_Column is not null then dbms_assert.enquote_name(v_Calendar_End_Date_Column) else 'NULL' end || ' END_DATE, '
+			||	case when v_Calendar_End_Date_Column is not null then dbms_assert.enquote_name(v_Calendar_End_Date_Column) else 'NULL' end || ' END_DATE, '
 			|| 'case ORA_HASH(D, 13)+1 '
 			|| q'[
 			when 1 then 'apex-cal-red'
@@ -3397,24 +3367,24 @@ $END
 			|| 'from (' || v_Query || ')';
 			return v_Query;
 		else 
-	        return v_Default_Query;		
+			return v_Default_Query;		
 		end if;
 	exception when NO_DATA_FOUND then
-        return v_Default_Query;
+		return v_Default_Query;
 	end Get_Calendar_Query;
 
-    FUNCTION Get_Tree_Query (
-        p_Table_Name    IN VARCHAR2,
-    	p_Parent_Key_Column VARCHAR2 DEFAULT NULL,		-- Column Name with foreign key to Parent Table
-    	p_Parent_Key_Item VARCHAR2 DEFAULT NULL			-- Page Item Name, Filter Value and default value for foreign key column
+	FUNCTION Get_Tree_Query (
+		p_Table_Name	IN VARCHAR2,
+		p_Parent_Key_Column VARCHAR2 DEFAULT NULL,		-- Column Name with foreign key to Parent Table
+		p_Parent_Key_Item VARCHAR2 DEFAULT NULL			-- Page Item Name, Filter Value and default value for foreign key column
 	) RETURN VARCHAR2
 	is
-		v_filter 					VARCHAR2(32767);
-		v_Query 					VARCHAR2(32767);
+		v_filter					VARCHAR2(32767);
+		v_Query						VARCHAR2(32767);
 		v_Default_Query				VARCHAR2(32767) := 'select 1 FOLDER_ID, null FOLDER_PARENT_ID, null FOLDER_NAME from dual';
-		v_Unique_Key_Column  		MVDATA_BROWSER_DESCRIPTIONS.SEARCH_KEY_COLS%TYPE;
+		v_Unique_Key_Column			MVDATA_BROWSER_DESCRIPTIONS.SEARCH_KEY_COLS%TYPE;
 		v_Folder_Parent_Column_Name MVDATA_BROWSER_DESCRIPTIONS.FOLDER_PARENT_COLUMN_NAME%TYPE;
-		v_Folder_Name_Column_Name 	MVDATA_BROWSER_DESCRIPTIONS.FOLDER_NAME_COLUMN_NAME%TYPE;
+		v_Folder_Name_Column_Name	MVDATA_BROWSER_DESCRIPTIONS.FOLDER_NAME_COLUMN_NAME%TYPE;
 	begin
 		SELECT SEARCH_KEY_COLS, FOLDER_PARENT_COLUMN_NAME, FOLDER_NAME_COLUMN_NAME
 		INTO v_Unique_Key_Column, v_Folder_Parent_Column_Name, v_Folder_Name_Column_Name
@@ -3436,29 +3406,29 @@ $END
 				chr(10) || 'where ' || v_filter
 			end;
 		else 
-        	v_Query := v_Default_Query;
+			v_Query := v_Default_Query;
 		end if;
 		return v_Query;
 	exception when NO_DATA_FOUND then
-        return v_Default_Query;
+		return v_Default_Query;
 	end Get_Tree_Query;
 
-    FUNCTION Get_Ref_LOV_Query (
-        p_Table_Name    IN VARCHAR2,
-        p_FK_Column_ID  IN NUMBER,						-- Foreign key column of table name 
-        p_Column_Name   IN VARCHAR2,                    -- Foreign key column of table name 
-        p_Parent_Table VARCHAR2 DEFAULT NULL,			-- Parent View or Table name.
-    	p_Parent_Key_Column VARCHAR2 DEFAULT NULL,		-- Column Name with foreign key to Parent Table
-    	p_Parent_Key_Item VARCHAR2 DEFAULT NULL			-- Page Item Name, Filter Value and default value for foreign key column
+	FUNCTION Get_Ref_LOV_Query (
+		p_Table_Name	IN VARCHAR2,
+		p_FK_Column_ID	IN NUMBER,						-- Foreign key column of table name 
+		p_Column_Name	IN VARCHAR2,					-- Foreign key column of table name 
+		p_Parent_Table VARCHAR2 DEFAULT NULL,			-- Parent View or Table name.
+		p_Parent_Key_Column VARCHAR2 DEFAULT NULL,		-- Column Name with foreign key to Parent Table
+		p_Parent_Key_Item VARCHAR2 DEFAULT NULL			-- Page Item Name, Filter Value and default value for foreign key column
 	) RETURN VARCHAR2
 	is
-		v_filter 					VARCHAR2(32767);
+		v_filter					VARCHAR2(32767);
 		v_R_View_Name				MVDATA_BROWSER_REFERENCES.R_VIEW_NAME%TYPE;
-		v_Unique_Key_Column  		MVDATA_BROWSER_REFERENCES.R_PRIMARY_KEY_COLS%TYPE;
-		v_Displayed_Column_Names   	MVDATA_BROWSER_REFERENCES.DISPLAYED_COLUMN_NAMES%TYPE;
-		v_Active_Lov_Column_Name   	MVDATA_BROWSER_REFERENCES.ACTIVE_LOV_COLUMN_NAME%TYPE;
-		v_Active_Lov_Data_Type  	MVDATA_BROWSER_REFERENCES.ACTIVE_LOV_DATA_TYPE%TYPE;
-		v_Ordering_Column_Name   	MVDATA_BROWSER_REFERENCES.ORDERING_COLUMN_NAME%TYPE;
+		v_Unique_Key_Column			MVDATA_BROWSER_REFERENCES.R_PRIMARY_KEY_COLS%TYPE;
+		v_Displayed_Column_Names	MVDATA_BROWSER_REFERENCES.DISPLAYED_COLUMN_NAMES%TYPE;
+		v_Active_Lov_Column_Name	MVDATA_BROWSER_REFERENCES.ACTIVE_LOV_COLUMN_NAME%TYPE;
+		v_Active_Lov_Data_Type		MVDATA_BROWSER_REFERENCES.ACTIVE_LOV_DATA_TYPE%TYPE;
+		v_Ordering_Column_Name		MVDATA_BROWSER_REFERENCES.ORDERING_COLUMN_NAME%TYPE;
 		v_Parent_Key_Column			MVDATA_BROWSER_REFERENCES.PARENT_KEY_COLUMN%TYPE;
 		v_Filter_Key_Column			MVDATA_BROWSER_REFERENCES.FILTER_KEY_COLUMN%TYPE;
 		v_Folder_Par_Col_Name		MVDATA_BROWSER_REFERENCES.FOLDER_PARENT_COLUMN_NAME%TYPE;
@@ -3466,19 +3436,8 @@ $END
 		v_Folder_Cont_Col_Name		MVDATA_BROWSER_REFERENCES.FOLDER_CONTAINER_COLUMN_NAME%TYPE;
 	begin
 		$IF data_browser_conf.g_debug $THEN
-			apex_debug.message(
-				p_message => 
-				'data_browser_select.Get_Ref_LOV_Query(p_Table_Name => %s, p_FK_Column_ID => %s, p_Column_Name => %s, ' || chr(10)
-				|| 'p_Parent_Table => %s, p_Parent_Key_Column => %s, p_Parent_Key_Item => %s)',
-				p0 => DBMS_ASSERT.ENQUOTE_LITERAL(p_Table_name),
-				p1 => DBMS_ASSERT.ENQUOTE_LITERAL(p_FK_Column_ID),
-				p2 => DBMS_ASSERT.ENQUOTE_LITERAL(p_Column_Name),
-				p3 => DBMS_ASSERT.ENQUOTE_LITERAL(p_Parent_Table),
-				p4 => DBMS_ASSERT.ENQUOTE_LITERAL(p_Parent_Key_Column),
-				p5 => DBMS_ASSERT.ENQUOTE_LITERAL(p_Parent_Key_Item),
-				p_max_length => 3500
-				--, p_level => apex_debug.c_log_level_app_trace
-			);
+			EXECUTE IMMEDIATE data_browser_conf.Dyn_Log_Call_Parameter -- (p_level => apex_debug.c_log_level_app_trace)
+			USING p_Table_Name,p_FK_Column_ID,p_Column_Name,p_Parent_Table,p_Parent_Key_Column,p_Parent_Key_Item;
 		$END
 		if p_Table_Name IS NOT NULL then 
 			SELECT R_VIEW_NAME, R_PRIMARY_KEY_COLS, DISPLAYED_COLUMN_NAMES, ACTIVE_LOV_COLUMN_NAME, ACTIVE_LOV_DATA_TYPE, 
@@ -3489,8 +3448,8 @@ $END
 					v_Folder_Par_Col_Name, v_Folder_Name_Col_Name, v_Folder_Cont_Col_Name
 			FROM MVDATA_BROWSER_REFERENCES
 			WHERE VIEW_NAME = p_Table_Name
-        	AND COLUMN_NAME = p_Column_Name
-        	AND FK_COLUMN_ID = p_FK_Column_ID;
+			AND COLUMN_NAME = p_Column_Name
+			AND FK_COLUMN_ID = p_FK_Column_ID;
 			if p_Parent_Key_Column = v_Parent_Key_Column and p_Parent_Key_Item IS NOT NULL then
 				v_filter := 'L1.' || v_Filter_Key_Column
 				|| ' = NVL(V(' || dbms_assert.enquote_literal(p_Parent_Key_Item) || '), L1.' || v_Filter_Key_Column || ')';
@@ -3500,7 +3459,7 @@ $END
 				p_Display_Col_Names => v_Displayed_Column_Names,
 				p_Search_Key_Col => v_Unique_Key_Column,
 				p_Search_Value => NULL,
-				p_Exclude_Col_Name  => case when p_Parent_Key_Column = v_Parent_Key_Column then v_Filter_Key_Column end,
+				p_Exclude_Col_Name	=> case when p_Parent_Key_Column = v_Parent_Key_Column then v_Filter_Key_Column end,
 				p_Active_Col_Name	=> v_Active_Lov_Column_Name,
 				p_Active_Data_Type	=> v_Active_Lov_Data_Type,
 				p_Folder_Par_Col_Name  => v_Folder_Par_Col_Name,
@@ -3523,20 +3482,20 @@ $END
 	end Get_Ref_LOV_Query;
 
 
-    FUNCTION Child_Link_List_Query (
-        p_Table_Name    IN VARCHAR2,
-        p_Display_Col_Names IN VARCHAR2,	-- display columns
-        p_Search_Key_Col IN VARCHAR2,		-- return column (usually the primary key of p_Table_Name)
-        p_Search_Value  IN VARCHAR2 DEFAULT NULL, -- used to produce only a single output row for known value or reference
-        p_View_Mode IN VARCHAR2,
-    	p_Data_Format VARCHAR2 DEFAULT FN_Current_Data_Format,	-- FORM, HTML, CSV, NATIVE. Format of the final projection columns.
-        p_Key_Column IN VARCHAR2 DEFAULT NULL,
-        p_Target1 IN VARCHAR2,
-        p_Target2 IN VARCHAR2,
-        p_Detail_Page_ID INTEGER,
-        p_Link_Page_ID	INTEGER,
-        p_Level IN NUMBER DEFAULT 1
-    ) RETURN VARCHAR2
+	FUNCTION Child_Link_List_Query (
+		p_Table_Name	IN VARCHAR2,
+		p_Display_Col_Names IN VARCHAR2,	-- display columns
+		p_Search_Key_Col IN VARCHAR2,		-- return column (usually the primary key of p_Table_Name)
+		p_Search_Value	IN VARCHAR2 DEFAULT NULL, -- used to produce only a single output row for known value or reference
+		p_View_Mode IN VARCHAR2,
+		p_Data_Format VARCHAR2 DEFAULT FN_Current_Data_Format,	-- FORM, HTML, CSV, NATIVE. Format of the final projection columns.
+		p_Key_Column IN VARCHAR2 DEFAULT NULL,
+		p_Target1 IN VARCHAR2,
+		p_Target2 IN VARCHAR2,
+		p_Detail_Page_ID INTEGER,
+		p_Link_Page_ID	INTEGER,
+		p_Level IN NUMBER DEFAULT 1
+	) RETURN VARCHAR2
 	IS
 	PRAGMA UDF;
 		v_Column_List VARCHAR2(4000);
@@ -3544,9 +3503,9 @@ $END
 		v_Column_Expr VARCHAR2(4000);
 		v_Result	  VARCHAR2(32767);
 		v_Table_Alias	VARCHAR2(20);
-		v_Delimiter	CONSTANT VARCHAR2(20) :=  ' ||''' || data_browser_conf.Get_Rec_Desc_Delimiter || '''|| ';
-		v_Group_Delimiter CONSTANT VARCHAR2(20) :=  ' ||''' || data_browser_conf.Get_Rec_Desc_Group_Delimiter || '''|| ';
-		v_Alias_Prefix CONSTANT VARCHAR2(20) :=  'L' || p_Level;
+		v_Delimiter CONSTANT VARCHAR2(20) :=  ' ||''' || data_browser_conf.Get_Rec_Desc_Delimiter || '''|| ';
+		v_Group_Delimiter CONSTANT VARCHAR2(20) :=	' ||''' || data_browser_conf.Get_Rec_Desc_Group_Delimiter || '''|| ';
+		v_Alias_Prefix CONSTANT VARCHAR2(20) :=	 'L' || p_Level;
 		v_Key_Column VARCHAR2(128);
 		CURSOR Display_Values_cur
 		IS
@@ -3570,7 +3529,7 @@ $END
 					R_TABLE_ALIAS,
 					LISTAGG( case when R_SUB_QUERY IS NOT NULL then R_SUB_QUERY
 								  when R_COLUMN_NAME is not null then -- R_TABLE_ALIAS || '.' || R_COLUMN_NAME 
-								  	data_browser_conf.Get_Foreign_Key_Expression(p_Foreign_Key_Column=>R_COLUMN_NAME, p_Table_Alias=> R_TABLE_ALIAS)
+									data_browser_conf.Get_Foreign_Key_Expression(p_Foreign_Key_Column=>R_COLUMN_NAME, p_Table_Alias=> R_TABLE_ALIAS)
 								  end
 							, v_Group_Delimiter)
 						WITHIN GROUP (ORDER BY POSITION
@@ -3589,14 +3548,14 @@ $END
 							' (' || data_browser_select.Key_Values_Query (
 								p_Table_Name		=> G.R_VIEW_NAME,
 								p_Display_Col_Names => G.DISPLAYED_COLUMN_NAMES,
-								p_Search_Key_Col 	=> G.R_PRIMARY_KEY_COLS,
-								p_Filter_Cond       => data_browser_conf.Get_Join_Expression(
+								p_Search_Key_Col	=> G.R_PRIMARY_KEY_COLS,
+								p_Filter_Cond		=> data_browser_conf.Get_Join_Expression(
 									p_Left_Columns=>G.R_PRIMARY_KEY_COLS, p_Left_Alias=> 'L' || (p_Level + 1),
 									p_Right_Columns=>F.R_COLUMN_NAME, p_Right_Alias=> v_Alias_Prefix || data_browser_conf.Sequence_To_Table_Alias(T.POSITION-1)
 								),
-								p_View_Mode 		=> p_View_Mode,
-								p_Exclude_Col_Name  => case when p_Search_Key_Col = G.PARENT_KEY_COLUMN then G.FILTER_KEY_COLUMN end,
-								p_Level 			=> p_Level + 1
+								p_View_Mode			=> p_View_Mode,
+								p_Exclude_Col_Name	=> case when p_Search_Key_Col = G.PARENT_KEY_COLUMN then G.FILTER_KEY_COLUMN end,
+								p_Level				=> p_Level + 1
 							) || ') '
 						end R_SUB_QUERY
 					FROM ( -- ordered display columns list
@@ -3604,7 +3563,7 @@ $END
 							TRIM(C.COLUMN_VALUE) COLUMN_NAME,
 							ROWNUM POSITION
 						FROM TABLE( apex_string.split(p_Display_Col_Names, ',') ) C
-						WHERE (C.COLUMN_VALUE != p_Search_Key_Col or p_Display_Col_Names = p_Search_Key_Col ) -- don´t display return column value, unless it is the only column to display  
+						WHERE (C.COLUMN_VALUE != p_Search_Key_Col or p_Display_Col_Names = p_Search_Key_Col ) -- don´t display return column value, unless it is the only column to display	 
 					) T
 					JOIN MVDATA_BROWSER_SIMPLE_COLS C ON C.COLUMN_NAME = T.COLUMN_NAME
 					LEFT OUTER JOIN MVDATA_BROWSER_REFERENCES R ON R.VIEW_NAME = C.VIEW_NAME AND R.COLUMN_NAME = T.COLUMN_NAME
@@ -3622,33 +3581,16 @@ $END
 			ORDER BY VIEW_NAME, POSITION;
 
 		TYPE View_Cols_Tab IS TABLE OF Display_Values_cur%ROWTYPE;
-		v_out_tab 			View_Cols_Tab;
+		v_out_tab			View_Cols_Tab;
 		v_Max_Link_Count CONSTANT PLS_INTEGER := data_browser_conf.Get_Navigation_Link_Limit;
- 	BEGIN
+	BEGIN
 		OPEN Display_Values_cur;
 		FETCH Display_Values_cur BULK COLLECT INTO v_out_tab;
 		CLOSE Display_Values_cur;
 		$IF data_browser_conf.g_debug $THEN
-			apex_debug.message(
-				p_message => 
-				'data_browser_select.Child_Link_List_Query(p_Table_Name => %s, p_Display_Col_Names => %s, p_Search_Key_Col => %s, ' || chr(10)
-				|| 'p_Search_Value => %s, p_View_Mode => %s, p_Key_Column => %s, p_Target1 => %s, ' || chr(10)
-				|| 'p_Target2 => %s, p_Detail_Page_ID => %s, p_Link_Page_ID => %s, p_Level => %s) -- count %s',
-				p0 => DBMS_ASSERT.ENQUOTE_LITERAL(p_Table_name),
-				p1 => DBMS_ASSERT.ENQUOTE_LITERAL(p_Display_Col_Names),
-				p2 => DBMS_ASSERT.ENQUOTE_LITERAL(p_Search_Key_Col),
-				p3 => DBMS_ASSERT.ENQUOTE_LITERAL(p_Search_Value),
-				p4 => DBMS_ASSERT.ENQUOTE_LITERAL(p_View_Mode),
-				p5 => data_browser_conf.ENQUOTE_LITERAL(p_Key_Column),
-				p6 => data_browser_conf.ENQUOTE_LITERAL(p_Target1),
-				p7 => data_browser_conf.ENQUOTE_LITERAL(p_Target2),
-				p8 => DBMS_ASSERT.ENQUOTE_LITERAL(p_Detail_Page_ID),
-				p9 => DBMS_ASSERT.ENQUOTE_LITERAL(p_Link_Page_ID),
-				p10 => p_Level,
-				p11 => v_out_tab.COUNT,
-				p_max_length => 3500
-				, p_level => apex_debug.c_log_level_app_trace
-			);
+			EXECUTE IMMEDIATE data_browser_conf.Dyn_Log_Call_Parameter (p_level => apex_debug.c_log_level_app_trace)
+			USING p_Table_name,p_Display_Col_Names,p_Search_Key_Col,p_Search_Value,
+				p_View_Mode,p_Data_Format,p_Key_Column,p_Target1,p_Target2,p_Detail_Page_ID,p_Link_Page_ID,p_Level;
 		$END
 		-- produce and return query for list of values (LOV_QUERY)
 		if v_out_tab.COUNT > 0 then
@@ -3744,7 +3686,7 @@ $END
 $IF data_browser_conf.g_use_exceptions $THEN
 	exception
 	  when others then
-	    if Display_Values_cur%ISOPEN then
+		if Display_Values_cur%ISOPEN then
 			CLOSE Display_Values_cur;
 		end if;
 		raise;
@@ -3756,15 +3698,15 @@ $END
 	FUNCTION Get_Sort_Link_Html (						-- internal
 		p_Column_Name VARCHAR2,
 		p_Column_Header VARCHAR2,
-    	p_Order_by VARCHAR2 DEFAULT NULL,				-- Example : 'LAST_NAME, FIRST_NAME'
-    	p_Order_Direction VARCHAR2 DEFAULT 'ASC'		-- Example : 'ASC' or 'ASC NULLS LAST' or 'DESC' or 'DESC NULLS LAST'
+		p_Order_by VARCHAR2 DEFAULT NULL,				-- Example : 'LAST_NAME, FIRST_NAME'
+		p_Order_Direction VARCHAR2 DEFAULT 'ASC'		-- Example : 'ASC' or 'ASC NULLS LAST' or 'DESC' or 'DESC NULLS LAST'
 	) RETURN VARCHAR2
 	is
 	PRAGMA UDF;
 		v_Order_By VARCHAR2(200);
 		v_Order_Dir VARCHAR2(200);
 	begin
-		v_Order_By := regexp_replace(p_Order_by,'([^,]+).*', '\1');	-- first word
+		v_Order_By := regexp_replace(p_Order_by,'([^,]+).*', '\1'); -- first word
 		v_Order_Dir := regexp_replace(p_Order_Direction,'(\w+).*', '\1');	-- first word
 
 		return -- the returned string must not exceed 4 KB to avoid buffer overflow errors
@@ -3781,43 +3723,43 @@ $END
 		end;
 	end Get_Sort_Link_Html;
 
-    FUNCTION Get_Imp_Table_Column_List (
-    	p_Table_Name VARCHAR2,
-    	p_Unique_Key_Column VARCHAR2 DEFAULT NULL,
-    	p_Delimiter VARCHAR2 DEFAULT ', ',
-    	p_Data_Columns_Only VARCHAR2 DEFAULT 'NO',		-- YES, NO
-    	p_Select_Columns VARCHAR2 DEFAULT NULL,
-    	p_Columns_Limit INTEGER DEFAULT 1000,
-    	p_Format VARCHAR2 DEFAULT 'NAMES', 				-- NAMES, HEADER, ALIGN, ITEM_HELP
-    	p_Join_Options VARCHAR2 DEFAULT NULL,
+	FUNCTION Get_Imp_Table_Column_List (
+		p_Table_Name VARCHAR2,
+		p_Unique_Key_Column VARCHAR2 DEFAULT NULL,
+		p_Delimiter VARCHAR2 DEFAULT ', ',
+		p_Data_Columns_Only VARCHAR2 DEFAULT 'NO',		-- YES, NO
+		p_Select_Columns VARCHAR2 DEFAULT NULL,
+		p_Columns_Limit INTEGER DEFAULT 1000,
+		p_Format VARCHAR2 DEFAULT 'NAMES',				-- NAMES, HEADER, ALIGN, ITEM_HELP
+		p_Join_Options VARCHAR2 DEFAULT NULL,
 		p_View_Mode IN VARCHAR2 DEFAULT 'EXPORT_VIEW',
-		p_Edit_Mode VARCHAR2 DEFAULT 'NO', 				-- YES, NO
-		p_Report_Mode VARCHAR2 DEFAULT 'NO', 			-- YES, NO
-		p_Enable_Sort VARCHAR2 DEFAULT 'NO', 			-- YES, NO
-    	p_Order_by VARCHAR2 DEFAULT NULL,				-- Example : 'LAST_NAME, FIRST_NAME'
-    	p_Order_Direction VARCHAR2 DEFAULT 'ASC',		-- Example : 'ASC' or 'ASC NULLS LAST' or 'DESC' or 'DESC NULLS LAST'
-	   	p_Parent_Name VARCHAR2 DEFAULT NULL,			-- Parent View or Table name. In View_Mode NAVIGATION_VIEW if set columns from the view are included in the Column list
-    	p_Parent_Key_Column VARCHAR2 DEFAULT NULL,		-- Column Name with foreign key to Parent Table
-    	p_Parent_Key_Visible VARCHAR2 DEFAULT 'NO'		-- YES, NO, NULLABLE. Show foreign key column in View_Mode FORM_VIEW
-    ) RETURN CLOB
-    IS
-        v_Table_Name 		MVDATA_BROWSER_VIEWS.VIEW_NAME%TYPE := UPPER(p_Table_Name);
-        v_Stat 				CLOB;
-    	v_Str	 			VARCHAR2(4000);
-    	v_Describe_Cols_md5 VARCHAR2(300);
-        v_is_cached			VARCHAR2(10);
-        v_Delimiter			VARCHAR2(10);
-        v_Count				PLS_INTEGER := 0;
-        v_Map_Count			PLS_INTEGER := 0;
+		p_Edit_Mode VARCHAR2 DEFAULT 'NO',				-- YES, NO
+		p_Report_Mode VARCHAR2 DEFAULT 'NO',			-- YES, NO
+		p_Enable_Sort VARCHAR2 DEFAULT 'NO',			-- YES, NO
+		p_Order_by VARCHAR2 DEFAULT NULL,				-- Example : 'LAST_NAME, FIRST_NAME'
+		p_Order_Direction VARCHAR2 DEFAULT 'ASC',		-- Example : 'ASC' or 'ASC NULLS LAST' or 'DESC' or 'DESC NULLS LAST'
+		p_Parent_Name VARCHAR2 DEFAULT NULL,			-- Parent View or Table name. In View_Mode NAVIGATION_VIEW if set columns from the view are included in the Column list
+		p_Parent_Key_Column VARCHAR2 DEFAULT NULL,		-- Column Name with foreign key to Parent Table
+		p_Parent_Key_Visible VARCHAR2 DEFAULT 'NO'		-- YES, NO, NULLABLE. Show foreign key column in View_Mode FORM_VIEW
+	) RETURN CLOB
+	IS
+		v_Table_Name		MVDATA_BROWSER_VIEWS.VIEW_NAME%TYPE := UPPER(p_Table_Name);
+		v_Stat				CLOB;
+		v_Str				VARCHAR2(4000);
+		v_Describe_Cols_md5 VARCHAR2(300);
+		v_is_cached			VARCHAR2(10);
+		v_Delimiter			VARCHAR2(10);
+		v_Count				PLS_INTEGER := 0;
+		v_Map_Count			PLS_INTEGER := 0;
 		v_Data_Format		CONSTANT VARCHAR2(50) := data_browser_select.FN_Current_Data_Format;
-        v_Select_Columns	VARCHAR2(32767);
-        v_Parent_Key_Visible VARCHAR2(10);
-    BEGIN
+		v_Select_Columns	VARCHAR2(32767);
+		v_Parent_Key_Visible VARCHAR2(10);
+	BEGIN
 		v_Select_Columns := FN_Terminate_List(p_Select_Columns);
 		v_Parent_Key_Visible := FN_Parent_Key_Visible (p_Parent_Key_Visible, p_Edit_Mode, p_View_Mode, v_Data_Format, p_Select_Columns);
-    	v_Describe_Cols_md5 := wwv_flow_item.md5 (v_Table_Name, p_Unique_Key_Column, p_View_Mode, v_Data_Format, 
+		v_Describe_Cols_md5 := wwv_flow_item.md5 (v_Table_Name, p_Unique_Key_Column, p_View_Mode, v_Data_Format, 
 												v_Select_Columns, p_Parent_Name, p_Parent_Key_Column, v_Parent_Key_Visible, p_Join_Options);
-		v_is_cached	:= case when g_Describe_Cols_md5 != v_Describe_Cols_md5 then 'load' else 'cached!' end;
+		v_is_cached := case when g_Describe_Cols_md5 != v_Describe_Cols_md5 then 'load' else 'cached!' end;
 		if v_is_cached != 'cached!' then
 			OPEN data_browser_select.Describe_Imp_Cols_cur (v_Table_Name, p_Unique_Key_Column, p_View_Mode, v_Data_Format, 
 															v_Select_Columns, p_Parent_Name, p_Parent_Key_Column, v_Parent_Key_Visible, p_Join_Options);
@@ -3825,15 +3767,15 @@ $END
 			CLOSE data_browser_select.Describe_Imp_Cols_cur;
 			g_Describe_Cols_md5 := v_Describe_Cols_md5;
 		end if;
-    	dbms_lob.createtemporary(v_Stat, true, dbms_lob.call);
-        FOR ind IN 1 .. g_Describe_Cols_tab.COUNT LOOP
-        	if  (p_Edit_Mode = 'YES' 		-- if Edit single record or not hidden
-        	  and p_Report_Mode = 'NO'  	-- in Edit single record mode, hidden (key) columns have no header
-        	  or g_Describe_Cols_tab(ind).COLUMN_EXPR_TYPE != 'HIDDEN')
+		dbms_lob.createtemporary(v_Stat, true, dbms_lob.call);
+		FOR ind IN 1 .. g_Describe_Cols_tab.COUNT LOOP
+			if	(p_Edit_Mode = 'YES'		-- if Edit single record or not hidden
+			  and p_Report_Mode = 'NO'		-- in Edit single record mode, hidden (key) columns have no header
+			  or g_Describe_Cols_tab(ind).COLUMN_EXPR_TYPE != 'HIDDEN')
 			and FN_Has_Collections_Adress(p_View_Mode, g_Describe_Cols_tab(ind))
-        	and FN_Show_Row_Selector(v_Data_Format, p_Edit_Mode, p_Report_Mode, p_View_Mode, p_Data_Columns_Only, g_Describe_Cols_tab(ind).COLUMN_NAME)
-        	and FN_Show_Import_Job(v_Data_Format, g_Describe_Cols_tab(ind).COLUMN_NAME)
-        	and FN_Display_In_Report(p_Report_Mode, p_View_Mode, g_Describe_Cols_tab(ind), v_Select_Columns) then
+			and FN_Show_Row_Selector(v_Data_Format, p_Edit_Mode, p_Report_Mode, p_View_Mode, p_Data_Columns_Only, g_Describe_Cols_tab(ind).COLUMN_NAME)
+			and FN_Show_Import_Job(v_Data_Format, g_Describe_Cols_tab(ind).COLUMN_NAME)
+			and FN_Display_In_Report(p_Report_Mode, p_View_Mode, g_Describe_Cols_tab(ind), v_Select_Columns) then
 				if g_Describe_Cols_tab(ind).COLUMN_EXPR_TYPE != 'HIDDEN' and g_Describe_Cols_tab(ind).COLUMN_ID > 0 then 
 					v_Count := v_Count + 1;
 				end if;
@@ -3893,64 +3835,47 @@ $END
 					v_Map_Count := v_Map_Count + 1;
 					EXIT WHEN v_Map_Count >= p_Columns_Limit;
 				end if;
-            end if;
-        END LOOP;
-        if v_Str IS NOT NULL then
+			end if;
+		END LOOP;
+		if v_Str IS NOT NULL then
 			dbms_lob.writeappend(v_Stat, length(v_Str), v_Str);
 		end if;
 		$IF data_browser_conf.g_debug $THEN
-			apex_debug.message(
-				p_message => 'data_browser_select.Get_Imp_Table_Column_List (p_Table_name=> %s, p_Unique_Key_Column=> %s, p_Delimiter=> %s, p_Data_Columns_Only=> %s, ' || chr(10)
-				|| 'p_Select_Columns=> %s, p_Columns_Limit=> %s, p_View_Mode=>%s, p_Edit_Mode=>%s, p_Report_Mode=>%s, p_Enable_Sort=>%s, p_Order_by=>%s, p_Order_Direction=>%s,' || chr(10)
-				|| 'p_Parent_Name=>%s, p_Parent_Key_Column=>%s, p_Parent_Key_Visible=>%s) -- %s ' || chr(10) || '  %s',
-				p0 => DBMS_ASSERT.ENQUOTE_LITERAL(p_Table_name),
-				p1 => DBMS_ASSERT.ENQUOTE_LITERAL(p_Unique_Key_Column),
-				p2 => DBMS_ASSERT.ENQUOTE_LITERAL(p_Delimiter),
-				p3 => DBMS_ASSERT.ENQUOTE_LITERAL(p_Data_Columns_Only),
-				p4 => DBMS_ASSERT.ENQUOTE_LITERAL(p_Select_Columns),
-				p5 => p_Columns_Limit,
-				p6 => DBMS_ASSERT.ENQUOTE_LITERAL(p_View_Mode),
-				p7 => DBMS_ASSERT.ENQUOTE_LITERAL(p_Edit_Mode),
-				p8 => DBMS_ASSERT.ENQUOTE_LITERAL(p_Report_Mode),
-				p9 => DBMS_ASSERT.ENQUOTE_LITERAL(p_Enable_Sort),
-				p10 => DBMS_ASSERT.ENQUOTE_LITERAL(p_Order_by),
-				p11 => DBMS_ASSERT.ENQUOTE_LITERAL(p_Order_Direction),
-				p12 => DBMS_ASSERT.ENQUOTE_LITERAL(p_Parent_Name),
-				p13 => DBMS_ASSERT.ENQUOTE_LITERAL(p_Parent_Key_Column),
-				p14 => DBMS_ASSERT.ENQUOTE_LITERAL(p_Parent_Key_Visible),
-				p15 => v_is_cached,
-				p16 => v_Stat,
-				p_max_length => 3500
-			);
+			EXECUTE IMMEDIATE data_browser_conf.Dyn_Log_Call_Parameter
+			USING p_Table_Name,p_Unique_Key_Column,p_Delimiter,p_Data_Columns_Only,p_Select_Columns,p_Columns_Limit,
+				p_Format,p_Join_Options,p_View_Mode,p_Edit_Mode,p_Report_Mode,p_Enable_Sort,p_Order_by,p_Order_Direction,
+				p_Parent_Name,p_Parent_Key_Column,p_Parent_Key_Visible;
+			
+			apex_debug.message(p_message => v_Stat, p_max_length => 3500);
 		$END
 		RETURN v_Stat;
 $IF data_browser_conf.g_use_exceptions $THEN
 	exception
 	  when others then
-	    if data_browser_select.Describe_Imp_Cols_cur%ISOPEN then
+		if data_browser_select.Describe_Imp_Cols_cur%ISOPEN then
 			CLOSE data_browser_select.Describe_Imp_Cols_cur;
 		end if;
 		raise;
 $END
-    END Get_Imp_Table_Column_List;
+	END Get_Imp_Table_Column_List;
 
 
-    PROCEDURE Get_Collection_Columns (
-		p_Map_Column_List 	IN OUT NOCOPY VARCHAR2,
-		p_Map_Count 		IN OUT PLS_INTEGER,
-		p_Column_Expr_Type 	VARCHAR2,
-		p_Data_Type 		VARCHAR2,
-		p_Input_ID 			VARCHAR2,
-		p_Column_Name 		VARCHAR2,
+	PROCEDURE Get_Collection_Columns (
+		p_Map_Column_List	IN OUT NOCOPY VARCHAR2,
+		p_Map_Count			IN OUT PLS_INTEGER,
+		p_Column_Expr_Type	VARCHAR2,
+		p_Data_Type			VARCHAR2,
+		p_Input_ID			VARCHAR2,
+		p_Column_Name		VARCHAR2,
 		p_Default_Value		VARCHAR2 DEFAULT NULL,
-		p_indent 			PLS_INTEGER DEFAULT 4,
+		p_indent			PLS_INTEGER DEFAULT 4,
 		p_Convert_Expr		VARCHAR2 DEFAULT NULL,
 		p_Is_Virtual_Column VARCHAR2 -- Y/N 
-    )
-    IS
-        v_Delimiter2	VARCHAR2(50);
-        v_Expression 	VARCHAR2(2000);
-        v_Default_Value VARCHAR2(2000);
+	)
+	IS
+		v_Delimiter2	VARCHAR2(50);
+		v_Expression	VARCHAR2(2000);
+		v_Default_Value VARCHAR2(2000);
 	BEGIN
 		if p_Input_ID IS NOT NULL then
 			if SUBSTR(p_Input_ID, 1, 1) = 'C' then
@@ -3962,7 +3887,7 @@ $END
 				v_Expression := 'NVL(' || v_Expression || ', ' || p_Default_Value || ')';
 			end if;
 			if p_Data_Type IN ('CLOB', 'NCLOB') then 
-				v_Expression := 'TO_CLOB(' || v_Expression  || ')';
+				v_Expression := 'TO_CLOB(' || v_Expression	|| ')';
 			end if;
 				
 			p_Map_Column_List := p_Map_Column_List
@@ -3970,38 +3895,38 @@ $END
 			|| v_Expression
 			|| ' ' || p_Column_Name;
 		end if;
-    END Get_Collection_Columns;
+	END Get_Collection_Columns;
 
 
-    FUNCTION Get_Collection_Query (
+	FUNCTION Get_Collection_Query (
 		p_Map_Column_List VARCHAR2,
 		p_Map_Unique_Key VARCHAR2 DEFAULT NULL,
 		p_indent PLS_INTEGER DEFAULT 4
-    ) RETURN VARCHAR2
-    IS
-    BEGIN
+	) RETURN VARCHAR2
+	IS
+	BEGIN
 		return '(SELECT A.SEQ_ID LINK_ID$, ' || NVL(p_Map_Unique_Key, 'NULL') || ' ROW_SELECTOR$, ''.'' CONTROL_BREAK$, '
 			|| NL(p_indent+4)
-        	|| p_Map_Column_List || NL(p_indent)
-        	|| 'FROM APEX_COLLECTIONS A WHERE COLLECTION_NAME = '
-        	|| data_browser_conf.Get_Import_Collection(p_Enquote=>'YES')
-        	|| NL(p_indent-4)
-        	|| ')';
-    END Get_Collection_Query;
+			|| p_Map_Column_List || NL(p_indent)
+			|| 'FROM APEX_COLLECTIONS A WHERE COLLECTION_NAME = '
+			|| data_browser_conf.Get_Import_Collection(p_Enquote=>'YES')
+			|| NL(p_indent-4)
+			|| ')';
+	END Get_Collection_Query;
 
-    FUNCTION Get_Imp_Table_From_Clause (
-    	p_Table_Name VARCHAR2,
-    	p_Join_Options VARCHAR2 DEFAULT NULL,
-    	p_Data_Source VARCHAR2 DEFAULT 'TABLE', 			-- TABLE, NEW_ROWS, COLLECTION, QUERY
-    	p_As_Of_Timestamp VARCHAR2 DEFAULT 'NO',
+	FUNCTION Get_Imp_Table_From_Clause (
+		p_Table_Name VARCHAR2,
+		p_Join_Options VARCHAR2 DEFAULT NULL,
+		p_Data_Source VARCHAR2 DEFAULT 'TABLE',				-- TABLE, NEW_ROWS, COLLECTION, QUERY
+		p_As_Of_Timestamp VARCHAR2 DEFAULT 'NO',
 		p_Map_Unique_Key VARCHAR2 DEFAULT NULL,
-    	p_Map_Column_List VARCHAR2 DEFAULT NULL
-    ) RETURN CLOB
-    IS
-        v_Count				PLS_INTEGER := 0;
-        v_Str 				CLOB;
-    BEGIN
-        if p_Data_Source IN ('TABLE', 'QUERY') then
+		p_Map_Column_List VARCHAR2 DEFAULT NULL
+	) RETURN CLOB
+	IS
+		v_Count				PLS_INTEGER := 0;
+		v_Str				CLOB;
+	BEGIN
+		if p_Data_Source IN ('TABLE', 'QUERY') then
 			for c_cur in (
 				SELECT SQL_TEXT
 				FROM TABLE (
@@ -4032,55 +3957,55 @@ $END
 			v_Str := v_Str || chr(10) || 'FROM DUAL A '
 			|| '-- Data_Source: ' || p_Data_Source;
 		end if;
-        return v_Str;
-    END Get_Imp_Table_From_Clause;
+		return v_Str;
+	END Get_Imp_Table_From_Clause;
 
-    FUNCTION Get_Imp_Table_Query (
-    	p_Table_Name VARCHAR2,
-    	p_Unique_Key_Column VARCHAR2 DEFAULT NULL,
-    	p_Data_Columns_Only VARCHAR2 DEFAULT 'NO',
-    	p_Columns_Limit INTEGER DEFAULT 1000,
-    	p_As_Of_Timestamp VARCHAR2 DEFAULT 'NO',
-    	p_Select_Columns VARCHAR2 DEFAULT NULL,
-    	p_Control_Break  VARCHAR2 DEFAULT NULL,
-    	p_Join_Options VARCHAR2 DEFAULT NULL,
+	FUNCTION Get_Imp_Table_Query (
+		p_Table_Name VARCHAR2,
+		p_Unique_Key_Column VARCHAR2 DEFAULT NULL,
+		p_Data_Columns_Only VARCHAR2 DEFAULT 'NO',
+		p_Columns_Limit INTEGER DEFAULT 1000,
+		p_As_Of_Timestamp VARCHAR2 DEFAULT 'NO',
+		p_Select_Columns VARCHAR2 DEFAULT NULL,
+		p_Control_Break	 VARCHAR2 DEFAULT NULL,
+		p_Join_Options VARCHAR2 DEFAULT NULL,
 		p_View_Mode IN VARCHAR2 DEFAULT 'EXPORT_VIEW',
-		p_Edit_Mode VARCHAR2 DEFAULT 'NO', 					-- YES, NO
-    	p_Data_Source VARCHAR2 DEFAULT 'TABLE', 			-- TABLE, NEW_ROWS, COLLECTION, QUERY
-    	p_Data_Format VARCHAR2 DEFAULT FN_Current_Data_Format,	-- FORM, HTML, CSV, NATIVE. Format of the final projection columns.
-		p_Report_Mode VARCHAR2 DEFAULT 'NO', 				-- YES, NO
-    	p_Form_Page_ID NUMBER DEFAULT 32,					-- Page ID of target links 
+		p_Edit_Mode VARCHAR2 DEFAULT 'NO',					-- YES, NO
+		p_Data_Source VARCHAR2 DEFAULT 'TABLE',				-- TABLE, NEW_ROWS, COLLECTION, QUERY
+		p_Data_Format VARCHAR2 DEFAULT FN_Current_Data_Format,	-- FORM, HTML, CSV, NATIVE. Format of the final projection columns.
+		p_Report_Mode VARCHAR2 DEFAULT 'NO',				-- YES, NO
+		p_Form_Page_ID NUMBER DEFAULT 32,					-- Page ID of target links 
 		p_Form_Parameter VARCHAR2 DEFAULT NULL,				-- Parameter of target links 
-    	p_Search_Field_Item VARCHAR2 DEFAULT NULL,			-- Example : P30_SEARCH
-    	p_Search_Column_Name IN VARCHAR2 DEFAULT NULL,
-    	p_Comments VARCHAR2 DEFAULT NULL,					-- Comments
-	   	p_Parent_Name VARCHAR2 DEFAULT NULL,				-- Parent View or Table name. In View_Mode NAVIGATION_VIEW if set columns from the view are included in the Column list
-    	p_Parent_Key_Column VARCHAR2 DEFAULT NULL,			-- Column Name with foreign key to Parent Table
-    	p_Parent_Key_Visible VARCHAR2 DEFAULT 'NO',			-- YES, NO, NULLABLE. Show foreign key column in View_Mode FORM_VIEW
-    	p_File_Page_ID NUMBER DEFAULT 31				    -- Page ID of target links to file preview in View_Mode FORM_VIEW
-    ) RETURN CLOB
-    IS
-        v_Table_Name 		MVDATA_BROWSER_VIEWS.VIEW_NAME%TYPE := UPPER(p_Table_Name);
+		p_Search_Field_Item VARCHAR2 DEFAULT NULL,			-- Example : P30_SEARCH
+		p_Search_Column_Name IN VARCHAR2 DEFAULT NULL,
+		p_Comments VARCHAR2 DEFAULT NULL,					-- Comments
+		p_Parent_Name VARCHAR2 DEFAULT NULL,				-- Parent View or Table name. In View_Mode NAVIGATION_VIEW if set columns from the view are included in the Column list
+		p_Parent_Key_Column VARCHAR2 DEFAULT NULL,			-- Column Name with foreign key to Parent Table
+		p_Parent_Key_Visible VARCHAR2 DEFAULT 'NO',			-- YES, NO, NULLABLE. Show foreign key column in View_Mode FORM_VIEW
+		p_File_Page_ID NUMBER DEFAULT 31					-- Page ID of target links to file preview in View_Mode FORM_VIEW
+	) RETURN CLOB
+	IS
+		v_Table_Name		MVDATA_BROWSER_VIEWS.VIEW_NAME%TYPE := UPPER(p_Table_Name);
 		v_Unique_Key_Column MVDATA_BROWSER_VIEWS.SEARCH_KEY_COLS%TYPE;
-        v_Stat 				CLOB;
-        v_From_Clause		CLOB;
-        v_Str 				VARCHAR2(32767);
-        v_Expression		VARCHAR2(32767);
-        v_Select_Columns	VARCHAR2(32767);
-        v_Parent_Key_Visible VARCHAR2(10);
-        v_Ctrl_Break_Expr	VARCHAR2(32767);
-        v_Control_Break		VARCHAR2(1024);
-        v_Delimiter     	CONSTANT VARCHAR2(50) := ',' || NL(4);
-        v_Delimiter2		VARCHAR2(50);
-    	v_Describe_Cols_md5 VARCHAR2(300);
-    	v_Column_Expr		VARCHAR2(32767);
-        v_is_cached			VARCHAR2(10);
-        v_Count				PLS_INTEGER := 0;
-		v_Map_Unique_Key    VARCHAR2(32);
+		v_Stat				CLOB;
+		v_From_Clause		CLOB;
+		v_Str				VARCHAR2(32767);
+		v_Expression		VARCHAR2(32767);
+		v_Select_Columns	VARCHAR2(32767);
+		v_Parent_Key_Visible VARCHAR2(10);
+		v_Ctrl_Break_Expr	VARCHAR2(32767);
+		v_Control_Break		VARCHAR2(1024);
+		v_Delimiter			CONSTANT VARCHAR2(50) := ',' || NL(4);
+		v_Delimiter2		VARCHAR2(50);
+		v_Describe_Cols_md5 VARCHAR2(300);
+		v_Column_Expr		VARCHAR2(32767);
+		v_is_cached			VARCHAR2(10);
+		v_Count				PLS_INTEGER := 0;
+		v_Map_Unique_Key	VARCHAR2(32);
 		v_Map_Column_List	VARCHAR2(32767);
-        v_Map_Count			PLS_INTEGER := 0;
-		v_Data_Format 		VARCHAR2(20);
-    BEGIN
+		v_Map_Count			PLS_INTEGER := 0;
+		v_Data_Format		VARCHAR2(20);
+	BEGIN
 		v_Data_Format := p_Data_Format;
 		v_Select_Columns := FN_Terminate_List(p_Select_Columns);
 		v_Parent_Key_Visible := FN_Parent_Key_Visible (p_Parent_Key_Visible, p_Edit_Mode, p_View_Mode, v_Data_Format, p_Select_Columns);
@@ -4092,9 +4017,9 @@ $END
 		else
 			v_Unique_Key_Column := p_Unique_Key_Column;
 		end if;
-    	v_Describe_Cols_md5 := wwv_flow_item.md5 (v_Table_Name, v_Unique_Key_Column, p_View_Mode, v_Data_Format, 
+		v_Describe_Cols_md5 := wwv_flow_item.md5 (v_Table_Name, v_Unique_Key_Column, p_View_Mode, v_Data_Format, 
 												v_Select_Columns, p_Parent_Name, p_Parent_Key_Column, v_Parent_Key_Visible, p_Join_Options);
-		v_is_cached	:= case when g_Describe_Cols_md5 != v_Describe_Cols_md5 then 'load' else 'cached!' end;
+		v_is_cached := case when g_Describe_Cols_md5 != v_Describe_Cols_md5 then 'load' else 'cached!' end;
 		if v_is_cached != 'cached!' then
 			OPEN data_browser_select.Describe_Imp_Cols_cur (v_Table_Name, v_Unique_Key_Column, p_View_Mode, v_Data_Format, 
 															v_Select_Columns, p_Parent_Name, p_Parent_Key_Column, v_Parent_Key_Visible, p_Join_Options);
@@ -4102,7 +4027,7 @@ $END
 			CLOSE data_browser_select.Describe_Imp_Cols_cur;
 			g_Describe_Cols_md5 := v_Describe_Cols_md5;
 		end if;
-    	dbms_lob.createtemporary(v_Stat, true, dbms_lob.call);
+		dbms_lob.createtemporary(v_Stat, true, dbms_lob.call);
 		if p_Control_Break IS NOT NULL then
 			if p_Data_Source NOT IN ('NEW_ROWS', 'COLLECTION') then 
 				v_Control_Break := FN_Terminate_List(REPLACE(p_Control_Break, ', ', ':'));
@@ -4121,13 +4046,13 @@ $END
 			end if;
 		end if;
 
-    	v_Str := 'SELECT ' || CM(p_Comments) || NL(4);
-        for ind IN 1 .. g_Describe_Cols_tab.COUNT loop
-        	if (p_Data_Source = 'QUERY' or g_Describe_Cols_tab(ind).COLUMN_EXPR_TYPE != 'HIDDEN')	-- hidden (key) columns are excluded
+		v_Str := 'SELECT ' || CM(p_Comments) || NL(4);
+		for ind IN 1 .. g_Describe_Cols_tab.COUNT loop
+			if (p_Data_Source = 'QUERY' or g_Describe_Cols_tab(ind).COLUMN_EXPR_TYPE != 'HIDDEN')	-- hidden (key) columns are excluded
 			and FN_Has_Collections_Adress(p_View_Mode, g_Describe_Cols_tab(ind))
-        	and FN_Show_Row_Selector(p_Data_Format, p_Edit_Mode, p_Report_Mode, p_View_Mode, p_Data_Columns_Only, g_Describe_Cols_tab(ind).COLUMN_NAME)
-        	and FN_Show_Import_Job(p_Data_Format, g_Describe_Cols_tab(ind).COLUMN_NAME)
-        	and FN_Display_In_Report(p_Report_Mode, p_View_Mode, g_Describe_Cols_tab(ind), v_Select_Columns) then
+			and FN_Show_Row_Selector(p_Data_Format, p_Edit_Mode, p_Report_Mode, p_View_Mode, p_Data_Columns_Only, g_Describe_Cols_tab(ind).COLUMN_NAME)
+			and FN_Show_Import_Job(p_Data_Format, g_Describe_Cols_tab(ind).COLUMN_NAME)
+			and FN_Display_In_Report(p_Report_Mode, p_View_Mode, g_Describe_Cols_tab(ind), v_Select_Columns) then
 				v_Column_Expr := g_Describe_Cols_tab(ind).COLUMN_EXPR;
 				if p_Data_Source = 'TABLE' then
 					if p_Data_Format IN ('FORM', 'HTML')
@@ -4151,8 +4076,8 @@ $END
 				v_Expression := case 
 					when p_Data_Source = 'COLLECTION' 
 						then NULL
-				    when g_Describe_Cols_tab(ind).COLUMN_NAME = 'CONTROL_BREAK$'
-				    	then NVL(v_Ctrl_Break_Expr, data_browser_conf.Enquote_Literal('.'))
+					when g_Describe_Cols_tab(ind).COLUMN_NAME = 'CONTROL_BREAK$'
+						then NVL(v_Ctrl_Break_Expr, data_browser_conf.Enquote_Literal('.'))
 					when p_Data_Source IN ('NEW_ROWS', 'MEMORY')
 						then 'NULL'
 					when g_Describe_Cols_tab(ind).COLUMN_EXPR_TYPE = 'LINK_ID' then 
@@ -4167,20 +4092,20 @@ $END
 							p_View_Mode => p_View_Mode
 						) 
 					when g_Describe_Cols_tab(ind).IS_VIRTUAL_COLUMN = 'Y' then
-				    	case when p_Data_Source = 'COLLECTION'
-				    		then g_Describe_Cols_tab(ind).DATA_DEFAULT
-				    	--	then g_Describe_Cols_tab(ind).TABLE_ALIAS || '.' || g_Describe_Cols_tab(ind).REF_COLUMN_NAME
-				    	else
-				    		v_Column_Expr
-				    	end
-				    when p_Data_Source = 'QUERY' then 
-				    	case when data_browser_select.FN_Apex_Item_Use_Column(g_Describe_Cols_tab(ind).COLUMN_EXPR_TYPE) = 'YES'
-				    		then g_Describe_Cols_tab(ind).TABLE_ALIAS || '.' || g_Describe_Cols_tab(ind).REF_COLUMN_NAME
-				    	else
-				    		v_Column_Expr
-				    	end
-				    when g_Describe_Cols_tab(ind).COLUMN_EXPR_TYPE = 'ROW_SELECTOR'
-				    	then data_browser_select.Get_Row_Selector_Expr(
+						case when p_Data_Source = 'COLLECTION'
+							then g_Describe_Cols_tab(ind).DATA_DEFAULT
+						--	then g_Describe_Cols_tab(ind).TABLE_ALIAS || '.' || g_Describe_Cols_tab(ind).REF_COLUMN_NAME
+						else
+							v_Column_Expr
+						end
+					when p_Data_Source = 'QUERY' then 
+						case when data_browser_select.FN_Apex_Item_Use_Column(g_Describe_Cols_tab(ind).COLUMN_EXPR_TYPE) = 'YES'
+							then g_Describe_Cols_tab(ind).TABLE_ALIAS || '.' || g_Describe_Cols_tab(ind).REF_COLUMN_NAME
+						else
+							v_Column_Expr
+						end
+					when g_Describe_Cols_tab(ind).COLUMN_EXPR_TYPE = 'ROW_SELECTOR'
+						then data_browser_select.Get_Row_Selector_Expr(
 								p_Data_Format => p_Data_Format, 
 								p_Column_Expr => g_Describe_Cols_tab(ind).COLUMN_EXPR, 
 								p_Column_Name => g_Describe_Cols_tab(ind).COLUMN_NAME
@@ -4245,10 +4170,10 @@ $END
 					EXIT WHEN v_Map_Count >= p_Columns_Limit;
 				end if;
 			end if;
-        end loop;
-        if v_Delimiter2 IS NULL then
-        	v_Str := v_Str || ' NULL';
-        end if;
+		end loop;
+		if v_Delimiter2 IS NULL then
+			v_Str := v_Str || ' NULL';
+		end if;
 		if length(v_Str) > 0 then
 			dbms_lob.writeappend(v_Stat, length(v_Str), v_Str);
 			v_Str := NULL;
@@ -4260,66 +4185,46 @@ $END
 			p_As_Of_Timestamp => p_As_Of_Timestamp,
 			p_Map_Unique_Key => v_Map_Unique_Key,
 			p_Map_Column_List => v_Map_Column_List
-	    );
+		);
 		dbms_lob.append(v_Stat, v_From_Clause);
 
 		$IF data_browser_conf.g_debug $THEN
-			apex_debug.message(
-				p_message => 'data_browser_select.Get_Imp_Table_Query (p_Table_name=> %s, p_Unique_Key_Column=> %s, p_Data_Columns_Only=> %s, ' || chr(10)
-				|| 'p_Columns_Limit=> %s, p_As_Of_Timestamp=> %s, p_Select_Columns=> %s, p_Control_Break=> %s, p_Join_Options=> %s, p_View_Mode=> %s, ' || chr(10)
-				|| 'p_Edit_Mode=> %s, p_Data_Source=> %s, p_Data_Format=> %s, p_Report_Mode=> %s, p_Search_Field_Item=> %s,' || chr(10)
-				|| 'p_Comments=> %s, p_Parent_Name=> %s, p_Parent_Key_Column=> %s, p_Parent_Key_Visible=> %s' || chr(10)
-				|| ') -- %s ' || chr(10) || '  %s',
-				p0 => DBMS_ASSERT.ENQUOTE_LITERAL(p_Table_name),
-				p1 => DBMS_ASSERT.ENQUOTE_LITERAL(p_Unique_Key_Column),
-				p2 => DBMS_ASSERT.ENQUOTE_LITERAL(p_Data_Columns_Only),
-				p3 => p_Columns_Limit,
-				p4 => DBMS_ASSERT.ENQUOTE_LITERAL(p_As_Of_Timestamp),
-				p5 => DBMS_ASSERT.ENQUOTE_LITERAL(p_Select_Columns),
-				p6 => data_browser_conf.Enquote_Literal(p_Control_Break),
-				p7 => DBMS_ASSERT.ENQUOTE_LITERAL(p_Join_Options),
-				p8 => DBMS_ASSERT.ENQUOTE_LITERAL(p_View_Mode),
-				p9 => DBMS_ASSERT.ENQUOTE_LITERAL(p_Edit_Mode),
-				p10 => DBMS_ASSERT.ENQUOTE_LITERAL(p_Data_Source),
-				p11 => DBMS_ASSERT.ENQUOTE_LITERAL(p_Data_Format),
-				p12 => DBMS_ASSERT.ENQUOTE_LITERAL(p_Report_Mode),
-				p13 => data_browser_conf.Enquote_Literal(p_Search_Field_Item),
-				p14 => data_browser_conf.Enquote_Literal(p_Comments),
-				p15 => DBMS_ASSERT.ENQUOTE_LITERAL(p_Parent_Name),
-				p16 => DBMS_ASSERT.ENQUOTE_LITERAL(p_Parent_Key_Column),
-				p17 => DBMS_ASSERT.ENQUOTE_LITERAL(p_Parent_Key_Visible),
-				p18 => v_is_cached,
-				p19 => v_Stat,
-				p_max_length => 3500
-			);
+			EXECUTE IMMEDIATE data_browser_conf.Dyn_Log_Call_Parameter
+			USING p_Table_Name,p_Unique_Key_Column,p_Data_Columns_Only,p_Columns_Limit,p_As_Of_Timestamp,p_Select_Columns,
+				p_Control_Break,p_Join_Options,p_View_Mode,p_Edit_Mode,p_Data_Source,p_Data_Format,p_Report_Mode,
+				p_Form_Page_ID,p_Form_Parameter,p_Search_Field_Item,p_Search_Column_Name,
+				p_Comments,p_Parent_Name,p_Parent_Key_Column,p_Parent_Key_Visible,p_File_Page_ID;
+				
+			apex_debug.message(p_message => v_is_cached, p_max_length => 3500);
+			apex_debug.message(p_message => v_Stat, p_max_length => 3500);
 		$END
 		RETURN v_Stat;
 $IF data_browser_conf.g_use_exceptions $THEN
 	exception
 	  when others then
-	    if data_browser_select.Describe_Imp_Cols_cur%ISOPEN then
+		if data_browser_select.Describe_Imp_Cols_cur%ISOPEN then
 			CLOSE data_browser_select.Describe_Imp_Cols_cur;
 		end if;
 		raise;
 $END
-    END Get_Imp_Table_Query;
+	END Get_Imp_Table_Query;
 
 	---------------------------------------------------------------------------
 
 	FUNCTION Get_Form_View_From_Clause (					-- internal
 		p_Table_name IN VARCHAR2,							-- Table Name or View Name of master table
-    	p_Unique_Key_Column VARCHAR2 DEFAULT NULL,			-- Unique Key Column or NULL. Used to build a Link_ID_Expression
-		p_View_Mode IN VARCHAR2 DEFAULT 'FORM_VIEW', 		-- FORM_VIEW, RECORD_VIEW, NAVIGATION_VIEW, NESTED_VIEW, HISTORY
-		p_Empty_Row VARCHAR2  DEFAULT 'NO', 				-- YES, NO
-    	p_Source_Query CLOB DEFAULT NULL, 					-- Passed query for from clause
-    	p_Parameter_Columns VARCHAR2 DEFAULT NULL
+		p_Unique_Key_Column VARCHAR2 DEFAULT NULL,			-- Unique Key Column or NULL. Used to build a Link_ID_Expression
+		p_View_Mode IN VARCHAR2 DEFAULT 'FORM_VIEW',		-- FORM_VIEW, RECORD_VIEW, NAVIGATION_VIEW, NESTED_VIEW, HISTORY
+		p_Empty_Row VARCHAR2  DEFAULT 'NO',					-- YES, NO
+		p_Source_Query CLOB DEFAULT NULL,					-- Passed query for from clause
+		p_Parameter_Columns VARCHAR2 DEFAULT NULL
 	) RETURN CLOB
 	is
-        v_Stat 				CLOB;
-        v_Str 				VARCHAR2(32767);
-		v_Primary_Key_Cond  VARCHAR2(4000);
+		v_Stat				CLOB;
+		v_Str				VARCHAR2(32767);
+		v_Primary_Key_Cond	VARCHAR2(4000);
 	begin
-    	dbms_lob.createtemporary(v_Stat, true, dbms_lob.call);
+		dbms_lob.createtemporary(v_Stat, true, dbms_lob.call);
 		v_Str := v_Str || chr(10) || ' FROM ';
 
 		if p_Parameter_Columns IS NOT NULL then 
@@ -4355,62 +4260,69 @@ $END
 
 	FUNCTION Get_Form_View_Query (							-- internal
 		p_Table_name IN VARCHAR2,							-- Table Name or View Name of master table
-    	p_Unique_Key_Column VARCHAR2 DEFAULT NULL,			-- Unique Key Column or NULL. Used to build a Link_ID_Expression
-    	p_Data_Columns_Only VARCHAR2 DEFAULT 'NO',
+		p_Unique_Key_Column VARCHAR2 DEFAULT NULL,			-- Unique Key Column or NULL. Used to build a Link_ID_Expression
+		p_Data_Columns_Only VARCHAR2 DEFAULT 'NO',
 		p_Columns_Limit IN NUMBER DEFAULT 1000,
-    	p_Select_Columns VARCHAR2 DEFAULT NULL,
-    	p_Control_Break  VARCHAR2 DEFAULT NULL,
-		p_View_Mode IN VARCHAR2 DEFAULT 'FORM_VIEW', 		-- FORM_VIEW, RECORD_VIEW, NAVIGATION_VIEW, NESTED_VIEW, HISTORY
-		p_Edit_Mode VARCHAR2 DEFAULT 'NO', 					-- YES, NO
-    	p_Data_Format VARCHAR2 DEFAULT FN_Current_Data_Format,	-- FORM, HTML, CSV, NATIVE. Format of the final projection columns.
-    	p_Data_Source VARCHAR2 DEFAULT 'TABLE', 			-- TABLE, QUERY
-		p_Empty_Row VARCHAR2  DEFAULT 'NO', 				-- YES, NO
-		p_Report_Mode VARCHAR2 DEFAULT 'NO', 				-- YES, NO
-    	p_Parent_Name VARCHAR2 DEFAULT NULL,				-- Parent View or Table name. In View_Mode NAVIGATION_VIEW if set columns from the view are included in the Column list
-    	p_Parent_Key_Column VARCHAR2 DEFAULT NULL,			-- Column Name with foreign key to Parent Table
-    	p_Parent_Key_Visible VARCHAR2 DEFAULT 'NO',			-- YES, NO, NULLABLE. Show foreign key column in View_Mode FORM_VIEW
-    	p_Link_Page_ID NUMBER DEFAULT V('APP_PAGE_ID'),	    -- Page ID of target links in View_Mode NAVIGATION_VIEW
+		p_Select_Columns VARCHAR2 DEFAULT NULL,
+		p_Control_Break	 VARCHAR2 DEFAULT NULL,
+		p_View_Mode IN VARCHAR2 DEFAULT 'FORM_VIEW',		-- FORM_VIEW, RECORD_VIEW, NAVIGATION_VIEW, NESTED_VIEW, HISTORY
+		p_Edit_Mode VARCHAR2 DEFAULT 'NO',					-- YES, NO
+		p_Data_Format VARCHAR2 DEFAULT FN_Current_Data_Format,	-- FORM, HTML, CSV, NATIVE. Format of the final projection columns.
+		p_Data_Source VARCHAR2 DEFAULT 'TABLE',				-- TABLE, QUERY
+		p_Empty_Row VARCHAR2  DEFAULT 'NO',					-- YES, NO
+		p_Report_Mode VARCHAR2 DEFAULT 'NO',				-- YES, NO
+		p_Parent_Name VARCHAR2 DEFAULT NULL,				-- Parent View or Table name. In View_Mode NAVIGATION_VIEW if set columns from the view are included in the Column list
+		p_Parent_Key_Column VARCHAR2 DEFAULT NULL,			-- Column Name with foreign key to Parent Table
+		p_Parent_Key_Visible VARCHAR2 DEFAULT 'NO',			-- YES, NO, NULLABLE. Show foreign key column in View_Mode FORM_VIEW
+		p_Link_Page_ID NUMBER DEFAULT V('APP_PAGE_ID'),		-- Page ID of target links in View_Mode NAVIGATION_VIEW
 		p_Link_Parameter VARCHAR2 DEFAULT NULL,				-- Parameter of target links in View_Mode NAVIGATION_VIEW
-    	p_Detail_Page_ID NUMBER DEFAULT 32,					-- Page ID of target links in View_Mode NAVIGATION_VIEW, NESTED_VIEW
+		p_Detail_Page_ID NUMBER DEFAULT 32,					-- Page ID of target links in View_Mode NAVIGATION_VIEW, NESTED_VIEW
 		p_Detail_Parameter VARCHAR2 DEFAULT NULL,			-- Parameter of target links in View_Mode NAVIGATION_VIEW, NESTED_VIEW
-    	p_Form_Page_ID NUMBER DEFAULT 32,					-- Page ID of target links 
+		p_Form_Page_ID NUMBER DEFAULT 32,					-- Page ID of target links 
 		p_Form_Parameter VARCHAR2 DEFAULT NULL,				-- Parameter of target links 
-    	p_File_Page_ID NUMBER DEFAULT 31,				    -- Page ID of target links to file preview in View_Mode FORM_VIEW
-    	p_Search_Field_Item VARCHAR2 DEFAULT NULL,			-- Example : P30_SEARCH
-    	p_Search_Column_Name VARCHAR2 DEFAULT NULL,			-- table column name for searching
-    	p_Calc_Totals VARCHAR2 DEFAULT 'NO',				-- YES, NO
-    	p_Nested_Links VARCHAR2 DEFAULT 'NO',				-- YES, NO
-    	p_Source_Query CLOB DEFAULT NULL, 					-- Passed query for from clause
-    	p_Comments VARCHAR2 DEFAULT NULL					-- Comments
+		p_File_Page_ID NUMBER DEFAULT 31,					-- Page ID of target links to file preview in View_Mode FORM_VIEW
+		p_Search_Field_Item VARCHAR2 DEFAULT NULL,			-- Example : P30_SEARCH
+		p_Search_Column_Name VARCHAR2 DEFAULT NULL,			-- table column name for searching
+		p_Calc_Totals VARCHAR2 DEFAULT 'NO',				-- YES, NO
+		p_Nested_Links VARCHAR2 DEFAULT 'NO',				-- YES, NO
+		p_Source_Query CLOB DEFAULT NULL,					-- Passed query for from clause
+		p_Comments VARCHAR2 DEFAULT NULL					-- Comments
 	) RETURN CLOB
 	is
-        v_Table_Name 		MVDATA_BROWSER_VIEWS.VIEW_NAME%TYPE := UPPER(p_Table_Name);
+		v_Table_Name		MVDATA_BROWSER_VIEWS.VIEW_NAME%TYPE := UPPER(p_Table_Name);
 		v_Unique_Key_Column MVDATA_BROWSER_VIEWS.SEARCH_KEY_COLS%TYPE;
 		v_Unique_Key_Expr	VARCHAR2(32767);
-        v_Stat 				CLOB;
-        v_From_Clause		CLOB;
-        v_Str 				VARCHAR2(32767);
-        v_Expression		VARCHAR2(32767);
-        v_Select_Columns	VARCHAR2(32767);
-        v_Parameter_Columns VARCHAR2(32767);
-        v_Parent_Key_Visible VARCHAR2(10);
-        v_Calc_Totals		VARCHAR2(10);
-        v_Nested_Links		VARCHAR2(10);
-        v_Ctrl_Break_Expr	VARCHAR2(32767);
-        v_Ctrl_Break_List	VARCHAR2(32767);
-        v_Ctrl_Break_First	VARCHAR2(1024);
-        v_Control_Break		VARCHAR2(1024);
-        v_Delimiter     	CONSTANT VARCHAR2(50) := ',' || NL(4);
-        v_Delimiter2		VARCHAR2(50);
-    	v_Describe_Cols_md5 VARCHAR2(300);
-    	v_Column_Expr		VARCHAR2(32767);
-        v_is_cached			VARCHAR2(10);
-        v_Count				PLS_INTEGER := 0;
-        v_Links_Count		PLS_INTEGER := 0;
-        v_Link_List_Count	PLS_INTEGER := 0;
-		v_Data_Format 		VARCHAR2(20);
+		v_Stat				CLOB;
+		v_From_Clause		CLOB;
+		v_Str				VARCHAR2(32767);
+		v_Expression		VARCHAR2(32767);
+		v_Select_Columns	VARCHAR2(32767);
+		v_Parameter_Columns VARCHAR2(32767);
+		v_Parent_Key_Visible VARCHAR2(10);
+		v_Calc_Totals		VARCHAR2(10);
+		v_Nested_Links		VARCHAR2(10);
+		v_Ctrl_Break_Expr	VARCHAR2(32767);
+		v_Ctrl_Break_List	VARCHAR2(32767);
+		v_Ctrl_Break_First	VARCHAR2(1024);
+		v_Control_Break		VARCHAR2(1024);
+		v_Delimiter			CONSTANT VARCHAR2(50) := ',' || NL(4);
+		v_Delimiter2		VARCHAR2(50);
+		v_Describe_Cols_md5 VARCHAR2(300);
+		v_Column_Expr		VARCHAR2(32767);
+		v_is_cached			VARCHAR2(10);
+		v_Count				PLS_INTEGER := 0;
+		v_Links_Count		PLS_INTEGER := 0;
+		v_Link_List_Count	PLS_INTEGER := 0;
+		v_Data_Format		VARCHAR2(20);
 		v_Use_Grouping		BOOLEAN;
 	begin
+		$IF data_browser_conf.g_debug $THEN
+			EXECUTE IMMEDIATE Data_Browser_Conf.Dyn_Log_Call_Parameter
+			USING p_Table_Name, p_Unique_Key_Column, p_Data_Columns_Only, p_Columns_Limit, p_Select_Columns, p_Control_Break, p_View_Mode, 
+			p_Edit_Mode, p_Data_Format, p_Data_Source, p_Empty_Row, p_Report_Mode, p_Parent_Name, p_Parent_Key_Column, p_Parent_Key_Visible, 
+			p_Link_Page_Id, p_Link_Parameter, p_Detail_Page_Id, p_Detail_Parameter, p_Form_Page_Id, p_Form_Parameter, p_File_Page_Id, 
+			p_Search_Field_Item, p_Search_Column_Name, p_Calc_Totals, p_Nested_Links, p_Source_Query, p_Comments;
+		$END
 		v_Data_Format := case when p_Data_Source = 'QUERY' then 'QUERY' else p_Data_Format end;
 		v_Calc_Totals := NVL(p_Calc_Totals, 'NO');
 		v_Nested_Links := NVL(p_Nested_Links, 'NO');
@@ -4426,19 +4338,19 @@ $END
 			v_Unique_Key_Column := p_Unique_Key_Column;
 		end if;
 		v_Unique_Key_Expr := data_browser_conf.Get_Link_ID_Expression(p_Unique_Key_Column=> v_Unique_Key_Column, p_Table_Alias=> 'A', p_View_Mode=> p_View_Mode);
-    	v_Describe_Cols_md5 := wwv_flow_item.md5 (v_Table_Name, v_Unique_Key_Column, p_View_Mode, v_Data_Format, 
+		v_Describe_Cols_md5 := wwv_flow_item.md5 (v_Table_Name, v_Unique_Key_Column, p_View_Mode, v_Data_Format, 
 												v_Select_Columns, p_Parent_Name, p_Parent_Key_Column,
-    											p_Link_Page_ID, p_Detail_Page_ID, v_Calc_Totals);
-		v_is_cached	:= case when g_Describe_Cols_md5 != v_Describe_Cols_md5 then 'load' else 'cached!' end;
+												p_Link_Page_ID, p_Detail_Page_ID, v_Calc_Totals);
+		v_is_cached := case when g_Describe_Cols_md5 != v_Describe_Cols_md5 then 'load' else 'cached!' end;
 		if v_is_cached != 'cached!' then
 			OPEN data_browser_select.Describe_Cols_cur (v_Table_Name, v_Unique_Key_Column, p_View_Mode, v_Data_Format, 
 												v_Select_Columns, p_Parent_Name, p_Parent_Key_Column,
-    											p_Link_Page_ID, p_Detail_Page_ID, v_Calc_Totals);
+												p_Link_Page_ID, p_Detail_Page_ID, v_Calc_Totals);
 			FETCH data_browser_select.Describe_Cols_cur BULK COLLECT INTO g_Describe_Cols_tab;
 			CLOSE data_browser_select.Describe_Cols_cur;
 			g_Describe_Cols_md5 := v_Describe_Cols_md5;
 		end if;
-    	dbms_lob.createtemporary(v_Stat, true, dbms_lob.call);
+		dbms_lob.createtemporary(v_Stat, true, dbms_lob.call);
 		if p_Control_Break IS NOT NULL then 
 			if p_Empty_Row = 'NO' then
 				v_Control_Break := FN_Terminate_List(REPLACE(p_Control_Break, ', ', ':'));
@@ -4467,12 +4379,12 @@ $END
 		if v_Ctrl_Break_First IS NULL then 
 			v_Ctrl_Break_First := v_Unique_Key_Expr;
 		end if;
-    	v_Str := 'SELECT ' || CM(p_Comments) || NL(4);
-        FOR ind IN 1 .. g_Describe_Cols_tab.COUNT LOOP
-        	if (p_Data_Source = 'QUERY' or g_Describe_Cols_tab(ind).COLUMN_EXPR_TYPE != 'HIDDEN')	-- hidden (key) columns are excluded from read only views
-        	and FN_Show_Parent_Key(v_Parent_Key_Visible, p_Parent_Name, p_Parent_Key_Column, g_Describe_Cols_tab(ind))
-        	and FN_Show_Row_Selector(p_Data_Format, p_Edit_Mode, p_Report_Mode, p_View_Mode, p_Data_Columns_Only, g_Describe_Cols_tab(ind).COLUMN_NAME)
-        	and FN_Display_In_Report(p_Report_Mode, p_View_Mode, g_Describe_Cols_tab(ind), v_Select_Columns) then
+		v_Str := 'SELECT ' || CM(p_Comments) || NL(4);
+		FOR ind IN 1 .. g_Describe_Cols_tab.COUNT LOOP
+			if (p_Data_Source = 'QUERY' or g_Describe_Cols_tab(ind).COLUMN_EXPR_TYPE != 'HIDDEN')	-- hidden (key) columns are excluded from read only views
+			and FN_Show_Parent_Key(v_Parent_Key_Visible, p_Parent_Name, p_Parent_Key_Column, g_Describe_Cols_tab(ind))
+			and FN_Show_Row_Selector(p_Data_Format, p_Edit_Mode, p_Report_Mode, p_View_Mode, p_Data_Columns_Only, g_Describe_Cols_tab(ind).COLUMN_NAME)
+			and FN_Display_In_Report(p_Report_Mode, p_View_Mode, g_Describe_Cols_tab(ind), v_Select_Columns) then
 				if g_Describe_Cols_tab(ind).COLUMN_EXPR_TYPE != 'HIDDEN' and g_Describe_Cols_tab(ind).COLUMN_ID > 0 then 
 					v_Count := v_Count + 1;
 				end if;
@@ -4484,13 +4396,13 @@ $END
 				and p_Edit_Mode = 'NO' then
 					v_Column_Expr := 'APEX_ESCAPE.HTML(' || v_Column_Expr || ')';	-- bugfix for XSS vulnerability reported by joel.kallman@oracle.com on 11.06.2020
 				end if;
-        	  	-- insert highlight search expression in Search mode
-        	  	if (p_Search_Field_Item IS NOT NULL
-        	  	and p_Data_Source = 'TABLE' or (p_Data_Source = 'QUERY' and g_Describe_Cols_tab(ind).COLUMN_EXPR_TYPE = 'DISPLAY_ONLY'))
-        	  	and g_Describe_Cols_tab(ind).COLUMN_ID > 0 
+				-- insert highlight search expression in Search mode
+				if (p_Search_Field_Item IS NOT NULL
+				and p_Data_Source = 'TABLE' or (p_Data_Source = 'QUERY' and g_Describe_Cols_tab(ind).COLUMN_EXPR_TYPE = 'DISPLAY_ONLY'))
+				and g_Describe_Cols_tab(ind).COLUMN_ID > 0 
 				and (g_Describe_Cols_tab(ind).COLUMN_NAME LIKE p_Search_Column_Name OR p_Search_Column_Name IS NULL) then 
-        	  		v_Column_Expr := data_browser_select.Highlight_Search_Expr (
-        	  			p_Data_Format => p_Data_Format,
+					v_Column_Expr := data_browser_select.Highlight_Search_Expr (
+						p_Data_Format => p_Data_Format,
 						p_Column_Expr => v_Column_Expr,
 						p_Column_Expr_Type => g_Describe_Cols_tab(ind).COLUMN_EXPR_TYPE,
 						p_Is_Searchable_Ref => g_Describe_Cols_tab(ind).IS_SEARCHABLE_REF,
@@ -4513,8 +4425,8 @@ $END
 					end if;
 				end if;
 				v_Expression := case 
-				    when g_Describe_Cols_tab(ind).COLUMN_NAME = 'CONTROL_BREAK$'
-				    	then NVL(v_Ctrl_Break_Expr, data_browser_conf.Enquote_Literal('.'))
+					when g_Describe_Cols_tab(ind).COLUMN_NAME = 'CONTROL_BREAK$'
+						then NVL(v_Ctrl_Break_Expr, data_browser_conf.Enquote_Literal('.'))
 					when p_Empty_Row = 'YES'
 						then 'NULL' -- Source is NULL for empty rows and the ROW_SELECTOR column
 					when g_Describe_Cols_tab(ind).COLUMN_EXPR_TYPE = 'LINK_ID' then 
@@ -4544,7 +4456,7 @@ $END
 													|| ' data-key-column=' || dbms_assert.enquote_name(g_Describe_Cols_tab(ind).R_COLUMN_NAME)
 													|| ' data-key-value="')
 												|| '||'
-												|| 'A.' || g_Describe_Cols_tab(ind).REF_COLUMN_NAME  -- LINK_ID
+												|| 'A.' || g_Describe_Cols_tab(ind).REF_COLUMN_NAME	 -- LINK_ID
 												|| '||'
 												|| dbms_assert.enquote_literal('"'),
 								p_Is_Total => case when v_Use_Grouping then 'GROUPING(' || v_Ctrl_Break_First || ')' end,
@@ -4554,7 +4466,7 @@ $END
 							data_browser_select.Navigation_Counter_HTML(
 								p_Data_Format => v_Data_Format,
 								p_CounterQuery => g_Describe_Cols_tab(ind).LOV_QUERY,
-								p_Target => 'PAR.TARGET2||'	-- passed Item names from p_Link_Parameter
+								p_Target => 'PAR.TARGET2||' -- passed Item names from p_Link_Parameter
 											|| dbms_assert.enquote_literal(
 											   ':' || g_Describe_Cols_tab(ind).REF_VIEW_NAME || ','		-- TABLE_NAME
 												|| p_Parent_Name || ','									-- PARENT_NAME
@@ -4564,7 +4476,7 @@ $END
 											|| '||'
 											|| dbms_assert.enquote_literal(
 												','
-												|| g_Describe_Cols_tab(ind).R_VIEW_NAME || ',' 		-- DETAIL_TABLE
+												|| g_Describe_Cols_tab(ind).R_VIEW_NAME || ','		-- DETAIL_TABLE
 												|| g_Describe_Cols_tab(ind).R_COLUMN_NAME			-- DETAIL_KEY
 											),
 								p_Link_Page_ID => p_Link_Page_ID,
@@ -4581,17 +4493,17 @@ $END
 							p_Is_Total => 'GROUPING(' || v_Ctrl_Break_First || ')',
 							p_Is_Subtotal => 'GROUPING(' || v_Unique_Key_Expr || ')'
 						)
-				    when p_Data_Source = 'QUERY' then 
-				    	case when data_browser_select.FN_Apex_Item_Use_Column(g_Describe_Cols_tab(ind).COLUMN_EXPR_TYPE) = 'YES'
-				    		then data_browser_conf.Get_Link_ID_Expression(
+					when p_Data_Source = 'QUERY' then 
+						case when data_browser_select.FN_Apex_Item_Use_Column(g_Describe_Cols_tab(ind).COLUMN_EXPR_TYPE) = 'YES'
+							then data_browser_conf.Get_Link_ID_Expression(
 								p_Unique_Key_Column=> g_Describe_Cols_tab(ind).REF_COLUMN_NAME, 
 								p_Table_Alias=> g_Describe_Cols_tab(ind).TABLE_ALIAS, 
 								p_View_Mode=> p_View_Mode)
-				    	else
-				    		v_Column_Expr
-				    	end
-				    when g_Describe_Cols_tab(ind).COLUMN_EXPR_TYPE = 'ROW_SELECTOR'
-				    	then data_browser_select.Get_Row_Selector_Expr(
+						else
+							v_Column_Expr
+						end
+					when g_Describe_Cols_tab(ind).COLUMN_EXPR_TYPE = 'ROW_SELECTOR'
+						then data_browser_select.Get_Row_Selector_Expr(
 								p_Data_Format => p_Data_Format, 
 								p_Column_Expr => v_Column_Expr, 
 								p_Column_Name => g_Describe_Cols_tab(ind).COLUMN_NAME
@@ -4636,10 +4548,10 @@ $END
 				v_Delimiter2 := v_Delimiter;
 				EXIT WHEN v_Count >= p_Columns_Limit;
 			end if;
-        END LOOP;
-        if v_Delimiter2 IS NULL then
-        	v_Str := v_Str || ' NULL';
-        end if;
+		END LOOP;
+		if v_Delimiter2 IS NULL then
+			v_Str := v_Str || ' NULL';
+		end if;
 		if length(v_Str) > 0 then
 			dbms_lob.writeappend(v_Stat, length(v_Str), v_Str);
 			v_Str := NULL;
@@ -4665,13 +4577,13 @@ $END
 		dbms_lob.append(v_Stat, v_From_Clause);
 
 		$IF data_browser_conf.g_debug $THEN
-    		v_Str := apex_string.format (
- 				p_message => 'data_browser_select.Get_Form_View_Query (p_Table_name=> %s, p_Unique_Key_Column=> %s, p_Data_Columns_Only=> %s, p_Columns_Limit=> %s, '
- 							|| chr(10) || 'p_Select_Columns=> %s, p_Control_Break=> %s, p_View_Mode=>%s, p_Edit_Mode=>%s, p_Empty_Row=>%s, p_Report_Mode=>%s, '
- 						  	|| chr(10) || 'p_Parent_Name=>%s, p_Parent_Key_Column=>%s, p_Parent_Key_Visible=>%s, '
- 						  	|| chr(10) || 'p_Link_Page_ID=>%s, p_Link_Parameter=> %s, p_Detail_Page_ID=>%s, p_Detail_Parameter=>%s, '
- 						  	|| chr(10) || 'p_Source_Query=>%s) -- %s '
- 						  	|| chr(10) || '  %s',
+			/*v_Str := apex_string.format (
+				p_message => 'data_browser_select.Get_Form_View_Query (p_Table_name=> %s, p_Unique_Key_Column=> %s, p_Data_Columns_Only=> %s, p_Columns_Limit=> %s, '
+							|| chr(10) || 'p_Select_Columns=> %s, p_Control_Break=> %s, p_View_Mode=>%s, p_Edit_Mode=>%s, p_Empty_Row=>%s, p_Report_Mode=>%s, '
+							|| chr(10) || 'p_Parent_Name=>%s, p_Parent_Key_Column=>%s, p_Parent_Key_Visible=>%s, '
+							|| chr(10) || 'p_Link_Page_ID=>%s, p_Link_Parameter=> %s, p_Detail_Page_ID=>%s, p_Detail_Parameter=>%s, '
+							|| chr(10) || 'p_Source_Query=>%s) -- %s '
+							|| chr(10) || '	 %s',
 				p0 => DBMS_ASSERT.ENQUOTE_LITERAL(p_Table_name),
 				p1 => DBMS_ASSERT.ENQUOTE_LITERAL(v_Unique_Key_Column),
 				p2 => DBMS_ASSERT.ENQUOTE_LITERAL(p_Data_Columns_Only),
@@ -4695,15 +4607,15 @@ $END
 				p18 => v_is_cached,
 				p19 => v_Stat,
 				p_max_length => 3500
-			);
+			);*/
 
-			apex_debug.info(v_Str, p_max_length => 3500);
+			apex_debug.info(v_Stat, p_max_length => 3500);
 		$END
 		return v_Stat;
 $IF data_browser_conf.g_use_exceptions $THEN
 	exception
 	  when others then
-	    if data_browser_select.Describe_Cols_cur%ISOPEN then
+		if data_browser_select.Describe_Cols_cur%ISOPEN then
 			CLOSE data_browser_select.Describe_Cols_cur;
 		end if;
 		raise;
@@ -4711,22 +4623,22 @@ $END
 	end Get_Form_View_Query;
 
 
-    FUNCTION Get_Query_From_Clause (
-    	p_Table_Name VARCHAR2,
-    	p_Unique_Key_Column VARCHAR2 DEFAULT NULL,			-- Unique Key Column or NULL. Used to build a Link_ID_Expression
-		p_View_Mode IN VARCHAR2 DEFAULT 'FORM_VIEW', 		-- FORM_VIEW, RECORD_VIEW, NAVIGATION_VIEW, NESTED_VIEW, HISTORY
-		p_Empty_Row VARCHAR2  DEFAULT 'NO', 				-- YES, NO
-    	p_Source_Query CLOB DEFAULT NULL, 					-- Passed query for from clause
-    	p_Parameter_Columns VARCHAR2 DEFAULT NULL,
-    	p_Join_Options VARCHAR2 DEFAULT NULL,
-    	p_Data_Source VARCHAR2 DEFAULT 'TABLE', 			-- TABLE, NEW_ROWS, COLLECTION, QUERY
-    	p_As_Of_Timestamp VARCHAR2 DEFAULT 'NO',
-    	p_Map_Column_List VARCHAR2 DEFAULT NULL
-    ) RETURN CLOB
-    IS
-        v_Table_Name 	MVDATA_BROWSER_VIEWS.VIEW_NAME%TYPE := UPPER(p_Table_Name);
-		v_Unique_Key_Column  MVDATA_BROWSER_VIEWS.SEARCH_KEY_COLS%TYPE;
-    BEGIN
+	FUNCTION Get_Query_From_Clause (
+		p_Table_Name VARCHAR2,
+		p_Unique_Key_Column VARCHAR2 DEFAULT NULL,			-- Unique Key Column or NULL. Used to build a Link_ID_Expression
+		p_View_Mode IN VARCHAR2 DEFAULT 'FORM_VIEW',		-- FORM_VIEW, RECORD_VIEW, NAVIGATION_VIEW, NESTED_VIEW, HISTORY
+		p_Empty_Row VARCHAR2  DEFAULT 'NO',					-- YES, NO
+		p_Source_Query CLOB DEFAULT NULL,					-- Passed query for from clause
+		p_Parameter_Columns VARCHAR2 DEFAULT NULL,
+		p_Join_Options VARCHAR2 DEFAULT NULL,
+		p_Data_Source VARCHAR2 DEFAULT 'TABLE',				-- TABLE, NEW_ROWS, COLLECTION, QUERY
+		p_As_Of_Timestamp VARCHAR2 DEFAULT 'NO',
+		p_Map_Column_List VARCHAR2 DEFAULT NULL
+	) RETURN CLOB
+	IS
+		v_Table_Name	MVDATA_BROWSER_VIEWS.VIEW_NAME%TYPE := UPPER(p_Table_Name);
+		v_Unique_Key_Column	 MVDATA_BROWSER_VIEWS.SEARCH_KEY_COLS%TYPE;
+	BEGIN
 		if p_Unique_Key_Column IS NULL then
 			SELECT SEARCH_KEY_COLS
 			INTO v_Unique_Key_Column
@@ -4753,67 +4665,67 @@ $END
 				p_Parameter_Columns => p_Parameter_Columns
 			);
 		end if;
-    END Get_Query_From_Clause;
+	END Get_Query_From_Clause;
 
 	FUNCTION Get_Form_View_Column_List (	-- internal
-    	p_Table_Name VARCHAR2,								-- Table Name or View Name of master table
-    	p_Unique_Key_Column VARCHAR2 DEFAULT NULL,			-- Unique Key Column or NULL. Used to build a Link_ID_Expression
-    	p_Delimiter VARCHAR2 DEFAULT ', ',
-    	p_Data_Columns_Only VARCHAR2 DEFAULT 'NO',
-    	p_Select_Columns VARCHAR2 DEFAULT NULL,
-    	p_Columns_Limit INTEGER DEFAULT 1000,
-    	p_Format VARCHAR2 DEFAULT 'NAMES', 					-- NAMES, HEADER, ALIGN, ITEM_HELP
-		p_View_Mode IN VARCHAR2 DEFAULT 'FORM_VIEW', 		-- FORM_VIEW, RECORD_VIEW, NAVIGATION_VIEW, NESTED_VIEW, HISTORY
-		p_Edit_Mode VARCHAR2 DEFAULT 'NO', 					-- YES, NO
-		p_Report_Mode VARCHAR2 DEFAULT 'NO', 				-- YES, NO
- 		p_Enable_Sort VARCHAR2 DEFAULT 'NO', 				-- YES, NO
-    	p_Order_by VARCHAR2 DEFAULT NULL,					-- Example : 'LAST_NAME, FIRST_NAME'
-    	p_Order_Direction VARCHAR2 DEFAULT 'ASC',			-- Example : 'ASC' or 'ASC NULLS LAST' or 'DESC' or 'DESC NULLS LAST'
-	   	p_Parent_Name VARCHAR2 DEFAULT NULL,				-- Parent View or Table name. In View_Mode NAVIGATION_VIEW if set columns from the view are included in the Column list
-    	p_Parent_Key_Column VARCHAR2 DEFAULT NULL,			-- Column Name with foreign key to Parent Table
-    	p_Parent_Key_Visible VARCHAR2 DEFAULT 'NO',			-- YES, NO, NULLABLE. Show foreign key column in View_Mode FORM_VIEW
-    	p_Link_Page_ID NUMBER DEFAULT V('APP_PAGE_ID'),	    -- Page ID of target links in View_Mode NAVIGATION_VIEW
+		p_Table_Name VARCHAR2,								-- Table Name or View Name of master table
+		p_Unique_Key_Column VARCHAR2 DEFAULT NULL,			-- Unique Key Column or NULL. Used to build a Link_ID_Expression
+		p_Delimiter VARCHAR2 DEFAULT ', ',
+		p_Data_Columns_Only VARCHAR2 DEFAULT 'NO',
+		p_Select_Columns VARCHAR2 DEFAULT NULL,
+		p_Columns_Limit INTEGER DEFAULT 1000,
+		p_Format VARCHAR2 DEFAULT 'NAMES',					-- NAMES, HEADER, ALIGN, ITEM_HELP
+		p_View_Mode IN VARCHAR2 DEFAULT 'FORM_VIEW',		-- FORM_VIEW, RECORD_VIEW, NAVIGATION_VIEW, NESTED_VIEW, HISTORY
+		p_Edit_Mode VARCHAR2 DEFAULT 'NO',					-- YES, NO
+		p_Report_Mode VARCHAR2 DEFAULT 'NO',				-- YES, NO
+		p_Enable_Sort VARCHAR2 DEFAULT 'NO',				-- YES, NO
+		p_Order_by VARCHAR2 DEFAULT NULL,					-- Example : 'LAST_NAME, FIRST_NAME'
+		p_Order_Direction VARCHAR2 DEFAULT 'ASC',			-- Example : 'ASC' or 'ASC NULLS LAST' or 'DESC' or 'DESC NULLS LAST'
+		p_Parent_Name VARCHAR2 DEFAULT NULL,				-- Parent View or Table name. In View_Mode NAVIGATION_VIEW if set columns from the view are included in the Column list
+		p_Parent_Key_Column VARCHAR2 DEFAULT NULL,			-- Column Name with foreign key to Parent Table
+		p_Parent_Key_Visible VARCHAR2 DEFAULT 'NO',			-- YES, NO, NULLABLE. Show foreign key column in View_Mode FORM_VIEW
+		p_Link_Page_ID NUMBER DEFAULT V('APP_PAGE_ID'),		-- Page ID of target links in View_Mode NAVIGATION_VIEW
 		p_Link_Parameter VARCHAR2 DEFAULT NULL,				-- Parameter of target links in View_Mode NAVIGATION_VIEW
-    	p_Detail_Page_ID NUMBER DEFAULT 32,					-- Page ID of target links in View_Mode NAVIGATION_VIEW, NESTED_VIEW
+		p_Detail_Page_ID NUMBER DEFAULT 32,					-- Page ID of target links in View_Mode NAVIGATION_VIEW, NESTED_VIEW
 		p_Detail_Parameter VARCHAR2 DEFAULT NULL,			-- Parameter of target links in View_Mode NAVIGATION_VIEW, NESTED_VIEW
-    	p_File_Page_ID NUMBER DEFAULT 31				    -- Page ID of target links to file preview in View_Mode FORM_VIEW
-    ) RETURN CLOB
-    IS
-        v_Table_Name 		MVDATA_BROWSER_VIEWS.VIEW_NAME%TYPE := UPPER(p_Table_Name);
-        v_Stat 				CLOB;
-    	v_Str	 			VARCHAR2(32767);
-    	v_Describe_Cols_md5 VARCHAR2(300);
-        v_Calc_Totals		VARCHAR2(10) := 'NO';
-        v_Nested_Links		VARCHAR2(10) := 'NO';
-        v_is_cached			VARCHAR2(10);
-        v_Delimiter			VARCHAR2(10);
-        v_Count				PLS_INTEGER := 0;
+		p_File_Page_ID NUMBER DEFAULT 31					-- Page ID of target links to file preview in View_Mode FORM_VIEW
+	) RETURN CLOB
+	IS
+		v_Table_Name		MVDATA_BROWSER_VIEWS.VIEW_NAME%TYPE := UPPER(p_Table_Name);
+		v_Stat				CLOB;
+		v_Str				VARCHAR2(32767);
+		v_Describe_Cols_md5 VARCHAR2(300);
+		v_Calc_Totals		VARCHAR2(10) := 'NO';
+		v_Nested_Links		VARCHAR2(10) := 'NO';
+		v_is_cached			VARCHAR2(10);
+		v_Delimiter			VARCHAR2(10);
+		v_Count				PLS_INTEGER := 0;
 		v_Data_Format		CONSTANT VARCHAR2(50) := data_browser_select.FN_Current_Data_Format;
-        v_Select_Columns	VARCHAR2(32767);
-        v_Parent_Key_Visible VARCHAR2(10);
-    BEGIN
+		v_Select_Columns	VARCHAR2(32767);
+		v_Parent_Key_Visible VARCHAR2(10);
+	BEGIN
 		v_Select_Columns := FN_Terminate_List(p_Select_Columns);
 		v_Parent_Key_Visible := FN_Parent_Key_Visible (p_Parent_Key_Visible, p_Edit_Mode, p_View_Mode, v_Data_Format, p_Select_Columns);
-    	v_Describe_Cols_md5 := wwv_flow_item.md5 (v_Table_Name, p_Unique_Key_Column, p_View_Mode, v_Data_Format, 
+		v_Describe_Cols_md5 := wwv_flow_item.md5 (v_Table_Name, p_Unique_Key_Column, p_View_Mode, v_Data_Format, 
 												v_Select_Columns, p_Parent_Name, p_Parent_Key_Column,
-    											p_Link_Page_ID, p_Detail_Page_ID, v_Calc_Totals);
-		v_is_cached	:= case when g_Describe_Cols_md5 != v_Describe_Cols_md5 then 'load' else 'cached!' end;
+												p_Link_Page_ID, p_Detail_Page_ID, v_Calc_Totals);
+		v_is_cached := case when g_Describe_Cols_md5 != v_Describe_Cols_md5 then 'load' else 'cached!' end;
 		if v_is_cached != 'cached!' then
 			OPEN data_browser_select.Describe_Cols_cur (v_Table_Name, p_Unique_Key_Column, p_View_Mode, v_Data_Format, 
 												v_Select_Columns, p_Parent_Name, p_Parent_Key_Column,
-    											p_Link_Page_ID, p_Detail_Page_ID, v_Calc_Totals);
+												p_Link_Page_ID, p_Detail_Page_ID, v_Calc_Totals);
 			FETCH data_browser_select.Describe_Cols_cur BULK COLLECT INTO g_Describe_Cols_tab;
 			CLOSE data_browser_select.Describe_Cols_cur;
 			g_Describe_Cols_md5 := v_Describe_Cols_md5;
 		end if;
-    	dbms_lob.createtemporary(v_Stat, true, dbms_lob.call);
-        FOR ind IN 1 .. g_Describe_Cols_tab.COUNT LOOP
-        	if (p_Edit_Mode = 'YES' 		-- if Edit single record or not hidden
-        	  and p_Report_Mode = 'NO'  	-- in Edit single record mode, hidden (key) columns have no header
-        	  or g_Describe_Cols_tab(ind).COLUMN_EXPR_TYPE != 'HIDDEN')
-        	and FN_Show_Parent_Key(v_Parent_Key_Visible, p_Parent_Name, p_Parent_Key_Column, g_Describe_Cols_tab(ind))
-        	and FN_Show_Row_Selector(v_Data_Format, p_Edit_Mode, p_Report_Mode, p_View_Mode, p_Data_Columns_Only, g_Describe_Cols_tab(ind).COLUMN_NAME)
-        	and FN_Display_In_Report(p_Report_Mode, p_View_Mode, g_Describe_Cols_tab(ind), v_Select_Columns) then
+		dbms_lob.createtemporary(v_Stat, true, dbms_lob.call);
+		FOR ind IN 1 .. g_Describe_Cols_tab.COUNT LOOP
+			if (p_Edit_Mode = 'YES'			-- if Edit single record or not hidden
+			  and p_Report_Mode = 'NO'		-- in Edit single record mode, hidden (key) columns have no header
+			  or g_Describe_Cols_tab(ind).COLUMN_EXPR_TYPE != 'HIDDEN')
+			and FN_Show_Parent_Key(v_Parent_Key_Visible, p_Parent_Name, p_Parent_Key_Column, g_Describe_Cols_tab(ind))
+			and FN_Show_Row_Selector(v_Data_Format, p_Edit_Mode, p_Report_Mode, p_View_Mode, p_Data_Columns_Only, g_Describe_Cols_tab(ind).COLUMN_NAME)
+			and FN_Display_In_Report(p_Report_Mode, p_View_Mode, g_Describe_Cols_tab(ind), v_Select_Columns) then
 				if g_Describe_Cols_tab(ind).COLUMN_EXPR_TYPE != 'HIDDEN' and g_Describe_Cols_tab(ind).COLUMN_ID > 0 then 
 					v_Count := v_Count + 1;
 				end if;
@@ -4866,42 +4778,26 @@ $END
 				end if;
 				v_Delimiter := p_Delimiter;
 				EXIT WHEN v_Count >= p_Columns_Limit;
-            end if;
-        END LOOP;
-        if v_Str IS NOT NULL then
+			end if;
+		END LOOP;
+		if v_Str IS NOT NULL then
 			dbms_lob.writeappend(v_Stat, length(v_Str), v_Str);
 		end if;
 		$IF data_browser_conf.g_debug $THEN
-			apex_debug.message(
-				p_message => 'data_browser_select.Get_Form_View_Column_List (p_Table_name=> %s, p_Unique_Key_Column=> %s, p_Data_Columns_Only=> %s, ' || chr(10)
-				|| 'p_Columns_Limit=> %s, p_Select_Columns=> %s, p_View_Mode=>%s, p_Edit_Mode=>%s, p_Report_Mode=>%s, p_Enable_Sort=>%s, p_Order_by=>%s, p_Order_Direction=>%s,' || chr(10)
-				|| 'p_Parent_Name=>%s, p_Parent_Key_Column=>%s, p_Parent_Key_Visible=>%s, p_Link_Page_ID=>%s, p_File_Page_ID=>%s) -- %s ' || chr(10) || '  %s',
-				p0 => DBMS_ASSERT.ENQUOTE_LITERAL(p_Table_name),
-				p1 => DBMS_ASSERT.ENQUOTE_LITERAL(p_Unique_Key_Column),
-				p2 => DBMS_ASSERT.ENQUOTE_LITERAL(p_Data_Columns_Only),
-				p3 => p_Columns_Limit,
-				p4 => DBMS_ASSERT.ENQUOTE_LITERAL(p_Select_Columns),
-				p5 => DBMS_ASSERT.ENQUOTE_LITERAL(p_View_Mode),
-				p6 => DBMS_ASSERT.ENQUOTE_LITERAL(p_Edit_Mode),
-				p7 => DBMS_ASSERT.ENQUOTE_LITERAL(p_Report_Mode),
-				p8 => DBMS_ASSERT.ENQUOTE_LITERAL(p_Enable_Sort),
-				p9 => DBMS_ASSERT.ENQUOTE_LITERAL(p_Order_by),
-				p10 => DBMS_ASSERT.ENQUOTE_LITERAL(p_Order_Direction),
-				p11 => DBMS_ASSERT.ENQUOTE_LITERAL(p_Parent_Name),
-				p12 => DBMS_ASSERT.ENQUOTE_LITERAL(p_Parent_Key_Column),
-				p13 => DBMS_ASSERT.ENQUOTE_LITERAL(p_Parent_Key_Visible),
-				p14 => p_Link_Page_ID,
-				p15 => p_File_Page_ID,
-				p16 => v_is_cached,
-				p17 => v_Stat,
-				p_max_length => 3500
-			);
+			EXECUTE IMMEDIATE data_browser_conf.Dyn_Log_Call_Parameter 
+			USING p_Table_name,p_Unique_Key_Column,p_Delimiter,p_Data_Columns_Only,p_Select_Columns,p_Columns_Limit,
+				p_Format,p_View_Mode,p_Edit_Mode,p_Report_Mode,p_Enable_Sort,p_Order_by,p_Order_Direction,
+				p_Parent_Name,p_Parent_Key_Column,p_Parent_Key_Visible,p_Link_Page_ID,p_Link_Parameter,
+				p_Detail_Page_ID,p_Detail_Parameter,p_File_Page_ID;
+				
+			apex_debug.message(p_message => v_is_cached, p_max_length => 3500);
+			apex_debug.message(p_message => v_Stat, p_max_length => 3500);
 		$END
 		RETURN v_Stat;
 $IF data_browser_conf.g_use_exceptions $THEN
 	exception
 	  when others then
-	    if data_browser_select.Describe_Cols_cur%ISOPEN then
+		if data_browser_select.Describe_Cols_cur%ISOPEN then
 			CLOSE data_browser_select.Describe_Cols_cur;
 		end if;
 		raise;
@@ -4909,48 +4805,48 @@ $END
 	END Get_Form_View_Column_List;
 
 	FUNCTION Get_View_Column_Cursor (	-- internal
-    	p_Table_Name VARCHAR2,								-- Table Name or View Name
-    	p_Unique_Key_Column VARCHAR2 DEFAULT NULL,
+		p_Table_Name VARCHAR2,								-- Table Name or View Name
+		p_Unique_Key_Column VARCHAR2 DEFAULT NULL,
 		p_Columns_Limit IN NUMBER DEFAULT 1000,
-    	p_Data_Columns_Only VARCHAR2 DEFAULT 'NO',
-    	p_Select_Columns VARCHAR2 DEFAULT NULL,
-    	p_Join_Options VARCHAR2 DEFAULT NULL,
-		p_View_Mode IN VARCHAR2 DEFAULT 'FORM_VIEW', 		-- FORM_VIEW, RECORD_VIEW, NAVIGATION_VIEW, NESTED_VIEW, IMPORT_VIEW, EXPORT_VIEW
-		p_Edit_Mode VARCHAR2 DEFAULT 'NO', 					-- YES, NO
-    	p_Data_Format VARCHAR2 DEFAULT FN_Current_Data_Format,	-- FORM, HTML, CSV, NATIVE. Format of the final projection columns.
-		p_Report_Mode VARCHAR2 DEFAULT 'NO', 				-- YES, NO, ALL, If YES, none standard columns are excluded from the generated column list
-    	p_Parent_Name VARCHAR2 DEFAULT NULL,                -- Parent View or Table name. In View_Mode NAVIGATION_VIEW if set columns from the view are included in the Column list
-    	p_Parent_Key_Column VARCHAR2 DEFAULT NULL,			-- Column Name with foreign key to Parent Table
-    	p_Parent_Key_Visible VARCHAR2 DEFAULT 'NO',			-- YES, NO, NULLABLE. Show foreign key column in View_Mode FORM_VIEW
-    	p_Link_Page_ID NUMBER DEFAULT V('APP_PAGE_ID'),     -- Page ID of target links in View_Mode NAVIGATION_VIEW
+		p_Data_Columns_Only VARCHAR2 DEFAULT 'NO',
+		p_Select_Columns VARCHAR2 DEFAULT NULL,
+		p_Join_Options VARCHAR2 DEFAULT NULL,
+		p_View_Mode IN VARCHAR2 DEFAULT 'FORM_VIEW',		-- FORM_VIEW, RECORD_VIEW, NAVIGATION_VIEW, NESTED_VIEW, IMPORT_VIEW, EXPORT_VIEW
+		p_Edit_Mode VARCHAR2 DEFAULT 'NO',					-- YES, NO
+		p_Data_Format VARCHAR2 DEFAULT FN_Current_Data_Format,	-- FORM, HTML, CSV, NATIVE. Format of the final projection columns.
+		p_Report_Mode VARCHAR2 DEFAULT 'NO',				-- YES, NO, ALL, If YES, none standard columns are excluded from the generated column list
+		p_Parent_Name VARCHAR2 DEFAULT NULL,				-- Parent View or Table name. In View_Mode NAVIGATION_VIEW if set columns from the view are included in the Column list
+		p_Parent_Key_Column VARCHAR2 DEFAULT NULL,			-- Column Name with foreign key to Parent Table
+		p_Parent_Key_Visible VARCHAR2 DEFAULT 'NO',			-- YES, NO, NULLABLE. Show foreign key column in View_Mode FORM_VIEW
+		p_Link_Page_ID NUMBER DEFAULT V('APP_PAGE_ID'),		-- Page ID of target links in View_Mode NAVIGATION_VIEW
 		p_Link_Parameter VARCHAR2 DEFAULT NULL,				-- Parameter of target links in View_Mode NAVIGATION_VIEW
-    	p_Detail_Page_ID NUMBER DEFAULT 32,					-- Page ID of target links in View_Mode NAVIGATION_VIEW, NESTED_VIEW
+		p_Detail_Page_ID NUMBER DEFAULT 32,					-- Page ID of target links in View_Mode NAVIGATION_VIEW, NESTED_VIEW
 		p_Detail_Parameter VARCHAR2 DEFAULT NULL,			-- Parameter of target links in View_Mode NAVIGATION_VIEW, NESTED_VIEW
-    	p_File_Page_ID NUMBER DEFAULT 31				    -- Page ID of target links to file preview in View_Mode FORM_VIEW
+		p_File_Page_ID NUMBER DEFAULT 31					-- Page ID of target links to file preview in View_Mode FORM_VIEW
 	) RETURN data_browser_conf.tab_record_view PIPELINED
-    IS
+	IS
 	PRAGMA UDF;
-        v_Table_Name 	MVDATA_BROWSER_VIEWS.VIEW_NAME%TYPE := UPPER(p_Table_Name);
-    	v_Describe_Cols_md5 VARCHAR2(300);
-        v_is_cached			VARCHAR2(10);
-        v_Count				PLS_INTEGER := 0;
-        v_Map_Count			PLS_INTEGER := 0;
-        v_Select_Columns	VARCHAR2(32767);
-        v_Parent_Key_Visible VARCHAR2(10);
-        v_Calc_Totals	VARCHAR2(10) := 'NO';
-        v_Nested_Links		VARCHAR2(10) := 'NO';
-    BEGIN
+		v_Table_Name	MVDATA_BROWSER_VIEWS.VIEW_NAME%TYPE := UPPER(p_Table_Name);
+		v_Describe_Cols_md5 VARCHAR2(300);
+		v_is_cached			VARCHAR2(10);
+		v_Count				PLS_INTEGER := 0;
+		v_Map_Count			PLS_INTEGER := 0;
+		v_Select_Columns	VARCHAR2(32767);
+		v_Parent_Key_Visible VARCHAR2(10);
+		v_Calc_Totals	VARCHAR2(10) := 'NO';
+		v_Nested_Links		VARCHAR2(10) := 'NO';
+	BEGIN
 		v_Select_Columns := FN_Terminate_List(p_Select_Columns);
 		v_Parent_Key_Visible := FN_Parent_Key_Visible (p_Parent_Key_Visible, p_Edit_Mode, p_View_Mode, p_Data_Format, p_Select_Columns);
 		if p_View_Mode IN ('FORM_VIEW', 'HISTORY', 'RECORD_VIEW', 'NAVIGATION_VIEW', 'NESTED_VIEW') then
 			v_Describe_Cols_md5 := wwv_flow_item.md5 (v_Table_Name, p_Unique_Key_Column, p_View_Mode, p_Data_Format, 
 												v_Select_Columns, p_Parent_Name, p_Parent_Key_Column,
-    											p_Link_Page_ID, p_Detail_Page_ID, v_Calc_Totals);
-			v_is_cached	:= case when g_Describe_Cols_md5 != v_Describe_Cols_md5 then 'load' else 'cached!' end;
+												p_Link_Page_ID, p_Detail_Page_ID, v_Calc_Totals);
+			v_is_cached := case when g_Describe_Cols_md5 != v_Describe_Cols_md5 then 'load' else 'cached!' end;
 			if v_is_cached != 'cached!' then
 				OPEN data_browser_select.Describe_Cols_cur (v_Table_Name, p_Unique_Key_Column, p_View_Mode, p_Data_Format, 
 												v_Select_Columns, p_Parent_Name, p_Parent_Key_Column,
-    											p_Link_Page_ID, p_Detail_Page_ID, v_Calc_Totals);
+												p_Link_Page_ID, p_Detail_Page_ID, v_Calc_Totals);
 				FETCH data_browser_select.Describe_Cols_cur BULK COLLECT INTO g_Describe_Cols_tab;
 				CLOSE data_browser_select.Describe_Cols_cur;
 				g_Describe_Cols_md5 := v_Describe_Cols_md5;
@@ -4958,7 +4854,7 @@ $END
 			FOR ind IN 1 .. g_Describe_Cols_tab.COUNT
 			LOOP
 				if (p_Edit_Mode = 'YES' or g_Describe_Cols_tab(ind).COLUMN_EXPR_TYPE != 'HIDDEN')	-- in Edit mode hidden (key) columns are included
-	        	and FN_Show_Parent_Key(v_Parent_Key_Visible, p_Parent_Name, p_Parent_Key_Column, g_Describe_Cols_tab(ind))
+				and FN_Show_Parent_Key(v_Parent_Key_Visible, p_Parent_Name, p_Parent_Key_Column, g_Describe_Cols_tab(ind))
 				and FN_Show_Row_Selector(p_Data_Format, p_Edit_Mode, p_Report_Mode, p_View_Mode, p_Data_Columns_Only, g_Describe_Cols_tab(ind).COLUMN_NAME)
 				and FN_Display_In_Report(p_Report_Mode, p_View_Mode, g_Describe_Cols_tab(ind), v_Select_Columns) 
 				then
@@ -4972,9 +4868,9 @@ $END
 		elsif p_View_Mode IN ('IMPORT_VIEW', 'EXPORT_VIEW') then
 			v_Describe_Cols_md5 := wwv_flow_item.md5 (v_Table_Name, p_Unique_Key_Column, p_View_Mode, p_Data_Format,  
 													v_Select_Columns, p_Parent_Name, p_Parent_Key_Column, v_Parent_Key_Visible, p_Join_Options);
-			v_is_cached	:= case when g_Describe_Cols_md5 != v_Describe_Cols_md5 then 'load' else 'cached!' end;
+			v_is_cached := case when g_Describe_Cols_md5 != v_Describe_Cols_md5 then 'load' else 'cached!' end;
 			if v_is_cached != 'cached!' then
-				OPEN data_browser_select.Describe_Imp_Cols_cur (v_Table_Name, p_Unique_Key_Column, p_View_Mode, p_Data_Format,  
+				OPEN data_browser_select.Describe_Imp_Cols_cur (v_Table_Name, p_Unique_Key_Column, p_View_Mode, p_Data_Format,	
 																v_Select_Columns, p_Parent_Name, p_Parent_Key_Column, v_Parent_Key_Visible, p_Join_Options);
 				FETCH data_browser_select.Describe_Imp_Cols_cur BULK COLLECT INTO g_Describe_Cols_tab;
 				CLOSE data_browser_select.Describe_Imp_Cols_cur;
@@ -5000,35 +4896,20 @@ $END
 			return;
 		end if;
 		$IF data_browser_conf.g_debug $THEN
-			apex_debug.message(
-				p_message => 'data_browser_select.Get_View_Column_Cursor (p_Table_name=> %s, p_Unique_Key_Column=> %s, p_Columns_Limit=> %s, p_Data_Columns_Only=> %s' || chr(10)
-				|| ', p_Select_Columns=> %s, p_Join_Options=>%s, p_View_Mode=>%s, p_Edit_Mode=>%s, p_Data_Format=>%s, p_Report_Mode=>%s' || chr(10)
-				|| ', p_Parent_Name=>%s, p_Parent_Key_Column=>%s, p_Parent_Key_Visible=>%s) -- %s',
-				p0 => DBMS_ASSERT.ENQUOTE_LITERAL(p_Table_name),
-				p1 => DBMS_ASSERT.ENQUOTE_LITERAL(p_Unique_Key_Column),
-				p2 => p_Columns_Limit,
-				p3 => DBMS_ASSERT.ENQUOTE_LITERAL(p_Data_Columns_Only),
-				p4 => DBMS_ASSERT.ENQUOTE_LITERAL(p_Select_Columns),
-				p5 => DBMS_ASSERT.ENQUOTE_LITERAL(p_Join_Options),
-				p6 => DBMS_ASSERT.ENQUOTE_LITERAL(p_View_Mode),
-				p7 => DBMS_ASSERT.ENQUOTE_LITERAL(p_Edit_Mode),
-				p8 => DBMS_ASSERT.ENQUOTE_LITERAL(p_Data_Format),
-				p9 => DBMS_ASSERT.ENQUOTE_LITERAL(p_Report_Mode),
-				p10 => DBMS_ASSERT.ENQUOTE_LITERAL(p_Parent_Name),
-				p11 => DBMS_ASSERT.ENQUOTE_LITERAL(p_Parent_Key_Column),
-				p12 => DBMS_ASSERT.ENQUOTE_LITERAL(p_Parent_Key_Visible),
-				p13 => v_is_cached,
-				p_max_length => 3500
-				-- , p_level => apex_debug.c_log_level_app_trace
-			);
+			EXECUTE IMMEDIATE data_browser_conf.Dyn_Log_Call_Parameter -- (p_level => apex_debug.c_log_level_app_trace)
+			USING p_Table_name,p_Unique_Key_Column,p_Columns_Limit,p_Data_Columns_Only,p_Select_Columns,p_Join_Options,
+				p_View_Mode,p_Edit_Mode,p_Data_Format,p_Report_Mode,p_Parent_Name,p_Parent_Key_Column,p_Parent_Key_Visible,
+				p_Link_Page_ID,p_Link_Parameter,p_Detail_Page_ID,p_Detail_Parameter,p_File_Page_ID;
+				
+			apex_debug.message(p_message => v_is_cached, p_max_length => 3500);
 		$END
 $IF data_browser_conf.g_use_exceptions $THEN
 	 exception
 	  when others then
-	  	if data_browser_select.Describe_Imp_Cols_cur%ISOPEN then
+		if data_browser_select.Describe_Imp_Cols_cur%ISOPEN then
 			CLOSE data_browser_select.Describe_Imp_Cols_cur;
 		end if;
-	  	if data_browser_select.Describe_Cols_cur%ISOPEN then
+		if data_browser_select.Describe_Cols_cur%ISOPEN then
 			CLOSE data_browser_select.Describe_Cols_cur;
 		end if;
 		$IF data_browser_conf.g_debug $THEN

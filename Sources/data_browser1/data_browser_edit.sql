@@ -911,6 +911,12 @@ is
         v_Result_PLSQL		CLOB;
         v_Error_Message VARCHAR2(32767);
 	BEGIN
+		$IF data_browser_conf.g_debug $THEN
+			EXECUTE IMMEDIATE data_browser_conf.Dyn_Log_Call_Parameter
+			USING p_Table_name,p_Key_Column,p_Key_Value,p_Select_Columns,p_Columns_Limit,p_View_Mode,p_Data_Source,p_Report_Mode,
+				p_Join_Options,p_Parent_Name,p_Parent_Key_Column,p_Parent_Key_Visible,p_Parent_Key_Item,p_Use_Empty_Columns;
+			data_browser_edit.Dump_Application_Items;
+		$END
     	dbms_lob.createtemporary(v_Result_PLSQL, true, dbms_lob.call);
 		v_Result_PLSQL := Validate_Form_Checks_PL_SQL (
 			p_Table_name => p_Table_name,
@@ -927,28 +933,6 @@ is
 			p_Parent_Key_Item => p_Parent_Key_Item,
 			p_Use_Empty_Columns => p_Use_Empty_Columns
 		);
-		$IF data_browser_conf.g_debug $THEN
-			apex_debug.message (
-				p_message => 'data_browser_edit.Validate_Form_Checks (p_Table_name=> %s, p_Key_Column=> %s, p_Key_Value=> %s, p_Select_Columns=> %s,' || chr(10)
-				|| 'p_Columns_Limit=> %s, p_View_Mode=> %s, p_Data_Source=> %s, p_Report_Mode=> %s, p_Join_Options=> %s' || chr(10)
-				|| 'p_Parent_Name=> %s, p_Parent_Key_Column=> %s, p_Parent_Key_Visible=> %s, p_Parent_Key_Item=> %s)',
-				p0 => DBMS_ASSERT.ENQUOTE_LITERAL(p_Table_name),
-				p1 => DBMS_ASSERT.ENQUOTE_LITERAL(p_Key_Column),
-				p2 => DBMS_ASSERT.ENQUOTE_LITERAL(p_Key_Value),
-				p3 => DBMS_ASSERT.ENQUOTE_LITERAL(p_Select_Columns),
-				p4 => p_Columns_Limit,
-				p5 => DBMS_ASSERT.ENQUOTE_LITERAL(p_View_Mode),
-				p6 => DBMS_ASSERT.ENQUOTE_LITERAL(p_Data_Source),
-				p7 => DBMS_ASSERT.ENQUOTE_LITERAL(p_Report_Mode),
-				p8 => DBMS_ASSERT.ENQUOTE_LITERAL(p_Join_Options),
-				p9 => DBMS_ASSERT.ENQUOTE_LITERAL(p_Parent_Name),
-				p10 => DBMS_ASSERT.ENQUOTE_LITERAL(p_Parent_Key_Column),
-				p11 => DBMS_ASSERT.ENQUOTE_LITERAL(p_Parent_Key_Visible),
-				p12 => DBMS_ASSERT.ENQUOTE_LITERAL(p_Parent_Key_Item),
-				p_max_length => 3500
-			);
-			data_browser_edit.Dump_Application_Items;
-		$END
 		if DBMS_LOB.GETLENGTH(v_Result_PLSQL) > 1 then
 			EXECUTE IMMEDIATE v_Result_PLSQL USING IN p_Key_Value, OUT v_Error_Message;
 			if v_Error_Message IS NOT NULL then
@@ -1011,20 +995,9 @@ $END
    		c_cur cur_type;
 	begin
 		$IF data_browser_conf.g_debug $THEN
-			apex_debug.info(
-				p_message => 'data_browser_edit.Set_Import_View_Defaults (p_Table_name=> %s, p_Unique_Key_Column=> %s, p_Columns_Limit=> %s, p_View_Mode=> %s, p_Join_Options=> %s,' || chr(10)
-						  || ' p_Parent_Name=> %s, p_Parent_Key_Column=> %s, p_Parent_Key_Visible=> %s, p_Parent_Key_Item=> %s);',
-				p0 => DBMS_ASSERT.ENQUOTE_LITERAL(p_Table_name),
-				p1 => DBMS_ASSERT.ENQUOTE_LITERAL(p_Unique_Key_Column),
-				p2 => DBMS_ASSERT.ENQUOTE_LITERAL(p_Columns_Limit),
-				p3 => DBMS_ASSERT.ENQUOTE_LITERAL(p_View_Mode),
-				p4 => DBMS_ASSERT.ENQUOTE_LITERAL(p_Join_Options),
-				p5 => DBMS_ASSERT.ENQUOTE_LITERAL(p_Parent_Name),
-				p6 => DBMS_ASSERT.ENQUOTE_LITERAL(p_Parent_Key_Column),
-				p7 => DBMS_ASSERT.ENQUOTE_LITERAL(p_Parent_Key_Visible),
-				p8 => DBMS_ASSERT.ENQUOTE_LITERAL(p_Parent_Key_Item),
-				p_max_length => 3500
-			);
+			EXECUTE IMMEDIATE data_browser_conf.Dyn_Log_Call_Parameter
+			USING p_Table_name,p_Unique_Key_Column,p_Select_Columns,p_Columns_Limit,p_View_Mode,p_Join_Options,
+				p_Parent_Name,p_Parent_Key_Column,p_Parent_Key_Visible,p_Parent_Key_Item;
 		$END
 
 		v_Query := 'SELECT SEQ_ID FROM APEX_COLLECTIONS WHERE COLLECTION_NAME = ' 
@@ -1167,25 +1140,9 @@ $END
 		v_Message3 VARCHAR2(32767);
 	begin
 		$IF data_browser_conf.g_debug $THEN
-			apex_debug.message(
-				p_message => 'data_browser_edit.Validate_Imported_Data (p_Table_name => %s, p_Key_Column => %s, p_Select_Columns => %s, p_Columns_Limit => %s, ' || chr(10)
-					|| 'p_Select_Columns=> %s, p_Columns_Limit=> %s, p_View_Mode=> %s, p_Join_Options=>%s, ' || chr(10)
-					|| 'p_Parent_Name=> %s, p_Parent_Key_Column=> %s, p_Parent_Key_Visible=> %s,' || chr(10)
-					|| 'p_Parent_Key_Item=> %s, p_Rows_Imported_Count=> %s, p_Inject_Defaults=> %s);',
-				p0 => DBMS_ASSERT.ENQUOTE_LITERAL(p_Table_name),
-				p1 => DBMS_ASSERT.ENQUOTE_LITERAL(p_Key_Column),
-				p2 => DBMS_ASSERT.ENQUOTE_LITERAL(p_Select_Columns),
-				p3 => p_Columns_Limit,
-				p4 => DBMS_ASSERT.ENQUOTE_LITERAL(p_View_Mode),
-				p5 => DBMS_ASSERT.ENQUOTE_LITERAL(p_Join_Options),
-				p6 => DBMS_ASSERT.ENQUOTE_LITERAL(p_Parent_Name),
-				p7 => DBMS_ASSERT.ENQUOTE_LITERAL(p_Parent_Key_Column),
-				p8 => DBMS_ASSERT.ENQUOTE_LITERAL(p_Parent_Key_Visible),
-				p9 => DBMS_ASSERT.ENQUOTE_LITERAL(p_Parent_Key_Item),
-				p10 => p_Rows_Imported_Count,
-				p11 => DBMS_ASSERT.ENQUOTE_LITERAL(p_Inject_Defaults),
-				p_max_length => 3500
-			);
+			EXECUTE IMMEDIATE data_browser_conf.Dyn_Log_Call_Parameter
+			USING p_Table_name,p_Key_Column,p_Select_Columns,p_Columns_Limit,p_View_Mode,p_Join_Options,
+				p_Parent_Name,p_Parent_Key_Column,p_Parent_Key_Visible,p_Parent_Key_Item,p_Rows_Imported_Count,p_Inject_Defaults;
 		$END
 
 		if p_View_Mode NOT IN ('IMPORT_VIEW', 'EXPORT_VIEW') then
@@ -2303,17 +2260,6 @@ $END
 			v_Classes := data_browser_conf.Concat_List(v_Classes, 'password', ' ') ;
 			v_Attibutes := data_browser_conf.Concat_List(v_Attibutes, 'type="password"', ' ');
 		end if;
-		/* $IF data_browser_conf.g_debug $THEN
-			apex_debug.info(
-				p_message => 'data_browser_edit.Get_Apex_Item_Expr (p_Column_Expr_Type => %s, p_Column_Alias => %s, p_Data_Source => %s) : %s %s',
-				p0 => p_Column_Expr_Type,
-				p1 => p_Column_Alias,
-				p2 => p_Data_Source,
-				p3 => v_Column_Expr,
-				p4 => v_Column_Value,
-				p_max_length => 3500
-			);
-		$END */
 
 		-- use v_Column_Expr or v_Column_Value as source for the rendered fields.
 		return case
@@ -2595,28 +2541,6 @@ $END
 			);
 		$END
 		RETURN v_Result;
-/*$IF data_browser_conf.g_use_exceptions $THEN
-	exception
-	  when others then
-		$IF data_browser_conf.g_debug $THEN
-			apex_debug.info(apex_string.format(
-				p_message => 'Get_Formated_Default(p_Column_Expr_Type=>%s, p_Column_Alias=>%s, p_Column_Expr=>"%s", p_Data_Default=>"%s", p_Enquote=> %s, v_Column_Expr=>"%s") -- Failed',
-				p0 => Enquote_Literal(p_Column_Expr_Type),
-				p1 => Enquote_Literal(p_Column_Alias),
-				p2 => (p_Column_Expr),
-				p3 => (p_Data_Default),
-				p4 => Enquote_Literal(p_Enquote),
-				p5 => (v_Column_Expr)
-			));
-		$END
-		-- this exceptions stopps the query generation. --
-		-- raise;
-		return p_Data_Default;
-$ELSE
-	exception
-	  when others then
-		return p_Data_Default;
-$END*/
 	end Get_Formated_Default;
 
 	FUNCTION Get_Form_Edit_Cursor (	-- internal
@@ -2986,6 +2910,13 @@ $END*/
     	v_Md5_Row_Factor  	PLS_INTEGER := 1;
 		v_out_md5 data_browser_conf.rec_record_edit;
 	begin
+		$IF data_browser_conf.g_debug $THEN
+			EXECUTE IMMEDIATE data_browser_conf.Dyn_Log_Call_Parameter
+			USING p_Table_Name, p_Unique_Key_Column, p_Data_Columns_Only, p_Select_Columns, p_Columns_Limit, p_Exclude_Audit_Columns, 
+			p_View_Mode, p_Report_Mode, p_Join_Options, p_Data_Source, p_Parent_Name, p_Parent_Key_Column, p_Parent_Key_Visible, 
+			p_Parent_Key_Item, p_Primary_Key_Call, p_Ordering_Column_Tool, p_Text_Editor_Page_Id, p_Text_Tool_Selector, p_File_Page_Id, 
+			p_Link_Page_Id, p_Link_Parameter, p_Detail_Page_Id, p_Detail_Parameter, p_Form_Page_Id, p_Form_Parameter;
+		$END
     	SELECT SEARCH_KEY_COLS, ROW_VERSION_COLUMN_NAME, KEY_COLS_COUNT, HAS_SCALAR_PRIMARY_KEY
     	INTO v_Unique_Key_Column, v_Row_Version_Column_Name, v_Key_Cols_Count, v_Has_Scalar_Key
     	FROM MVDATA_BROWSER_VIEWS
@@ -3093,39 +3024,6 @@ $END*/
 				v_Column_Count := v_Column_Count + 1;
 			end if;
 		end if;
-		$IF data_browser_conf.g_debug $THEN
-			apex_debug.message(
-				p_message => 'data_browser_edit.Get_Form_Edit_Cursor (p_Table_name=> %s, p_Unique_Key_Column=> %s, p_Data_Columns_Only=> %s, p_Select_Columns=> %s, ' || chr(10)
-				|| 'p_Exclude_Audit_Columns=> %s, p_Columns_Limit=> %s, p_View_Mode=> %s, p_Report_Mode=> %s, p_Join_Options=> %s, p_Data_Source=> %s, ' || chr(10)
-				|| 'p_Parent_Name=> %s,  p_Parent_Key_Column=> %s, p_Parent_Key_Visible=> %s, p_Parent_Key_Item=>%s, p_Ordering_Column_Tool=> %s, ' || chr(10)
-				|| 'p_Text_Editor_Page_ID => %s, p_Text_Tool_Selector=>%s,p_File_Page_ID => %s, p_Link_Page_ID=> %s, '
-				|| 'p_Link_Parameter=> %s, p_Detail_Page_ID=>'||NVL(p_Detail_Page_ID, 0)||', p_Detail_Parameter=> ' 
-				|| DBMS_ASSERT.ENQUOTE_LITERAL(p_Detail_Parameter) || chr(10)
-				|| ') -- Count : ' || v_Column_Count,
-				p0 => DBMS_ASSERT.ENQUOTE_LITERAL(p_Table_name),
-				p1 => DBMS_ASSERT.ENQUOTE_LITERAL(p_Unique_Key_Column),
-				p2 => DBMS_ASSERT.ENQUOTE_LITERAL(p_Data_Columns_Only),
-				p3 => DBMS_ASSERT.ENQUOTE_LITERAL(p_Select_Columns),
-				p4 => DBMS_ASSERT.ENQUOTE_LITERAL(p_Exclude_Audit_Columns),
-				p5 => p_Columns_Limit,
-				p6 => DBMS_ASSERT.ENQUOTE_LITERAL(p_View_Mode),
-				p7 => DBMS_ASSERT.ENQUOTE_LITERAL(p_Report_Mode),
-				p8 => DBMS_ASSERT.ENQUOTE_LITERAL(p_Join_Options),
-				p9 => DBMS_ASSERT.ENQUOTE_LITERAL(p_Data_Source),
-				p10 => DBMS_ASSERT.ENQUOTE_LITERAL(p_Parent_Name),
-				p11 => DBMS_ASSERT.ENQUOTE_LITERAL(p_Parent_Key_Column),
-				p12 => DBMS_ASSERT.ENQUOTE_LITERAL(p_Parent_Key_Visible),
-				p13 => DBMS_ASSERT.ENQUOTE_LITERAL(p_Parent_Key_Item),
-				p14 => DBMS_ASSERT.ENQUOTE_LITERAL(p_Ordering_Column_Tool),
-				p15 => NVL(p_Text_Editor_Page_ID, 0),
-				p16 => DBMS_ASSERT.ENQUOTE_LITERAL(p_Text_Tool_Selector),
-				p17 => NVL(p_File_Page_ID, 0),
-				p18 => NVL(p_Link_Page_ID, 0),
-				p19 => DBMS_ASSERT.ENQUOTE_LITERAL(p_Link_Parameter),
-				p_max_length => 3500
-				-- , p_level => apex_debug.c_log_level_app_trace
-			);
-		$END
 $IF data_browser_conf.g_use_exceptions $THEN
 	exception
 	  when others then
@@ -4018,6 +3916,12 @@ $END
     	v_Procedure_Name 	VARCHAR2(50);
 		v_Unique_Key_Column MVDATA_BROWSER_VIEWS.SEARCH_KEY_COLS%TYPE;
     begin
+		$IF data_browser_conf.g_debug $THEN
+			EXECUTE IMMEDIATE data_browser_conf.Dyn_Log_Call_Parameter
+			USING p_Table_Name, p_Unique_Key_Column, p_Select_Columns, p_Columns_Limit, p_View_Mode, p_Join_Options, p_Data_Source, 
+				p_Parent_Name, p_Parent_Key_Column, p_Parent_Key_Visible, p_Parent_Key_Item, p_Dml_Command, p_Row_Number, 
+				p_Use_Empty_Columns, p_As_Of_Timestamp, p_Exec_Phase;
+		$END
 		if p_Unique_Key_Column IS NULL then
 			SELECT SEARCH_KEY_COLS
 			INTO v_Unique_Key_Column
@@ -4034,40 +3938,6 @@ $END
     	if p_View_Mode IN ('IMPORT_VIEW', 'EXPORT_VIEW') then
 	    	dbms_lob.createtemporary(v_Result_PLSQL, true, dbms_lob.call);
 			dbms_lob.createtemporary(v_Stat, true, dbms_lob.call);
-
-			$IF data_browser_conf.g_debug $THEN
-				apex_debug.message(
-					p_message => 'data_browser_edit.Get_Form_Foreign_Keys_PLSQL (p_Table_name=> %s, p_Unique_Key_Column=> %s, ' || chr(10)
-					|| 'p_Select_Columns=> %s, p_Columns_Limit=> %s, p_View_Mode=> %s, p_Join_Options=>%s, p_Data_Source=> %s, ' || chr(10)
-					|| 'p_Parent_Name=> %s, p_Parent_Key_Column=> %s, p_Parent_Key_Visible=> %s,' || chr(10)
-					|| 'p_DML_Command=> %s, p_Row_Number=> %s, p_Use_Empty_Columns=> %s, p_As_Of_Timestamp=>%s, p_Exec_Phase=>%s);',
-					p0 => DBMS_ASSERT.ENQUOTE_LITERAL(p_Table_name),
-					p1 => DBMS_ASSERT.ENQUOTE_LITERAL(p_Unique_Key_Column),
-					p2 => DBMS_ASSERT.ENQUOTE_LITERAL(p_Select_Columns),
-					p3 => p_Columns_Limit,
-					p4 => DBMS_ASSERT.ENQUOTE_LITERAL(p_View_Mode),
-					p5 => DBMS_ASSERT.ENQUOTE_LITERAL(p_Join_Options),
-					p6 => DBMS_ASSERT.ENQUOTE_LITERAL(p_Data_Source),
-					p7 => DBMS_ASSERT.ENQUOTE_LITERAL(p_Parent_Name),
-					p8 => DBMS_ASSERT.ENQUOTE_LITERAL(p_Parent_Key_Column),
-					p9 => DBMS_ASSERT.ENQUOTE_LITERAL(p_Parent_Key_Visible),
-					p10 => DBMS_ASSERT.ENQUOTE_LITERAL(p_DML_Command),
-					p11 => p_Row_Number,
-					p12 => DBMS_ASSERT.ENQUOTE_LITERAL(p_Use_Empty_Columns),
-					p13 => DBMS_ASSERT.ENQUOTE_LITERAL(p_As_Of_Timestamp),
-					p14 => DBMS_ASSERT.ENQUOTE_LITERAL(p_Exec_Phase),
-					p_max_length => 3500
-				);
-
-				apex_debug.message(
-					p_message => 'data_browser_conf.Get_Import_Parameter (v_Compare_Case_Insensitive=> %s, v_Search_Keys_Unique=> %s, v_Insert_Foreign_Keys=> %s)',
-					p0 => DBMS_ASSERT.ENQUOTE_LITERAL(v_Compare_Case_Insensitive),
-					p1 => DBMS_ASSERT.ENQUOTE_LITERAL(v_Search_Keys_Unique),
-					p2 => DBMS_ASSERT.ENQUOTE_LITERAL(v_Insert_Foreign_Keys),
-					p_max_length => 3500
-				);
-
-			$END
 			OPEN form_view_cur;
 			LOOP
 				FETCH form_view_cur INTO v_Str;
@@ -4231,6 +4101,12 @@ $END
 		v_Result_PLSQL CLOB;
 		v_Error_Message VARCHAR2(32767);
 	begin
+		$IF data_browser_conf.g_debug $THEN
+			EXECUTE IMMEDIATE data_browser_conf.Dyn_Log_Call_Parameter
+			USING p_Table_Name, p_Unique_Key_Column, p_Data_Source, p_Select_Columns, p_Columns_Limit, p_View_Mode, p_Join_Options, 
+				p_Parent_Name, p_Parent_Key_Column, p_Parent_Key_Visible, p_Parent_Key_Item, p_Dml_Command, p_Row_Number, 
+				p_Use_Empty_Columns, p_As_Of_Timestamp, p_Exec_Phase;
+		$END
     	dbms_lob.createtemporary(v_Result_PLSQL, true, dbms_lob.call);    	
 		v_Result_PLSQL := data_browser_edit.Get_Form_Foreign_Keys_PLSQL(
 			p_Table_name => p_Table_name,
@@ -4423,28 +4299,10 @@ $END
 		p_Changed_Check_Condition := v_Changed_Check_Condition;
 		p_Changed_Check_Plsql	  := v_Changed_Check_Plsql;
 		$IF data_browser_conf.g_debug $THEN
-			apex_debug.message(
-				p_message => 'data_browser_edit.Get_Form_Changed_Check (p_Table_name=> %s, p_Unique_Key_Column=> %s, p_Select_Columns=> %s, ' || chr(10)
-				|| 'p_Columns_Limit => %s, p_View_Mode=> %s, p_Report_Mode=> %s, p_Join_Options=> %s, p_Parent_Name=> %s, p_Parent_Key_Column=> %s, ' || chr(10)
-				|| 'p_Parent_Key_Visible=> %s, p_Parent_Key_Item=> %s, p_Use_Empty_Columns=> %s,' || chr(10)
-				|| 'p_Changed_Check_Condition => v_Changed_Check_Condition, p_Changed_Check_Plsql=> v_Changed_Check_Plsql )' || chr(10)
-				|| ' -- %s -- %s',
-				p0 => DBMS_ASSERT.ENQUOTE_LITERAL(p_Table_name),
-				p1 => DBMS_ASSERT.ENQUOTE_LITERAL(p_Unique_Key_Column),
-				p2 => DBMS_ASSERT.ENQUOTE_LITERAL(p_Select_Columns),
-				p3 => p_Columns_Limit,
-				p4 => DBMS_ASSERT.ENQUOTE_LITERAL(p_View_Mode),
-				p5 => DBMS_ASSERT.ENQUOTE_LITERAL(p_Report_Mode),
-				p6 => DBMS_ASSERT.ENQUOTE_LITERAL(p_Join_Options),
-				p7 => DBMS_ASSERT.ENQUOTE_LITERAL(p_Parent_Name),
-				p8 => DBMS_ASSERT.ENQUOTE_LITERAL(p_Parent_Key_Column),
-				p9 => DBMS_ASSERT.ENQUOTE_LITERAL(p_Parent_Key_Visible),
-				p10 => DBMS_ASSERT.ENQUOTE_LITERAL(p_Parent_Key_Item),
-				p11 => DBMS_ASSERT.ENQUOTE_LITERAL(p_Use_Empty_Columns),
-				p12 => v_Changed_Check_Condition,
-				p13 => v_Changed_Check_Plsql,
-				p_max_length => 3500
-			);
+			EXECUTE IMMEDIATE data_browser_conf.Dyn_Log_Call_Parameter
+			USING p_Table_Name, p_Unique_Key_Column, p_Select_Columns, p_Columns_Limit, p_View_Mode, p_Data_Source, p_Report_Mode, 
+				p_Join_Options, p_Parent_Name, p_Parent_Key_Column, p_Parent_Key_Visible, p_Parent_Key_Item, p_Use_Empty_Columns, 
+				p_Changed_Check_Condition, p_Changed_Check_Plsql;
 		$END
 	end Get_Form_Changed_Check;
 
@@ -4783,7 +4641,7 @@ $END
 		p_Column_List VARCHAR2,
 		p_Unique_Key_Column VARCHAR2,
         p_Join_Columns VARCHAR2
-	) RETURN CLOB
+	) RETURN CLOB -- internal
 	is
         v_Insert_List	CLOB;
         v_Update_List	CLOB;
@@ -5168,25 +5026,10 @@ $END
 	begin
 		v_Parent_Key_Visible := case when p_Select_Columns IS NOT NULL then 'YES' else p_Parent_Key_Visible end;
 		$IF data_browser_conf.g_debug $THEN
-			apex_debug.message(
-				p_message => 'data_browser_edit.Get_Form_Edit_DML (p_Table_name=> %s, p_Unique_Key_Column=> %s, p_Row_Operation=> %s, ' || chr(10)
-				|| 'p_Select_Columns=> %s, p_Columns_Limit=> %s, p_View_Mode=> %s, p_Data_Source=> %s, p_Report_Mode=> %s, ' || chr(10)
-				|| 'p_Parent_Name=> %s, p_Parent_Key_Column=>%s, p_Parent_Key_Visible=> %s, p_Parent_Key_Item=>%s, p_Use_Empty_Columns=> %s)',
-				p0 => DBMS_ASSERT.ENQUOTE_LITERAL(p_Table_name),
-				p1 => DBMS_ASSERT.ENQUOTE_LITERAL(p_Unique_Key_Column),
-				p2 => DBMS_ASSERT.ENQUOTE_LITERAL(p_Row_Operation),
-				p3 => DBMS_ASSERT.ENQUOTE_LITERAL(p_Select_Columns),
-				p4 => p_Columns_Limit,
-				p5 => DBMS_ASSERT.ENQUOTE_LITERAL(p_View_Mode),
-				p6 => DBMS_ASSERT.ENQUOTE_LITERAL(p_Data_Source),
-				p7 => DBMS_ASSERT.ENQUOTE_LITERAL(p_Report_Mode),
-				p8 => DBMS_ASSERT.ENQUOTE_LITERAL(p_Parent_Name),
-				p9 => DBMS_ASSERT.ENQUOTE_LITERAL(p_Parent_Key_Column),
-				p10 => DBMS_ASSERT.ENQUOTE_LITERAL(v_Parent_Key_Visible),
-				p11 => DBMS_ASSERT.ENQUOTE_LITERAL(p_Parent_Key_Item),
-				p12 => DBMS_ASSERT.ENQUOTE_LITERAL(p_Use_Empty_Columns),
-				p_max_length => 3500
-			);
+			EXECUTE IMMEDIATE data_browser_conf.Dyn_Log_Call_Parameter
+			USING p_Table_Name, p_Unique_Key_Column, p_Row_Operation, p_Select_Columns, p_Columns_Limit, p_View_Mode, 
+				p_Data_Source, p_Report_Mode, p_Join_Options, p_Parent_Name, p_Parent_Key_Column, p_Parent_Key_Visible, 
+				p_Parent_Key_Item, p_Use_Empty_Columns;
 		$END
 		v_Row_Op := case
 			when p_Row_Operation IN ('INSERT', 'UPDATE', 'DELETE', 'DUPLICATE', 'COPY_ROWS', 'MERGE_ROWS', 'MOVE_ROWS', 'DOWNLOAD_FILES', 'DOWNLOAD_SELECTED')

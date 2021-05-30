@@ -915,14 +915,23 @@ IS
 end data_browser_blobs;
 /
 
+CREATE OR REPLACE PACKAGE data_browser_ctl
+AUTHID CURRENT_USER
+IS
+	PROCEDURE Start_Trial_Modus; 
+	FUNCTION App_Trial_Code RETURN VARCHAR2;
+	FUNCTION App_Trial_Modus RETURN BOOLEAN;
+	FUNCTION App_Paid_Modus RETURN BOOLEAN;
+	FUNCTION App_Trial_Modus_vc RETURN VARCHAR2;
+	FUNCTION App_Paid_Modus_vc RETURN VARCHAR2;
+	PROCEDURE Set_App_Licence_Number (p_Code IN VARCHAR2, p_Owner IN VARCHAR2);
+	FUNCTION App_Modus RETURN VARCHAR2;
+end data_browser_ctl;
+/
+
 CREATE OR REPLACE PACKAGE data_browser_utl
 AUTHID CURRENT_USER
 IS
-	FUNCTION App_Modus RETURN VARCHAR2;
-	PROCEDURE Start_Trial_Modus; 
-	FUNCTION App_Trial_Modus RETURN BOOLEAN;
-	FUNCTION App_Paid_Modus RETURN BOOLEAN;
-	PROCEDURE Set_App_Licence_Number (p_Code IN VARCHAR2, p_Owner IN VARCHAR2);
 	FUNCTION Is_Automatic_Search_Enabled (
 		p_Table_Name VARCHAR2 
 	)
@@ -2033,4 +2042,3 @@ IS
 
 end data_browser_edit;
 /
-show errors
