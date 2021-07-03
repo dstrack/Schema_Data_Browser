@@ -911,12 +911,10 @@ is
         v_Result_PLSQL		CLOB;
         v_Error_Message VARCHAR2(32767);
 	BEGIN
-		$IF data_browser_conf.g_debug $THEN
-			EXECUTE IMMEDIATE data_browser_conf.Dyn_Log_Call_Parameter
-			USING p_Table_name,p_Key_Column,p_Key_Value,p_Select_Columns,p_Columns_Limit,p_View_Mode,p_Data_Source,p_Report_Mode,
-				p_Join_Options,p_Parent_Name,p_Parent_Key_Column,p_Parent_Key_Visible,p_Parent_Key_Item,p_Use_Empty_Columns;
-			data_browser_edit.Dump_Application_Items;
-		$END
+        if apex_application.g_debug then
+            EXECUTE IMMEDIATE api_trace.Dyn_Log_Call
+            USING p_table_name,p_key_column,p_key_value,p_select_columns,p_columns_limit,p_view_mode,p_data_source,p_report_mode,p_join_options,p_parent_name,p_parent_key_column,p_parent_key_visible,p_parent_key_item,p_use_empty_columns;
+        end if;
     	dbms_lob.createtemporary(v_Result_PLSQL, true, dbms_lob.call);
 		v_Result_PLSQL := Validate_Form_Checks_PL_SQL (
 			p_Table_name => p_Table_name,
@@ -994,12 +992,6 @@ $END
 		TYPE cur_type IS REF CURSOR;
    		c_cur cur_type;
 	begin
-		$IF data_browser_conf.g_debug $THEN
-			EXECUTE IMMEDIATE data_browser_conf.Dyn_Log_Call_Parameter
-			USING p_Table_name,p_Unique_Key_Column,p_Select_Columns,p_Columns_Limit,p_View_Mode,p_Join_Options,
-				p_Parent_Name,p_Parent_Key_Column,p_Parent_Key_Visible,p_Parent_Key_Item;
-		$END
-
 		v_Query := 'SELECT SEQ_ID FROM APEX_COLLECTIONS WHERE COLLECTION_NAME = ' 
 				|| data_browser_conf.Get_Import_Collection( p_Enquote=>'YES' );
         FOR d_cur IN (
@@ -1139,11 +1131,10 @@ $END
 		v_Message2 VARCHAR2(32767);
 		v_Message3 VARCHAR2(32767);
 	begin
-		$IF data_browser_conf.g_debug $THEN
-			EXECUTE IMMEDIATE data_browser_conf.Dyn_Log_Call_Parameter
-			USING p_Table_name,p_Key_Column,p_Select_Columns,p_Columns_Limit,p_View_Mode,p_Join_Options,
-				p_Parent_Name,p_Parent_Key_Column,p_Parent_Key_Visible,p_Parent_Key_Item,p_Rows_Imported_Count,p_Inject_Defaults;
-		$END
+        if apex_application.g_debug then
+            EXECUTE IMMEDIATE api_trace.Dyn_Log_Call
+            USING p_table_name,p_key_column,p_select_columns,p_columns_limit,p_view_mode,p_join_options,p_parent_name,p_parent_key_column,p_parent_key_visible,p_parent_key_item,p_rows_imported_count,p_inject_defaults;
+        end if;
 
 		if p_View_Mode NOT IN ('IMPORT_VIEW', 'EXPORT_VIEW') then
 			v_Message1 := apex_string.format('View Mode %s is not supported for this operation.', p_View_Mode);
@@ -2910,13 +2901,10 @@ $END
     	v_Md5_Row_Factor  	PLS_INTEGER := 1;
 		v_out_md5 data_browser_conf.rec_record_edit;
 	begin
-		$IF data_browser_conf.g_debug $THEN
-			EXECUTE IMMEDIATE data_browser_conf.Dyn_Log_Call_Parameter
-			USING p_Table_Name, p_Unique_Key_Column, p_Data_Columns_Only, p_Select_Columns, p_Columns_Limit, p_Exclude_Audit_Columns, 
-			p_View_Mode, p_Report_Mode, p_Join_Options, p_Data_Source, p_Parent_Name, p_Parent_Key_Column, p_Parent_Key_Visible, 
-			p_Parent_Key_Item, p_Primary_Key_Call, p_Ordering_Column_Tool, p_Text_Editor_Page_Id, p_Text_Tool_Selector, p_File_Page_Id, 
-			p_Link_Page_Id, p_Link_Parameter, p_Detail_Page_Id, p_Detail_Parameter, p_Form_Page_Id, p_Form_Parameter;
-		$END
+        if apex_application.g_debug then
+            EXECUTE IMMEDIATE api_trace.Dyn_Log_Call
+            USING p_table_name,p_unique_key_column,p_data_columns_only,p_select_columns,p_columns_limit,p_exclude_audit_columns,p_view_mode,p_report_mode,p_join_options,p_data_source,p_parent_name,p_parent_key_column,p_parent_key_visible,p_parent_key_item,p_primary_key_call,p_ordering_column_tool,p_text_editor_page_id,p_text_tool_selector,p_file_page_id,p_link_page_id,p_link_parameter,p_detail_page_id,p_detail_parameter,p_form_page_id,p_form_parameter;
+        end if;
     	SELECT SEARCH_KEY_COLS, ROW_VERSION_COLUMN_NAME, KEY_COLS_COUNT, HAS_SCALAR_PRIMARY_KEY
     	INTO v_Unique_Key_Column, v_Row_Version_Column_Name, v_Key_Cols_Count, v_Has_Scalar_Key
     	FROM MVDATA_BROWSER_VIEWS
@@ -3916,12 +3904,10 @@ $END
     	v_Procedure_Name 	VARCHAR2(50);
 		v_Unique_Key_Column MVDATA_BROWSER_VIEWS.SEARCH_KEY_COLS%TYPE;
     begin
-		$IF data_browser_conf.g_debug $THEN
-			EXECUTE IMMEDIATE data_browser_conf.Dyn_Log_Call_Parameter
-			USING p_Table_Name, p_Unique_Key_Column, p_Select_Columns, p_Columns_Limit, p_View_Mode, p_Join_Options, p_Data_Source, 
-				p_Parent_Name, p_Parent_Key_Column, p_Parent_Key_Visible, p_Parent_Key_Item, p_Dml_Command, p_Row_Number, 
-				p_Use_Empty_Columns, p_As_Of_Timestamp, p_Exec_Phase;
-		$END
+        if apex_application.g_debug then
+            EXECUTE IMMEDIATE api_trace.Dyn_Log_Call
+            USING p_table_name,p_unique_key_column,p_select_columns,p_columns_limit,p_view_mode,p_join_options,p_data_source,p_parent_name,p_parent_key_column,p_parent_key_visible,p_parent_key_item,p_dml_command,p_row_number,p_use_empty_columns,p_as_of_timestamp,p_exec_phase;
+        end if;
 		if p_Unique_Key_Column IS NULL then
 			SELECT SEARCH_KEY_COLS
 			INTO v_Unique_Key_Column
@@ -4101,12 +4087,10 @@ $END
 		v_Result_PLSQL CLOB;
 		v_Error_Message VARCHAR2(32767);
 	begin
-		$IF data_browser_conf.g_debug $THEN
-			EXECUTE IMMEDIATE data_browser_conf.Dyn_Log_Call_Parameter
-			USING p_Table_Name, p_Unique_Key_Column, p_Data_Source, p_Select_Columns, p_Columns_Limit, p_View_Mode, p_Join_Options, 
-				p_Parent_Name, p_Parent_Key_Column, p_Parent_Key_Visible, p_Parent_Key_Item, p_Dml_Command, p_Row_Number, 
-				p_Use_Empty_Columns, p_As_Of_Timestamp, p_Exec_Phase;
-		$END
+        if apex_application.g_debug then
+            EXECUTE IMMEDIATE api_trace.Dyn_Log_Call
+            USING p_table_name,p_unique_key_column,p_data_source,p_select_columns,p_columns_limit,p_view_mode,p_join_options,p_parent_name,p_parent_key_column,p_parent_key_visible,p_parent_key_item,p_dml_command,p_row_number,p_use_empty_columns,p_as_of_timestamp,p_exec_phase;
+        end if;
     	dbms_lob.createtemporary(v_Result_PLSQL, true, dbms_lob.call);    	
 		v_Result_PLSQL := data_browser_edit.Get_Form_Foreign_Keys_PLSQL(
 			p_Table_name => p_Table_name,
@@ -4298,12 +4282,10 @@ $END
         end if;
 		p_Changed_Check_Condition := v_Changed_Check_Condition;
 		p_Changed_Check_Plsql	  := v_Changed_Check_Plsql;
-		$IF data_browser_conf.g_debug $THEN
-			EXECUTE IMMEDIATE data_browser_conf.Dyn_Log_Call_Parameter
-			USING p_Table_Name, p_Unique_Key_Column, p_Select_Columns, p_Columns_Limit, p_View_Mode, p_Data_Source, p_Report_Mode, 
-				p_Join_Options, p_Parent_Name, p_Parent_Key_Column, p_Parent_Key_Visible, p_Parent_Key_Item, p_Use_Empty_Columns, 
-				p_Changed_Check_Condition, p_Changed_Check_Plsql;
-		$END
+        if apex_application.g_debug then
+            EXECUTE IMMEDIATE api_trace.Dyn_Log_Call
+            USING p_table_name,p_unique_key_column,p_select_columns,p_columns_limit,p_view_mode,p_data_source,p_report_mode,p_join_options,p_parent_name,p_parent_key_column,p_parent_key_visible,p_parent_key_item,p_use_empty_columns,p_changed_check_condition,p_changed_check_plsql;
+        end if;
 	end Get_Form_Changed_Check;
 
 
@@ -5025,12 +5007,10 @@ $END
 		v_Count			PLS_INTEGER;
 	begin
 		v_Parent_Key_Visible := case when p_Select_Columns IS NOT NULL then 'YES' else p_Parent_Key_Visible end;
-		$IF data_browser_conf.g_debug $THEN
-			EXECUTE IMMEDIATE data_browser_conf.Dyn_Log_Call_Parameter
-			USING p_Table_Name, p_Unique_Key_Column, p_Row_Operation, p_Select_Columns, p_Columns_Limit, p_View_Mode, 
-				p_Data_Source, p_Report_Mode, p_Join_Options, p_Parent_Name, p_Parent_Key_Column, p_Parent_Key_Visible, 
-				p_Parent_Key_Item, p_Use_Empty_Columns;
-		$END
+        if apex_application.g_debug then
+            EXECUTE IMMEDIATE api_trace.Dyn_Log_Call
+            USING p_table_name,p_unique_key_column,p_row_operation,p_select_columns,p_columns_limit,p_view_mode,p_data_source,p_report_mode,p_join_options,p_parent_name,p_parent_key_column,p_parent_key_visible,p_parent_key_item,p_use_empty_columns;
+        end if;
 		v_Row_Op := case
 			when p_Row_Operation IN ('INSERT', 'UPDATE', 'DELETE', 'DUPLICATE', 'COPY_ROWS', 'MERGE_ROWS', 'MOVE_ROWS', 'DOWNLOAD_FILES', 'DOWNLOAD_SELECTED')
 			then p_Row_Operation

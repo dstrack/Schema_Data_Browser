@@ -123,37 +123,6 @@ IS
 	
 	PROCEDURE Save_Config_Defaults;
 	PROCEDURE Load_Config;
-	
-	FUNCTION Enquote_Parameter ( p_Text VARCHAR2, p_value_max_length PLS_INTEGER DEFAULT 1000 )
-	RETURN VARCHAR2 DETERMINISTIC;
-	-- build an expression that captures the parameters of an package procedure for logging.
-	-- invoke with output: EXECUTE IMMEDIATE data_browser_conf.Dyn_Log_Call_Parameter(false) USING OUT v_log_message, IN <param...>
-	-- invoke with apex_debug: EXECUTE IMMEDIATE data_browser_conf.Dyn_Log_Call_Parameter USING <param...>
-	-- the count of the arguments will be checked at runtime.
-	
-	-- helper query for listing the procedures with parameters of a package
-	/*
-		SELECT INITCAP(PACKAGE_NAME) || '.' || INITCAP(OBJECT_NAME) OBJECT_NAME, 
-        'EXECUTE IMMEDIATE Data_Browser_Conf.Dyn_Log_Call_Parameter'
-        || case when OVERLOAD is not null then '(p_overload => ' || OVERLOAD || ')' end
-        || chr(10) || 'USING '
-        || LISTAGG(LOWER(SUBSTR(ARGUMENT_NAME, 1, 2))||INITCAP(SUBSTR(ARGUMENT_NAME, 3)) , ', ') WITHIN GROUP (ORDER BY SEQUENCE) 
-        || ';' LOG_CALL
-		FROM SYS.ALL_ARGUMENTS 
-		WHERE PACKAGE_NAME = 'DATA_BROWSER_SELECT'
-        AND ARGUMENT_NAME IS NOT NULL
-		AND OWNER = SYS_CONTEXT('USERENV', 'CURRENT_SCHEMA')
-        GROUP BY PACKAGE_NAME,OBJECT_NAME,OVERLOAD
-        ORDER BY PACKAGE_NAME,OBJECT_NAME,OVERLOAD;
-	*/
-
-	FUNCTION Dyn_Log_Call_Parameter(
-		p_Use_Apex_Debug BOOLEAN DEFAULT TRUE,
-		p_level APEX_DEBUG.T_LOG_LEVEL DEFAULT APEX_DEBUG.C_LOG_LEVEL_INFO,
-		p_value_max_length INTEGER DEFAULT 1000,
-		p_overload INTEGER DEFAULT 0
-	) RETURN VARCHAR2;
-
     FUNCTION Get_Apex_Version RETURN VARCHAR2;
 	PROCEDURE Touch_Configuration;
     FUNCTION Get_App_Library_Version RETURN VARCHAR2;

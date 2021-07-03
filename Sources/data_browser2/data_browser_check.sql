@@ -718,7 +718,6 @@ $END
 		v_Rows_Updated 	PLS_INTEGER := 0;
 		v_Key_Values 	apex_t_varchar2;
 	begin
-		v_Timemark := dbms_utility.get_time;
 		v_Start_TM := v_Timemark;
 		v_Count := 0;
 		apex_session.create_session ( 

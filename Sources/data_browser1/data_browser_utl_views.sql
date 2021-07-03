@@ -118,7 +118,7 @@ select
 				APEX_ITEM.TEXT (p_idx => data_browser_conf.Get_Search_Value_Index, p_value => C003
 							, p_size => 30, p_maxlength => 500, p_attributes => 'class="text_field apex-item-text" '
 							, p_item_id => 'f' || LPAD(data_browser_conf.Get_Search_Value_Index, 2, '0') || '_' || ROWNUM
-							, p_item_label => 'Expresson') 
+							, p_item_label => 'Expression') 
 			end ||
        		APEX_ITEM.SELECT_LIST_FROM_QUERY_XL (p_idx => data_browser_conf.Get_Search_LOV_Index, p_value => C005
        					, p_query => B.LOV_QUERY
@@ -131,8 +131,8 @@ select
 			TO_CLOB(APEX_ITEM.TEXT (p_idx => data_browser_conf.Get_Search_Value_Index, p_value => C003
 						, p_size => 25, p_maxlength => 100, p_attributes => 'class="text_field apex-item-text" '
 						, p_item_id => 'f' || LPAD(data_browser_conf.Get_Search_Value_Index, 2, '0') || '_' || ROWNUM
-						, p_item_label => 'Expresson'))
-		end Expresson,
+						, p_item_label => 'Expression'))
+		end Expression,
        	CAST(APEX_ITEM.HIDDEN (p_idx => data_browser_conf.Get_Search_Seq_ID_Index, p_value => A.SEQ_ID
        					, p_item_id => 'f' || LPAD(data_browser_conf.Get_Search_Seq_ID_Index, 2, '0') || '_' || ROWNUM, p_item_label => '') ||
  	      	case when LEAD(A.SEQ_ID) OVER (ORDER BY A.SEQ_ID) IS NULL then

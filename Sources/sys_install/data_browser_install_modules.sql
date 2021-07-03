@@ -6,6 +6,7 @@ prompt ============================================================
 @@plugins/v_apex_collections.sql
 @@plugins/as_zip.sql
 @@plugins/unzip_parallel.sql
+@@plugins/api_trace.sql
 
 @@data_browser1/data_browser_conf_tables.sql
 @@data_browser1/data_browser_conf_upgrade.sql

@@ -1148,10 +1148,10 @@ IS
 	BEGIN
 		for c_cur in (
 			select distinct /*+ RESULT_CACHE */ 
-				B.owner, SUM(case when C.column_name = 'TABLESPACE_NAMES' then 1 end) ts_col
+				B.owner, SUM(case when C.column_name = 'TABLESPACE_NAMES' then 1 else 0 end) ts_col
 			from APEX_WORKSPACE_SCHEMAS S
 			join APEX_APPLICATIONS APP on S.WORKSPACE_NAME = APP.WORKSPACE
-			join SYS.ALL_TABLES B on S.SCHEMA = B.owner and B.table_name = 'APP_USERS'
+			join SYS.ALL_OBJECTS B on S.SCHEMA = B.owner and B.OBJECT_NAME = 'APP_USERS' and B.OBJECT_TYPE IN ('TABLE', 'VIEW')
 			join SYS.ALL_TAB_COLUMNS C on S.SCHEMA = C.owner and C.table_name = 'DATA_BROWSER_CONFIG'
 			where APP.APPLICATION_ID = p_application_id
 			group by B.owner
