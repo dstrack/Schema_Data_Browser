@@ -1302,7 +1302,7 @@ CREATE OR REPLACE PACKAGE BODY import_utl IS
 			p_Table_Alias => 'A',
 			p_View_Mode => 'IMPORT_VIEW'
 		)
-		|| ' = :new.LINK_ID$;' || data_browser_conf.NL(8)
+		|| ' = :old.LINK_ID$;' || data_browser_conf.NL(8)
 		|| 'return;' || data_browser_conf.NL(4)
 		|| 'end if;' || chr(10);
         dbms_lob.writeappend(v_Stat, length(v_Str), v_Str);
