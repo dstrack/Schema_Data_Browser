@@ -27,6 +27,7 @@ declare
 	v_use_custom_ctx VARCHAR2(128);
 	v_use_data_reporter VARCHAR2(128);
 	v_use_schema_tools VARCHAR2(128);
+    v_use_ordimage VARCHAR2(128);
 	v_stat VARCHAR2(32767);
 begin
 	SELECT S.TABLE_OWNER apex_schema
@@ -52,7 +53,8 @@ begin
 		   , max(case when TABLE_NAME = 'SCHEMA_KEYCHAIN' AND TABLE_SCHEMA = 'CUSTOM_KEYS' then 'TRUE' else 'FALSE' end) use_key_chain
 		   , max(case when TABLE_NAME = 'SET_CUSTOM_CTX' AND TABLE_SCHEMA = 'CUSTOM_KEYS' then 'TRUE' else 'FALSE' end) use_custom_ctx
 		   , max(case when TABLE_NAME = 'DATA_BROWSER_SCHEMA' then 'TRUE' else 'FALSE' end) use_schema_tools
-	INTO v_use_dbms_crypt, v_use_ctx_ddl, v_use_key_chain, v_use_custom_ctx, v_use_schema_tools
+           , max(case when TABLE_NAME = 'ORDIMAGE' AND TABLE_SCHEMA = 'ORDSYS' then 'TRUE' else 'FALSE' end) use_ordimage
+	INTO v_use_dbms_crypt, v_use_ctx_ddl, v_use_key_chain, v_use_custom_ctx, v_use_schema_tools, v_use_ordimage
 	FROM SYS.ALL_TAB_PRIVS 
 	WHERE TABLE_NAME IN (
 		'DBMS_CRYPTO', 'CTX_DDL', 'SCHEMA_KEYCHAIN', 'SET_CUSTOM_CTX', 
@@ -77,6 +79,7 @@ IS -- package for specifications of the available libraries in the current insta
 	g_use_custom_ctx 			CONSTANT BOOLEAN	:= ' || v_use_custom_ctx || ';
 	g_use_data_reporter 		CONSTANT BOOLEAN	:= ' || v_use_data_reporter || ';		
 	g_use_schema_tools 			CONSTANT BOOLEAN	:= ' || v_use_schema_tools || ';		
+    g_use_ordimage              CONSTANT BOOLEAN    := ' || v_use_ordimage || ';
 END data_browser_specs;
 ';
 	EXECUTE IMMEDIATE v_Stat;

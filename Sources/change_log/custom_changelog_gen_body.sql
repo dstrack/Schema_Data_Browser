@@ -581,11 +581,11 @@ CREATE OR REPLACE PACKAGE BODY custom_changelog_gen IS
 				CASE WHEN NOT EXISTS (
 					SELECT 1 FROM SYS.USER_SEQUENCES S
 					WHERE S.SEQUENCE_NAME = T.SEQUENCE_NAME
-				) THEN
+				) AND SEQUENCE_NAME IS NOT NULL THEN
 					'CREATE SEQUENCE ' || changelog_conf.Get_Table_Schema || SEQUENCE_NAME ||
 					' START WITH 1 INCREMENT BY 1 ' || changelog_conf.Get_SequenceOptions
 				END SEQUENCE_STAT,
-				CASE WHEN COLUMN_EXISTS = 'NO' THEN
+				CASE WHEN COLUMN_EXISTS = 'NO' AND SEQUENCE_NAME IS NOT NULL THEN
 					'ALTER TABLE ' || TABLE_NAME || ' ADD ( '
 					|| COLUMN_NAME || ' NUMBER ' ||
 					CASE WHEN changelog_conf.Use_Serial_Default = 'YES' THEN
@@ -597,7 +597,7 @@ CREATE OR REPLACE PACKAGE BODY custom_changelog_gen IS
 					FROM SYS.USER_COL_COMMENTS C
 					WHERE C.COLUMN_NAME = T.COLUMN_NAME
 					AND C.TABLE_NAME = T.TABLE_NAME
-				) THEN
+				) AND SEQUENCE_NAME IS NOT NULL THEN
 					'COMMENT ON COLUMN ' || TABLE_NAME || '.' || COLUMN_NAME
 					|| ' IS ''Unique key with sequence (added by custom_changelog_gen to support auditing functions )'''
 				END COMMENT_STAT,
@@ -1343,6 +1343,7 @@ CREATE OR REPLACE PACKAGE BODY custom_changelog_gen IS
 			and T.TRIGGER_NAME LIKE v_Name_Pattern
 			and T.TRIGGERING_EVENT  = 'INSERT OR UPDATE OR DELETE'
 			and (S.LAST_DDL_TIME > U.LAST_DDL_TIME or U.STATUS = 'INVALID')
+			and (T.TABLE_NAME LIKE p_Table_Name OR p_Table_Name IS NULL)
 		)
 		loop
 			Add_ChangeLog_Table_Trigger (
@@ -1457,7 +1458,7 @@ CREATE OR REPLACE PACKAGE BODY custom_changelog_gen IS
 					end
 				WHEN B.COLUMN_NAME IN (
 				    CREATE_TIMESTAMP_COLUMN_NAME, CREATE_USER_COLUMN_NAME, MODFIY_TIMESTAMP_COLUMN_NAME, MODFIY_USER_COLUMN_NAME,
-					p_Primary_Key_Col, C.S_COLUMN_NAME)
+					p_Primary_Key_Col, C.S_COLUMN_NAME) -- no conversion and no compare with chr(1) for references
 					AND p_Format IN ('CONVERT', 'RAW') THEN
 						'A.' || B.COLUMN_NAME
 				WHEN p_Format = 'CONVERT' THEN
@@ -1475,7 +1476,8 @@ CREATE OR REPLACE PACKAGE BODY custom_changelog_gen IS
 				END STAT
 			FROM SYS.USER_TAB_COLS B
 			JOIN MVBASE_VIEWS T ON T.TABLE_NAME = B.TABLE_NAME
-			LEFT OUTER JOIN MVCHANGELOG_REFERENCES C ON B.COLUMN_NAME = C.S_COLUMN_NAME AND B.TABLE_NAME = C.S_TABLE_NAME
+			LEFT OUTER JOIN MVCHANGELOG_REFERENCES C ON B.COLUMN_NAME = C.S_COLUMN_NAME 
+				AND T.VIEW_NAME = C.S_TABLE_NAME -- Bugfix DS 20230216 join with T.VIEW_NAME
 			WHERE T.VIEW_NAME = p_View_Name
 			AND B.COLUMN_NAME NOT IN (changelog_conf.Get_ColumnWorkspace, changelog_conf.Get_ColumnDeletedMark)
 			AND NOT (B.DATA_TYPE IN ('BLOB', 'CLOB', 'NCLOB', 'ORDIMAGE', 'LONG') AND p_Has_Blob_Columns = 'NO')

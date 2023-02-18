@@ -633,21 +633,21 @@ IS
     g_IncludeWorkspaceIDPattern VARCHAR2(4000) := '%';		-- List of table name pattern that are included for 'Application Namespace Support'.
     g_ExcludeWorkspaceIDPattern VARCHAR2(4000) := 'PLUGIN_DELETE_CHECKS,DATA_BROWSER%';		-- List of table name pattern that are excluded from 'Application Namespace Support'.
 	g_CIncludeWorkspaceIDPattern CONSTANT VARCHAR2(4000) :=	-- Internal list of table name pattern that are included from 'Application Namespace Support'.
-		'USER_NAMESPACES,USER_WORKSPACE_SESSIONS,CHANGE_LOG_USERS,CHANGE_LOG';
+		'USER_NAMESPACES,USER_WORKSPACE_SESSIONS,USER_WORKSPACE$_DIFFERENCES,CHANGE_LOG_USERS,CHANGE_LOG';
     g_CExcludeWorkspaceIDPattern CONSTANT VARCHAR2(4000) :=	-- Internal list of table name pattern that are excluded from 'Application Namespace Support'.
     	'CHANGE_LOG_CONFIG,CHANGE_LOG_TABLES,%PLAN_TABLE%,CHAINED_ROWS,USER_IMPORT_JOBS,%_IMP,'
     	|| 'APP_USERS,APP_USER_LEVELS,APP_PROTOCOL,USER_IMPORT_JOBS,SPRINGY_DIAGRAMS,DIAGRAM_SHAPES,DIAGRAM_NODES,DIAGRAM_EDGES,'
-    	|| 'USER_INDEX_STATS$,USER_PROCESS_OUTPUT$,USER_WORKSPACE$_DIFFERENCES,USER_WORKSPACE$_MASTER_TABLES,CREATE$JAVA$LOB$TABLE,'
-    	|| 'T_%,%STATIC%,PAYPAL_%,%PARAMETER%,DATA_BROWSER%';
+    	|| 'USER_INDEX_STATS$,USER_PROCESS_OUTPUT$,USER_WORKSPACE$_MASTER_TABLES,CREATE$JAVA$LOB$TABLE,'
+    	|| 'DATA_BROWSER%';
 
     g_IncludeDeleteMarkPattern VARCHAR2(4000)    := '%';	-- List of table name pattern that are included for 'Soft Delete Support'.
-    g_ExcludeDeleteMarkPattern VARCHAR2(4000)    := 'USER_WORKSPACE_SESSIONS,PLUGIN_DELETE_CHECKS,DATA_BROWSER%';		-- List of table name pattern that are excluded from 'Soft Delete Support'.
+    g_ExcludeDeleteMarkPattern VARCHAR2(4000)    := 'PLUGIN_DELETE_CHECKS,DATA_BROWSER%';		-- List of table name pattern that are excluded from 'Soft Delete Support'.
 
     g_IncludeTimestampPattern VARCHAR2(4000)    := '%';		-- List of table name pattern that are included for 'Audit Info Columns'.
     g_ExcludeTimestampPattern VARCHAR2(4000)    := '%PROTOCOL%,USER_IMPORT_JOBS,USER_WORKSPACE_SESSIONS,PLUGIN_DELETE_CHECKS,DATA_BROWSER%.APP_%';		-- List of table name pattern that are excluded from 'Audit Info Columns'.
 
     g_ExcludedTablesPattern CONSTANT VARCHAR2(4000) :=		-- Internal list of table name pattern that are excluded from 'Audit Info Columns' and 'Soft Delete Support'.
-    	'CHANGE_LOG%,CHAINED_ROWS,%PLAN_TABLE,%_IMP,PLUGIN_DELETE_CHECKS,%PROTOCOL%,%HISTORY%';
+    	'USER_PROCESS_OUTPUT$,CHANGE_LOG%,CHAINED_ROWS,%PLAN_TABLE,%_IMP,PLUGIN_DELETE_CHECKS,%PROTOCOL%,%HISTORY%';
 
     g_ColumnCreateUser   VARCHAR2(512) := 'CREATED_BY,ERFASST_VON,ERFASST_KUERZEL'; 					-- Column Name for created by user name. the current user name is automatically inserted for each inserted row.
     g_ColumnCreateDate   VARCHAR2(512) := 'CREATED_AT,CREATED,ERFASST_DATUM';       					-- Column Name for Created at Date. The current timestamp is automatically initialized for each inserted row.
@@ -1173,6 +1173,7 @@ $END
 			FROM SYS.USER_INDEXES B, SYS.USER_IND_COLUMNS C, SYS.USER_TAB_COLS D
 			WHERE C.TABLE_NAME = B.TABLE_NAME AND C.INDEX_NAME = B.INDEX_NAME
 			AND C.TABLE_NAME = D.TABLE_NAME AND C.COLUMN_NAME = D.COLUMN_NAME
+			AND C.TABLE_NAME NOT LIKE 'DR$%$_'  -- skip fulltext index
 			AND D.HIDDEN_COLUMN = 'NO'
 			AND B.UNIQUENESS = 'UNIQUE'
 			AND B.INDEX_TYPE IN ('NORMAL', 'FUNCTION-BASED NORMAL')
@@ -1240,7 +1241,7 @@ $END
         CURSOR user_keys_cur
         IS
 		WITH U_CONSTRAINTS AS (
-			select * from table ( changelog_conf.FN_Pipe_unique_keys)  where VIEW_COLUMN_NAME IS NOT NULL
+			select * from table ( changelog_conf.FN_Pipe_unique_keys)  
 		) -------------------------------------------------------------------------------
 		SELECT /*+ RESULT_CACHE */
 			TABLE_NAME, TABLE_OWNER, CONSTRAINT_NAME, CONSTRAINT_TYPE, REQUIRED, HAS_NULLABLE,
@@ -1892,7 +1893,7 @@ $END
     FUNCTION Get_Short_Name ( p_Name VARCHAR2 ) RETURN VARCHAR2 DETERMINISTIC
     IS
     BEGIN
-        RETURN RTRIM(SUBSTR(p_Name, 1, 23), '_');
+        RETURN RTRIM(SUBSTR(p_Name, 1, 24), '_'); -- including run_no
     END;
 
     FUNCTION Get_ChangelogTrigger_Name ( p_Name VARCHAR2, p_RunNo VARCHAR2 DEFAULT NULL ) RETURN VARCHAR2

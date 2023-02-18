@@ -170,16 +170,21 @@ CREATE OR REPLACE PACKAGE BODY custom_keys.set_custom_ctx IS
 	IS
 		v_Count			PLS_INTEGER;
 	BEGIN
-		select /*+ RESULT_CACHE */ count(*)
-		into v_Count
-		from APEX_APPLICATION_ITEMS
-		where APPLICATION_ID = NV('APP_ID')
-		and ITEM_NAME = p_Item_Name;
-		if v_Count > 0 then
-			APEX_UTIL.SET_SESSION_STATE(p_Item_Name, p_Item_Value);
-		end if;	
+		if APEX_UTIL.GET_SESSION_STATE('APP_SESSION') IS NOT NULL then
+			select count(*)
+			into v_Count
+			from APEX_APPLICATION_ITEMS
+			where APPLICATION_ID = NV('APP_ID')
+			and ITEM_NAME = p_Item_Name;
+			if v_Count > 0 then
+				APEX_UTIL.SET_SESSION_STATE(p_Item_Name, p_Item_Value);
+			else 
+				Log_Message('Set_Existing_Apex_Item', '(' || p_Item_Name || ', ' || p_Item_Value || ') not found!' );		
+			end if;	
+		end if;
 	EXCEPTION WHEN OTHERS THEN
-		NULL;
+		Log_Message(SQLCODE, SQLERRM);
+		Log_Message('Set_Existing_Apex_Item', '(' || p_Item_Name || ', ' || p_Item_Value || ') failed!' );
 	END;
 	
 	PROCEDURE Set_Default_Workspace (
@@ -218,7 +223,6 @@ CREATE OR REPLACE PACKAGE BODY custom_keys.set_custom_ctx IS
 			end if;
 		END IF;
 		CLOSE cv;
-		COMMIT;
 		DBMS_SESSION.SET_CONTEXT(g_CtxNamespace, g_CtxWorkspaceID, v_Workspace_Id, p_Client_Id);
 		DBMS_SESSION.SET_CONTEXT(g_CtxNamespace, g_CtxWorkspaceName, v_Workspace_Name, p_Client_Id);
 		v_TimestampString := TO_CHAR(CURRENT_TIMESTAMP, g_CtxTimestampFormat);
@@ -227,6 +231,7 @@ CREATE OR REPLACE PACKAGE BODY custom_keys.set_custom_ctx IS
 		if p_Client_Id IS NOT NULL then
 			Set_Existing_Apex_Item(g_Workspace_Item, v_Workspace_Name);
 		end if;
+		COMMIT;
 	EXCEPTION
 	WHEN OTHERS THEN
 		Log_Message(SQLCODE, SQLERRM);
@@ -253,7 +258,6 @@ CREATE OR REPLACE PACKAGE BODY custom_keys.set_custom_ctx IS
 			USING IN v_Workspace_Name, v_App_User, OUT v_Workspace_Id;
 		END IF;
 		CLOSE cv;
-		COMMIT;
 		DBMS_SESSION.SET_CONTEXT(g_CtxNamespace, g_CtxWorkspaceID, v_Workspace_Id, p_Client_Id);
 		DBMS_SESSION.SET_CONTEXT(g_CtxNamespace, g_CtxWorkspaceName, v_Workspace_Name, p_Client_Id);
 		v_TimestampString := TO_CHAR(CURRENT_TIMESTAMP, g_CtxTimestampFormat);
@@ -261,6 +265,7 @@ CREATE OR REPLACE PACKAGE BODY custom_keys.set_custom_ctx IS
 		if p_Client_Id IS NOT NULL then
 			Set_Existing_Apex_Item(g_Workspace_Item, v_Workspace_Name);
 		end if;
+		COMMIT;
 	EXCEPTION
 	WHEN OTHERS THEN
 		Log_Message('set_new_workspace', '(' || p_Workspace_Name || ', ' || p_Client_Id || ') failed!' );
@@ -391,7 +396,7 @@ CREATE OR REPLACE PACKAGE BODY custom_keys.set_custom_ctx IS
 
 	PROCEDURE Post_Apex_Logon
 	IS
-		v_Workspace_Name	VARCHAR2(50) := V(g_Workspace_Item);
+		v_Workspace_Name	VARCHAR2(50) := NVL(V(g_Workspace_Item), SYS_CONTEXT(g_CtxNamespace, g_CtxWorkspaceName));
 		v_User_Name		VARCHAR2(50) := SYS_CONTEXT('APEX$SESSION','APP_USER');
 		v_Client_Id 	VARCHAR2(200) := SYS_CONTEXT('USERENV','CLIENT_IDENTIFIER');
 	BEGIN
@@ -445,6 +450,9 @@ CREATE OR REPLACE PACKAGE BODY custom_keys.set_custom_ctx IS
 	BEGIN
 		-- DBMS_OUTPUT.PUT_LINE('CODE:' || v_Subject);
 		-- DBMS_OUTPUT.PUT_LINE('MESSAGE:' || v_Info);
+		if apex_application.g_debug then
+			apex_debug.message('set_custom_ctx.Log_Message( Subject:%s;  Ifos:%s )', v_Subject, v_Info);
+		end if;
 		if SYS_CONTEXT(g_CtxNamespace, g_CtxWorkspaceID) IS NOT NULL
 		and SYS_CONTEXT(g_CtxNamespace, g_CtxUserName) IS NOT NULL then
 			EXECUTE IMMEDIATE g_Log_Message_Query
