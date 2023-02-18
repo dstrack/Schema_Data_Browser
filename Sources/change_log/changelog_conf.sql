@@ -647,7 +647,7 @@ IS
     g_ExcludeTimestampPattern VARCHAR2(4000)    := '%PROTOCOL%,USER_IMPORT_JOBS,USER_WORKSPACE_SESSIONS,PLUGIN_DELETE_CHECKS,DATA_BROWSER%.APP_%';		-- List of table name pattern that are excluded from 'Audit Info Columns'.
 
     g_ExcludedTablesPattern CONSTANT VARCHAR2(4000) :=		-- Internal list of table name pattern that are excluded from 'Audit Info Columns' and 'Soft Delete Support'.
-    	'USER_PROCESS_OUTPUT$,CHANGE_LOG%,CHAINED_ROWS,%PLAN_TABLE,%_IMP,PLUGIN_DELETE_CHECKS,%PROTOCOL%,%HISTORY%';
+    	'USER_PROCESS_OUTPUT$,CHANGE_LOG%,CHAINED_ROWS,%PLAN_TABLE,%_IMP,PLUGIN_DELETE_CHECKS,%PROTOCOL%,%HISTORY%,USER_WORKSPACE$_DIFFERENCE%';
 
     g_ColumnCreateUser   VARCHAR2(512) := 'CREATED_BY,ERFASST_VON,ERFASST_KUERZEL'; 					-- Column Name for created by user name. the current user name is automatically inserted for each inserted row.
     g_ColumnCreateDate   VARCHAR2(512) := 'CREATED_AT,CREATED,ERFASST_DATUM';       					-- Column Name for Created at Date. The current timestamp is automatically initialized for each inserted row.
