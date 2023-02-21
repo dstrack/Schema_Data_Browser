@@ -123,6 +123,7 @@ IS
 	
 	PROCEDURE Save_Config_Defaults;
 	PROCEDURE Load_Config;
+    FUNCTION Has_Multiple_Workspaces RETURN VARCHAR2; -- YES/NO
     FUNCTION Get_Apex_Version RETURN VARCHAR2;
 	PROCEDURE Touch_Configuration;
     FUNCTION Get_App_Library_Version RETURN VARCHAR2;
@@ -1032,6 +1033,7 @@ $END
 	g_Errors_Return_Style 		CONSTANT VARCHAR2(300)  := 'background-color:Moccasin;box-shadow: 0px 0px 10px 6px Moccasin;';
 	g_Get_ChangLog_Query_Call 	VARCHAR2(2000)  := 'custom_changelog_gen.ChangeLog_Pivot_Query(p_Table_Name => :a, p_Convert_Data_Types => :b, p_Compact_Queries => :c)';
 	g_ChangLog_Enabled_Call 	VARCHAR2(2000) 	:= 'custom_changelog_gen.Changelog_Is_Active(p_Table_Name => :a)';
+	g_Access_Multiple_Workspaces  VARCHAR2(30) := 'NO';
 
 	g_NLS_Date_Format			VARCHAR2(64)    := '';
 	g_NLS_NumChars				VARCHAR2(64)    := '';
@@ -1155,12 +1157,26 @@ $END
 		g_Data_Deduction_Array := apex_string.split(REPLACE(v_Data_Deduction_Pattern,'_','\_'), ',');
 		g_Yes_No_Columns_Array := apex_string.split(REPLACE(v_Yes_No_Columns_Pattern,'_','\_'), ',');
 
+    	SELECT CASE WHEN EXISTS (
+    		SELECT 1 FROM USER_NAMESPACES T 
+    		WHERE T.WORKSPACE_NAME != SYS_CONTEXT('USERENV', 'CURRENT_SCHEMA')
+    	) THEN 'YES' ELSE 'NO' END Has_Multiple_Workspaces
+		INTO g_Access_Multiple_Workspaces
+    	FROM DUAL;
+
 		$IF data_browser_conf.g_debug $THEN
 			apex_debug.info('data_browser_conf.Load_Config done');
 		$END
     EXCEPTION WHEN NO_DATA_FOUND THEN
     	NULL;
     END Load_Config;
+
+    FUNCTION Has_Multiple_Workspaces RETURN VARCHAR2 -- YES/NO
+    IS 
+	PRAGMA UDF;    
+    BEGIN
+    	RETURN g_Access_Multiple_Workspaces;
+    END;
 
 	FUNCTION Enquote_Parameter ( p_Text VARCHAR2, p_value_max_length PLS_INTEGER DEFAULT 1000 )
 	RETURN VARCHAR2 DETERMINISTIC
@@ -1331,7 +1347,6 @@ $END
 		g_App_Installation_Code := p_Code;
 	END;
 	
-
     FUNCTION Get_Configuration_ID RETURN NUMBER IS BEGIN RETURN g_Configuration_ID; END;
     FUNCTION Get_Configuration_Name RETURN VARCHAR2 IS BEGIN RETURN g_Configuration_Name; END;
     FUNCTION Get_Schema_Icon RETURN VARCHAR2 IS BEGIN RETURN g_Schema_Icon; END;

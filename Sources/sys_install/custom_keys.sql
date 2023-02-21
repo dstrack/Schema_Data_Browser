@@ -15,7 +15,7 @@ limitations under the License.
 
 ------------------------------------------------------------------------------
 Module for cryptographic encryption of passwords
-the so called salt for hashed passwords is stored separated from the app_users.password_hash
+the so called salt for hashed passwords is stored separated from the V_CONTEXT_USERS.PASSWORD_HASH
 in schema CUSTOM_KEYS table SCHEMA_USER_KEYS.
 Access to the salt is only possible via the function schema_keychain.Crypto_Key
 */

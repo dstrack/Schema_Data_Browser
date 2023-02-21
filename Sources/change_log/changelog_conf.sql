@@ -633,7 +633,7 @@ IS
     g_IncludeWorkspaceIDPattern VARCHAR2(4000) := '%';		-- List of table name pattern that are included for 'Application Namespace Support'.
     g_ExcludeWorkspaceIDPattern VARCHAR2(4000) := 'PLUGIN_DELETE_CHECKS,DATA_BROWSER%';		-- List of table name pattern that are excluded from 'Application Namespace Support'.
 	g_CIncludeWorkspaceIDPattern CONSTANT VARCHAR2(4000) :=	-- Internal list of table name pattern that are included from 'Application Namespace Support'.
-		'USER_NAMESPACES,USER_WORKSPACE_SESSIONS,USER_WORKSPACE$_DIFFERENCES,CHANGE_LOG_USERS,CHANGE_LOG';
+		'USER_NAMESPACES,USER_WORKSPACE_SESSIONS,USER_WORKSPACE_LIZENZEN,USER_WORKSPACE$_DIFFERENCES,CHANGE_LOG_USERS,CHANGE_LOG';
     g_CExcludeWorkspaceIDPattern CONSTANT VARCHAR2(4000) :=	-- Internal list of table name pattern that are excluded from 'Application Namespace Support'.
     	'CHANGE_LOG_CONFIG,CHANGE_LOG_TABLES,%PLAN_TABLE%,CHAINED_ROWS,USER_IMPORT_JOBS,%_IMP,'
     	|| 'APP_USERS,APP_USER_LEVELS,APP_PROTOCOL,USER_IMPORT_JOBS,SPRINGY_DIAGRAMS,DIAGRAM_SHAPES,DIAGRAM_NODES,DIAGRAM_EDGES,'
@@ -677,7 +677,7 @@ IS
     g_IncludeChangeLogPattern VARCHAR2(4000);
     -- Table name pattern of tables to be excluded in the change log.
     g_ExcludeChangeLogPattern VARCHAR2(4000);
-    c_ExcludeChangeLogPattern CONSTANT VARCHAR2(400)    := 'CHANGE_LOG%,USER_IMPORT_JOBS,USER_WORKSPACE_SESSIONS,%HISTORY%,%PROTOCOL%,%PLUGIN%,DATA_BROWSER%';
+    c_ExcludeChangeLogPattern CONSTANT VARCHAR2(400)    := 'CHANGE_LOG%,USER_IMPORT_JOBS,USER_WORKSPACE_SESSIONS,USER_WORKSPACE_LIZENZEN,%HISTORY%,%PROTOCOL%,%PLUGIN%,DATA_BROWSER%';
     -- Tables of interest with direct access in the CHANGE_LOG table. The Columns CUSTOM_REF_ID1 to CUSTOM_REF_ID9 will be defined as References to this tables.
     g_ChangeLogFKeyTables VARCHAR2(4000);
     -- Column Names of the direct References. The Columns CUSTOM_REF_ID1 to CUSTOM_REF_ID9 will be renamed to this names in the views VPROTOCOL_LIST, VPROTOCOL_COLUMNS_LIST and VPROTOCOL_COLUMNS_LIST2
@@ -1700,7 +1700,7 @@ $END
 		JOIN SYS.USER_CONS_COLUMNS FC ON F.OWNER = FC.OWNER AND F.CONSTRAINT_NAME = FC.CONSTRAINT_NAME AND F.TABLE_NAME = FC.TABLE_NAME
 		JOIN SYS.USER_TAB_COLS SC ON SC.TABLE_NAME = F.TABLE_NAME AND SC.COLUMN_NAME = FC.COLUMN_NAME AND SC.HIDDEN_COLUMN = 'NO' 
 		AND F.CONSTRAINT_TYPE = 'R'
-		AND F.OWNER = SYS_CONTEXT('USERENV', 'CURRENT_SCHEMA') ;
+		AND F.OWNER = SYS_CONTEXT('USERENV', 'CURRENT_SCHEMA');
 
 		v_in_rows tab_foreign_key_columns;
 	BEGIN

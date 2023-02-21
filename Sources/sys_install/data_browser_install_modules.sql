@@ -23,7 +23,7 @@ prompt ============================================================
 @@change_log/mvbase_unique_keys.sql
 @@change_log/mvbase_alter_uniquekeys.sql
 @@change_log/mvbase_views.sql
-@@data_browser2/app_protocol_table.sql
+@@change_log/app_protocol_table.sql
 @@change_log/custom_changelog_gen_head.sql
 @@change_log/custom_changelog_gen_body.sql
 @@data_browser1/data_browser_pref_tables.sql

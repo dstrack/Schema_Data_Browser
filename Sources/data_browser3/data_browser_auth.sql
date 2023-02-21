@@ -63,28 +63,6 @@ DROP SEQUENCE USER_NAMESPACES_SEQ;
 
 
 --------------------------------------------------
-/*
-INSERT INTO USER_WORKSPACE_SESSIONS(APEX_SESSION_ID, USER_NAME, SESSION_CREATED, IP_ADDRESS)
-SELECT *
-FROM (
-	SELECT DISTINCT A.APEX_SESSION_ID, A.APEX_USER USER_NAME, MIN(VIEW_DATE) SESSION_CREATED, IP_ADDRESS
-	FROM APEX_WORKSPACE_ACTIVITY_LOG A
-	WHERE A.APPLICATION_ID = 120
-	AND A.IP_ADDRESS IS NOT NULL
-	AND A.APEX_USER != 'nobody'
-	AND EXISTS ( SELECT 'X'
-		FROM BENUTZER B
-		WHERE UPPER(B.NAME) = A.APEX_USER
-	)
-	GROUP BY A.APEX_SESSION_ID, A.APEX_USER, A.IP_ADDRESS
-) S
-WHERE NOT EXISTS (
-	SELECT 'X'
-	FROM USER_WORKSPACE_SESSIONS T
-	WHERE T.APEX_SESSION_ID = S.APEX_SESSION_ID
-	AND T.USER_NAME = S.USER_NAME
-);
-*/
 
 CREATE OR REPLACE SYNONYM SCHEMA_KEYCHAIN FOR CUSTOM_KEYS.SCHEMA_KEYCHAIN;
 
@@ -95,7 +73,7 @@ WHERE WORKSPACE$_ID = custom_changelog.Get_Current_Workspace_ID
 WITH CHECK OPTION;
 
 CREATE OR REPLACE PACKAGE data_browser_auth
-AUTHID DEFINER -- enable caller to find users (V_CONTEXT_USERS).
+AUTHID DEFINER -- enable caller to find users (APP_USERS).
 IS
     FUNCTION Get_Admin_Workspace_Name RETURN VARCHAR2;
 
@@ -154,7 +132,7 @@ $END
 	-- delivers the hashed hex string for the given <p_Text>
 	-- using the secret crypto key of <p_Crypto_Key_ID>
     FUNCTION hex_hash(
-    	p_User_ID IN V_CONTEXT_USERS.USER_ID%TYPE,
+    	p_User_ID IN APP_USERS.ID%TYPE,
     	p_Text IN VARCHAR2)
     RETURN VARCHAR2;
 
@@ -172,7 +150,7 @@ $END
         p_Password_Reset IN VARCHAR2 DEFAULT 'Y',
         p_Account_Locked IN VARCHAR2 DEFAULT 'N'
     )
-    RETURN V_CONTEXT_USERS.USER_ID%TYPE;
+    RETURN APP_USERS.ID%TYPE;
 
     PROCEDURE add_user(
     	p_Username IN VARCHAR2,
@@ -222,6 +200,9 @@ $END
 		p_newpasswordPage NUMBER DEFAULT NULL
 	);
 
+	PROCEDURE Set_Apex_Context;	
+	PROCEDURE Clear_Context;	
+
 	FUNCTION strong_password_check (
 		p_Username		IN VARCHAR2,
 		p_password		IN VARCHAR2,
@@ -239,7 +220,6 @@ $END
 
 END data_browser_auth;
 /
-show errors
 
 CREATE OR REPLACE PACKAGE BODY data_browser_auth IS
     g_NewUserIDFunction CONSTANT VARCHAR2(100) := 'to_number(sys_guid(),''XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX'')';
@@ -282,8 +262,8 @@ $IF data_browser_specs.g_use_crypt_key_chain $THEN
 		v_crypto_key	RAW(32);
 	BEGIN
 		for rec in (
-			SELECT B.USER_ID KEY_ID
-			FROM V_CONTEXT_USERS B
+			SELECT B.ID KEY_ID
+			FROM APP_USERS B
 		)
 		loop
 			v_crypto_key := int_crypto_key (rec.KEY_ID);
@@ -343,6 +323,9 @@ $IF data_browser_specs.g_use_dbms_crypt $THEN
 	  v_crypto_key		RAW(32);
 	  v_Crypto_Method  	PLS_INTEGER :=
 		 DBMS_CRYPTO.ENCRYPT_AES256 + DBMS_CRYPTO.CHAIN_CBC + DBMS_CRYPTO.PAD_ZERO;
+		 
+      NLS_error_detected EXCEPTION;
+      PRAGMA EXCEPTION_INIT(NLS_error_detected, -1890);
 	BEGIN
 		v_crypto_key := int_crypto_key (p_Crypto_Key_ID);
 		v_Data   := DBMS_CRYPTO.DECRYPT(
@@ -350,6 +333,8 @@ $IF data_browser_specs.g_use_dbms_crypt $THEN
 			 typ => v_Crypto_Method,
 			 key => v_crypto_key);
 		RETURN UTL_I18N.RAW_TO_CHAR(v_Data, 'AL32UTF8');
+	EXCEPTION WHEN NLS_error_detected THEN
+		RETURN NULL;
 	END;
 
 	-- delivers the encrypted hex string for the given <p_Text>
@@ -393,7 +378,7 @@ $IF data_browser_specs.g_use_dbms_crypt $THEN
 	-- delivers the hashed hex string for the given <p_Text>
 	-- using the secret crypto key of <p_Crypto_Key_ID>
     FUNCTION hex_hash(
-    	p_User_ID IN V_CONTEXT_USERS.USER_ID%TYPE,
+    	p_User_ID IN APP_USERS.ID%TYPE,
     	p_Text IN VARCHAR2)
     RETURN VARCHAR2
     IS
@@ -414,7 +399,7 @@ $ELSE
 	-- delivers the hashed hex string for the given <p_Text>
 	-- using the secret crypto key of <p_Crypto_Key_ID>
     FUNCTION hex_hash(
-    	p_User_ID IN V_CONTEXT_USERS.USER_ID%TYPE,
+    	p_User_ID IN APP_USERS.ID%TYPE,
     	p_Text IN VARCHAR2)
     RETURN VARCHAR2
     IS
@@ -508,22 +493,22 @@ $END
         p_User_level IN NUMBER DEFAULT 3,
         p_Password_Reset IN VARCHAR2 DEFAULT 'Y',
         p_Account_Locked IN VARCHAR2 DEFAULT 'N'
-    ) RETURN V_CONTEXT_USERS.USER_ID%TYPE
+    ) RETURN APP_USERS.ID%TYPE
     IS
-        v_id   		V_CONTEXT_USERS.USER_ID%TYPE;
-    	v_Data		V_CONTEXT_USERS.Password_Hash%TYPE;
-    	v_Username	V_CONTEXT_USERS.Login_Name%TYPE;
-    	v_EMail 	V_CONTEXT_USERS.Email_Address%TYPE;
+        v_id   		APP_USERS.ID%TYPE;
+    	v_Data		APP_USERS.PASSWORD_HASH%TYPE;
+    	v_Username	APP_USERS.LOGIN_NAME%TYPE;
+    	v_EMail 	APP_USERS.EMAIL_ADDRESS%TYPE;
     BEGIN
     	v_Username := UPPER(TRIM(p_Username));
 		v_EMail := NVL(p_Email, APEX_UTIL.GET_EMAIL(v_Username));
-    	SELECT MAX(USER_ID)
+    	SELECT MAX(ID)
     	INTO v_id
-    	FROM V_CONTEXT_USERS WHERE UPPER_LOGIN_NAME = v_Username;
+    	FROM APP_USERS WHERE UPPER_LOGIN_NAME = v_Username;
     	if v_id IS NULL then
 			execute immediate 'begin :new_id := ' || g_NewUserIDFunction || '; end;' using out v_id;
 			v_Data := hex_hash(v_id, p_Password);
-			INSERT INTO V_CONTEXT_USERS (User_Id, Login_Name, Password_Hash, Email_Address, User_Level, Password_Reset, Account_Locked)
+			INSERT INTO APP_USERS (Id, Login_Name, Password_Hash, Email_Address, User_Level, Password_Reset, Account_Locked)
 			VALUES (v_id, TRIM(p_Username), v_Data, TRIM(p_Email), p_User_level, p_Password_Reset, p_Account_Locked);
 		end if;
     	RETURN v_id;
@@ -538,7 +523,7 @@ $END
         p_Account_Locked IN VARCHAR2 DEFAULT 'N'
     )
     IS
-        v_id   		V_CONTEXT_USERS.USER_ID%type;
+        v_id   		APP_USERS.ID%type;
     BEGIN
 		v_id	:= add_user(p_Username, p_Password, p_Email, p_User_level, p_Password_Reset, p_Account_Locked);
     END add_user;
@@ -585,7 +570,7 @@ $END
 	PROCEDURE Add_Developers
 	IS
 	BEGIN
-		INSERT INTO V_CONTEXT_USERS (Login_Name, First_Name, Last_Name, EMail_Address, User_Level, Password_Reset)
+		INSERT INTO APP_USERS (Login_Name, First_Name, Last_Name, EMail_Address, User_Level, Password_Reset)
 		select D.USER_NAME, D.FIRST_NAME, D.LAST_NAME, D.EMAIL,
 			case when D.IS_ADMIN = 'Yes' then 1
 				when D.IS_APPLICATION_DEVELOPER = 'Yes' then 2
@@ -596,7 +581,7 @@ $END
 		 where WORKSPACE_ID = APEX_CUSTOM_AUTH.GET_SECURITY_GROUP_ID
 		and NOT EXISTS (
 			SELECT 1
-			FROM V_CONTEXT_USERS U
+			FROM APP_USERS U
 			WHERE U.UPPER_LOGIN_NAME = D.USER_NAME
 		);
 		commit;
@@ -611,7 +596,7 @@ $END
 	is
 		v_Count	PLS_INTEGER;
 	begin 
-		select count(*) into v_Count from V_CONTEXT_USERS where UPPER_LOGIN_NAME = UPPER(p_Admin_User);
+		select count(*) into v_Count from APP_USERS where UPPER_LOGIN_NAME = UPPER(p_Admin_User);
 		if v_Count = 0 then 
 			-- first run : add admin, demo, guest accounts
 $IF data_browser_specs.g_use_dbms_crypt $THEN
@@ -629,7 +614,7 @@ $ELSE
 $END
 		end if;
 		if p_Add_Demo_Guest = 'YES' then 
-			select count(*) into v_Count from V_CONTEXT_USERS where UPPER_LOGIN_NAME = 'DEMO';
+			select count(*) into v_Count from APP_USERS where UPPER_LOGIN_NAME = 'DEMO';
 			if v_Count = 0 then 
 				data_browser_auth.Add_User(
 					p_Username => 'Demo',
@@ -638,7 +623,7 @@ $END
 					p_Password_Reset => 'N'
 				);
 			end if;
-			select count(*) into v_Count from V_CONTEXT_USERS where UPPER_LOGIN_NAME = 'GUEST';
+			select count(*) into v_Count from APP_USERS where UPPER_LOGIN_NAME = 'GUEST';
 			if v_Count = 0 then 
 				data_browser_auth.Add_User(
 					p_Username => 'Guest',
@@ -705,20 +690,20 @@ $END
     RETURN BOOLEAN
     IS
 		v_result         BOOLEAN := false;
-		v_user 			V_CONTEXT_USERS.Login_Name%type;
-		v_id   			V_CONTEXT_USERS.USER_ID%type;
+		v_user 			APP_USERS.Login_Name%type;
+		v_id   			APP_USERS.ID%type;
 		v_password		VARCHAR2(1000);
-		v_pwd_hash		V_CONTEXT_USERS.Password_Hash%type;
-		v_reset_pw 		V_CONTEXT_USERS.Password_Reset%type;
+		v_pwd_hash		APP_USERS.Password_Hash%type;
+		v_reset_pw 		APP_USERS.Password_Reset%type;
 		v_message		VARCHAR2(50);
     BEGIN
     	v_user  := UPPER(TRIM(p_Username));
     	v_password := TRIM(p_Password);
     	if check_session_schema then
 			begin
-				SELECT USER_ID, Password_Hash, Password_Reset
+				SELECT ID, Password_Hash, Password_Reset
 				INTO v_id, v_pwd_hash, v_reset_pw
-				FROM V_CONTEXT_USERS B
+				FROM APP_USERS B
 				WHERE UPPER_LOGIN_NAME = v_user
 				AND (Account_Expiration_Date >= TRUNC(SYSDATE) OR Account_Expiration_Date IS NULL)
 				FOR UPDATE OF B.LAST_LOGIN_DATE;
@@ -786,23 +771,23 @@ $END
 		p_newpasswordPage NUMBER DEFAULT NULL
 	)
 	IS
-      v_id   			V_CONTEXT_USERS.USER_ID%type;
-      v_user 			V_CONTEXT_USERS.Login_Name%type;
-      v_pwd_hash  			V_CONTEXT_USERS.Password_Hash%type;
-      v_reset_pw 		V_CONTEXT_USERS.Password_Reset%type;
-      v_expire_date		V_CONTEXT_USERS.Password_Expiration_Date%type;
+      v_id   			APP_USERS.ID%type;
+      v_user 			APP_USERS.Login_Name%type;
+      v_pwd_hash  			APP_USERS.Password_Hash%type;
+      v_reset_pw 		APP_USERS.Password_Reset%type;
+      v_expire_date		APP_USERS.Password_Expiration_Date%type;
       v_redirect_url	VARCHAR2(200);
       v_client_ip_address VARCHAR2(255) := SUBSTR(data_browser_auth.client_ip_address(), 1, 255);
 	BEGIN
-		SELECT USER_ID, UPPER_LOGIN_NAME, Password_Hash, Password_Reset, Password_Expiration_Date
+		SELECT ID, UPPER_LOGIN_NAME, Password_Hash, Password_Reset, Password_Expiration_Date
 		INTO v_id, v_user, v_pwd_hash, v_reset_pw, v_expire_date
-		FROM V_CONTEXT_USERS B
+		FROM APP_USERS B
 		WHERE UPPER_LOGIN_NAME = V('APP_USER')
 		FOR UPDATE OF B.LAST_LOGIN_DATE;
 
-		UPDATE V_CONTEXT_USERS
+		UPDATE APP_USERS
 		SET LAST_LOGIN_DATE = SYSDATE
-		WHERE USER_ID = v_id;
+		WHERE ID = v_id;
 
 		MERGE INTO USER_WORKSPACE_SESSIONS D
 		USING (SELECT V('APP_SESSION') 						APEX_SESSION_ID,
@@ -829,7 +814,27 @@ $END
 
 	END post_authenticate;
 
-	-- weco_ctx.strong_password_check (:P9_CURR_USER, :P9_NEW_PW, :P9_PW);
+	PROCEDURE Set_Apex_Context
+	IS 
+		v_Table_App_Users VARCHAR2(200) := changelog_conf.Get_Table_App_Users;
+	BEGIN
+$IF data_browser_specs.g_use_custom_ctx $THEN
+		set_custom_ctx.set_apex_context(p_Table_App_Users=>'APP_USERS');
+$ELSE
+		null;
+$END
+	END;
+
+	PROCEDURE Clear_Context
+	IS 
+	BEGIN
+$IF data_browser_specs.g_use_custom_ctx $THEN
+		set_custom_ctx.Clear_Context;
+$ELSE
+		null;
+$END
+	END;
+
 
 	FUNCTION strong_password_check (
 		p_Username		IN VARCHAR2,
@@ -925,8 +930,8 @@ $END
         p_Password IN VARCHAR2)
 	IS
 	BEGIN
-		UPDATE V_CONTEXT_USERS
-		SET Password_Hash = hex_hash(USER_ID, p_Password),
+		UPDATE APP_USERS
+		SET Password_Hash = hex_hash(ID, p_Password),
 			Password_Reset = 'N',
 			Password_Expiration_Date = NULL,
 			Account_Expiration_Date = case when Password_Reset = 'Y' then NULL else Account_Expiration_Date end,
@@ -946,7 +951,7 @@ $END
 	-- post_logout called in apex custom authorization schema
 	PROCEDURE post_logout
 	IS
-      v_User 	V_CONTEXT_USERS.Login_Name%type := V('APP_USER');
+      v_User 	APP_USERS.Login_Name%type := V('APP_USER');
       v_Message	VARCHAR2(300) := 'Logout';
 	BEGIN
 		log_message(v_Message, v_User);
@@ -954,7 +959,6 @@ $END
 
 END data_browser_auth;
 /
-show errors
 
 
 
@@ -976,9 +980,8 @@ END;
 	end if;
 end;
 /
-
+-- for access by DATA_BROWSER_SCHEMA package
 grant select on APP_USERS to PUBLIC;
-
 /*
 
 begin if data_browser_auth.authenticate('DIRK', 'abc') then dbms_output.PUT_LINE('OK'); else dbms_output.PUT_LINE('failed'); end if; end;

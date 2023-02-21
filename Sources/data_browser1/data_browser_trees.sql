@@ -54,16 +54,24 @@ IS
 	IS 	
 	with t_list as (
 		select T.VIEW_NAME, T.VIEW_NAME A_VIEW_NAME, T.TABLE_NAME, T.CONSTRAINT_NAME, T.COLUMN_PREFIX, 
-				NVL(T.NUM_ROWS, 0) NUM_ROWS,
-				T.REFERENCES_COUNT,
-				T.HTML_FIELD_COLUMN_NAME, T.FILE_FOLDER_COLUMN_NAME, T.FILE_CONTENT_COLUMN_NAME
+			case when data_browser_conf.Has_Multiple_Workspaces = 'YES' then 
+				data_browser_conf.FN_Query_Cardinality(T.VIEW_NAME, T.PRIMARY_KEY_COLS ) 
+			else
+				NVL(T.NUM_ROWS, 0) 
+			end NUM_ROWS, 
+			T.REFERENCES_COUNT,
+			T.HTML_FIELD_COLUMN_NAME, T.FILE_FOLDER_COLUMN_NAME, T.FILE_CONTENT_COLUMN_NAME
 		from MVDATA_BROWSER_DESCRIPTIONS T
 		where (T.IS_ADMIN_TABLE = 'N' or v_App_Developer_Mode = 'YES' and data_browser_conf.Get_Admin_Enabled = 'Y')
 		union -- special case self reference --
 		select T.VIEW_NAME, T.VIEW_NAME || '_', T.TABLE_NAME A_VIEW_NAME, T.CONSTRAINT_NAME, T.COLUMN_PREFIX, 
-				NVL(T.NUM_ROWS, 0) NUM_ROWS,
-				T.REFERENCES_COUNT,
-				T.HTML_FIELD_COLUMN_NAME, T.FILE_FOLDER_COLUMN_NAME, T.FILE_CONTENT_COLUMN_NAME
+			case when data_browser_conf.Has_Multiple_Workspaces = 'YES' then 
+				data_browser_conf.FN_Query_Cardinality(S.VIEW_NAME, S.COLUMN_NAME ) 
+			else
+				NVL(T.NUM_ROWS, 0) 
+			end NUM_ROWS, 
+			T.REFERENCES_COUNT,
+			T.HTML_FIELD_COLUMN_NAME, T.FILE_FOLDER_COLUMN_NAME, T.FILE_CONTENT_COLUMN_NAME
 		from MVDATA_BROWSER_DESCRIPTIONS T, 
 			MVDATA_BROWSER_REFERENCES S
 		where S.VIEW_NAME = S.R_VIEW_NAME -- recursion 
@@ -71,12 +79,24 @@ IS
 		and (T.IS_ADMIN_TABLE = 'N' or v_App_Developer_Mode = 'YES' and data_browser_conf.Get_Admin_Enabled = 'Y')
 	), r_list as (
 		select R.VIEW_NAME, R.R_VIEW_NAME, 
-			R.COLUMN_NAME, R.CONSTRAINT_NAME, R.NUM_ROWS, R.FOLDER_NAME_COLUMN_NAME, R.FOLDER_PARENT_COLUMN_NAME
+			R.COLUMN_NAME, R.CONSTRAINT_NAME, 
+			case when data_browser_conf.Has_Multiple_Workspaces = 'YES' then 
+				data_browser_conf.FN_Query_Cardinality(R.VIEW_NAME, R.COLUMN_NAME ) 
+			else 
+				R.NUM_ROWS
+			end NUM_ROWS, 
+			R.FOLDER_NAME_COLUMN_NAME, R.FOLDER_PARENT_COLUMN_NAME
 		from MVDATA_BROWSER_REFERENCES R
 		where R.VIEW_NAME != R.R_VIEW_NAME
 		union 
 		select R.VIEW_NAME || '_' VIEW_NAME, R.R_VIEW_NAME, 
-			R.COLUMN_NAME, R.CONSTRAINT_NAME, R.NUM_ROWS, R.FOLDER_NAME_COLUMN_NAME, R.FOLDER_PARENT_COLUMN_NAME
+			R.COLUMN_NAME, R.CONSTRAINT_NAME, 
+			case when data_browser_conf.Has_Multiple_Workspaces = 'YES' then 
+				data_browser_conf.FN_Query_Cardinality(R.VIEW_NAME, R.COLUMN_NAME ) 	
+			else 
+				R.NUM_ROWS
+			end NUM_ROWS, 
+			R.FOLDER_NAME_COLUMN_NAME, R.FOLDER_PARENT_COLUMN_NAME
 		from MVDATA_BROWSER_REFERENCES R -- recursion 
 		where R.VIEW_NAME = R.R_VIEW_NAME
 	)

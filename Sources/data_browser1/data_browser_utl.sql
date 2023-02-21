@@ -4127,11 +4127,11 @@ end if;
 					S.COLUMN_PREFIX,
 					NULL FIELD_VALUE,
 					E.R_UNIQUE_KEY_COLS COLUMN_NAME,
-					case when E.COLUMN_NAME != p_Unique_Key_Column then
+					case when E.R_UNIQUE_KEY_COLS != p_Unique_Key_Column then
 						data_browser_utl.Lookup_Column_Value (
 							p_Search_Value => p_Search_Value, 
 							p_Table_Name => E.R_VIEW_NAME, 
-							p_Column_Exp => E.COLUMN_NAME, 
+							p_Column_Exp => E.R_UNIQUE_KEY_COLS, -- Bugfix DS 20230220: Lookup of prirmary key value failed 
 							p_Search_Key_Col => p_Unique_Key_Column)
 					else 
 						p_Search_Value 

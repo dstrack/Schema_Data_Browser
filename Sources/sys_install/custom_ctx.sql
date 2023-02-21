@@ -77,8 +77,6 @@ IS
 	g_Insert_WS_Stat	CONSTANT VARCHAR2(200)	:=
 		'INSERT INTO ' || g_TableWorkspaces || ' (' || g_ColWorkspaceName || ',  CREATED_BY)' ||
 		' VALUES (UPPER(:a), :b) RETURNING (' || g_ColumnWorkspace || ') INTO :c';
-	g_Find_User_Query 	CONSTANT VARCHAR2(200)	:=
-		'SELECT USER_ID, USER_LEVEL, EMAIL_ADDRESS FROM ' || g_TableAppUsers || ' WHERE UPPER_LOGIN_NAME = :a';
 
 	g_QueryTimestampFunction VARCHAR2(64) := 'set_custom_ctx.Get_Query_Timestamp';
     -- Context Expression for current Namespace
@@ -115,7 +113,8 @@ IS
 
 	PROCEDURE Set_Current_User (
 		p_User_Name		IN VARCHAR2,
-   		p_Client_Id 	IN VARCHAR2 DEFAULT SYS_CONTEXT('USERENV','CLIENT_IDENTIFIER')
+   		p_Client_Id 	IN VARCHAR2 DEFAULT SYS_CONTEXT('USERENV','CLIENT_IDENTIFIER'),
+   		p_Table_App_Users IN VARCHAR2 DEFAULT set_custom_ctx.g_TableAppUsers
 	);
 
 	PROCEDURE Set_Query_Timestamp (
@@ -139,9 +138,13 @@ IS
 
 	PROCEDURE Post_Db_Logon;
 
-	PROCEDURE Post_Apex_Logon;
+	PROCEDURE Post_Apex_Logon (
+   		p_Table_App_Users IN VARCHAR2 DEFAULT set_custom_ctx.g_TableAppUsers
+   	);
 
-	PROCEDURE Set_Apex_Context;
+	PROCEDURE Set_Apex_Context (
+   		p_Table_App_Users IN VARCHAR2 DEFAULT set_custom_ctx.g_TableAppUsers
+   	);
 
 	PROCEDURE Clear_Context (
    		p_Client_Id 	IN VARCHAR2 DEFAULT SYS_CONTEXT('USERENV','CLIENT_IDENTIFIER')
@@ -153,7 +156,6 @@ IS
    	);
  END set_custom_ctx;
 /
-show errors
 
 CREATE OR REPLACE PACKAGE BODY custom_keys.set_custom_ctx IS
     FUNCTION Get_CtxNamespace RETURN VARCHAR2 DETERMINISTIC IS BEGIN RETURN g_CtxNamespace; END;
@@ -275,7 +277,8 @@ CREATE OR REPLACE PACKAGE BODY custom_keys.set_custom_ctx IS
 
 	PROCEDURE Set_Current_User (
    		p_User_Name		IN VARCHAR2,
-   		p_Client_Id 	IN VARCHAR2 DEFAULT SYS_CONTEXT('USERENV','CLIENT_IDENTIFIER')
+   		p_Client_Id 	IN VARCHAR2 DEFAULT SYS_CONTEXT('USERENV','CLIENT_IDENTIFIER'),
+   		p_Table_App_Users IN VARCHAR2 DEFAULT set_custom_ctx.g_TableAppUsers
    	)
 	IS
 		v_User_Id 		VARCHAR2(100);
@@ -284,11 +287,17 @@ CREATE OR REPLACE PACKAGE BODY custom_keys.set_custom_ctx IS
 		v_User_Email 	VARCHAR2(300);
 		v_Csv_Charset	VARCHAR2(300);
    		cv 				cur_type;
+		v_Find_User_Query VARCHAR2(500);
 	BEGIN
+		if p_Table_App_Users = 'V_CONTEXT_USERS' then
+			v_Find_User_Query := 'SELECT USER_ID, USER_LEVEL, EMAIL_ADDRESS FROM V_CONTEXT_USERS WHERE UPPER_LOGIN_NAME = :a';
+		else 
+			v_Find_User_Query := 'SELECT ID, USER_LEVEL, EMAIL_ADDRESS FROM ' || p_Table_App_Users || ' WHERE UPPER_LOGIN_NAME = :a';
+		end if;
 		v_User_Name := UPPER(p_User_Name);
 		UTL_HTTP.GET_BODY_CHARSET (v_Csv_Charset);
 		begin
-			OPEN cv FOR g_Find_User_Query USING v_User_Name;
+			OPEN cv FOR v_Find_User_Query USING v_User_Name;
 			FETCH cv INTO v_User_Id, v_Userlevel, v_User_Email;
 			if cv%NOTFOUND then
 				v_User_Id 	:= APEX_UTIL.GET_USER_ID(v_User_Name);
@@ -394,7 +403,9 @@ CREATE OR REPLACE PACKAGE BODY custom_keys.set_custom_ctx IS
 		end if;
 	END;
 
-	PROCEDURE Post_Apex_Logon
+	PROCEDURE Post_Apex_Logon (
+   		p_Table_App_Users IN VARCHAR2 DEFAULT set_custom_ctx.g_TableAppUsers
+   	)
 	IS
 		v_Workspace_Name	VARCHAR2(50) := NVL(V(g_Workspace_Item), SYS_CONTEXT(g_CtxNamespace, g_CtxWorkspaceName));
 		v_User_Name		VARCHAR2(50) := SYS_CONTEXT('APEX$SESSION','APP_USER');
@@ -405,14 +416,16 @@ CREATE OR REPLACE PACKAGE BODY custom_keys.set_custom_ctx IS
 			RAISE_APPLICATION_ERROR (-20010, g_Workspace_Item || ' is not initialized.' );
 		end if;
 		set_current_workspace(v_Workspace_Name, v_Client_Id);
-		set_current_user(v_User_Name, v_Client_Id);
+		set_current_user(v_User_Name, v_Client_Id, p_Table_App_Users);
 		COMMIT;
 		if g_debug > 0 then
 			Log_Message('Post_Apex_Logon', '(' || v_Workspace_Name || ', ' || v_User_Name || ', ' || v_Client_Id || ')' );
 		end if;
 	END;
 
-	PROCEDURE Set_Apex_Context
+	PROCEDURE Set_Apex_Context (
+   		p_Table_App_Users IN VARCHAR2 DEFAULT set_custom_ctx.g_TableAppUsers
+   	)
 	IS
 		v_User_Name 		VARCHAR2(50) := V(g_User_Name_Item);
 		v_Workspace_Name 	VARCHAR2(50) := V(g_Workspace_Item);
@@ -422,7 +435,7 @@ CREATE OR REPLACE PACKAGE BODY custom_keys.set_custom_ctx IS
 		v_Client_Id := REPLACE(v_Client_Id, 'nobody', v_User_Name);
 		if v_Workspace_Name IS NOT NULL then
 			Set_Current_Workspace(v_Workspace_Name, v_Client_Id);
-			Set_Current_User(v_User_Name, v_Client_Id);
+			Set_Current_User(v_User_Name, v_Client_Id, p_Table_App_Users);
 		end if;
 		if v_TimestampString IS NOT NULL then
 			Set_Query_Timestamp(TO_TIMESTAMP_TZ(v_TimestampString, g_CtxTimestampFormat), v_Client_Id);
@@ -468,7 +481,6 @@ CREATE OR REPLACE PACKAGE BODY custom_keys.set_custom_ctx IS
 
 END set_custom_ctx;
 /
-show errors
 
 GRANT EXECUTE ON custom_keys.set_custom_ctx TO PUBLIC;
 CREATE OR REPLACE PUBLIC SYNONYM set_custom_ctx FOR custom_keys.set_custom_ctx;

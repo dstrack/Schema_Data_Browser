@@ -2668,7 +2668,7 @@ is
 					) R_COLUMN_NAMES -- all description columns of one foreign key
 				FROM (
 					WITH PARAM AS (
-					/*	SELECT TABLE_NAME Table_Name,
+					/*	SELECT VIEW_NAME Table_Name,
 								DISPLAYED_COLUMN_NAMES Display_Col_Names,
 								SEARCH_KEY_COLS Search_Key_Col,
 								NULL	Exclude_Col_Name,
@@ -2679,7 +2679,7 @@ is
 								1		Call_Level,
 								4		P_INDENT
 						FROM MVDATA_BROWSER_DESCRIPTIONS
-						WHERE TABLE_NAME = 'SW_FILES'
+						WHERE VIEW_NAME = 'SW_FILES'
 					*/
 						SELECT p_Table_Name Table_Name,
 							p_Display_Col_Names Display_Col_Names,
@@ -2768,7 +2768,8 @@ is
 					LEFT OUTER JOIN MVDATA_BROWSER_REFERENCES G ON G.VIEW_NAME = F.R_VIEW_NAME AND G.COLUMN_NAME = F.R_COLUMN_NAME
 					WHERE C.VIEW_NAME = PA.Table_Name
 					AND (F.R_COLUMN_NAME IS NULL OR PA.Exclude_Col_Name IS NULL OR F.R_COLUMN_NAME != PA.Exclude_Col_Name )
-					AND (T.COLUMN_NAME != S.FOLDER_NAME_COLUMN_NAME OR S.FOLDER_NAME_COLUMN_NAME IS NULL)
+					AND (T.COLUMN_NAME != S.FOLDER_NAME_COLUMN_NAME OR S.FOLDER_NAME_COLUMN_NAME IS NULL 
+						OR R.FOLDER_PARENT_COLUMN_NAME IS NULL)	-- Bugfix DS 20230220: dont filter FOLDER_NAME_COLUMN_NAME when there is no FOLDER_PARENT_COLUMN_NAME
 				)
 				GROUP BY VIEW_NAME, TABLE_ALIAS, COLUMN_NAME, POSITION, NULLABLE, -- one line or each foreign key
 					DATA_TYPE, DATA_PRECISION, DATA_SCALE, CHAR_LENGTH, IS_DATETIME,

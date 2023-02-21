@@ -151,8 +151,6 @@ IS
 	FUNCTION Get_HistoryViewName(p_Name VARCHAR2) RETURN VARCHAR2;
     FUNCTION Get_ChangeLogFKeyTables RETURN VARCHAR2;
     FUNCTION Get_ChangeLogFKeyColumns RETURN VARCHAR2;
-    FUNCTION Get_IncludeChangeLogPattern RETURN VARCHAR2;
-    FUNCTION Get_ExcludeChangeLogPattern RETURN VARCHAR2;
     FUNCTION Get_ExcludeChangeLogBlobCols RETURN VARCHAR2;
     FUNCTION Get_ReferenceDescriptionCols RETURN VARCHAR2;
     FUNCTION Get_ExcludeChangeLogCols RETURN VARCHAR2;
@@ -332,12 +330,6 @@ CREATE OR REPLACE PACKAGE BODY custom_changelog IS
     g_ChangeLogViewExt          VARCHAR2(64)            := '_CL';       -- Extension for History Views with AS OF TIMESTAMP filter
     g_HistoryViewExt            VARCHAR2(64)            := '_HS';       -- Extension for History Views with all modification timestamps
     -----------------------------------------------------------------------------
-    -- Table name pattern of tables to be included in the change log.
-    g_IncludeChangeLogPattern VARCHAR2(4000)            := '%';
-    -- Table name pattern of tables to be excluded in the change log.
-    g_ExcludeChangeLogPattern VARCHAR2(4000)            := 'EBA_DP%,CLOUD_VISITORS%';
-    c_ExcludeChangeLogPattern CONSTANT VARCHAR2(400)    := 'CHANGE_LOG%,USER_WORKSPACE_SESSIONS,DATA_BROWSER_CHECKS,%HISTORY%,%PROTOCOL%,%PLUGIN%';
-
     -- Tables of interest with direct access in the CHANGE_LOG table. The Columns CUSTOM_REF_ID1 to CUSTOM_REF_ID9 will be defined as References to this tables.
     g_ChangeLogFKeyTables VARCHAR2(4000)                := 'REGIONS, DEPARTMENTS, EMPLOYEES';
     -- Column Names of the direct References. The Columns CUSTOM_REF_ID1 to CUSTOM_REF_ID9 will be renamed to this names in the views VPROTOCOL_LIST, VPROTOCOL_COLUMNS_LIST and VPROTOCOL_COLUMNS_LIST2
@@ -353,7 +345,7 @@ CREATE OR REPLACE PACKAGE BODY custom_changelog IS
 	g_CtxTimestampFormat CONSTANT VARCHAR2(64)	:= 'DD.MM.YYYY HH24.MI.SS.FF TZH:TZM';
 	g_Timestamp_Item 	CONSTANT VARCHAR2(32) := 'APP_QUERY_TIMESTAMP'; -- Apex Item for current query timestamp
 	g_Workspace_Item 	CONSTANT VARCHAR2(30) := 'APP_WORKSPACE';	-- Apex Item for current workspace name
-
+	
     PROCEDURE Save_Config_Defaults
     IS PRAGMA AUTONOMOUS_TRANSACTION;
         v_ChangeLogCopyBeforeImage  VARCHAR2(128) := case when g_ChangeLogCopyBeforeImage then 'YES' else 'NO' end;
@@ -366,11 +358,11 @@ CREATE OR REPLACE PACKAGE BODY custom_changelog IS
     		WHERE T.WORKSPACE_NAME = SYS_CONTEXT('USERENV', 'CURRENT_SCHEMA')
     	);
     	
-		INSERT INTO CHANGE_LOG_CONFIG (ID, INCLUDED_CHANGELOG_PATTERN, EXCLUDED_CHANGELOG_PATTERN,
+		INSERT INTO CHANGE_LOG_CONFIG (ID, 
             CHANGELOG_FKEY_TABLES, CHANGELOG_FKEY_COLUMNS,
             EXCLUDED_CHANGELOG_BLOB_COLS, EXCLUDED_CHANGELOG_COLS, REFERENCE_DESCRIPTION_COLS,
             COPY_BEFORE_IMAGE, CHANGELOG_VIEW_EXT, HISTORY_VIEW_EXT
-		) VALUES (1, g_IncludeChangeLogPattern, g_ExcludeChangeLogPattern,
+		) VALUES (1, 
             g_ChangeLogFKeyTables, g_ChangeLogFKeyColumns,
             g_ExcludeChangeLogBlobCols, g_ExcludeChangeLogCols, g_ReferenceDescriptionCols,
             v_ChangeLogCopyBeforeImage, g_ChangeLogViewExt, g_HistoryViewExt
@@ -389,18 +381,18 @@ CREATE OR REPLACE PACKAGE BODY custom_changelog IS
         v_ColumnWorkspace			VARCHAR2(128);
     BEGIN
     	v_ColumnWorkspace := changelog_conf.Get_ColumnWorkspace; -- init package changelog_conf
-        SELECT INCLUDED_CHANGELOG_PATTERN, EXCLUDED_CHANGELOG_PATTERN,
+        SELECT 
             CHANGELOG_FKEY_TABLES, CHANGELOG_FKEY_COLUMNS,
             EXCLUDED_CHANGELOG_BLOB_COLS, EXCLUDED_CHANGELOG_COLS, REFERENCE_DESCRIPTION_COLS,
             COPY_BEFORE_IMAGE, CHANGELOG_VIEW_EXT, HISTORY_VIEW_EXT
-        INTO g_IncludeChangeLogPattern, g_ExcludeChangeLogPattern,
-            g_ChangeLogFKeyTables, g_ChangeLogFKeyColumns,
+        INTO g_ChangeLogFKeyTables, g_ChangeLogFKeyColumns,
             g_ExcludeChangeLogBlobCols, g_ExcludeChangeLogCols, g_ReferenceDescriptionCols,
             v_ChangeLogCopyBeforeImage, g_ChangeLogViewExt, g_HistoryViewExt
         FROM CHANGE_LOG_CONFIG
         WHERE ID = 1;
 
         g_ChangeLogCopyBeforeImage := (v_ChangeLogCopyBeforeImage = 'YES');
+
     EXCEPTION WHEN NO_DATA_FOUND THEN
 		NULL;
     END;
@@ -754,7 +746,6 @@ CREATE OR REPLACE PACKAGE BODY custom_changelog IS
 		COMMIT;
 	END;
 
-
     FUNCTION Get_Current_User_Name RETURN VARCHAR2
     IS
     BEGIN
@@ -772,8 +763,6 @@ CREATE OR REPLACE PACKAGE BODY custom_changelog IS
     FUNCTION Get_HistoryViewName(p_Name VARCHAR2) RETURN VARCHAR2 IS BEGIN RETURN p_Name || g_HistoryViewExt; END;
     FUNCTION Get_ChangeLogFKeyTables RETURN VARCHAR2 IS BEGIN RETURN g_ChangeLogFKeyTables; END;
     FUNCTION Get_ChangeLogFKeyColumns RETURN VARCHAR2 IS BEGIN RETURN g_ChangeLogFKeyColumns; END;
-    FUNCTION Get_IncludeChangeLogPattern RETURN VARCHAR2 IS BEGIN RETURN g_IncludeChangeLogPattern; END;
-    FUNCTION Get_ExcludeChangeLogPattern RETURN VARCHAR2 IS BEGIN RETURN Concat_List(g_ExcludeChangeLogPattern, c_ExcludeChangeLogPattern); END;
     FUNCTION Get_ExcludeChangeLogBlobCols RETURN VARCHAR2 IS BEGIN RETURN g_ExcludeChangeLogBlobCols; END;
     FUNCTION Get_ReferenceDescriptionCols RETURN VARCHAR2 IS BEGIN RETURN g_ReferenceDescriptionCols; END;
     FUNCTION Get_ExcludeChangeLogCols RETURN VARCHAR2 IS BEGIN RETURN g_ExcludeChangeLogCols; END;
