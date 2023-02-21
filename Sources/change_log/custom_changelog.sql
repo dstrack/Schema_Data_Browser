@@ -1318,7 +1318,7 @@ $END
 				where t.table_name = s.table_name
 			)
 		) loop 
-			DBMS_OUTPUT.PUT_LINE('purging table '||t_cur.view_name||' for change log.');
+			DBMS_OUTPUT.PUT_LINE('purging non-existing table '||t_cur.view_name||' from change log.');
 			custom_changelog.Delete_Changelog_Rows(t_cur.view_name);
         	DELETE FROM CHANGE_LOG_TABLES WHERE ID = t_cur.ID;
 		end loop;

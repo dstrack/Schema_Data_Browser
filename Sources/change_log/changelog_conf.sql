@@ -424,7 +424,7 @@ IS
     FUNCTION Get_Context_User_ID_Expr RETURN VARCHAR2;
 
     FUNCTION Get_Table_App_Users RETURN VARCHAR2;
-    FUNCTION Get_ExcludeTablesPattern RETURN VARCHAR2;
+    FUNCTION Get_ExcludeTablesPattern RETURN VARCHAR2 DETERMINISTIC;
     FUNCTION Get_IncludeWorkspaceIDPattern RETURN VARCHAR2;
     FUNCTION Get_ConstantWorkspaceIDPattern RETURN VARCHAR2;
     FUNCTION Get_ExcludeWorkspaceIDPattern RETURN VARCHAR2;
@@ -647,7 +647,7 @@ IS
     g_ExcludeTimestampPattern VARCHAR2(4000)    := '%PROTOCOL%,USER_IMPORT_JOBS,USER_WORKSPACE_SESSIONS,PLUGIN_DELETE_CHECKS,DATA_BROWSER%.APP_%';		-- List of table name pattern that are excluded from 'Audit Info Columns'.
 
     g_ExcludedTablesPattern CONSTANT VARCHAR2(4000) :=		-- Internal list of table name pattern that are excluded from 'Audit Info Columns' and 'Soft Delete Support'.
-    	'USER_PROCESS_OUTPUT$,CHANGE_LOG%,CHAINED_ROWS,%PLAN_TABLE,%_IMP,PLUGIN_DELETE_CHECKS,%PROTOCOL%,%HISTORY%,USER_WORKSPACE$_DIFFERENCE%';
+    	'USER_PROCESS_OUTPUT$,CHANGE_LOG%,CHAINED_ROWS,%PLAN_TABLE,%_IMP,PLUGIN_DELETE_CHECKS,%PROTOCOL%,%HISTORY%,USER_WORKSPACE%';
 
     g_ColumnCreateUser   VARCHAR2(512) := 'CREATED_BY,ERFASST_VON,ERFASST_KUERZEL'; 					-- Column Name for created by user name. the current user name is automatically inserted for each inserted row.
     g_ColumnCreateDate   VARCHAR2(512) := 'CREATED_AT,CREATED,ERFASST_DATUM';       					-- Column Name for Created at Date. The current timestamp is automatically initialized for each inserted row.
@@ -1456,6 +1456,7 @@ $END
                 AND A.IOT_NAME IS NULL
                 AND A.TEMPORARY = 'N'
                 AND A.TABLE_NAME NOT LIKE 'DR$%$_'  -- skip fulltext index
+                AND changelog_conf.Match_Column_Pattern(A.TABLE_NAME, changelog_conf.Get_ExcludeTablesPattern) = 'NO'
                 AND A.READ_ONLY IN ('NO', 'N/A')
                 AND NOT EXISTS (    -- this table is not part of materialized view
                     SELECT 1
@@ -2150,7 +2151,7 @@ $END
     FUNCTION Get_Context_User_ID_Expr RETURN VARCHAR2 IS BEGIN RETURN g_ContextUserIDExpr; END;
 
     FUNCTION Get_Table_App_Users RETURN VARCHAR2 IS BEGIN RETURN UPPER(g_Table_App_Users); END;
-    FUNCTION Get_ExcludeTablesPattern RETURN VARCHAR2
+    FUNCTION Get_ExcludeTablesPattern RETURN VARCHAR2 DETERMINISTIC
     IS
 	PRAGMA UDF;
     BEGIN RETURN g_ExcludedTablesPattern; END;
