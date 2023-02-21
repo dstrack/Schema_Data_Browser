@@ -638,7 +638,7 @@ IS
     	'CHANGE_LOG_CONFIG,CHANGE_LOG_TABLES,%PLAN_TABLE%,CHAINED_ROWS,USER_IMPORT_JOBS,%_IMP,'
     	|| 'APP_USERS,APP_USER_LEVELS,APP_PROTOCOL,USER_IMPORT_JOBS,SPRINGY_DIAGRAMS,DIAGRAM_SHAPES,DIAGRAM_NODES,DIAGRAM_EDGES,'
     	|| 'USER_INDEX_STATS$,USER_PROCESS_OUTPUT$,USER_WORKSPACE$_MASTER_TABLES,CREATE$JAVA$LOB$TABLE,'
-    	|| 'DATA_BROWSER%';
+    	|| 'DATA_BROWSER%,DIAGRAM_COLORS';
 
     g_IncludeDeleteMarkPattern VARCHAR2(4000)    := '%';	-- List of table name pattern that are included for 'Soft Delete Support'.
     g_ExcludeDeleteMarkPattern VARCHAR2(4000)    := 'PLUGIN_DELETE_CHECKS,DATA_BROWSER%';		-- List of table name pattern that are excluded from 'Soft Delete Support'.
