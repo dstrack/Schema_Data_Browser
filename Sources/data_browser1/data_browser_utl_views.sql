@@ -163,12 +163,12 @@ where A.COLLECTION_NAME = data_browser_conf.Get_Filter_Cond_Collection || V('APP
 
 
 CREATE OR REPLACE VIEW VDATA_BROWSER_COLUMN_RULES (
-	Table_Name, Table_Owner, Column_Name, Data_Type, 
+	view_name, Table_Name, Table_Owner, Column_Name, Data_Type, 
 	Rule_Name, Return_Value, Rule_Data_Type, Rule_Has_Blob, 
 	Match_Column_Pattern, Refresh_Starting_Step, Match_Type
 )
 AS
-select Table_Name, Table_Owner, Column_Name, Data_Type, 
+select view_name, Table_Name, Table_Owner, Column_Name, Data_Type, 
 	Rule_Name, Return_Value, 
 	Rule_Data_Type, Rule_Has_Blob,
 	case when return_Value = 'YES_NO_COLUMNS_PATTERN' and rule_data_type = 'BOOLEAN' then 
@@ -190,7 +190,7 @@ select Table_Name, Table_Owner, Column_Name, Data_Type,
 			'equals'
 	end Match_Type
 from (
-	select c.table_name, C.table_owner, c.column_name, c.data_type
+	select c.view_name, c.table_name, C.table_owner, c.column_name, c.data_type
 		,apex_lang.lang(b.display_value) rule_name, b.return_Value, b.data_type rule_data_type, b.rule_has_blob
 		,data_browser_conf.Matching_Column_Pattern(c.column_name, b.Pattern) Match_Column_Pattern
 		,case when b.return_Value IN ('DISPLAY_COLUMNS_PATTERN','ROW_VERSION_COLUMN_PATTERN','ROW_LOCK_COLUMN_PATTERN',
@@ -236,7 +236,7 @@ from (
 		from MVDATA_BROWSER_VIEWS T, MVDATA_BROWSER_DESCRIPTIONS D
 		where T.VIEW_NAME = D.VIEW_NAME
 	) t join (
-		select table_name, table_owner, column_name, 
+		select view_name, table_name, table_owner, column_name, 
 		case when IS_NUMBER_YES_NO_COLUMN = 'Y' or IS_CHAR_YES_NO_COLUMN = 'Y' then 
 				'BOOLEAN'
 			when exists (
