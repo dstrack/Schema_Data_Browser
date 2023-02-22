@@ -1263,34 +1263,38 @@ $END
         v_context binary_integer := FN_Scheduler_Context;		-- context is of type BINARY_INTEGER
 		v_sql USER_SCHEDULER_JOBS.JOB_ACTION%TYPE;
 	BEGIN
-		v_Modus := case when v_LAST_REFRESH_DATE IS NULL 
-						then 'IMMEDIATE' 
-					when SYSDATE - (1/24/60/60 * 15) > v_LAST_REFRESH_DATE  -- at least 15 seconds old
-						then 'SCHEDULED'
-					else 
-						'SKIPPED'
-					end;
-		$IF data_browser_jobs.g_debug $THEN
-			apex_debug.info(
-				p_message => 'data_browser_jobs.Refresh_Tree_View_Job (v_context => %s)',
-				p0 => v_context
-			);
-		$END
-		if v_Modus = 'IMMEDIATE' then
-			data_browser_jobs.Refresh_Tree_View(p_context=>v_context);
-		elsif v_Modus = 'SCHEDULED' then 
-			v_sql := 'begin ' ||chr(10)
-			|| 'data_browser_jobs.Refresh_Tree_View(p_context=>'
-			|| DBMS_ASSERT.ENQUOTE_LITERAL(v_context)
-			|| ');' 
-			||' end;';
-			Load_Job(
-				p_Job_Name => 'TREE_STATS',
-				p_Comment => g_Ref_Tree_View_Proc_Name,
-				p_Sql => v_sql,
-				p_Wait => 'NO',
-				p_Skip_When_Scheduled => 'YES'
-			);
+	-- the total row count of user_tables (NUMROWS) is displayed in the tree view of the data browser.
+	-- this vounts are calculated for individual workspaces in the case that Has_Multiple_Workspaces is true.
+		if data_browser_conf.Has_Multiple_Workspaces = 'NO' then 
+			v_Modus := case when v_LAST_REFRESH_DATE IS NULL 
+							then 'IMMEDIATE' 
+						when SYSDATE - (1/24/60/60 * 15) > v_LAST_REFRESH_DATE  -- at least 15 seconds old
+							then 'SCHEDULED'
+						else 
+							'SKIPPED'
+						end;
+			$IF data_browser_jobs.g_debug $THEN
+				apex_debug.info(
+					p_message => 'data_browser_jobs.Refresh_Tree_View_Job (v_context => %s)',
+					p0 => v_context
+				);
+			$END
+			if v_Modus = 'IMMEDIATE' then
+				data_browser_jobs.Refresh_Tree_View(p_context=>v_context);
+			elsif v_Modus = 'SCHEDULED' then 
+				v_sql := 'begin ' ||chr(10)
+				|| 'data_browser_jobs.Refresh_Tree_View(p_context=>'
+				|| DBMS_ASSERT.ENQUOTE_LITERAL(v_context)
+				|| ');' 
+				||' end;';
+				Load_Job(
+					p_Job_Name => 'TREE_STATS',
+					p_Comment => g_Ref_Tree_View_Proc_Name,
+					p_Sql => v_sql,
+					p_Wait => 'NO',
+					p_Skip_When_Scheduled => 'YES'
+				);
+			end if;
  		end if;
 	END Refresh_Tree_View_Job;
 

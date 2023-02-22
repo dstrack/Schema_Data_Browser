@@ -701,9 +701,9 @@ $END
     	v_password := TRIM(p_Password);
     	if check_session_schema then
 			begin
-				SELECT ID, Password_Hash, Password_Reset
+				SELECT USER_ID, Password_Hash, Password_Reset
 				INTO v_id, v_pwd_hash, v_reset_pw
-				FROM APP_USERS B
+				FROM V_CONTEXT_USERS B
 				WHERE UPPER_LOGIN_NAME = v_user
 				AND (Account_Expiration_Date >= TRUNC(SYSDATE) OR Account_Expiration_Date IS NULL)
 				FOR UPDATE OF B.LAST_LOGIN_DATE;
@@ -779,15 +779,15 @@ $END
       v_redirect_url	VARCHAR2(200);
       v_client_ip_address VARCHAR2(255) := SUBSTR(data_browser_auth.client_ip_address(), 1, 255);
 	BEGIN
-		SELECT ID, UPPER_LOGIN_NAME, Password_Hash, Password_Reset, Password_Expiration_Date
+		SELECT USER_ID, UPPER_LOGIN_NAME, Password_Hash, Password_Reset, Password_Expiration_Date
 		INTO v_id, v_user, v_pwd_hash, v_reset_pw, v_expire_date
-		FROM APP_USERS B
+		FROM V_CONTEXT_USERS B
 		WHERE UPPER_LOGIN_NAME = V('APP_USER')
 		FOR UPDATE OF B.LAST_LOGIN_DATE;
 
-		UPDATE APP_USERS
+		UPDATE V_CONTEXT_USERS
 		SET LAST_LOGIN_DATE = SYSDATE
-		WHERE ID = v_id;
+		WHERE USER_ID = v_id;
 
 		MERGE INTO USER_WORKSPACE_SESSIONS D
 		USING (SELECT V('APP_SESSION') 						APEX_SESSION_ID,
@@ -819,7 +819,7 @@ $END
 		v_Table_App_Users VARCHAR2(200) := changelog_conf.Get_Table_App_Users;
 	BEGIN
 $IF data_browser_specs.g_use_custom_ctx $THEN
-		set_custom_ctx.set_apex_context(p_Table_App_Users=>'APP_USERS');
+		set_custom_ctx.set_apex_context(p_Table_App_Users=>'V_CONTEXT_USERS');
 $ELSE
 		null;
 $END
@@ -930,8 +930,8 @@ $END
         p_Password IN VARCHAR2)
 	IS
 	BEGIN
-		UPDATE APP_USERS
-		SET Password_Hash = hex_hash(ID, p_Password),
+		UPDATE V_CONTEXT_USERS
+		SET Password_Hash = hex_hash(USER_ID, p_Password),
 			Password_Reset = 'N',
 			Password_Expiration_Date = NULL,
 			Account_Expiration_Date = case when Password_Reset = 'Y' then NULL else Account_Expiration_Date end,

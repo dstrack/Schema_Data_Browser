@@ -639,7 +639,8 @@ IS
 		FROM SYS.ALL_TAB_COLS A
 		WHERE OWNER NOT IN ('SYS', 'SYSTEM', 'SYSAUX', 'CTXSYS', 'MDSYS', 'OUTLN')
 		AND data_browser_pattern.Match_Included_Tables(A.TABLE_NAME) = 'YES'
-		AND data_browser_pattern.Match_Excluded_Tables(A.TABLE_NAME) = 'NO';
+		AND data_browser_pattern.Match_Excluded_Tables(A.TABLE_NAME) = 'NO'
+		AND A.TABLE_NAME NOT LIKE 'DR$%$_';  -- skip fulltext index
 
         CURSOR user_cols_cur
         IS
@@ -650,7 +651,8 @@ IS
 			DATA_DEFAULT, DATA_PRECISION, DATA_SCALE, CHAR_LENGTH, HIDDEN_COLUMN, VIRTUAL_COLUMN
 		FROM SYS.USER_TAB_COLS A
 		WHERE data_browser_pattern.Match_Included_Tables(A.TABLE_NAME) = 'YES'
-		AND data_browser_pattern.Match_Excluded_Tables(A.TABLE_NAME) = 'NO';
+		AND data_browser_pattern.Match_Excluded_Tables(A.TABLE_NAME) = 'NO'
+		AND A.TABLE_NAME NOT LIKE 'DR$%$_';  -- skip fulltext index
 
         TYPE stat_tbl IS TABLE OF user_cols_cur%ROWTYPE;
         v_in_rows stat_tbl;
