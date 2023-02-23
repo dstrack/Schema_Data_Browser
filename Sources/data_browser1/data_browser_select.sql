@@ -539,7 +539,8 @@ is
 					COMMENTS
 				FROM ( -- counter column for each foreign key referencing the current row.
 				   SELECT 
-						DENSE_RANK() OVER (PARTITION BY E.R_VIEW_NAME ORDER BY E.TABLE_NAME, E.COLUMN_NAME) POSITION,
+						DENSE_RANK() OVER (PARTITION BY E.R_VIEW_NAME ORDER BY E.TABLE_NAME, E.COLUMN_NAME, E.JOINS) POSITION,
+						-- POSITION is appended to the column_name to avoiad duplicate names.
 						DENSE_RANK() OVER (PARTITION BY E.VIEW_NAME, A.COLUMN_NAME ORDER BY E.TABLE_ALIAS) RANKING,
 						data_browser_select.Reference_Column_Header (
 							p_Column_Name => E.COLUMN_NAME,
@@ -602,6 +603,7 @@ is
 								CONNECT_BY_ROOT R_PRIMARY_KEY_COLS as R_PRIMARY_KEY_COLS,  
 								CONNECT_BY_ROOT R_UNIQUE_KEY_COLS as R_UNIQUE_KEY_COLS
 							 FROM MVDATA_BROWSER_REFERENCES 
+							 WHERE VIEW_NAME != v_View_Name -- avoid self references. I think that makes no sense.
 							START WITH R_VIEW_NAME = v_View_Name
 							CONNECT BY NOCYCLE R_VIEW_NAME = PRIOR VIEW_NAME AND LEVEL <= 5
 						) R JOIN MVDATA_BROWSER_DESCRIPTIONS D ON R.VIEW_NAME = D.VIEW_NAME
