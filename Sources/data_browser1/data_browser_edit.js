@@ -16,7 +16,10 @@ limitations under the License.
 "use strict";
 
 function extraIsChanged () {
-    return htmldb_ch;
+    if ( typeof(htmldb_ch) !== 'undefined') {
+	    return htmldb_ch;
+    }
+    return false;
 }
 
 function check_isChanged() {

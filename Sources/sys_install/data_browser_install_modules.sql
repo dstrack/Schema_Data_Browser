@@ -12,9 +12,6 @@ prompt ============================================================
 @@data_browser1/data_browser_conf_upgrade.sql
 @@data_browser1/data_browser_specs.sql
 @@data_browser1/numbers_utl.sql
-@@data_browser1/data_browser_conf.sql
-@@data_browser1/data_browser_pattern.sql
-@@data_browser1/data_browser_jobs.sql
 @@change_log/change_log_conf_table.sql
 @@change_log/changelog_conf.sql
 @@change_log/user_namespaces_table.sql
@@ -26,6 +23,9 @@ prompt ============================================================
 @@change_log/app_protocol_table.sql
 @@change_log/custom_changelog_gen_head.sql
 @@change_log/custom_changelog_gen_body.sql
+@@data_browser1/data_browser_conf.sql
+@@data_browser1/data_browser_pattern.sql
+@@data_browser1/data_browser_jobs.sql
 @@data_browser1/data_browser_pref_tables.sql
 @@data_browser1/data_browser_pipes.sql
 @@data_browser1/data_browser_views.sql

@@ -215,6 +215,11 @@ $END
     	p_Username IN VARCHAR2,
         p_Password IN VARCHAR2);
 
+	-- change password of database account for <p_Username>. New password is <p_Password>
+	PROCEDURE change_db_password(
+    	p_Username IN VARCHAR2,
+        p_Password IN VARCHAR2);
+
 	-- post_logout called in apex custom authorization schema
     PROCEDURE post_logout;
 
@@ -956,6 +961,21 @@ $END
 	BEGIN
 		log_message(v_Message, v_User);
 	END post_logout;
+
+	-- change password of database account for <p_Username>. New password is <p_Password>
+	PROCEDURE change_db_password(
+    	p_Username IN VARCHAR2,
+        p_Password IN VARCHAR2)
+	IS
+		v_UserName VARCHAR2(50);
+		v_UserPW VARCHAR2(50);
+		v_Stat VARCHAR2(200);
+	BEGIN
+		v_UserName := DBMS_ASSERT.ENQUOTE_NAME(p_Username);
+		v_UserPW   := DBMS_ASSERT.ENQUOTE_NAME(p_Password, FALSE);
+		v_Stat     := 'ALTER  USER ' || v_UserName || ' IDENTIFIED BY ' || v_UserPW;
+		EXECUTE IMMEDIATE v_Stat;
+	END;
 
 END data_browser_auth;
 /

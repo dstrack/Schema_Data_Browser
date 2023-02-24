@@ -119,7 +119,8 @@ WITH SCALAR_KEYS AS (
 			FIRST_VALUE(INDEX_FORMAT_COLUMN_NAME IGNORE NULLS) OVER (PARTITION BY TABLE_NAME ORDER BY COLUMN_ID) INDEX_FORMAT_COLUMN_NAME
 		FROM (
 			SELECT C.TABLE_NAME, C.COLUMN_ID, C.COLUMN_NAME, DATA_TYPE, NULLABLE, DEFAULT_LENGTH, DEFAULT_TEXT,
-				case when DATA_TYPE IN ( changelog_conf.Get_DatatypeModifyDate, changelog_conf.Get_AltDatatypeModifyDate) 
+				case when (DATA_TYPE = changelog_conf.Get_DatatypeModifyDate
+						or  changelog_conf.Match_Column_Pattern(DATA_TYPE, changelog_conf.Get_AltDatatypeModifyDate) = 'YES')
 						and changelog_conf.Match_Column_Pattern(COLUMN_NAME, changelog_conf.Get_ColumnCreateDate_List) = 'YES'
 					then COLUMN_NAME
 				end CREATE_TIMESTAMP_COLUMN_NAME,
@@ -127,7 +128,8 @@ WITH SCALAR_KEYS AS (
 						and changelog_conf.Match_Column_Pattern(COLUMN_NAME, changelog_conf.Get_ColumnCreateUser_List) = 'YES'
 					then COLUMN_NAME
 				end CREATE_USER_COLUMN_NAME,
-				case when DATA_TYPE IN ( changelog_conf.Get_DatatypeModifyDate, changelog_conf.Get_AltDatatypeModifyDate) 
+				case when (DATA_TYPE = changelog_conf.Get_DatatypeModifyDate
+						or  changelog_conf.Match_Column_Pattern(DATA_TYPE, changelog_conf.Get_AltDatatypeModifyDate) = 'YES')
 						and changelog_conf.Match_Column_Pattern(COLUMN_NAME, changelog_conf.Get_ColumnModifyDate_List) = 'YES'
 					then COLUMN_NAME
 				end MODFIY_TIMESTAMP_COLUMN_NAME,
@@ -178,7 +180,6 @@ SELECT T.*,
 		AND T.TABLE_NAME != changelog_conf.Get_ChangeLogTable
             AND T.HAS_SCALAR_PRIMARY_KEY = 'YES'
             AND T.INCLUDE_TIMESTAMP = 'YES'
-            AND T.INCLUDE_WORKSPACE_ID = 'YES'
 	THEN 'YES' ELSE 'NO' END INCLUDE_CHANGELOG,
 	CASE WHEN EXISTS (
 		SELECT 1 

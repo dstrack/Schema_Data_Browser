@@ -208,6 +208,7 @@ CREATE OR REPLACE PACKAGE BODY custom_changelog_gen IS
 		p_LAST_DDL_TIME IN OUT USER_OBJECTS.LAST_DDL_TIME%TYPE
 	)
 	IS
+		v_Owner USER_MVIEWS.OWNER%TYPE;
 		v_LAST_DDL_TIME USER_OBJECTS.LAST_DDL_TIME%TYPE;
 		v_LAST_REFRESH_DATE	USER_MVIEWS.LAST_REFRESH_DATE%TYPE;
 		v_STALENESS	USER_MVIEWS.STALENESS%TYPE;
@@ -215,8 +216,8 @@ CREATE OR REPLACE PACKAGE BODY custom_changelog_gen IS
 		v_COMPILE_STATE USER_MVIEWS.COMPILE_STATE%TYPE;
 		v_Statement VARCHAR2(256);
 	BEGIN
-		SELECT LAST_REFRESH_DATE, STALENESS, REFRESH_METHOD, COMPILE_STATE
-		INTO v_LAST_REFRESH_DATE, v_STALENESS, v_REFRESH_METHOD, v_COMPILE_STATE
+		SELECT OWNER, LAST_REFRESH_DATE, STALENESS, REFRESH_METHOD, COMPILE_STATE
+		INTO v_Owner, v_LAST_REFRESH_DATE, v_STALENESS, v_REFRESH_METHOD, v_COMPILE_STATE
 		FROM SYS.USER_MVIEWS
 		WHERE MVIEW_NAME = p_MView_Name
 		;
@@ -225,16 +226,16 @@ CREATE OR REPLACE PACKAGE BODY custom_changelog_gen IS
 		else
 			v_LAST_DDL_TIME := Get_Last_DDL_Time(p_Dependent_MViews);
 		end if;
-		/*if v_COMPILE_STATE = 'NEEDS_COMPILE' then 
+		if v_LAST_DDL_TIME > v_LAST_REFRESH_DATE 
+		or v_LAST_REFRESH_DATE IS NULL 
+		or v_STALENESS IN ('NEEDS_COMPILE', 'UNUSABLE') then
+			DBMS_OUTPUT.PUT_LINE('-- Refresh ' || v_Owner || '.' || p_MView_Name || ' Compile State: ' || v_COMPILE_STATE || ' Staleness: ' || v_STALENESS);
+			DBMS_MVIEW.REFRESH(v_Owner || '.' || p_MView_Name);
+			p_LAST_DDL_TIME := SYSDATE;
+		elsif v_COMPILE_STATE IN ('NEEDS_COMPILE', 'COMPILATION_ERROR') then 
 			v_Statement := 'ALTER MATERIALIZED VIEW ' || DBMS_ASSERT.ENQUOTE_NAME(p_MView_Name) || ' COMPILE';
 			EXECUTE IMMEDIATE v_Statement;
 			DBMS_OUTPUT.PUT_LINE('-- compiled ' || p_MView_Name || ' Compile State: ' || v_COMPILE_STATE || ' Staleness: ' || v_STALENESS);
-		end if;*/
-		if v_LAST_DDL_TIME > v_LAST_REFRESH_DATE OR v_LAST_REFRESH_DATE IS NULL 
-		or v_STALENESS IN ('NEEDS_COMPILE', 'UNUSABLE') then
-			DBMS_MVIEW.REFRESH(p_MView_Name);
-			p_LAST_DDL_TIME := SYSDATE;
-			DBMS_OUTPUT.PUT_LINE('-- Refreshed ' || p_MView_Name || ' Compile State: ' || v_COMPILE_STATE || ' Staleness: ' || v_STALENESS);
 		else
 			DBMS_OUTPUT.PUT_LINE('-- skipped ' || p_MView_Name || ' Compile State: ' || v_COMPILE_STATE || ' Staleness: ' || v_STALENESS);
 		end if;
@@ -299,9 +300,9 @@ CREATE OR REPLACE PACKAGE BODY custom_changelog_gen IS
 			or v_cur.LAST_REFRESH_DATE IS NULL
 			or v_cur.STALENESS = 'UNUSABLE'
 			or v_Refreshed_Cnt > 0 then
+				DBMS_OUTPUT.PUT_LINE('-- Refresh ' || v_cur.Owner || '.' || v_cur.MView_Name || ' Compile State: ' || v_cur.COMPILE_STATE || ' Staleness: ' || v_cur.STALENESS);
 				DBMS_MVIEW.REFRESH(v_cur.Owner || '.' || v_cur.MView_Name);
 				v_Refreshed_Cnt := v_Refreshed_Cnt + 1;
-				DBMS_OUTPUT.PUT_LINE('-- Refreshed ' || v_cur.Owner || '.' || v_cur.MView_Name || ' Compile State: ' || v_cur.COMPILE_STATE || ' Staleness: ' || v_cur.STALENESS);
 			elsif v_cur.COMPILE_STATE IN ('NEEDS_COMPILE', 'COMPILATION_ERROR') then 
 				v_Statement := 'ALTER MATERIALIZED VIEW ' || DBMS_ASSERT.ENQUOTE_NAME(v_cur.Owner) || '.' || DBMS_ASSERT.ENQUOTE_NAME(v_cur.MView_Name) || ' COMPILE';
 				EXECUTE IMMEDIATE v_Statement;

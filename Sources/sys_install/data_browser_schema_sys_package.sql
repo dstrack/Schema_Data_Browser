@@ -22,6 +22,7 @@ set scan off
 declare 
     v_Schema_Name VARCHAR2(128) := SYS_CONTEXT('USERENV', 'CURRENT_SCHEMA');
 	v_Use_Special_Features VARCHAR2(128);
+	v_Use_APEX_Instance_Admin VARCHAR2(128);
 	v_stat VARCHAR2(32767);
 begin
 	SELECT case when COUNT(*) > 0 then 'TRUE' else 'FALSE' end 
@@ -29,6 +30,15 @@ begin
 	FROM DBA_ROLE_PRIVS 
 	WHERE GRANTEE = v_Schema_Name
 	AND GRANTED_ROLE = 'DBA';
+
+	SELECT case when exists(
+		SELECT 1 FROM ALL_TAB_PRIVS 
+		WHERE TABLE_NAME = 'APEX_INSTANCE_ADMIN' 
+		AND GRANTEE IN (v_Schema_Name, 'PUBLIC')
+		AND PRIVILEGE = 'EXECUTE'	
+	) then 'TRUE' else 'FALSE' end 
+	INTO v_Use_APEX_Instance_Admin
+	FROM DUAL;
 
 	v_stat := q'[
 CREATE OR REPLACE PACKAGE data_browser_schema 
@@ -124,7 +134,9 @@ IS
 	);
 
 	g_Use_Special_Features	   CONSTANT BOOLEAN := ]'
-	|| v_Use_Special_Features || ';' || chr(10) 
+	|| v_Use_Special_Features || ';
+	g_Use_APEX_Instance_Admin	   CONSTANT BOOLEAN := '
+	|| v_Use_APEX_Instance_Admin || ';' || chr(10) 
 	|| 'END;' || chr(10) ;
 	EXECUTE IMMEDIATE v_Stat;
 end data_browser_schema;
@@ -136,7 +148,11 @@ IS
     FUNCTION FN_GET_PARAMETER(p_Name VARCHAR2) RETURN VARCHAR2 
     IS 
     BEGIN
+$IF data_browser_schema.g_Use_APEX_Instance_Admin $THEN 
         return APEX_INSTANCE_ADMIN.GET_PARAMETER (p_Name);
+$ELSE 
+		return NULL;
+$END
 	exception    -- prevent ORA-20987: APEX - Instance parameter not found - Contact your application administrator.
 	  when others then
 		IF SQLCODE != -20987 THEN
@@ -194,7 +210,11 @@ IS
 $IF data_browser_schema.g_Use_Special_Features $THEN 
 		APEX_INSTANCE_ADMIN.UNRESTRICT_SCHEMA(p_schema => p_Schema_Name);
 $END
+$IF data_browser_schema.g_Use_APEX_Instance_Admin $THEN 
 		APEX_INSTANCE_ADMIN.ADD_SCHEMA(p_workspace => v_Workspace_Name, p_schema => p_Schema_Name);
+$ELSE 
+	DBMS_OUTPUT.PUT_LINE('Add the schema to the Workspace within the APEX ADMIN Page - Workspace to Schema Assignment');
+$END
 		COMMIT;
 	EXCEPTION
 	WHEN OTHERS THEN
@@ -614,7 +634,11 @@ $END
 			v_workspace_id := apex_util.find_security_group_id (p_workspace => v_Workspace_Name);
 			apex_util.set_security_group_id (p_security_group_id => v_workspace_id);
 
+$IF data_browser_schema.g_Use_APEX_Instance_Admin $THEN 
 			APEX_INSTANCE_ADMIN.REMOVE_SCHEMA(v_Workspace_Name, p_Schema_Name);
+$ELSE 
+	DBMS_OUTPUT.PUT_LINE('Remove the schema from the Workspace within the APEX ADMIN Page - Workspace to Schema Assignment');
+$END
 			COMMIT;
 			EXECUTE IMMEDIATE 'DROP USER ' || DBMS_ASSERT.ENQUOTE_NAME(p_Schema_Name) || ' CASCADE ' ;
 			DBMS_OUTPUT.PUT_LINE('-- dropped Schema ' || p_Schema_Name || ' from Workspace ' || v_Workspace_Name);
