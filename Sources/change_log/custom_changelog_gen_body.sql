@@ -1537,8 +1537,9 @@ CREATE OR REPLACE PACKAGE BODY custom_changelog_gen IS
 					end -- ignore nulls (empty cells) but respect null value surrogates (update t set c = null)
 				COL_FUNC
 			FROM SYS.USER_TAB_COLS B
-			LEFT OUTER JOIN MVCHANGELOG_REFERENCES C ON B.COLUMN_NAME = C.S_COLUMN_NAME AND C.S_TABLE_NAME = B.TABLE_NAME
-			WHERE B.TABLE_NAME = p_View_Name
+			LEFT OUTER JOIN MVCHANGELOG_REFERENCES C ON B.COLUMN_NAME = C.S_COLUMN_NAME AND C.S_TABLE_NAME = p_View_Name 
+			-- Bugfix: DS 20230227 - v_SelectList and v_SelectList2 must have the same columns
+			WHERE B.TABLE_NAME = p_Table_Name
 			AND B.COLUMN_NAME NOT IN (changelog_conf.Get_ColumnWorkspace, changelog_conf.Get_ColumnDeletedMark, p_Primary_Key_Col)
 			AND B.DATA_TYPE NOT IN ('BLOB', 'CLOB', 'NCLOB', 'ORDIMAGE', 'LONG')
 			AND B.VIRTUAL_COLUMN = 'NO'

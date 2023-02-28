@@ -184,7 +184,6 @@ IS
 
 end data_browser_ddl;
 /
-show errors
 
 CREATE OR REPLACE PACKAGE BODY data_browser_ddl IS
 
@@ -1179,6 +1178,7 @@ Load_Column_Constraints (
     is
     	v_Table_Name			VARCHAR2(128);
     	v_Table_Owner			VARCHAR2(128);
+    	v_Include_Workspace_id  VARCHAR2(128);
         v_Default_Changed       BOOLEAN;
         v_Required_Changed      BOOLEAN;
         v_Length_Changed        BOOLEAN;
@@ -1190,10 +1190,13 @@ Load_Column_Constraints (
         v_Drop_Stat		    	VARCHAR2(4000);
         v_Start_Step			binary_integer := data_browser_jobs.Get_Refresh_Start_Project;
     begin
-		SELECT TABLE_NAME, TABLE_OWNER 
-		INTO v_Table_Name, v_Table_Owner
-		FROM MVDATA_BROWSER_VIEWS
-		WHERE VIEW_NAME = p_Table_Name;
+		SELECT A.TABLE_NAME, A.TABLE_OWNER, 
+			case when A.TABLE_NAME != A.VIEW_NAME AND B.INCLUDE_WORKSPACE_ID = 'YES' then changelog_conf.Get_ColumnWorkspace || ','  end INCLUDE_WORKSPACE_ID
+		INTO v_Table_Name, v_Table_Owner, v_Include_Workspace_id
+		FROM MVDATA_BROWSER_VIEWS A 
+		JOIN MVBASE_VIEWS B ON A.TABLE_NAME = B.TABLE_NAME AND A.TABLE_OWNER = B.OWNER
+		WHERE A.VIEW_NAME = p_Table_Name;
+		
 		p_Check_Unique_Valid := NULL;
 		p_Required_Valid := NULL;
         p_DATA_DEFAULT_OLD := utl_url.unescape(p_DATA_DEFAULT_OLD);
@@ -1323,6 +1326,7 @@ Load_Column_Constraints (
             into v_Unique_Columns_List
             from APEX_COLLECTIONS WHERE COLLECTION_NAME = 'UNIQUE_COLUMNS_LIST';
             if v_Unique_Columns_List IS NOT NULL then 
+            	v_Unique_Columns_List := v_Include_Workspace_id || v_Unique_Columns_List;
                 v_Statements := 'ALTER TABLE ' || dbms_assert.enquote_name(v_Table_Owner) || '.'  || dbms_assert.enquote_name(v_Table_Name) 
 				|| ' ADD ' 
 				|| Unique_Desc_Constraint (
@@ -1702,31 +1706,35 @@ Load_Column_Constraints (
 		pragma exception_init(e_20104, -20104);
 	BEGIN 
 		v_query := q'[
-		select VIEW_NAME, UNIQUE_COLUMN_NAMES, 
+		select TABLE_NAME, UNIQUE_COLUMN_NAMES, 
 			NUM_ROWS, DATA_LENGTH, CHECK_UNIQUNESS, 
 			case when DATA_LENGTH < 6398 then 'YES' else 'NO' end CHECK_DATA_LENGTH, 
 			case when CHECK_UNIQUNESS = 'YES' and DATA_LENGTH < 6398 then 'YES' else 'NO' end CHECKS_OK
 		from (
-			select A.VIEW_NAME, B.UNIQUE_COLUMN_NAMES, A.NUM_ROWS,
+			select A.TABLE_NAME, B.UNIQUE_COLUMN_NAMES, A.NUM_ROWS,
 				(SELECT SUM(C.DATA_LENGTH) DATA_LENGTH
 					FROM TABLE( data_browser_conf.in_list(B.UNIQUE_COLUMN_NAMES, ', ')) D
 					JOIN USER_TAB_COLS C ON D.COLUMN_VALUE  = C.COLUMN_NAME
 					WHERE C.TABLE_NAME = A.TABLE_NAME
 				) DATA_LENGTH, -- avoid ORA-01450: Maximale Schlüssellänge (6398) überschritten
 				data_browser_ddl.FN_Query_Uniqueness(
-					p_Table_Name=> A.VIEW_NAME, 
+					p_Table_Name=> A.TABLE_NAME, 
 					p_Column_Names=> B.UNIQUE_COLUMN_NAMES
 				) CHECK_UNIQUNESS
 			from MVDATA_BROWSER_DESCRIPTIONS A
 			join (
 				SELECT SUBSTR(COLUMN_VALUE, 1, S_OFFSET - 1) VIEW_NAME, 
-					SUBSTR(COLUMN_VALUE, S_OFFSET + 1) UNIQUE_COLUMN_NAMES
+					case when B.TABLE_NAME != B.VIEW_NAME AND B.INCLUDE_WORKSPACE_ID = 'YES' 
+						then changelog_conf.Get_ColumnWorkspace || ',' 
+					end
+					|| SUBSTR(COLUMN_VALUE, S_OFFSET + 1) UNIQUE_COLUMN_NAMES
 				FROM (
 					SELECT COLUMN_VALUE, INSTR(COLUMN_VALUE,';') S_OFFSET FROM apex_string.split(:a, ':')
-				)
-			) B ON B.VIEW_NAME = A.VIEW_NAME 
+				) A
+				JOIN MVBASE_VIEWS B ON SUBSTR(A.COLUMN_VALUE, 1, S_OFFSET - 1) = B.VIEW_NAME
+			) B ON B.VIEW_NAME = A.VIEW_NAME 			
 		)
-		order by VIEW_NAME
+		order by TABLE_NAME
 		]';
 		APEX_COLLECTION.CREATE_COLLECTION_FROM_QUERY_B (
 			p_collection_name => data_browser_conf.Get_Constraints_Collection, 
@@ -1811,5 +1819,4 @@ Load_Column_Constraints (
 
 end data_browser_ddl;
 /
-show errors
 

@@ -444,7 +444,7 @@ CREATE OR REPLACE PACKAGE BODY data_browser_login AS
         end if;
 
 		COMMIT;
-	END;
+	END Save_Guest;
 
 	/* This procedure is used to sent mails to account owners in various situations
 		1. Self Registration - confirm e-mail address

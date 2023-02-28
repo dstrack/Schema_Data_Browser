@@ -131,6 +131,11 @@ begin
 			Search_Keys_Unique 			VARCHAR2(5) DEFAULT 'NO' NOT NULL CONSTRAINT DATA_BRO_CONF_Search_Keys_U_CK CHECK ( Search_Keys_Unique IN ('YES','NO') ),
 			Insert_Foreign_Keys 		VARCHAR2(5) DEFAULT 'NO' NOT NULL CONSTRAINT DATA_BRO_CONF_Insert_Foreig_CK CHECK ( Insert_Foreign_Keys IN ('YES','NO') ),
 			-------------------------------------------
+			-- Table Relations Tree Controls
+			Show_Tree_Num_Rows			VARCHAR2(5) DEFAULT 'YES' NOT NULL CONSTRAINT DATA_BRO_CONF_Show_Tree_Num_Rows_CK CHECK ( Show_Tree_Num_Rows IN ('YES','NO') ),
+			Update_Tree_Num_Rows		VARCHAR2(5) DEFAULT 'YES' NOT NULL CONSTRAINT DATA_BRO_CONF_Update_Tree_Num_Rows_CK CHECK ( Update_Tree_Num_Rows IN ('YES','NO') ),
+			Max_Relations_Levels		NUMBER DEFAULT 4,
+			-------------------------------------------
 			Row_Version_Number			NUMBER(10) DEFAULT 0 NOT NULL,
 			Translations_Published_Date	TIMESTAMP (6) WITH LOCAL TIME ZONE,
 			Bytes_Used					NUMBER,
@@ -163,10 +168,22 @@ begin
 		]';
 		EXECUTE IMMEDIATE v_Stat;
 	end if;
+	SELECT COUNT(*) INTO v_count
+	FROM USER_TAB_COLUMNS WHERE TABLE_NAME = 'DATA_BROWSER_CONFIG' AND COLUMN_NAME = 'SHOW_TREE_NUM_ROWS';
+	if v_count = 0 then 
+		v_stat := q'[
+		ALTER TABLE DATA_BROWSER_CONFIG ADD
+		(
+			Show_Tree_Num_Rows			VARCHAR2(5) DEFAULT 'YES' NOT NULL CONSTRAINT DATA_BRO_CONF_Show_Tree_Num_Rows_CK CHECK ( Show_Tree_Num_Rows IN ('YES','NO') ),
+			Update_Tree_Num_Rows		VARCHAR2(5) DEFAULT 'YES' NOT NULL CONSTRAINT DATA_BRO_CONF_Update_Tree_Num_Rows_CK CHECK ( Update_Tree_Num_Rows IN ('YES','NO') ),
+			Max_Relations_Levels		NUMBER DEFAULT 4
+		)
+		]';
+		EXECUTE IMMEDIATE v_Stat;
+	end if;
 
 end;
 /
-show errors
 
 -- make table visible in view SYS.ALL_TABLES
 GRANT SELECT ON DATA_BROWSER_CONFIG TO PUBLIC;

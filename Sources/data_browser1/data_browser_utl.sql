@@ -92,6 +92,7 @@ IS
     	p_Unique_Key_Column VARCHAR2,
     	p_Data_Columns_Only VARCHAR2 DEFAULT 'NO',		-- YES, NO
     	p_Select_Columns VARCHAR2 DEFAULT NULL,	
+		p_Columns_Limit IN NUMBER DEFAULT 1000,
 		p_View_Mode IN VARCHAR2 DEFAULT 'FORM_VIEW',	-- FORM_VIEW, RECORD_VIEW, NAVIGATION_VIEW, NESTED_VIEW, IMPORT_VIEW, EXPORT_VIEW
     	p_Join_Options VARCHAR2 DEFAULT NULL,
 		p_Edit_Mode VARCHAR2 DEFAULT 'NO',
@@ -128,7 +129,8 @@ IS
 						p_Table_name => p_Table_name,
 						p_Unique_Key_Column => p_Unique_Key_Column,
 						p_Data_Columns_Only => 'YES',
-						p_Columns_Limit => 1000,
+						p_Columns_Limit => p_Columns_Limit, 
+						-- sorting on non-select column of a table may be possible! maybe use: case when p_Data_Source = 'TABLE' then 1000 else p_Columns_Limit end, 
 						p_Join_Options => p_Join_Options,
 						p_View_Mode => p_View_Mode,
 						p_Edit_Mode => 'NO',
@@ -2301,7 +2303,6 @@ data_browser_utl.Get_Report_Preferences(
 	)
 	is
 		v_Join_Options				VARCHAR2(4000);
-		v_Is_Referenced_Key 		VARCHAR2(10);
         v_Table_Name 				MVDATA_BROWSER_VIEWS.VIEW_NAME%TYPE := UPPER(p_Table_Name);
 		v_Unique_Key_Column  		MVDATA_BROWSER_VIEWS.SEARCH_KEY_COLS%TYPE;
         v_Tab_Num_Rows 				PLS_INTEGER;
@@ -2310,8 +2311,8 @@ data_browser_utl.Get_Report_Preferences(
 	begin
 		if p_Table_name IS NOT NULL then
 			begin
-				SELECT NVL(p_Unique_Key_Column, SEARCH_KEY_COLS), IS_REFERENCED_KEY, NUM_ROWS
-				INTO v_Unique_Key_Column, v_Is_Referenced_Key, v_Tab_Num_Rows
+				SELECT NVL(p_Unique_Key_Column, SEARCH_KEY_COLS), NVL(NUM_ROWS, 0) NUM_ROWS
+				INTO v_Unique_Key_Column, v_Tab_Num_Rows
 				FROM MVDATA_BROWSER_VIEWS
 				WHERE VIEW_NAME = v_Table_Name;				
 			exception when no_data_found then
@@ -2339,7 +2340,7 @@ data_browser_utl.Get_Report_Preferences(
 			else 
 				p_View_Mode := COALESCE(p_View_Mode,
 									APEX_UTIL.GET_PREFERENCE(Fn_Pref_Page_Prefix || 'VIEW_MODE' || '/' || v_Table_Name),
-									case when v_Is_Referenced_Key = 'YES' then 'NAVIGATION_VIEW' else 'FORM_VIEW' end
+									'FORM_VIEW' -- default view mode
 								);
 				p_Select_Columns := APEX_UTIL.GET_PREFERENCE(FN_Pref_Prefix || 'SELECT_COLUMNS' || '/' || v_Table_Name || '/' || p_View_Mode);
 				if p_View_Mode IN ('IMPORT_VIEW', 'EXPORT_VIEW') then 
@@ -3052,6 +3053,7 @@ data_browser_utl.Get_Report_Preferences(
 				p_Unique_Key_Column => v_Unique_Key_Column,
 				p_Data_Columns_Only => p_Data_Columns_Only,
 				p_Select_Columns => p_Select_Columns,
+				p_Columns_Limit => p_Columns_Limit,
 				p_View_Mode => p_View_Mode,
 				p_Join_Options => p_Join_Options,
 				p_Edit_Mode => v_Edit_Mode,
@@ -3193,7 +3195,7 @@ data_browser_utl.Get_Report_Preferences(
 										then '/* setup for single empty row with default values */'
 									when v_Data_Source = 'NEW_ROWS' and p_Report_Mode = 'YES'
 										then '/* load existing rows */'
-									else '/* load data source ' || v_Data_Source2 || '*/'
+									else '/* load data source ' || v_Data_Source2 || ' */'
 								end,
 				p_Row_Count => v_Array_Row_Count,
 				p_Apex_Item_Rows_Call => v_Apex_Item_Rows_Call,
@@ -3977,7 +3979,7 @@ FROM TABLE ( data_browser_utl.parents_list_cursor(
         p_Parent_Table => :P32_PARENT_NAME,
         p_Parent_Key_Item => 'P32_PARENT_ID',
         p_Link_Page_ID => :APP_PAGE_ID,
-        p_Link_Items => 'P32_TABLE_NAME,P32_LINK_KEY,P32_LINK_ID,P32_DETAIL_TABLE,P32_DETAIL_KEY'
+        p_Link_Items => 'P32_TABLE_NAME,P32_LINK_KEY,P32_LINK_ID,P32_DETAIL_TABLE,P32_DETAIL_KEY_COL,P32_DETAIL_KEY_ID'
     )
 );
 

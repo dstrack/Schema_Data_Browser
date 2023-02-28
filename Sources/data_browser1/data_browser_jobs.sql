@@ -103,28 +103,6 @@ IS
    	);
 
 	PROCEDURE Touch_Configuration;
-	PROCEDURE Set_Publish_Translation_Date (
-    	p_Application_ID NUMBER DEFAULT NV('APP_ID')
-    );
-	FUNCTION Get_Publish_Translation_Date(
-    	p_Application_ID NUMBER DEFAULT NV('APP_ID')
-    ) RETURN DATE;
-	FUNCTION Get_Publish_Translation_State (
-    	p_Application_ID NUMBER DEFAULT NV('APP_ID')
-    ) RETURN VARCHAR2; -- VALID/STALE
-	PROCEDURE Publish_Translations (
-    	p_Application_ID NUMBER DEFAULT NV('APP_ID')
-    );
-
-    PROCEDURE Publish_Translations_Job (
-    	p_Application_ID IN NUMBER DEFAULT NV('APP_ID'),
-    	p_context  		IN binary_integer DEFAULT FN_Scheduler_Context
-    );
-    PROCEDURE Start_Publish_Translations_Job (
-    	p_Application_ID IN NUMBER DEFAULT NV('APP_ID'),
-    	p_context  		IN binary_integer DEFAULT FN_Scheduler_Context,
-    	p_wait 			IN VARCHAR2 DEFAULT 'YES'
-    );
     
     PROCEDURE Refresh_ChangeLog_Job (
     	p_context  	IN binary_integer DEFAULT FN_Scheduler_Context,
@@ -709,174 +687,6 @@ IS
 		WHERE ID = g_Configuration_ID;
 		COMMIT;
 	END;
-
-	PROCEDURE Set_Publish_Translation_Date (
-    	p_Application_ID NUMBER DEFAULT NV('APP_ID')
-    )
-	IS
-		v_Owner APEX_APPLICATIONS.OWNER%TYPE;
-	BEGIN 
-$IF data_browser_jobs.g_Use_App_Preferences $THEN
-		select OWNER into v_Owner
-		from APEX_APPLICATIONS 
-		where APPLICATION_ID = p_Application_ID;
-		APEX_UTIL.SET_PREFERENCE(
-			p_preference => g_App_Setting_publish_Date||p_Application_ID, 
-			p_value => TO_CHAR(SYSDATE, g_CtxTimestampFormat),
-			p_user => v_Owner
-		);
-$ELSE
-		UPDATE DATA_BROWSER_CONFIG SET TRANSLATIONS_PUBLISHED_DATE = LOCALTIMESTAMP
-		WHERE ID = g_Configuration_ID;
-		COMMIT;
-$END
-	END;
-	
-	FUNCTION Get_Publish_Translation_Date (
-    	p_Application_ID NUMBER DEFAULT NV('APP_ID')
-    ) RETURN DATE 
-	IS
-		v_Published_Date DATA_BROWSER_CONFIG.TRANSLATIONS_PUBLISHED_DATE%TYPE;
-		v_Owner APEX_APPLICATIONS.OWNER%TYPE;
-	BEGIN 
-$IF data_browser_jobs.g_Use_App_Preferences $THEN
-		select OWNER into v_Owner
-		from APEX_APPLICATIONS 
-		where APPLICATION_ID = p_Application_ID;
-		v_Published_Date := TO_DATE(APEX_UTIL.GET_PREFERENCE(
-				p_preference => g_App_Setting_publish_Date||p_Application_ID, 
-				p_user => v_Owner
-			), g_CtxTimestampFormat);
-$ELSE
-		SELECT TRANSLATIONS_PUBLISHED_DATE 
-		INTO v_Published_Date
-		FROM DATA_BROWSER_CONFIG 
-		WHERE ID = g_Configuration_ID;
-$END
-		RETURN v_Published_Date;
-	END;
-	
-	FUNCTION Get_Publish_Translation_State (
-    	p_Application_ID NUMBER DEFAULT NV('APP_ID')
-    ) RETURN VARCHAR2 -- VALID/STALE
-	IS 
-		v_Last_Updated APEX_APPLICATIONS.LAST_UPDATED_ON%TYPE;
-	BEGIN
-		select LAST_UPDATED_ON
-		into v_Last_Updated
-  		from APEX_APPLICATIONS
- 		where APPLICATION_ID = p_Application_ID;
- 		return case when v_Last_Updated <= data_browser_jobs.Get_Publish_Translation_Date (p_Application_ID => p_Application_ID)
- 			then 'VALID' else 'STALE' 
- 		end;
-	END;
-
-	PROCEDURE Publish_Translations (
-    	p_Application_ID NUMBER DEFAULT NV('APP_ID')
-    )
-	IS
-	BEGIN 
-		apex_application_install.generate_offset;
-		for c1 in (
-			select PRIMARY_APPLICATION_ID, TRANSLATED_APP_LANGUAGE
-			from APEX_APPLICATION_TRANS_MAP
-			where PRIMARY_APPLICATION_ID = p_Application_ID
-		) loop
-			apex_lang.seed_translations(
-				p_application_id => c1.PRIMARY_APPLICATION_ID,  
-				p_language => c1.TRANSLATED_APP_LANGUAGE
-			);
-			apex_lang.publish_application(
-				p_application_id => c1.PRIMARY_APPLICATION_ID,  
-				p_language => c1.TRANSLATED_APP_LANGUAGE
-			);
-		end loop;
-		data_browser_jobs.Set_Publish_Translation_Date (p_Application_ID => p_Application_ID);
-	END;
-	
-    PROCEDURE Publish_Translations_Job (
-    	p_Application_ID IN NUMBER DEFAULT NV('APP_ID'),
-    	p_context  		IN binary_integer DEFAULT FN_Scheduler_Context
-    )
-	is
-		v_Workspace_Name APEX_APPLICATIONS.WORKSPACE%TYPE;
-        v_rindex 		binary_integer := dbms_application_info.set_session_longops_nohint;
-        v_slno   		binary_integer;
-        v_Steps  		binary_integer;
-		v_workspace_id 	NUMBER;
-       	CURSOR lang_cur
-        IS
-			select PRIMARY_APPLICATION_ID, TRANSLATED_APP_LANGUAGE
-			from APEX_APPLICATION_TRANS_MAP
-			where PRIMARY_APPLICATION_ID = p_Application_ID;
-        TYPE stat_tbl IS TABLE OF lang_cur%ROWTYPE;
-        v_stat_tbl      stat_tbl;
-	begin
-		select workspace
-		into v_Workspace_Name
-		from apex_applications
-		where application_id = p_Application_ID;
-
-		v_workspace_id := apex_util.find_security_group_id (p_workspace => v_Workspace_Name);
-		apex_util.set_security_group_id (p_security_group_id => v_workspace_id);
-
-        OPEN lang_cur;
-        FETCH lang_cur BULK COLLECT INTO v_stat_tbl;
-        CLOSE lang_cur;   
-		IF v_stat_tbl.FIRST IS NOT NULL THEN
-			v_Steps := v_stat_tbl.COUNT * 2;
-        	Set_Process_Infos(v_rindex, v_slno, g_Publish_Transl_Proc_Name, p_context, v_Steps, 0, 'steps');
-			apex_application_install.generate_offset;
-			FOR ind IN 1 .. v_stat_tbl.COUNT
-			loop
-				apex_lang.seed_translations(
-					p_application_id => v_stat_tbl(ind).PRIMARY_APPLICATION_ID,  
-					p_language => v_stat_tbl(ind).TRANSLATED_APP_LANGUAGE
-				);
-	        	Set_Process_Infos(v_rindex, v_slno, g_Publish_Transl_Proc_Name, p_context, v_Steps, ind*2-1, 'steps');
-				apex_lang.publish_application(
-					p_application_id => v_stat_tbl(ind).PRIMARY_APPLICATION_ID,  
-					p_language => v_stat_tbl(ind).TRANSLATED_APP_LANGUAGE
-				);
-	        	Set_Process_Infos(v_rindex, v_slno, g_Publish_Transl_Proc_Name, p_context, v_Steps, ind*2, 'steps');
-			end loop;
-		END IF;
-		data_browser_jobs.Set_Publish_Translation_Date (p_Application_ID => p_Application_ID);
-	exception
-	  when others then
-	    if lang_cur%ISOPEN then
-			CLOSE lang_cur;
-		end if;
-		Set_Process_Infos(v_rindex, v_slno, g_Publish_Transl_Proc_Name, p_context, v_Steps, v_Steps, 'steps');
-		raise;
-	end Publish_Translations_Job;
-
-    PROCEDURE Start_Publish_Translations_Job (
-    	p_Application_ID IN NUMBER DEFAULT NV('APP_ID'),
-    	p_context  		IN binary_integer DEFAULT FN_Scheduler_Context,
-    	p_wait 			IN VARCHAR2 DEFAULT 'YES'
-    )
-	IS
-		v_sql USER_SCHEDULER_JOBS.JOB_ACTION%TYPE;
-	BEGIN
-		if data_browser_jobs.Get_Publish_Translation_State(p_Application_ID) = 'STALE' then 
-			v_sql := 'begin ' || chr(10)
-				|| 'data_browser_jobs.Publish_Translations_Job('
-				|| 'p_Application_ID=>'
-				|| DBMS_ASSERT.ENQUOTE_LITERAL(p_Application_ID)
-				|| ', p_context=>'
-				|| DBMS_ASSERT.ENQUOTE_LITERAL(p_context)
-				|| ');' || chr(10)
-				||' end;';
-			data_browser_jobs.Load_Job(
-				p_Job_Name => 'PUBLISH_TRANSLATIONS',
-				p_Comment => g_Publish_Transl_Proc_Name,
-				p_Sql => v_sql,
-				p_Wait => p_wait,
-				p_Skip_When_Scheduled => 'YES'
-			);
-		end if;
-	END Start_Publish_Translations_Job;
 	
     PROCEDURE Refresh_ChangeLog_Job (
     	p_context  	IN binary_integer DEFAULT FN_Scheduler_Context,
@@ -1264,8 +1074,9 @@ $END
 		v_sql USER_SCHEDULER_JOBS.JOB_ACTION%TYPE;
 	BEGIN
 	-- the total row count of user_tables (NUMROWS) is displayed in the tree view of the data browser.
-	-- this vounts are calculated for individual workspaces in the case that Has_Multiple_Workspaces is true.
-		if data_browser_conf.Has_Multiple_Workspaces = 'NO' then 
+	-- this row-counts are calculated for individual workspaces in the case that Has_Multiple_Workspaces is true.
+		if data_browser_conf.Has_Multiple_Workspaces = 'NO'
+		and data_browser_conf.Get_Update_Tree_Num_Rows = 'YES' then 
 			v_Modus := case when v_LAST_REFRESH_DATE IS NULL 
 							then 'IMMEDIATE' 
 						when SYSDATE - (1/24/60/60 * 15) > v_LAST_REFRESH_DATE  -- at least 15 seconds old

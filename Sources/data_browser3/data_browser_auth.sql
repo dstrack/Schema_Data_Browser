@@ -50,7 +50,6 @@ GRANT EXECUTE ON CUSTOM_KEYS.SCHEMA_KEYCHAIN TO OWNER;
 DROP SYNONYM SCHEMA_KEYCHAIN;
 DROP VIEW VCURRENT_WORKSPACE;
 DROP VIEW V_CONTEXT_USERS;
-DROP VIEW V_ERROR_PROTOCOL;
 DROP PACKAGE data_browser_auth;
 DROP TABLE APP_PREFERENCES;
 DROP TABLE APP_USERS;
@@ -148,7 +147,8 @@ $END
         p_Email IN VARCHAR2 DEFAULT NULL,
         p_User_level IN NUMBER DEFAULT 3,
         p_Password_Reset IN VARCHAR2 DEFAULT 'Y',
-        p_Account_Locked IN VARCHAR2 DEFAULT 'N'
+        p_Account_Locked IN VARCHAR2 DEFAULT 'N',
+        p_Email_Validated IN VARCHAR2 DEFAULT 'N'
     )
     RETURN APP_USERS.ID%TYPE;
 
@@ -158,7 +158,8 @@ $END
         p_Email IN VARCHAR2 DEFAULT NULL,
         p_User_level IN NUMBER DEFAULT 3,
         p_Password_Reset IN VARCHAR2 DEFAULT 'Y',
-        p_Account_Locked IN VARCHAR2 DEFAULT 'N'
+        p_Account_Locked IN VARCHAR2 DEFAULT 'N',
+        p_Email_Validated IN VARCHAR2 DEFAULT 'N'
     );
 
 	FUNCTION Temporary_Password
@@ -200,7 +201,7 @@ $END
 		p_newpasswordPage NUMBER DEFAULT NULL
 	);
 
-	PROCEDURE Set_Apex_Context;	
+	PROCEDURE Set_Apex_Context(p_Schema_Name IN VARCHAR2 DEFAULT SYS_CONTEXT('USERENV', 'CURRENT_SCHEMA'));
 	PROCEDURE Clear_Context;	
 
 	FUNCTION strong_password_check (
@@ -230,8 +231,6 @@ CREATE OR REPLACE PACKAGE BODY data_browser_auth IS
     g_NewUserIDFunction CONSTANT VARCHAR2(100) := 'to_number(sys_guid(),''XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX'')';
     -- g_NewUserIDFunction CONSTANT VARCHAR2(100) := 'APP_USERS_SEQ.NEXTVAL';
     g_AppUserExt   		CONSTANT VARCHAR2(10)   := '_APP_USER';	-- Extension for schema name of application user
-    g_EmptyPasswordPermited 	CONSTANT BOOLEAN := false;
-    g_PasswordMigrationPermited CONSTANT BOOLEAN := true;
 
     FUNCTION Get_Admin_Workspace_Name RETURN VARCHAR2
     IS
@@ -267,8 +266,8 @@ $IF data_browser_specs.g_use_crypt_key_chain $THEN
 		v_crypto_key	RAW(32);
 	BEGIN
 		for rec in (
-			SELECT B.ID KEY_ID
-			FROM APP_USERS B
+			SELECT B.USER_ID KEY_ID
+			FROM V_CONTEXT_USERS B
 		)
 		loop
 			v_crypto_key := int_crypto_key (rec.KEY_ID);
@@ -497,7 +496,8 @@ $END
         p_Email IN VARCHAR2 DEFAULT NULL,
         p_User_level IN NUMBER DEFAULT 3,
         p_Password_Reset IN VARCHAR2 DEFAULT 'Y',
-        p_Account_Locked IN VARCHAR2 DEFAULT 'N'
+        p_Account_Locked IN VARCHAR2 DEFAULT 'N',
+        p_Email_Validated IN VARCHAR2 DEFAULT 'N'
     ) RETURN APP_USERS.ID%TYPE
     IS
         v_id   		APP_USERS.ID%TYPE;
@@ -507,14 +507,14 @@ $END
     BEGIN
     	v_Username := UPPER(TRIM(p_Username));
 		v_EMail := NVL(p_Email, APEX_UTIL.GET_EMAIL(v_Username));
-    	SELECT MAX(ID)
+    	SELECT MAX(USER_ID)
     	INTO v_id
-    	FROM APP_USERS WHERE UPPER_LOGIN_NAME = v_Username;
+    	FROM V_CONTEXT_USERS WHERE UPPER_LOGIN_NAME = v_Username;
     	if v_id IS NULL then
 			execute immediate 'begin :new_id := ' || g_NewUserIDFunction || '; end;' using out v_id;
 			v_Data := hex_hash(v_id, p_Password);
-			INSERT INTO APP_USERS (Id, Login_Name, Password_Hash, Email_Address, User_Level, Password_Reset, Account_Locked)
-			VALUES (v_id, TRIM(p_Username), v_Data, TRIM(p_Email), p_User_level, p_Password_Reset, p_Account_Locked);
+			INSERT INTO V_CONTEXT_USERS (User_Id, Login_Name, Password_Hash, Email_Address, Email_Validated, User_Level, Password_Reset, Account_Locked)
+			VALUES (v_id, TRIM(p_Username), v_Data, TRIM(p_Email), p_Email_Validated, p_User_level, p_Password_Reset, p_Account_Locked);
 		end if;
     	RETURN v_id;
     END add_user;
@@ -525,12 +525,13 @@ $END
         p_Email IN VARCHAR2 DEFAULT NULL,
         p_User_level IN NUMBER DEFAULT 3,
         p_Password_Reset IN VARCHAR2 DEFAULT 'Y',
-        p_Account_Locked IN VARCHAR2 DEFAULT 'N'
+        p_Account_Locked IN VARCHAR2 DEFAULT 'N',
+        p_Email_Validated IN VARCHAR2 DEFAULT 'N'
     )
     IS
         v_id   		APP_USERS.ID%type;
     BEGIN
-		v_id	:= add_user(p_Username, p_Password, p_Email, p_User_level, p_Password_Reset, p_Account_Locked);
+		v_id	:= add_user(p_Username, p_Password, p_Email, p_User_level, p_Password_Reset, p_Account_Locked, p_Email_Validated);
     END add_user;
 
 	FUNCTION Temporary_Password
@@ -562,7 +563,8 @@ $END
 					p_Email    => p_Email,
 					p_Password => p_Password,
 					p_User_level => 1,
-					p_Password_Reset => 'N'
+					p_Password_Reset => 'N',
+					p_Email_Validated => 'Y'
 				);
 				data_browser_auth.change_password(
 					p_Username => p_Username,
@@ -575,18 +577,19 @@ $END
 	PROCEDURE Add_Developers
 	IS
 	BEGIN
-		INSERT INTO APP_USERS (Login_Name, First_Name, Last_Name, EMail_Address, User_Level, Password_Reset)
+		INSERT INTO V_CONTEXT_USERS (Login_Name, First_Name, Last_Name, EMail_Address, User_Level, Password_Reset, Email_Validated)
 		select D.USER_NAME, D.FIRST_NAME, D.LAST_NAME, D.EMAIL,
 			case when D.IS_ADMIN = 'Yes' then 1
 				when D.IS_APPLICATION_DEVELOPER = 'Yes' then 2
 				else 3
 			end User_Level,
-			'N' Password_Reset
+			'N' Password_Reset,
+			'Y' Email_Validated
 		from APEX_WORKSPACE_DEVELOPERS D
 		 where WORKSPACE_ID = APEX_CUSTOM_AUTH.GET_SECURITY_GROUP_ID
 		and NOT EXISTS (
 			SELECT 1
-			FROM APP_USERS U
+			FROM V_CONTEXT_USERS U
 			WHERE U.UPPER_LOGIN_NAME = D.USER_NAME
 		);
 		commit;
@@ -601,7 +604,7 @@ $END
 	is
 		v_Count	PLS_INTEGER;
 	begin 
-		select count(*) into v_Count from APP_USERS where UPPER_LOGIN_NAME = UPPER(p_Admin_User);
+		select count(*) into v_Count from V_CONTEXT_USERS where UPPER_LOGIN_NAME = UPPER(p_Admin_User);
 		if v_Count = 0 then 
 			-- first run : add admin, demo, guest accounts
 $IF data_browser_specs.g_use_dbms_crypt $THEN
@@ -619,22 +622,24 @@ $ELSE
 $END
 		end if;
 		if p_Add_Demo_Guest = 'YES' then 
-			select count(*) into v_Count from APP_USERS where UPPER_LOGIN_NAME = 'DEMO';
+			select count(*) into v_Count from V_CONTEXT_USERS where UPPER_LOGIN_NAME = 'DEMO';
 			if v_Count = 0 then 
 				data_browser_auth.Add_User(
 					p_Username => 'Demo',
 					p_Password => 'Demo/2945',
 					p_User_level => 1,
-					p_Password_Reset => 'N'
+					p_Password_Reset => 'N',
+					p_Email_Validated => 'Y'
 				);
 			end if;
-			select count(*) into v_Count from APP_USERS where UPPER_LOGIN_NAME = 'GUEST';
+			select count(*) into v_Count from V_CONTEXT_USERS where UPPER_LOGIN_NAME = 'GUEST';
 			if v_Count = 0 then 
 				data_browser_auth.Add_User(
 					p_Username => 'Guest',
 					p_Password => 'Guess/2945',
 					p_User_level => 6,
-					p_Password_Reset => 'N'
+					p_Password_Reset => 'N',
+					p_Email_Validated => 'Y'
 				);
 			end if;
 		end if;
@@ -711,6 +716,8 @@ $END
 				FROM V_CONTEXT_USERS B
 				WHERE UPPER_LOGIN_NAME = v_user
 				AND (Account_Expiration_Date >= TRUNC(SYSDATE) OR Account_Expiration_Date IS NULL)
+				AND EMAIL_VALIDATED = 'Y'
+				AND ACCOUNT_LOCKED = 'N'
 				FOR UPDATE OF B.LAST_LOGIN_DATE;
 
 				if v_pwd_hash IS NOT NULL then
@@ -720,17 +727,11 @@ $END
 					else
 						v_message := 'Login - failed';
 					end if;
-				elsif g_EmptyPasswordPermited = true then
-					v_result := true;
-					v_message := 'Login - first time';
-					if  v_reset_pw = 'Y' and g_PasswordMigrationPermited = true then
-						change_password(v_user, v_password);
-					end if;
 				end if;
 			exception
 			  when NO_DATA_FOUND then
-				v_message := 'Login - unknown user name';
-				when others then
+				v_message := 'Login - failed. Invalid credentials';
+			  when others then
 				v_message := 'Login - error ' || SQLCODE;
 			end;
 		else
@@ -819,12 +820,19 @@ $END
 
 	END post_authenticate;
 
-	PROCEDURE Set_Apex_Context
+	PROCEDURE Set_Apex_Context(p_Schema_Name IN VARCHAR2 DEFAULT SYS_CONTEXT('USERENV', 'CURRENT_SCHEMA'))
 	IS 
 		v_Table_App_Users VARCHAR2(200) := changelog_conf.Get_Table_App_Users;
 	BEGIN
 $IF data_browser_specs.g_use_custom_ctx $THEN
-		set_custom_ctx.set_apex_context(p_Table_App_Users=>'V_CONTEXT_USERS');
+		if apex_application.g_debug then
+			apex_debug.message('set_custom_ctx.set_apex_context(p_Table_App_Users=>''%s'', p_Schema_Name=>''%s'')',v_Table_App_Users, p_Schema_Name);
+			apex_debug.message('-- SCHEMA: %s, APP_PARSING_SCHEMA: %s, APP_USER: %s, APP_WORKSPACE: %s', SYS_CONTEXT('USERENV', 'CURRENT_SCHEMA'), V('APP_PARSING_SCHEMA'), V('APP_USER'), V('APP_WORKSPACE') );
+		end if;
+		set_custom_ctx.set_apex_context(p_Table_App_Users=>v_Table_App_Users, p_Schema_Name=>p_Schema_Name);
+		if apex_application.g_debug then
+			apex_debug.message('-- USER_ID: %s, WORKSPACE_ID: %s ', SYS_CONTEXT('CUSTOM_CTX', 'USER_ID'), SYS_CONTEXT('CUSTOM_CTX', 'WORKSPACE_ID'));
+		end if;
 $ELSE
 		null;
 $END
@@ -940,6 +948,7 @@ $END
 			Password_Reset = 'N',
 			Password_Expiration_Date = NULL,
 			Account_Expiration_Date = case when Password_Reset = 'Y' then NULL else Account_Expiration_Date end,
+			Email_Validated = 'Y',
 			LAST_LOGIN_DATE = SYSDATE
 		WHERE UPPER_LOGIN_NAME = UPPER(TRIM(p_Username));
 	END change_password;
@@ -1002,6 +1011,7 @@ end;
 /
 -- for access by DATA_BROWSER_SCHEMA package
 grant select on APP_USERS to PUBLIC;
+grant select on V_CONTEXT_USERS to PUBLIC;
 /*
 
 begin if data_browser_auth.authenticate('DIRK', 'abc') then dbms_output.PUT_LINE('OK'); else dbms_output.PUT_LINE('failed'); end if; end;

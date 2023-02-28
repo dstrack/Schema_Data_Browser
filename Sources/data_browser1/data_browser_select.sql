@@ -110,7 +110,8 @@ is
 					'CENTER' COLUMN_ALIGN, 'DML Logging Date' COLUMN_HEADER,
 					'TO_CHAR(' 
 					|| case when AUDIT_DATE_COLUMN_NAME IS NOT NULL then 
-							'NVL2(A.' || UNIQUE_KEY_COLS || ', A.DML$_LOGGING_DATE, B.' || AUDIT_DATE_COLUMN_NAME || '),'
+							'NVL2(A.' || data_browser_conf.First_Element(UNIQUE_KEY_COLS) || ', A.DML$_LOGGING_DATE, B.' || AUDIT_DATE_COLUMN_NAME || '),'
+							-- Bugfix DS 20230227: use First_Element(p_Key_Column) to avoid error with multible key columns
 						else 
 							'A.DML$_LOGGING_DATE,'
 						end
@@ -127,7 +128,8 @@ is
 					'LEFT' COLUMN_ALIGN, 'DML User Name' COLUMN_HEADER, 
 					'INITCAP(' 
 					|| case when AUDIT_USER_COLUMN_NAME IS NOT NULL then 
-							'NVL2(A.' || UNIQUE_KEY_COLS || ', A.DML$_USER_NAME, B.' || AUDIT_USER_COLUMN_NAME || ')'
+							'NVL2(A.' || data_browser_conf.First_Element(UNIQUE_KEY_COLS) || ', A.DML$_USER_NAME, B.' || AUDIT_USER_COLUMN_NAME || ')'
+							-- Bugfix DS 20230227: use First_Element(p_Key_Column) to avoid error with multible key columns
 						else 
 							'A.DML$_USER_NAME'
 						end
@@ -148,13 +150,6 @@ is
 			) HEAD, BROWSER_VIEW
 			UNION ALL
 			SELECT --+ INDEX(S) USE_NL_WITH_INDEX(T)
-				/*case when E.COLUMN_NAME IS NOT NULL then -- problems with PARENT_KEY_COLUMN
-					data_browser_conf.Compose_Column_Name(
-						p_First_Name=> data_browser_conf.Normalize_Column_Name(T.COLUMN_NAME)
-						, p_Second_Name => 'LOV', p_Max_Length=>29)
-				else 
-					T.COLUMN_NAME
-				end COLUMN_NAME,*/
 				T.COLUMN_NAME,
 				'A' TABLE_ALIAS, 
 				T.IS_AUDIT_COLUMN, T.IS_OBFUSCATED, T.IS_UPPER_NAME, 
@@ -539,7 +534,7 @@ is
 					COMMENTS
 				FROM ( -- counter column for each foreign key referencing the current row.
 				   SELECT 
-						DENSE_RANK() OVER (PARTITION BY E.R_VIEW_NAME ORDER BY E.TABLE_NAME, E.COLUMN_NAME, E.JOINS) POSITION,
+						DENSE_RANK() OVER (PARTITION BY E.R_VIEW_NAME ORDER BY E.TABLE_NAME, E.COLUMN_NAME, E.JOINS, E.R_COLUMN_NAME) POSITION,
 						-- POSITION is appended to the column_name to avoiad duplicate names.
 						DENSE_RANK() OVER (PARTITION BY E.VIEW_NAME, A.COLUMN_NAME ORDER BY E.TABLE_ALIAS) RANKING,
 						data_browser_select.Reference_Column_Header (
@@ -1122,6 +1117,7 @@ is
 					AND F.FOLDER_NAME_COLUMN_NAME = S.R_COLUMN_NAME
 				WHERE S.VIEW_NAME = v_View_Name
 				AND F.FOLDER_PARENT_COLUMN_NAME IS NOT NULL 
+				AND F.FOLDER_NAME_COLUMN_NAME IS NOT NULL 
 				AND S.IS_FILE_FOLDER_REF = 'Y'
 				UNION ALL -- f_refs: all 1. level natural key columns of direct references from table A => alias B.
 							--------------------------------------------------------------
@@ -1173,7 +1169,10 @@ is
 						'POPUP_FROM_LOV' -- text field with popup list
 					end COLUMN_EXPR_TYPE,
 					S.FIELD_LENGTH,
-					S.DISPLAY_IN_REPORT,
+					case when S.R_VIEW_NAME = v_Parent_Name AND S.FOREIGN_KEY_COLS = NVL(v_Parent_Key_Column, S.FOREIGN_KEY_COLS)
+						then 'Y'
+						else S.DISPLAY_IN_REPORT
+					end DISPLAY_IN_REPORT,
 					S.R_DATA_TYPE, NULL DATA_TYPE_OWNER, S.R_DATA_PRECISION, S.R_DATA_SCALE, S.R_DATA_DEFAULT,
 					S.R_CHAR_LENGTH,
 					case when S.NULLABLE = 'N' and S.R_NULLABLE = 'N' then 'N' else 'Y' end NULLABLE,
@@ -2444,28 +2443,6 @@ is
 	PRAGMA UDF;
 	BEGIN return g_Export_Job_ID; END;
 
-	FUNCTION Get_First_ID_Expression (	-- row reference in select list
-		p_Unique_Key_Column VARCHAR2,
-		p_Table_Alias VARCHAR2 DEFAULT NULL
-	)
-	RETURN VARCHAR2 DETERMINISTIC
-	IS
-		v_Column_Array apex_t_varchar2;
-		v_Result		VARCHAR2(1024);
-		v_Table_Alias	VARCHAR2(20) := case when p_Table_Alias IS NOT NULL then p_Table_Alias || '.' end;
-	BEGIN
-		if p_Unique_Key_Column IS NULL then
-			return 'NULL';
-		elsif INSTR(p_Unique_Key_Column, ',') = 0 then 
-			return v_Table_Alias || p_Unique_Key_Column;
-		else
-			v_Column_Array := apex_string.split(p_Unique_Key_Column, ',');
-			for c_idx IN 1..v_Column_Array.count loop
-				v_Result := data_browser_conf.Concat_List(v_Result, 'TO_CHAR('||v_Table_Alias || TRIM(v_Column_Array(c_idx)) || ')');
-			end loop;
-			return 'COALESCE( ' || v_Result || ' )';
-		end if;
-	END Get_First_ID_Expression;
 
 	FUNCTION Get_Unique_Key_Expression (	-- row reference in where clause, produces A.ROWID references in case of composite or missing unique keys
 		p_Table_Name VARCHAR2,
@@ -2594,12 +2571,17 @@ is
 	IS
 	PRAGMA UDF;
 		v_Column_Expr VARCHAR2(4000);
+		v_Key_Column VARCHAR2(4000);
+		v_Pattern VARCHAR2(400);
 	BEGIN
-		v_Column_Expr := REPLACE(p_Column_Expr, 'A.'||p_Column_Name , 'NVL2(' || p_Key_Column || ', A.' || p_Column_Name || ', B.' || p_Column_Name || ')');
+		v_Key_Column  := 'A.'||data_browser_conf.First_Element(p_Key_Column); -- column that is probed by NVL2
+		v_Pattern := '(^|\s|\W+)A\.' || p_Column_Name || '($|\s|\W+)';
+		v_Column_Expr := REGEXP_REPLACE(p_Column_Expr, v_Pattern, '\1NVL2(' || v_Key_Column || ', A.' || p_Column_Name || ', B.' || p_Column_Name || ')\2', 1, 1);
+		-- Bugfix DS 20230227: use First_Element(p_Key_Column) to avoid error with multible key columns, and replace the A.Column_Name at the end of the expression
 		RETURN case when p_Data_Format IN ('FORM', 'HTML') then
 			 data_browser_conf.Get_Markup_Function(p_Data_Type => p_Data_Type)
 			 || '(' || v_Column_Expr
-			 || ', ' || p_Key_Column
+			 || ', ' || v_Key_Column
 			 || ', A.' || p_Column_Name
 			 || ', B.' || p_Column_Name
 			 || ')'
@@ -2625,7 +2607,7 @@ is
 	) RETURN VARCHAR2
 	IS
 	PRAGMA UDF;
-		v_Column_List VARCHAR2(4000);
+		v_Column_List VARCHAR2(32767);
 		v_From_Clause VARCHAR2(4000);
 		v_Column_Expr VARCHAR2(4000);
 		v_Table_Alias	VARCHAR2(20);
@@ -2711,15 +2693,12 @@ is
 						or PA.Alias_Required = 'YES'
 							then PA.Alias_Prefix || '.' -- use table alias in FROM clause, when foreign keys are contained in the display columns list
 						end TABLE_ALIAS,
-						case when F.IS_FILE_FOLDER_REF = 'Y' then 
-							null
-						else
-							T.R_TABLE_ALIAS
-						end R_TABLE_ALIAS,
+						T.R_TABLE_ALIAS, -- note: a diffenent method must be implemented to handle cases where IS_FILE_FOLDER_REF cant be resolved!!
 						-- info columns
 						S.FILE_FOLDER_COLUMN_NAME, R.FOLDER_NAME_COLUMN_NAME, R.FOLDER_PARENT_COLUMN_NAME, F.IS_FILE_FOLDER_REF,
 						case 
-						when F.IS_FILE_FOLDER_REF = 'Y' AND R.FOLDER_PARENT_COLUMN_NAME = F.R_COLUMN_NAME then 
+						when F.IS_FILE_FOLDER_REF = 'Y' AND R.FOLDER_PARENT_COLUMN_NAME = F.R_COLUMN_NAME
+						and S.FOLDER_NAME_COLUMN_NAME IS NOT NULL then -- Bugfix DS 20230227: dont call Key_Path_Query without FOLDER_NAME_COLUMN_NAME
 							'(' || data_browser_select.Key_Path_Query (
 								p_Table_Name		=> S.VIEW_NAME,
 								p_Search_Key_Col	=> S.PRIMARY_KEY_COLS,
@@ -2751,7 +2730,8 @@ is
 								p_Folder_Par_Col_Name => G.FOLDER_PARENT_COLUMN_NAME,
 								p_Folder_Name_Col_Name => G.FOLDER_NAME_COLUMN_NAME,
 								p_Folder_Cont_Col_Name => G.FOLDER_CONTAINER_COLUMN_NAME,
-								p_Folder_Cont_Alias => case when G.VIEW_NAME = G.R_VIEW_NAME then T.R_TABLE_ALIAS else G.TABLE_ALIAS end,
+								p_Folder_Cont_Alias => 'L' || PA.Call_Level,
+								-- p_Folder_Cont_Alias => case when G.VIEW_NAME = G.R_VIEW_NAME then T.R_TABLE_ALIAS else G.TABLE_ALIAS end,
 								p_Active_Col_Name => G.ACTIVE_LOV_COLUMN_NAME,
 								p_Active_Data_Type => G.ACTIVE_LOV_DATA_TYPE,
 								p_Order_by			=> null,
@@ -2771,7 +2751,8 @@ is
 					WHERE C.VIEW_NAME = PA.Table_Name
 					AND (F.R_COLUMN_NAME IS NULL OR PA.Exclude_Col_Name IS NULL OR F.R_COLUMN_NAME != PA.Exclude_Col_Name )
 					AND (T.COLUMN_NAME != S.FOLDER_NAME_COLUMN_NAME OR S.FOLDER_NAME_COLUMN_NAME IS NULL 
-						OR R.FOLDER_PARENT_COLUMN_NAME IS NULL)	-- Bugfix DS 20230220: dont filter FOLDER_NAME_COLUMN_NAME when there is no FOLDER_PARENT_COLUMN_NAME
+						OR R.FOLDER_PARENT_COLUMN_NAME IS NULL	-- Bugfix DS 20230220: dont filter FOLDER_NAME_COLUMN_NAME when there is no FOLDER_PARENT_COLUMN_NAME
+					)
 				)
 				GROUP BY VIEW_NAME, TABLE_ALIAS, COLUMN_NAME, POSITION, NULLABLE, -- one line or each foreign key
 					DATA_TYPE, DATA_PRECISION, DATA_SCALE, CHAR_LENGTH, IS_DATETIME,
@@ -3498,7 +3479,7 @@ $END
 	) RETURN VARCHAR2
 	IS
 	PRAGMA UDF;
-		v_Column_List VARCHAR2(4000);
+		v_Column_List VARCHAR2(32767);
 		v_From_Clause VARCHAR2(4000);
 		v_Column_Expr VARCHAR2(4000);
 		v_Result	  VARCHAR2(32767);
@@ -4403,7 +4384,7 @@ $END
 					and g_Describe_Cols_tab(ind).IS_AUDIT_COLUMN = 'N' then
 						v_Column_Expr := data_browser_select.Markup_Differences_Expr (
 							p_Data_Format => p_Data_Format,
-							p_Key_Column => data_browser_select.Get_First_ID_Expression(p_Unique_Key_Column=> v_Unique_Key_Column, p_Table_Alias=> 'A'),
+							p_Key_Column => v_Unique_Key_Column,
 							p_Column_Expr => v_Column_Expr,
 							p_Column_Name => g_Describe_Cols_tab(ind).REF_COLUMN_NAME,
 							p_Data_Type => g_Describe_Cols_tab(ind).DATA_TYPE

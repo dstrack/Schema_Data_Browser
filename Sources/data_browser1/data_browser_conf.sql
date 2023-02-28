@@ -109,7 +109,7 @@ END;
 CREATE OR REPLACE PACKAGE data_browser_conf
 AUTHID DEFINER -- enable jobs to find translations.
 IS
-	g_App_Version_Number		VARCHAR2(64)	:= '1.0.0'; -- enable version upgrade to determinate required library updates
+	g_App_Version_Number		VARCHAR2(64)	:= '1.9.13'; -- enable version upgrade to determinate required library updates
 	g_App_Licence_Number		VARCHAR2(64)	:= '';		-- Licence Number from Software Registration
 	g_App_Licence_Owner			VARCHAR2(300)	:= '';		-- Licence Owner from Software Registration
 	g_App_Installation_Code		VARCHAR2(300)	:= '';		-- hashed installation date. Expire Demo Version after trial periode
@@ -117,9 +117,9 @@ IS
 	g_App_Created_By 			VARCHAR2(64)	:= '';
 	g_Software_Copyright		CONSTANT VARCHAR2(64) := 'Strack Software Development, Berlin, Germany';
 
-	g_use_exceptions 			CONSTANT BOOLEAN 		:= TRUE;	-- when enabled, errors are handled via exceptions; disable to find proper error line number.
+	g_use_exceptions 			CONSTANT BOOLEAN 	:= TRUE;	-- when enabled, errors are handled via exceptions; disable to find proper error line number.
 	g_runtime_exceptions		CONSTANT BOOLEAN 	:= FALSE;	-- when enabled, runtime parameter errors are handled via exceptions; disable to tolerate missing parameters
-	g_debug 					CONSTANT BOOLEAN 				:= FALSE;
+	g_debug 					CONSTANT BOOLEAN 	:= FALSE;
 	
 	PROCEDURE Save_Config_Defaults;
 	PROCEDURE Load_Config;
@@ -334,6 +334,11 @@ IS
 	FUNCTION Get_Maximum_Field_Width RETURN VARCHAR2;
 	FUNCTION Get_Stretch_Form_Fields RETURN VARCHAR2;
 	FUNCTION Get_Select_List_Rows_Limit RETURN NUMBER;
+
+	FUNCTION Get_Show_Tree_Num_Rows RETURN VARCHAR2;
+	FUNCTION Get_Update_Tree_Num_Rows RETURN VARCHAR2;
+	FUNCTION Get_Max_Relations_Levels RETURN NUMBER;
+
     FUNCTION Get_Base_Table_Ext RETURN VARCHAR2;
     FUNCTION Get_Base_View_Prefix RETURN VARCHAR2;
     FUNCTION Get_Base_View_Ext RETURN VARCHAR2;
@@ -967,6 +972,10 @@ $END
     g_Detect_Column_Prefix		VARCHAR2(5)  	:= 'YES';	-- Detect and remove column prefix in column headers
 	g_Translate_Umlaute			VARCHAR2(5)  	:= 'NO';	-- Translate Umlaute for report names and column headers
 	-------------------------------------------
+	g_Show_Tree_Num_Rows		VARCHAR2(5)  	:= 'YES';	-- Show Tree Row-Nums in the Table Relations Tree 
+	g_Update_Tree_Num_Rows		VARCHAR2(5)  	:= 'YES';	-- Update Tree Row-Nums in the Table Relations Tree with background job
+	g_Max_Relations_Levels		PLS_INTEGER 	:= 4;		-- Maximum Levels in the Tables Relations Tree 
+	-------------------------------------------
     g_Key_Column_Ext			VARCHAR2(2000)    := '_ID,_SID$,_CONTENT';   -- List of Extension of column names. (This extension will be removed from displayed column names)
     g_Base_Table_Prefix			VARCHAR2(2000)    := '';		-- Prefix for base table names. (This prefix will be removed from displayed table names)
     g_Base_Table_Ext  			VARCHAR2(2000)    := '_BT';   -- Extension for base table names. (This extension will be removed from displayed table names)
@@ -1053,7 +1062,8 @@ $END
 			Detect_Yes_No_Static_LOV, Export_NumChars, Integer_Goup_Separator, Decimal_Goup_Separator,
 			Export_Float_Format, Export_Date_Format, Export_Timestamp_Format, Use_App_Date_Time_Format,
 			Rec_Desc_Delimiter, Rec_Desc_Group_Delimiter, TextArea_Min_Length, Export_Text_Limit, Minimum_Field_Width, Maximum_Field_Width,
-			Stretch_Form_Fields, Select_List_Rows_Limit, Detect_Column_Prefix, Translate_Umlaute, Key_Column_Ext, Base_Table_Prefix, Base_Table_Ext,
+			Stretch_Form_Fields, Select_List_Rows_Limit, Detect_Column_Prefix, Translate_Umlaute, Key_Column_Ext, 
+			Show_Tree_Num_Rows, Update_Tree_Num_Rows, Max_Relations_Levels, Base_Table_Prefix, Base_Table_Ext,
 			Base_View_Prefix, Base_View_Ext, History_View_Ext, Compare_Case_Insensitive, Search_Keys_Unique, Insert_Foreign_Keys
         ) = (
         	SELECT g_Configuration_Name, g_Schema_Icon, g_Description, c_Custom_Edit_Enabled_Query, g_Data_Deduction_Query, 
@@ -1065,7 +1075,7 @@ $END
 				g_Export_Float_Format, g_Export_Date_Format, g_Export_Timestamp_Format, g_Use_App_Date_Time_Format,
 				g_Rec_Desc_Delimiter, g_Rec_Desc_Group_Delimiter, g_TextArea_Min_Length, g_Export_Text_Limit, g_Minimum_Field_Width, g_Maximum_Field_Width,
 				g_Stretch_Form_Fields, g_Select_List_Rows_Limit, g_Detect_Column_Prefix, g_Translate_Umlaute, g_Key_Column_Ext,
-				g_Base_Table_Prefix, g_Base_Table_Ext,
+				g_Show_Tree_Num_Rows, g_Update_Tree_Num_Rows, g_Max_Relations_Levels, g_Base_Table_Prefix, g_Base_Table_Ext,
 				g_Base_View_Prefix, g_Base_View_Ext, g_History_View_Ext, g_Compare_Case_Insensitive, g_Search_Keys_Unique, g_Insert_Foreign_Keys
         	FROM DUAL
         ) WHERE ID = g_Configuration_ID;
@@ -1079,7 +1089,8 @@ $END
 				Detect_Yes_No_Static_LOV, Export_NumChars, Integer_Goup_Separator, Decimal_Goup_Separator,
 				Export_Float_Format, Export_Date_Format, Export_Timestamp_Format, Use_App_Date_Time_Format,
 				Rec_Desc_Delimiter, Rec_Desc_Group_Delimiter, TextArea_Min_Length, Export_Text_Limit, Minimum_Field_Width, Maximum_Field_Width,
-				Stretch_Form_Fields, Select_List_Rows_Limit, Detect_Column_Prefix, Translate_Umlaute, Key_Column_Ext, Base_Table_Prefix, Base_Table_Ext,
+				Stretch_Form_Fields, Select_List_Rows_Limit, Detect_Column_Prefix, Translate_Umlaute, Key_Column_Ext, 
+				Show_Tree_Num_Rows, Update_Tree_Num_Rows, Max_Relations_Levels, Base_Table_Prefix, Base_Table_Ext,
 				Base_View_Prefix, Base_View_Ext, History_View_Ext, Compare_Case_Insensitive, Search_Keys_Unique, Insert_Foreign_Keys
 			)
 			VALUES (g_Configuration_ID,
@@ -1091,7 +1102,8 @@ $END
 				g_Detect_Yes_No_Static_LOV, g_Export_NumChars, g_Integer_Goup_Separator, g_Decimal_Goup_Separator,
 				g_Export_Float_Format, g_Export_Date_Format, g_Export_Timestamp_Format, g_Use_App_Date_Time_Format,
 				g_Rec_Desc_Delimiter, g_Rec_Desc_Group_Delimiter, g_TextArea_Min_Length, g_Export_Text_Limit, g_Minimum_Field_Width, g_Maximum_Field_Width,
-				g_Stretch_Form_Fields, g_Select_List_Rows_Limit, g_Detect_Column_Prefix, g_Translate_Umlaute, g_Key_Column_Ext, g_Base_Table_Prefix, g_Base_Table_Ext,
+				g_Stretch_Form_Fields, g_Select_List_Rows_Limit, g_Detect_Column_Prefix, g_Translate_Umlaute, g_Key_Column_Ext, 
+				g_Show_Tree_Num_Rows, g_Update_Tree_Num_Rows, g_Max_Relations_Levels, g_Base_Table_Prefix, g_Base_Table_Ext,
 				g_Base_View_Prefix, g_Base_View_Ext, g_History_View_Ext, g_Compare_Case_Insensitive, g_Search_Keys_Unique, g_Insert_Foreign_Keys
 			);
         end if;
@@ -1123,7 +1135,8 @@ $END
 			Detect_Yes_No_Static_LOV, Export_NumChars, Integer_Goup_Separator, Decimal_Goup_Separator,
 			Export_Float_Format, Export_Date_Format, Export_Timestamp_Format, Use_App_Date_Time_Format,
 			Rec_Desc_Delimiter, Rec_Desc_Group_Delimiter, TextArea_Min_Length, Export_Text_Limit, Minimum_Field_Width, Maximum_Field_Width,
-			Stretch_Form_Fields, Select_List_Rows_Limit, Detect_Column_Prefix, Translate_Umlaute, Key_Column_Ext, Base_Table_Prefix, Base_Table_Ext,
+			Stretch_Form_Fields, Select_List_Rows_Limit, Detect_Column_Prefix, Translate_Umlaute, Key_Column_Ext, 
+			Show_Tree_Num_Rows, Update_Tree_Num_Rows, Max_Relations_Levels, Base_Table_Prefix, Base_Table_Ext,
 			Base_View_Prefix, Base_View_Ext, History_View_Ext, Compare_Case_Insensitive, Search_Keys_Unique, Insert_Foreign_Keys, Created_At, Created_By
         INTO
         	g_Configuration_Name, g_Schema_Icon, g_Description, g_Edit_Enabled_Query, g_Data_Deduction_Query, 
@@ -1136,7 +1149,8 @@ $END
 			g_Detect_Yes_No_Static_LOV, g_Export_NumChars, g_Integer_Goup_Separator, g_Decimal_Goup_Separator,
 			g_Export_Float_Format, g_Export_Date_Format, g_Export_Timestamp_Format, g_Use_App_Date_Time_Format,
 			g_Rec_Desc_Delimiter, g_Rec_Desc_Group_Delimiter, g_TextArea_Min_Length, g_Export_Text_Limit, g_Minimum_Field_Width, g_Maximum_Field_Width,
-			g_Stretch_Form_Fields, g_Select_List_Rows_Limit, g_Detect_Column_Prefix, g_Translate_Umlaute, g_Key_Column_Ext, g_Base_Table_Prefix, g_Base_Table_Ext,
+			g_Stretch_Form_Fields, g_Select_List_Rows_Limit, g_Detect_Column_Prefix, g_Translate_Umlaute, g_Key_Column_Ext, 
+			g_Show_Tree_Num_Rows, g_Update_Tree_Num_Rows, g_Max_Relations_Levels, g_Base_Table_Prefix, g_Base_Table_Ext,
 			g_Base_View_Prefix, g_Base_View_Ext, g_History_View_Ext, g_Compare_Case_Insensitive, g_Search_Keys_Unique, g_Insert_Foreign_Keys, g_App_Created_At, g_App_Created_By
         FROM DATA_BROWSER_CONFIG
         WHERE ID = g_Configuration_ID;
@@ -2457,6 +2471,10 @@ $END
 	IS
 	PRAGMA UDF;
 	BEGIN RETURN g_Select_List_Rows_Limit; END;
+
+	FUNCTION Get_Show_Tree_Num_Rows RETURN VARCHAR2 IS BEGIN RETURN g_Show_Tree_Num_Rows; END;
+	FUNCTION Get_Update_Tree_Num_Rows RETURN VARCHAR2 IS BEGIN RETURN g_Update_Tree_Num_Rows; END;
+	FUNCTION Get_Max_Relations_Levels RETURN NUMBER IS BEGIN RETURN g_Max_Relations_Levels; END;
 
     FUNCTION Get_Base_Table_Ext RETURN VARCHAR2 IS BEGIN RETURN g_Base_Table_Ext; END;
     FUNCTION Get_Base_View_Prefix RETURN VARCHAR2 IS BEGIN RETURN g_Base_View_Prefix; END;

@@ -73,9 +73,9 @@ IS
 	g_CtxTimestampFormat CONSTANT VARCHAR2(64)	:= 'DD.MM.YYYY HH24.MI.SSXFF TZH:TZM';
 	g_Log_Message_Query CONSTANT VARCHAR2(300)	:= 'INSERT INTO ' || g_TableErrProtocol || ' (DESCRIPTION, REMARKS) VALUES  (:a, :b)';
 	g_Find_WSID_Query	CONSTANT VARCHAR2(200)	:=
-		'SELECT ' || g_ColumnWorkspace || ' FROM ' || g_TableWorkspaces || ' WHERE ' || g_ColWorkspaceName || ' = UPPER(:a)';
+		'SELECT ' || g_ColumnWorkspace || ' FROM %s.' || g_TableWorkspaces || ' WHERE ' || g_ColWorkspaceName || ' = UPPER(:a)';
 	g_Insert_WS_Stat	CONSTANT VARCHAR2(200)	:=
-		'INSERT INTO ' || g_TableWorkspaces || ' (' || g_ColWorkspaceName || ',  CREATED_BY)' ||
+		'INSERT INTO %s.' || g_TableWorkspaces || ' (' || g_ColWorkspaceName || ',  CREATED_BY)' ||
 		' VALUES (UPPER(:a), :b) RETURNING (' || g_ColumnWorkspace || ') INTO :c';
 
 	g_QueryTimestampFunction VARCHAR2(64) := 'set_custom_ctx.Get_Query_Timestamp';
@@ -103,18 +103,21 @@ IS
 
 	PROCEDURE Set_Current_Workspace (
    		p_Workspace_Name	IN VARCHAR2,
-   		p_Client_Id 	IN VARCHAR2 DEFAULT SYS_CONTEXT('USERENV','CLIENT_IDENTIFIER')
+   		p_Client_Id 	IN VARCHAR2 DEFAULT SYS_CONTEXT('USERENV','CLIENT_IDENTIFIER'),
+   		p_Schema_Name IN VARCHAR2 DEFAULT SYS_CONTEXT('USERENV', 'CURRENT_SCHEMA')
    	);
 
 	PROCEDURE Set_New_Workspace (
    		p_Workspace_Name	IN VARCHAR2,
-   		p_Client_Id 	IN VARCHAR2 DEFAULT SYS_CONTEXT('USERENV','CLIENT_IDENTIFIER')
+   		p_Client_Id 	IN VARCHAR2 DEFAULT SYS_CONTEXT('USERENV','CLIENT_IDENTIFIER'),
+   		p_Schema_Name IN VARCHAR2 DEFAULT SYS_CONTEXT('USERENV', 'CURRENT_SCHEMA')
    	);
 
 	PROCEDURE Set_Current_User (
 		p_User_Name		IN VARCHAR2,
    		p_Client_Id 	IN VARCHAR2 DEFAULT SYS_CONTEXT('USERENV','CLIENT_IDENTIFIER'),
-   		p_Table_App_Users IN VARCHAR2 DEFAULT set_custom_ctx.g_TableAppUsers
+   		p_Table_App_Users IN VARCHAR2 DEFAULT set_custom_ctx.g_TableAppUsers,
+   		p_Schema_Name IN VARCHAR2 DEFAULT SYS_CONTEXT('USERENV', 'CURRENT_SCHEMA')
 	);
 
 	PROCEDURE Set_Query_Timestamp (
@@ -143,7 +146,8 @@ IS
    	);
 
 	PROCEDURE Set_Apex_Context (
-   		p_Table_App_Users IN VARCHAR2 DEFAULT set_custom_ctx.g_TableAppUsers
+   		p_Table_App_Users IN VARCHAR2 DEFAULT set_custom_ctx.g_TableAppUsers,
+   		p_Schema_Name IN VARCHAR2 DEFAULT SYS_CONTEXT('USERENV', 'CURRENT_SCHEMA')
    	);
 
 	PROCEDURE Clear_Context (
@@ -202,9 +206,10 @@ CREATE OR REPLACE PACKAGE BODY custom_keys.set_custom_ctx IS
    	
 	PROCEDURE Set_Current_Workspace (
    		p_Workspace_Name	IN VARCHAR2,
-   		p_Client_Id 	IN VARCHAR2 DEFAULT SYS_CONTEXT('USERENV','CLIENT_IDENTIFIER')
+   		p_Client_Id 	IN VARCHAR2 DEFAULT SYS_CONTEXT('USERENV','CLIENT_IDENTIFIER'),
+   		p_Schema_Name IN VARCHAR2 DEFAULT SYS_CONTEXT('USERENV', 'CURRENT_SCHEMA')
    	)
-	IS PRAGMA AUTONOMOUS_TRANSACTION;
+	IS 
 		v_Workspace_Id NUMBER := NULL;
 		v_Workspace_Name VARCHAR2(50) := UPPER(p_Workspace_Name);
 		v_App_User		VARCHAR2(50);
@@ -212,17 +217,11 @@ CREATE OR REPLACE PACKAGE BODY custom_keys.set_custom_ctx IS
 		v_TimestampString VARCHAR2(64);
         v_Schema_Name       VARCHAR2(50) := SYS_CONTEXT('USERENV', 'CURRENT_SCHEMA');
 	BEGIN
-		OPEN cv FOR g_Find_WSID_Query USING v_Workspace_Name;
+		OPEN cv FOR apex_string.format(g_Find_WSID_Query, p_Schema_Name) USING v_Workspace_Name;
 		FETCH cv INTO v_Workspace_Id;
 		IF cv%NOTFOUND THEN
-			if v_Workspace_Name = v_Schema_Name then
-				v_App_User := NVL(SYS_CONTEXT('APEX$SESSION','APP_USER'), USER);
-				EXECUTE IMMEDIATE g_Insert_WS_Stat
-				USING IN v_Workspace_Name, v_App_User, OUT v_Workspace_Id;
-			else 
-				clear_context(p_Client_Id);
-				return;
-			end if;
+			clear_context(p_Client_Id);
+			return;
 		END IF;
 		CLOSE cv;
 		DBMS_SESSION.SET_CONTEXT(g_CtxNamespace, g_CtxWorkspaceID, v_Workspace_Id, p_Client_Id);
@@ -233,17 +232,17 @@ CREATE OR REPLACE PACKAGE BODY custom_keys.set_custom_ctx IS
 		if p_Client_Id IS NOT NULL then
 			Set_Existing_Apex_Item(g_Workspace_Item, v_Workspace_Name);
 		end if;
-		COMMIT;
 	EXCEPTION
 	WHEN OTHERS THEN
 		Log_Message(SQLCODE, SQLERRM);
 		Log_Message('set_current_workspace', '(' || p_Workspace_Name || ', ' || p_Client_Id || ') failed!' );
 		clear_context(p_Client_Id);
-	END;
+	END Set_Current_Workspace;
 
 	PROCEDURE Set_New_Workspace (
    		p_Workspace_Name	IN VARCHAR2,
-   		p_Client_Id 	IN VARCHAR2 DEFAULT SYS_CONTEXT('USERENV','CLIENT_IDENTIFIER')
+   		p_Client_Id 	IN VARCHAR2 DEFAULT SYS_CONTEXT('USERENV','CLIENT_IDENTIFIER'),
+   		p_Schema_Name IN VARCHAR2 DEFAULT SYS_CONTEXT('USERENV', 'CURRENT_SCHEMA')
    	)
 	IS PRAGMA AUTONOMOUS_TRANSACTION;
 		v_Workspace_Id NUMBER := NULL;
@@ -252,11 +251,11 @@ CREATE OR REPLACE PACKAGE BODY custom_keys.set_custom_ctx IS
    		cv 				cur_type;
 		v_TimestampString VARCHAR2(64);
 	BEGIN
-		OPEN cv FOR g_Find_WSID_Query USING v_Workspace_Name;
+		OPEN cv FOR apex_string.format(g_Find_WSID_Query, p_Schema_Name) USING v_Workspace_Name;
 		FETCH cv INTO v_Workspace_Id;
 		IF cv%NOTFOUND THEN
 			v_App_User := NVL(SYS_CONTEXT('APEX$SESSION','APP_USER'), USER);
-			EXECUTE IMMEDIATE g_Insert_WS_Stat
+			EXECUTE IMMEDIATE apex_string.format(g_Insert_WS_Stat, p_Schema_Name)
 			USING IN v_Workspace_Name, v_App_User, OUT v_Workspace_Id;
 		END IF;
 		CLOSE cv;
@@ -272,13 +271,14 @@ CREATE OR REPLACE PACKAGE BODY custom_keys.set_custom_ctx IS
 	WHEN OTHERS THEN
 		Log_Message('set_new_workspace', '(' || p_Workspace_Name || ', ' || p_Client_Id || ') failed!' );
 		clear_context(p_Client_Id);
-	END;
+	END Set_New_Workspace;
 
 
 	PROCEDURE Set_Current_User (
    		p_User_Name		IN VARCHAR2,
    		p_Client_Id 	IN VARCHAR2 DEFAULT SYS_CONTEXT('USERENV','CLIENT_IDENTIFIER'),
-   		p_Table_App_Users IN VARCHAR2 DEFAULT set_custom_ctx.g_TableAppUsers
+   		p_Table_App_Users IN VARCHAR2 DEFAULT set_custom_ctx.g_TableAppUsers,
+   		p_Schema_Name IN VARCHAR2 DEFAULT SYS_CONTEXT('USERENV', 'CURRENT_SCHEMA')
    	)
 	IS
 		v_User_Id 		VARCHAR2(100);
@@ -290,9 +290,9 @@ CREATE OR REPLACE PACKAGE BODY custom_keys.set_custom_ctx IS
 		v_Find_User_Query VARCHAR2(500);
 	BEGIN
 		if p_Table_App_Users = 'V_CONTEXT_USERS' then
-			v_Find_User_Query := 'SELECT USER_ID, USER_LEVEL, EMAIL_ADDRESS FROM V_CONTEXT_USERS WHERE UPPER_LOGIN_NAME = :a';
+			v_Find_User_Query := 'SELECT USER_ID, USER_LEVEL, EMAIL_ADDRESS FROM ' || p_Schema_Name || '.V_CONTEXT_USERS WHERE UPPER_LOGIN_NAME = :a';
 		else 
-			v_Find_User_Query := 'SELECT ID, USER_LEVEL, EMAIL_ADDRESS FROM ' || p_Table_App_Users || ' WHERE UPPER_LOGIN_NAME = :a';
+			v_Find_User_Query := 'SELECT ID, USER_LEVEL, EMAIL_ADDRESS FROM ' || p_Schema_Name || '.' || p_Table_App_Users || ' WHERE UPPER_LOGIN_NAME = :a';
 		end if;
 		v_User_Name := UPPER(p_User_Name);
 		UTL_HTTP.GET_BODY_CHARSET (v_Csv_Charset);
@@ -320,7 +320,7 @@ CREATE OR REPLACE PACKAGE BODY custom_keys.set_custom_ctx IS
 			Set_Existing_Apex_Item(g_User_Id_Item, v_User_Id);
 			Set_Existing_Apex_Item(g_User_Level_Item, v_Userlevel);
 		end if;
-	END;
+	END Set_Current_User;
 
 	PROCEDURE Set_Query_Timestamp (
    		p_Timestamp		IN TIMESTAMP,
@@ -424,7 +424,8 @@ CREATE OR REPLACE PACKAGE BODY custom_keys.set_custom_ctx IS
 	END;
 
 	PROCEDURE Set_Apex_Context (
-   		p_Table_App_Users IN VARCHAR2 DEFAULT set_custom_ctx.g_TableAppUsers
+   		p_Table_App_Users IN VARCHAR2 DEFAULT set_custom_ctx.g_TableAppUsers,
+   		p_Schema_Name IN VARCHAR2 DEFAULT SYS_CONTEXT('USERENV', 'CURRENT_SCHEMA')
    	)
 	IS
 		v_User_Name 		VARCHAR2(50) := V(g_User_Name_Item);
@@ -434,8 +435,8 @@ CREATE OR REPLACE PACKAGE BODY custom_keys.set_custom_ctx IS
 	BEGIN
 		v_Client_Id := REPLACE(v_Client_Id, 'nobody', v_User_Name);
 		if v_Workspace_Name IS NOT NULL then
-			Set_Current_Workspace(v_Workspace_Name, v_Client_Id);
-			Set_Current_User(v_User_Name, v_Client_Id, p_Table_App_Users);
+			Set_Current_Workspace(v_Workspace_Name, v_Client_Id, p_Schema_Name);
+			Set_Current_User(v_User_Name, v_Client_Id, p_Table_App_Users, p_Schema_Name);
 		end if;
 		if v_TimestampString IS NOT NULL then
 			Set_Query_Timestamp(TO_TIMESTAMP_TZ(v_TimestampString, g_CtxTimestampFormat), v_Client_Id);
