@@ -486,16 +486,28 @@ CREATE OR REPLACE PACKAGE BODY data_browser_ddl IS
 		p_Constraint_Name VARCHAR2 DEFAULT NULL
 	) RETURN VARCHAR2
 	is
-		v_Constaint_Name VARCHAR2(128);
+    	v_Parent_Table_Name			VARCHAR2(128);
+    	v_Parent_Table_Owner		VARCHAR2(128);
+    	v_Include_Workspace_id  	VARCHAR2(128);
+		v_Constaint_Name 			VARCHAR2(128);
 	begin
+		SELECT A.TABLE_NAME, A.TABLE_OWNER, 
+			case when A.TABLE_NAME != A.VIEW_NAME AND B.INCLUDE_WORKSPACE_ID = 'YES' 
+				then dbms_assert.enquote_name(changelog_conf.Get_ColumnWorkspace) || ','  
+			end INCLUDE_WORKSPACE_ID
+		INTO v_Parent_Table_Name, v_Parent_Table_Owner, v_Include_Workspace_id
+		FROM MVDATA_BROWSER_VIEWS A 
+		JOIN MVBASE_VIEWS B ON A.TABLE_NAME = B.TABLE_NAME AND A.TABLE_OWNER = B.OWNER
+		WHERE A.VIEW_NAME = p_Parent_Table;
+		
 		v_Constaint_Name := NVL(p_Constraint_Name,
 			data_browser_conf.Compose_Column_Name(
 			data_browser_conf.Compose_Table_Column_Name (p_Table_Name,
 			data_browser_conf.Normalize_Column_Name(p_Parent_Key_Column)), 'FK'));
 		return 'CONSTRAINT '
 		|| dbms_assert.enquote_name(v_Constaint_Name)
-		|| ' FOREIGN KEY ( ' || dbms_assert.enquote_name(p_Parent_Key_Column) || ' )'
-		|| ' REFERENCES ' || dbms_assert.enquote_name(p_Parent_Table)
+		|| ' FOREIGN KEY ( ' || v_Include_Workspace_id || dbms_assert.enquote_name(p_Parent_Key_Column) || ' )'
+		|| ' REFERENCES ' || dbms_assert.enquote_name(v_Parent_Table_Owner) || '.' || dbms_assert.enquote_name(v_Parent_Table_Name)
 		|| case when p_Parent_Ref_Type IN ('CONTAINER', 'OPTIONAL_CONTAINER') then ' ON DELETE CASCADE'
 			when p_Parent_Ref_Type = 'NULLABLE' then ' ON DELETE SET NULL'
 		end;
@@ -915,7 +927,7 @@ CREATE OR REPLACE PACKAGE BODY data_browser_ddl IS
 			v_Stat :=  'ALTER TABLE ' || dbms_assert.enquote_name(v_Table_Owner) || '.'  || dbms_assert.enquote_name(v_Table_Name)
 			|| ' ADD '
 			|| Foreign_Key_Constraint (
-				p_Table_Name  => v_Table_Name,
+				p_Table_Name  => p_Table_Name,
 				p_Parent_Table => p_Reference_Table,
 				p_Parent_Key_Column => v_Column_Name,
 				p_Parent_Ref_Type => p_Reference_Type

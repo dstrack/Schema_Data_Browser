@@ -1404,6 +1404,7 @@ is
 		p_Datetime VARCHAR2 DEFAULT NULL
 	) RETURN VARCHAR2 DETERMINISTIC -- Y / N
 	IS 
+	PRAGMA UDF;
 	BEGIN
 		RETURN case when p_Data_Type LIKE 'TIMESTAMP%' and p_Data_Format IN ('FORM', 'QUERY') then 'Y' else p_Datetime end;
 	END Date_Time_Required;
@@ -2111,11 +2112,11 @@ is
 			or NOT(p_Ref_View_Name = p_Parent_Name and p_R_Column_Name = NVL(p_Parent_Key_Column, p_R_Column_Name))
 		) then 'NO' else 'YES' end;
 	
-        if apex_application.g_debug then
+$IF data_browser_conf.g_debug $THEN
             EXECUTE IMMEDIATE api_trace.Dyn_Log_Call
             USING p_parent_key_visible,p_parent_name,p_parent_key_column,p_ref_view_name,p_r_column_name;
 			apex_debug.message(p_message => v_Result, p_max_length => 3500, p_level => apex_debug.c_log_level_app_trace);
-        end if;			
+$END
 
 		return v_Result;
 	end FN_Filter_Parent_Key;
@@ -2898,10 +2899,10 @@ is
 	PRAGMA UDF;
 		v_Result VARCHAR2(32767);
 	begin
-        if apex_application.g_debug then
+$IF data_browser_conf.g_debug $THEN
             EXECUTE IMMEDIATE api_trace.Dyn_Log_Call
             USING p_table_name,p_display_col_names,p_extra_col_names,p_search_key_col,p_search_value,p_view_mode,p_filter_cond,p_exclude_col_name,p_folder_par_col_name,p_folder_name_col_name,p_folder_cont_col_name,p_folder_cont_alias,p_active_col_name,p_active_data_type,p_order_by,p_level,p_indent;
-        end if;
+$END
 		v_Result :=
 		case when p_Folder_Name_Col_Name IS NOT NULL
 			and p_Folder_Par_Col_Name IS NOT NULL
@@ -3416,10 +3417,10 @@ $END
 		v_Folder_Name_Col_Name		MVDATA_BROWSER_REFERENCES.FOLDER_NAME_COLUMN_NAME%TYPE;
 		v_Folder_Cont_Col_Name		MVDATA_BROWSER_REFERENCES.FOLDER_CONTAINER_COLUMN_NAME%TYPE;
 	begin
-        if apex_application.g_debug then
+$IF data_browser_conf.g_debug $THEN
             EXECUTE IMMEDIATE api_trace.Dyn_Log_Call
             USING p_table_name,p_fk_column_id,p_column_name,p_parent_table,p_parent_key_column,p_parent_key_item;
-        end if;
+$END
 		if p_Table_Name IS NOT NULL then 
 			SELECT R_VIEW_NAME, R_PRIMARY_KEY_COLS, DISPLAYED_COLUMN_NAMES, ACTIVE_LOV_COLUMN_NAME, ACTIVE_LOV_DATA_TYPE, 
 					ORDERING_COLUMN_NAME, PARENT_KEY_COLUMN, FILTER_KEY_COLUMN, 
@@ -3565,10 +3566,10 @@ $END
 		v_out_tab			View_Cols_Tab;
 		v_Max_Link_Count CONSTANT PLS_INTEGER := data_browser_conf.Get_Navigation_Link_Limit;
 	BEGIN
-        if apex_application.g_debug then
+$IF data_browser_conf.g_debug $THEN
             EXECUTE IMMEDIATE api_trace.Dyn_Log_Call
             USING p_table_name,p_display_col_names,p_search_key_col,p_search_value,p_view_mode,p_data_format,p_key_column,p_target1,p_target2,p_detail_page_id,p_link_page_id,p_level;
-        end if;
+$END
 		OPEN Display_Values_cur;
 		FETCH Display_Values_cur BULK COLLECT INTO v_out_tab;
 		CLOSE Display_Values_cur;
@@ -3821,10 +3822,10 @@ $END
 		if v_Str IS NOT NULL then
 			dbms_lob.writeappend(v_Stat, length(v_Str), v_Str);
 		end if;
-        if apex_application.g_debug then
+$IF data_browser_conf.g_debug $THEN
             EXECUTE IMMEDIATE api_trace.Dyn_Log_Call
             USING p_table_name,p_unique_key_column,p_delimiter,p_data_columns_only,p_select_columns,p_columns_limit,p_format,p_join_options,p_view_mode,p_edit_mode,p_report_mode,p_enable_sort,p_order_by,p_order_direction,p_parent_name,p_parent_key_column,p_parent_key_visible;
-        end if;
+$END
 		RETURN v_Stat;
 $IF data_browser_conf.g_use_exceptions $THEN
 	exception
@@ -4165,12 +4166,12 @@ $END
 		);
 		dbms_lob.append(v_Stat, v_From_Clause);
 
-        if apex_application.g_debug then
+$IF data_browser_conf.g_debug $THEN
             EXECUTE IMMEDIATE api_trace.Dyn_Log_Call
             USING p_table_name,p_unique_key_column,p_data_columns_only,p_columns_limit,p_as_of_timestamp,p_select_columns,p_control_break,p_join_options,p_view_mode,p_edit_mode,p_data_source,p_data_format,p_report_mode,p_form_page_id,p_form_parameter,p_search_field_item,p_search_column_name,p_comments,p_parent_name,p_parent_key_column,p_parent_key_visible,p_file_page_id;
 			apex_debug.message(p_message => v_is_cached, p_max_length => 3500);
 			apex_debug.message(p_message => v_Stat, p_max_length => 3500);
-        end if;				
+$END
 		RETURN v_Stat;
 $IF data_browser_conf.g_use_exceptions $THEN
 	exception
@@ -4289,10 +4290,10 @@ $END
 		v_Data_Format		VARCHAR2(20);
 		v_Use_Grouping		BOOLEAN;
 	begin
-        if apex_application.g_debug then
-            EXECUTE IMMEDIATE api_trace.Dyn_Log_Call
+        $IF data_browser_conf.g_debug $THEN
+            EXECUTE IMMEDIATE api_trace.Dyn_Log_Start
             USING p_table_name,p_unique_key_column,p_data_columns_only,p_columns_limit,p_select_columns,p_control_break,p_view_mode,p_edit_mode,p_data_format,p_data_source,p_empty_row,p_report_mode,p_parent_name,p_parent_key_column,p_parent_key_visible,p_link_page_id,p_link_parameter,p_detail_page_id,p_detail_parameter,p_form_page_id,p_form_parameter,p_file_page_id,p_search_field_item,p_search_column_name,p_calc_totals,p_nested_links,p_source_query,p_comments;
-        end if;
+        $END
 		v_Data_Format := case when p_Data_Source = 'QUERY' then 'QUERY' else p_Data_Format end;
 		v_Calc_Totals := NVL(p_Calc_Totals, 'NO');
 		v_Nested_Links := NVL(p_Nested_Links, 'NO');
@@ -4546,41 +4547,9 @@ $END
 		);
 		dbms_lob.append(v_Stat, v_From_Clause);
 
-		$IF data_browser_conf.g_debug $THEN
-			/*v_Str := apex_string.format (
-				p_message => 'data_browser_select.Get_Form_View_Query (p_Table_name=> %s, p_Unique_Key_Column=> %s, p_Data_Columns_Only=> %s, p_Columns_Limit=> %s, '
-							|| chr(10) || 'p_Select_Columns=> %s, p_Control_Break=> %s, p_View_Mode=>%s, p_Edit_Mode=>%s, p_Empty_Row=>%s, p_Report_Mode=>%s, '
-							|| chr(10) || 'p_Parent_Name=>%s, p_Parent_Key_Column=>%s, p_Parent_Key_Visible=>%s, '
-							|| chr(10) || 'p_Link_Page_ID=>%s, p_Link_Parameter=> %s, p_Detail_Page_ID=>%s, p_Detail_Parameter=>%s, '
-							|| chr(10) || 'p_Source_Query=>%s) -- %s '
-							|| chr(10) || '	 %s',
-				p0 => DBMS_ASSERT.ENQUOTE_LITERAL(p_Table_name),
-				p1 => DBMS_ASSERT.ENQUOTE_LITERAL(v_Unique_Key_Column),
-				p2 => DBMS_ASSERT.ENQUOTE_LITERAL(p_Data_Columns_Only),
-				p3 => p_Columns_Limit,
-				p4 => DBMS_ASSERT.ENQUOTE_LITERAL(p_Select_Columns),
-				p5 => DBMS_ASSERT.ENQUOTE_LITERAL(p_Control_Break),
-				p6 => DBMS_ASSERT.ENQUOTE_LITERAL(p_View_Mode),
-				p7 => DBMS_ASSERT.ENQUOTE_LITERAL(p_Edit_Mode),
-				p8 => DBMS_ASSERT.ENQUOTE_LITERAL(p_Empty_Row),
-				p9 => DBMS_ASSERT.ENQUOTE_LITERAL(p_Report_Mode),
-				p10 => DBMS_ASSERT.ENQUOTE_LITERAL(p_Parent_Name),
-				p11 => DBMS_ASSERT.ENQUOTE_LITERAL(p_Parent_Key_Column),
-				p12 => DBMS_ASSERT.ENQUOTE_LITERAL(p_Parent_Key_Visible),
-				p13 => p_Link_Page_ID,
-				p14 => DBMS_ASSERT.ENQUOTE_LITERAL(p_Link_Parameter),
-				p15 => p_Detail_Page_ID,
-				p16 => DBMS_ASSERT.ENQUOTE_LITERAL(p_Detail_Parameter),
-				p17 => case when p_Source_Query IS NOT NULL then
-					'custom_changelog_gen.ChangeLog_Pivot_Query(p_Table_Name => ' || DBMS_ASSERT.ENQUOTE_LITERAL(p_Table_name) || ')'
-					else 'NULL' end,
-				p18 => v_is_cached,
-				p19 => v_Stat,
-				p_max_length => 3500
-			);*/
-
-			apex_debug.info(v_Stat, p_max_length => 3500);
-		$END
+$IF data_browser_conf.g_debug $THEN
+		EXECUTE IMMEDIATE api_trace.Dyn_Log_Exit;
+$END
 		return v_Stat;
 $IF data_browser_conf.g_use_exceptions $THEN
 	exception
@@ -4588,6 +4557,8 @@ $IF data_browser_conf.g_use_exceptions $THEN
 		if data_browser_select.Describe_Cols_cur%ISOPEN then
 			CLOSE data_browser_select.Describe_Cols_cur;
 		end if;
+        EXECUTE IMMEDIATE api_trace.Dyn_Log_Exception
+        USING p_table_name,p_unique_key_column,p_data_columns_only,p_columns_limit,p_select_columns,p_control_break,p_view_mode,p_edit_mode,p_data_format,p_data_source,p_empty_row,p_report_mode,p_parent_name,p_parent_key_column,p_parent_key_visible,p_link_page_id,p_link_parameter,p_detail_page_id,p_detail_parameter,p_form_page_id,p_form_parameter,p_file_page_id,p_search_field_item,p_search_column_name,p_calc_totals,p_nested_links,p_source_query,p_comments;
 		raise;
 $END
 	end Get_Form_View_Query;
@@ -4754,12 +4725,12 @@ $END
 			dbms_lob.writeappend(v_Stat, length(v_Str), v_Str);
 		end if;
 
-        if apex_application.g_debug then
+$IF data_browser_conf.g_debug $THEN
             EXECUTE IMMEDIATE api_trace.Dyn_Log_Call
             USING p_table_name,p_unique_key_column,p_delimiter,p_data_columns_only,p_select_columns,p_columns_limit,p_format,p_view_mode,p_edit_mode,p_report_mode,p_enable_sort,p_order_by,p_order_direction,p_parent_name,p_parent_key_column,p_parent_key_visible,p_link_page_id,p_link_parameter,p_detail_page_id,p_detail_parameter,p_file_page_id;
 			apex_debug.message(p_message => v_is_cached, p_max_length => 3500);
 			apex_debug.message(p_message => v_Stat, p_max_length => 3500);
-        end if;				
+$END
 		RETURN v_Stat;
 $IF data_browser_conf.g_use_exceptions $THEN
 	exception
@@ -4767,6 +4738,8 @@ $IF data_browser_conf.g_use_exceptions $THEN
 		if data_browser_select.Describe_Cols_cur%ISOPEN then
 			CLOSE data_browser_select.Describe_Cols_cur;
 		end if;
+        EXECUTE IMMEDIATE api_trace.Dyn_Log_Exception
+        USING p_table_name,p_unique_key_column,p_delimiter,p_data_columns_only,p_select_columns,p_columns_limit,p_format,p_view_mode,p_edit_mode,p_report_mode,p_enable_sort,p_order_by,p_order_direction,p_parent_name,p_parent_key_column,p_parent_key_visible,p_link_page_id,p_link_parameter,p_detail_page_id,p_detail_parameter,p_file_page_id;
 		raise;
 $END
 	END Get_Form_View_Column_List;
@@ -4862,29 +4835,30 @@ $END
 		else
 			return;
 		end if;
-        if apex_application.g_debug then
+$IF data_browser_conf.g_debug $THEN
             EXECUTE IMMEDIATE api_trace.Dyn_Log_Call
             USING p_table_name,p_unique_key_column,p_columns_limit,p_data_columns_only,p_select_columns,p_join_options,p_view_mode,p_edit_mode,p_data_format,p_report_mode,p_parent_name,p_parent_key_column,p_parent_key_visible,p_link_page_id,p_link_parameter,p_detail_page_id,p_detail_parameter,p_file_page_id;
 			apex_debug.message(p_message => v_is_cached, p_max_length => 3500);
-        end if;
+$END
 $IF data_browser_conf.g_use_exceptions $THEN
 	 exception
-	  when others then
+       when NO_DATA_NEEDED then
 		if data_browser_select.Describe_Imp_Cols_cur%ISOPEN then
 			CLOSE data_browser_select.Describe_Imp_Cols_cur;
 		end if;
 		if data_browser_select.Describe_Cols_cur%ISOPEN then
 			CLOSE data_browser_select.Describe_Cols_cur;
 		end if;
-		$IF data_browser_conf.g_debug $THEN
-			apex_debug.info(
-				p_message => 'data_browser_select.Get_View_Column_Cursor (p_Table_name=> %s) -- %s',
-				p0 => DBMS_ASSERT.ENQUOTE_LITERAL(p_Table_name),
-				p1 => 'failed with ' || DBMS_UTILITY.FORMAT_ERROR_STACK,
-				p_max_length => 3500
-			);
-		$END
-		raise;
+	  when OTHERS then 
+		if data_browser_select.Describe_Imp_Cols_cur%ISOPEN then
+			CLOSE data_browser_select.Describe_Imp_Cols_cur;
+		end if;
+		if data_browser_select.Describe_Cols_cur%ISOPEN then
+			CLOSE data_browser_select.Describe_Cols_cur;
+		end if;
+		EXECUTE IMMEDIATE api_trace.Dyn_Log_Exception
+		USING p_table_name,p_unique_key_column,p_columns_limit,p_data_columns_only,p_select_columns,p_join_options,p_view_mode,p_edit_mode,p_data_format,p_report_mode,p_parent_name,p_parent_key_column,p_parent_key_visible,p_link_page_id,p_link_parameter,p_detail_page_id,p_detail_parameter,p_file_page_id;
+		RAISE;
 $END
 	END Get_View_Column_Cursor;
 

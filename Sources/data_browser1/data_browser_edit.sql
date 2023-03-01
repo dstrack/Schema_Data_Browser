@@ -911,10 +911,10 @@ is
         v_Result_PLSQL		CLOB;
         v_Error_Message VARCHAR2(32767);
 	BEGIN
-        if apex_application.g_debug then
-            EXECUTE IMMEDIATE api_trace.Dyn_Log_Call
-            USING p_table_name,p_key_column,p_key_value,p_select_columns,p_columns_limit,p_view_mode,p_data_source,p_report_mode,p_join_options,p_parent_name,p_parent_key_column,p_parent_key_visible,p_parent_key_item,p_use_empty_columns;
-        end if;
+        $IF data_browser_conf.g_debug $THEN
+            EXECUTE IMMEDIATE api_trace.Dyn_Log_Start
+            USING p_table_name,p_key_column,p_select_columns,p_columns_limit,p_view_mode,p_data_source,p_report_mode,p_join_options,p_parent_name,p_parent_key_column,p_parent_key_visible,p_parent_key_item,p_use_empty_columns;
+        $END
     	dbms_lob.createtemporary(v_Result_PLSQL, true, dbms_lob.call);
 		v_Result_PLSQL := Validate_Form_Checks_PL_SQL (
 			p_Table_name => p_Table_name,
@@ -939,15 +939,11 @@ is
 			commit;
 		end if;
 		$IF data_browser_conf.g_debug $THEN
-			apex_debug.info(
-				p_message => 'data_browser_edit.Validate_Form_Checks (p_Table_name => %s, p_Data_Source => %s,' || chr(10)
-				|| ' v_Error_Message=> %s, getlength(v_Result_PLSQL) => %s), Import_Collection_Count => %s, Error_Collection_Count => %s',
-				p0 => p_Table_name,
-				p1 => p_Data_Source,
-				p2 => v_Error_Message,
-				p3 => DBMS_LOB.GETLENGTH(v_Result_PLSQL),
-				p4 => APEX_COLLECTION.COLLECTION_MEMBER_COUNT( p_collection_name => data_browser_conf.Get_Import_Collection),
-				p5 => APEX_COLLECTION.COLLECTION_MEMBER_COUNT( p_collection_name => data_browser_conf.Get_Import_Error_Collection),
+            EXECUTE IMMEDIATE api_trace.Dyn_Log_Exit;
+            apex_debug.info(
+				p_message => 'Import_Collection_Count => %s, Error_Collection_Count => %s',
+				p0 => APEX_COLLECTION.COLLECTION_MEMBER_COUNT( p_collection_name => data_browser_conf.Get_Import_Collection),
+				p1 => APEX_COLLECTION.COLLECTION_MEMBER_COUNT( p_collection_name => data_browser_conf.Get_Import_Error_Collection),
 				p_max_length => 3500
 			);
 		$END
@@ -956,15 +952,8 @@ $IF data_browser_conf.g_use_exceptions $THEN
 	exception
 	  when others then
 	  	v_Error_Message := SQLERRM;
-		$IF data_browser_conf.g_debug $THEN
-			apex_debug.info(
-				p_message => 'Exception in data_browser_edit.Validate_Form_Checks (p_Data_Source=>%s, p_Key_Value=> %s, v_Error_Message=> %s)',
-				p0 => p_Data_Source,
-				p1 => p_Key_Value,
-				p2 => v_Error_Message,
-				p_max_length => 3500
-			);
-		$END
+        EXECUTE IMMEDIATE api_trace.Dyn_Log_Exception
+        USING p_table_name,p_key_column,p_select_columns,p_columns_limit,p_view_mode,p_data_source,p_report_mode,p_join_options,p_parent_name,p_parent_key_column,p_parent_key_visible,p_parent_key_item,p_use_empty_columns;
 	    commit;
 		return v_Error_Message;
 $END 
@@ -1131,10 +1120,10 @@ $END
 		v_Message2 VARCHAR2(32767);
 		v_Message3 VARCHAR2(32767);
 	begin
-        if apex_application.g_debug then
-            EXECUTE IMMEDIATE api_trace.Dyn_Log_Call
+        $IF data_browser_conf.g_debug $THEN
+            EXECUTE IMMEDIATE api_trace.Dyn_Log_Start
             USING p_table_name,p_key_column,p_select_columns,p_columns_limit,p_view_mode,p_join_options,p_parent_name,p_parent_key_column,p_parent_key_visible,p_parent_key_item,p_rows_imported_count,p_inject_defaults;
-        end if;
+        $END
 
 		if p_View_Mode NOT IN ('IMPORT_VIEW', 'EXPORT_VIEW') then
 			v_Message1 := apex_string.format('View Mode %s is not supported for this operation.', p_View_Mode);
@@ -1237,6 +1226,14 @@ $END
 			end if;
 		end if;
 		commit;
+        $IF data_browser_conf.g_debug $THEN
+            EXECUTE IMMEDIATE api_trace.Dyn_Log_Exit;
+        $END
+    exception 
+      when OTHERS then 
+        EXECUTE IMMEDIATE api_trace.Dyn_Log_Exception
+        USING p_table_name,p_key_column,p_select_columns,p_columns_limit,p_view_mode,p_join_options,p_parent_name,p_parent_key_column,p_parent_key_visible,p_parent_key_item,p_rows_imported_count,p_inject_defaults;
+        RAISE;
 	end Validate_Imported_Data;
 
 	PROCEDURE Set_Import_Description (
@@ -2901,10 +2898,10 @@ $END
     	v_Md5_Row_Factor  	PLS_INTEGER := 1;
 		v_out_md5 data_browser_conf.rec_record_edit;
 	begin
-        if apex_application.g_debug then
-            EXECUTE IMMEDIATE api_trace.Dyn_Log_Call
+        $IF data_browser_conf.g_debug $THEN
+            EXECUTE IMMEDIATE api_trace.Dyn_Log_Start
             USING p_table_name,p_unique_key_column,p_data_columns_only,p_select_columns,p_columns_limit,p_exclude_audit_columns,p_view_mode,p_report_mode,p_join_options,p_data_source,p_parent_name,p_parent_key_column,p_parent_key_visible,p_parent_key_item,p_primary_key_call,p_ordering_column_tool,p_text_editor_page_id,p_text_tool_selector,p_file_page_id,p_link_page_id,p_link_parameter,p_detail_page_id,p_detail_parameter,p_form_page_id,p_form_parameter;
-        end if;
+        $END
     	SELECT SEARCH_KEY_COLS, ROW_VERSION_COLUMN_NAME, KEY_COLS_COUNT, HAS_SCALAR_PRIMARY_KEY
     	INTO v_Unique_Key_Column, v_Row_Version_Column_Name, v_Key_Cols_Count, v_Has_Scalar_Key
     	FROM MVDATA_BROWSER_VIEWS
@@ -3012,13 +3009,22 @@ $END
 				v_Column_Count := v_Column_Count + 1;
 			end if;
 		end if;
+        $IF data_browser_conf.g_debug $THEN
+            EXECUTE IMMEDIATE api_trace.Dyn_Log_Exit;
+        $END
 $IF data_browser_conf.g_use_exceptions $THEN
-	exception
-	  when others then
+    exception 
+      when NO_DATA_NEEDED then
 	    if form_view_cur%ISOPEN then
 			CLOSE form_view_cur;
 		end if;
-		raise;
+      when OTHERS then 
+	    if form_view_cur%ISOPEN then
+			CLOSE form_view_cur;
+		end if;
+        EXECUTE IMMEDIATE api_trace.Dyn_Log_Exception
+        USING p_table_name,p_unique_key_column,p_data_columns_only,p_select_columns,p_columns_limit,p_exclude_audit_columns,p_view_mode,p_report_mode,p_join_options,p_data_source,p_parent_name,p_parent_key_column,p_parent_key_visible,p_parent_key_item,p_primary_key_call,p_ordering_column_tool,p_text_editor_page_id,p_text_tool_selector,p_file_page_id,p_link_page_id,p_link_parameter,p_detail_page_id,p_detail_parameter,p_form_page_id,p_form_parameter;
+        RAISE;
 $END
 	end Get_Form_Edit_Cursor;
 
@@ -3384,7 +3390,7 @@ $END
 				p1 => v_Data_Source,
 				p2 => p_Unique_Key_Column,
 				p3 => v_Row_Count,
-				p4 => v_Stat,
+				p4 => substr(v_Stat, 1, 2000),
 				p_max_length => 3500
 			);
 		$END
@@ -3401,7 +3407,7 @@ $IF data_browser_conf.g_use_exceptions $THEN
 				p0 => p_Table_name,
 				p1 => v_Data_Source,
 				p2 => p_Unique_Key_Column,
-				p3 => v_Stat,
+				p3 => substr(v_Stat, 1, 2000),
 				p_max_length => 3500
 			);
 		$END
@@ -3904,10 +3910,10 @@ $END
     	v_Procedure_Name 	VARCHAR2(50);
 		v_Unique_Key_Column MVDATA_BROWSER_VIEWS.SEARCH_KEY_COLS%TYPE;
     begin
-        if apex_application.g_debug then
-            EXECUTE IMMEDIATE api_trace.Dyn_Log_Call
+        $IF data_browser_conf.g_debug $THEN
+            EXECUTE IMMEDIATE api_trace.Dyn_Log_Start
             USING p_table_name,p_unique_key_column,p_select_columns,p_columns_limit,p_view_mode,p_join_options,p_data_source,p_parent_name,p_parent_key_column,p_parent_key_visible,p_parent_key_item,p_dml_command,p_row_number,p_use_empty_columns,p_as_of_timestamp,p_exec_phase;
-        end if;
+        $END
 		if p_Unique_Key_Column IS NULL then
 			SELECT SEARCH_KEY_COLS
 			INTO v_Unique_Key_Column
@@ -4046,22 +4052,24 @@ $END
 			);
 
 			$IF data_browser_conf.g_debug $THEN
-				apex_debug.message(
-					p_message => 'data_browser_edit.Get_Form_Foreign_Keys_PLSQL _result: %s',
-					p0 => v_Result_PLSQL,
-					p_max_length => 3500
-				);
+				EXECUTE IMMEDIATE api_trace.Dyn_Log_Exit;
 			$END
 			RETURN v_Result_PLSQL;
 		end if;
 		RETURN NULL;
 $IF data_browser_conf.g_use_exceptions $THEN
 	exception
+      when NO_DATA_NEEDED then
+	    if form_view_cur%ISOPEN then
+			CLOSE form_view_cur;
+		end if;
 	  when others then
 	    if form_view_cur%ISOPEN then
 			CLOSE form_view_cur;
 		end if;
-		raise;
+        EXECUTE IMMEDIATE api_trace.Dyn_Log_Exception
+        USING p_table_name,p_unique_key_column,p_select_columns,p_columns_limit,p_view_mode,p_join_options,p_data_source,p_parent_name,p_parent_key_column,p_parent_key_visible,p_parent_key_item,p_dml_command,p_row_number,p_use_empty_columns,p_as_of_timestamp,p_exec_phase;
+		RAISE;
 $END
 	end Get_Form_Foreign_Keys_PLSQL;
 
@@ -4087,10 +4095,10 @@ $END
 		v_Result_PLSQL CLOB;
 		v_Error_Message VARCHAR2(32767);
 	begin
-        if apex_application.g_debug then
-            EXECUTE IMMEDIATE api_trace.Dyn_Log_Call
+        $IF data_browser_conf.g_debug $THEN
+            EXECUTE IMMEDIATE api_trace.Dyn_Log_Start
             USING p_table_name,p_unique_key_column,p_data_source,p_select_columns,p_columns_limit,p_view_mode,p_join_options,p_parent_name,p_parent_key_column,p_parent_key_visible,p_parent_key_item,p_dml_command,p_row_number,p_use_empty_columns,p_as_of_timestamp,p_exec_phase;
-        end if;
+        $END
     	dbms_lob.createtemporary(v_Result_PLSQL, true, dbms_lob.call);    	
 		v_Result_PLSQL := data_browser_edit.Get_Form_Foreign_Keys_PLSQL(
 			p_Table_name => p_Table_name,
@@ -4131,20 +4139,18 @@ $END
 				p_max_length => 3500
 			);
 		$END
+        $IF data_browser_conf.g_debug $THEN
+            EXECUTE IMMEDIATE api_trace.Dyn_Log_Exit;
+        $END
 		return v_Error_Message;
 $IF data_browser_conf.g_use_exceptions $THEN
 	exception
 	  when others then
 	  	v_Error_Message := SQLERRM;
-		$IF data_browser_conf.g_debug $THEN
-			apex_debug.info(
-				p_message => 'data_browser_edit.Validate_Form_Foreign_Keys (p_Table_name => %s, p_Data_Source => %s, v_Error_Message=> %s)',
-				p0 => p_Table_name,
-				p1 => p_Data_Source,
-				p2 => v_Error_Message,
-				p_max_length => 3500
-			);
-		$END
+$IF data_browser_conf.g_debug $THEN
+        EXECUTE IMMEDIATE api_trace.Dyn_Log_Exception
+        USING p_table_name,p_unique_key_column,p_data_source,p_select_columns,p_columns_limit,p_view_mode,p_join_options,p_parent_name,p_parent_key_column,p_parent_key_visible,p_parent_key_item,p_dml_command,p_row_number,p_use_empty_columns,p_as_of_timestamp,p_exec_phase;
+$END
 	    commit;
 		return v_Error_Message;
 		-- return apex_lang.lang('Foreign keys lookup for table %0 failed with %1.', p_Table_name, SQLERRM);
@@ -4282,10 +4288,16 @@ $END
         end if;
 		p_Changed_Check_Condition := v_Changed_Check_Condition;
 		p_Changed_Check_Plsql	  := v_Changed_Check_Plsql;
-        if apex_application.g_debug then
-            EXECUTE IMMEDIATE api_trace.Dyn_Log_Call
-            USING p_table_name,p_unique_key_column,p_select_columns,p_columns_limit,p_view_mode,p_data_source,p_report_mode,p_join_options,p_parent_name,p_parent_key_column,p_parent_key_visible,p_parent_key_item,p_use_empty_columns,p_changed_check_condition,p_changed_check_plsql;
-        end if;
+        ----
+        $IF data_browser_conf.g_debug $THEN
+            EXECUTE IMMEDIATE api_trace.Dyn_Log_Exit
+            USING p_changed_check_condition,p_changed_check_plsql;
+        $END
+    exception 
+      when OTHERS then 
+        EXECUTE IMMEDIATE api_trace.Dyn_Log_Exception
+        USING p_table_name,p_unique_key_column,p_select_columns,p_columns_limit,p_view_mode,p_data_source,p_report_mode,p_join_options,p_parent_name,p_parent_key_column,p_parent_key_visible,p_parent_key_item,p_use_empty_columns,p_changed_check_condition,p_changed_check_plsql;
+        RAISE;
 	end Get_Form_Changed_Check;
 
 
@@ -5006,11 +5018,11 @@ $END
 		v_Parent_Key_Visible  VARCHAR2(10);
 		v_Count			PLS_INTEGER;
 	begin
-		v_Parent_Key_Visible := case when p_Select_Columns IS NOT NULL then 'YES' else p_Parent_Key_Visible end;
-        if apex_application.g_debug then
-            EXECUTE IMMEDIATE api_trace.Dyn_Log_Call
+        $IF data_browser_conf.g_debug $THEN
+            EXECUTE IMMEDIATE api_trace.Dyn_Log_Start
             USING p_table_name,p_unique_key_column,p_row_operation,p_select_columns,p_columns_limit,p_view_mode,p_data_source,p_report_mode,p_join_options,p_parent_name,p_parent_key_column,p_parent_key_visible,p_parent_key_item,p_use_empty_columns;
-        end if;
+        $END
+		v_Parent_Key_Visible := case when p_Select_Columns IS NOT NULL then 'YES' else p_Parent_Key_Visible end;
 		v_Row_Op := case
 			when p_Row_Operation IN ('INSERT', 'UPDATE', 'DELETE', 'DUPLICATE', 'COPY_ROWS', 'MERGE_ROWS', 'MOVE_ROWS', 'DOWNLOAD_FILES', 'DOWNLOAD_SELECTED')
 			then p_Row_Operation
@@ -5448,20 +5460,20 @@ $END
 				'end;' || chr(10)
 			);
 		end if;
-		$IF data_browser_conf.g_debug $THEN
-			apex_debug.info(
-				p_message => 'data_browser_edit.Get_Form_Edit_DML p_Table_name => %s, v_Result_PLSQL => %s',
-				p0 => p_Table_name,
-				p1 => v_Result_PLSQL,
-				p_max_length => 3500
-			);
-		    data_browser_edit.Dump_Application_Items;
-		$END
+        ----
+        $IF data_browser_conf.g_debug $THEN
+            EXECUTE IMMEDIATE api_trace.Dyn_Log_Exit;
+        $END
 		if DBMS_LOB.GETLENGTH(v_Result_PLSQL) > 1 then
 			return v_Result_PLSQL;
 		else
 			return NULL;
 		end if;
+    exception 
+      when OTHERS then 
+        EXECUTE IMMEDIATE api_trace.Dyn_Log_Exception
+        USING p_table_name,p_unique_key_column,p_row_operation,p_select_columns,p_columns_limit,p_view_mode,p_data_source,p_report_mode,p_join_options,p_parent_name,p_parent_key_column,p_parent_key_visible,p_parent_key_item,p_use_empty_columns;
+        RAISE;
 	end Get_Form_Edit_DML;
 
 	PROCEDURE Reset_Form_DML
