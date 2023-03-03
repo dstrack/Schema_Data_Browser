@@ -31,19 +31,21 @@ DECLARE
 		PRAGMA EXCEPTION_INIT (time_limit_exceeded, -4021); -- ORA-04021: timeout occurred while waiting to lock object 
 		mview_does_not_exist EXCEPTION;
 		PRAGMA EXCEPTION_INIT (mview_does_not_exist, -12003); -- ORA-12003: materialized view does not exist
+		table_does_not_exist EXCEPTION;
+		PRAGMA EXCEPTION_INIT (table_does_not_exist, -942); -- ORA-00942: table or view does not exist
 		v_count NUMBER := 0;
 	BEGIN		
 		LOOP 
 			BEGIN 
 				EXECUTE IMMEDIATE 'DROP MATERIALIZED VIEW ' || p_MView_Name;
-        		-- DBMS_OUTPUT.PUT_LINE('DROP MATERIALIZED VIEW ' || p_MView_Name || ';');
+        		DBMS_OUTPUT.PUT_LINE('DROP MATERIALIZED VIEW ' || p_MView_Name || ';');
         		EXIT;
 			EXCEPTION
 				WHEN time_limit_exceeded THEN 
 					APEX_UTIL.PAUSE(1/2);
 					v_count := v_count + 1;
 					EXIT WHEN v_count > 10;
-				WHEN mview_does_not_exist THEN
+				WHEN mview_does_not_exist or table_does_not_exist THEN
 					EXIT;
 			END;
 		END LOOP;
