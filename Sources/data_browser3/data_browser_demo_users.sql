@@ -10,9 +10,10 @@ begin
 	FROM APEX_APPLICATIONS
 	WHERE APPLICATION_ID = v_APP_ID;
 	apex_util.set_workspace (p_workspace => v_workspace );
-	set_custom_ctx.set_current_workspace(SYS_CONTEXT('USERENV', 'CURRENT_SCHEMA'));
-	set_custom_ctx.set_current_user(SYS_CONTEXT('USERENV', 'SESSION_USER'));
-
+$IF data_browser_specs.g_use_custom_ctx $THEN
+	set_custom_ctx.set_current_workspace(p_Workspace_Name=>SYS_CONTEXT('USERENV', 'CURRENT_SCHEMA'), p_Client_Id=>NULL);
+	set_custom_ctx.set_current_user(p_User_Name=>SYS_CONTEXT('USERENV', 'SESSION_USER'), p_Client_Id=>NULL);
+$END
 	DBMS_OUTPUT.PUT_LINE('-- adding developers for App-ID ' || v_APP_ID || ' ws : ' || v_workspace);
 	data_browser_auth.Add_Developers;
 
