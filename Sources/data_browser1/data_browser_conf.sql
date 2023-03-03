@@ -295,11 +295,13 @@ IS
 	FUNCTION Get_NLS_Column_Delimiter_Char RETURN VARCHAR2;
 	FUNCTION Get_Default_Currency_Precision (
 		p_Data_Precision NUMBER,
-		p_Is_Currency VARCHAR2
+		p_Is_Currency VARCHAR2,
+		p_Data_Type VARCHAR2
 	) RETURN NUMBER DETERMINISTIC;
 	FUNCTION Get_Default_Currency_Scale (
 		p_Data_Scale NUMBER,
-		p_Is_Currency VARCHAR2
+		p_Is_Currency VARCHAR2,
+		p_Data_Type VARCHAR2
 	) RETURN NUMBER DETERMINISTIC;
 	FUNCTION Get_Export_Float_Format RETURN VARCHAR2;
 	FUNCTION Get_Export_Date_Format RETURN VARCHAR2;
@@ -2249,26 +2251,38 @@ $END
 
 	FUNCTION Get_Default_Currency_Precision (
 		p_Data_Precision NUMBER,
-		p_Is_Currency VARCHAR2
+		p_Is_Currency VARCHAR2,
+		p_Data_Type VARCHAR2
 	) RETURN NUMBER DETERMINISTIC 
 	IS 
 	PRAGMA UDF;
 	BEGIN 
-		RETURN case when p_Data_Precision IS NOT NULL then p_Data_Precision   
-			when p_Is_Currency = 'Y' then numbers_utl.g_Default_Currency_Precision
+		RETURN case 
+		when p_Data_Type = 'NUMBER' and p_Is_Currency = 'Y' then 
+			case when p_Data_Precision IS NULL then g_Default_Currency_Precision
+			else GREATEST(p_Data_Precision, g_Default_Currency_Precision)
+			end
+		when p_Data_Type = 'FLOAT' and p_Is_Currency = 'Y' then g_Default_Currency_Precision
+		else p_Data_Precision
 		end;
 	END Get_Default_Currency_Precision;
 
 	FUNCTION Get_Default_Currency_Scale (
 		p_Data_Scale NUMBER,
-		p_Is_Currency VARCHAR2
+		p_Is_Currency VARCHAR2,
+		p_Data_Type VARCHAR2
 	) RETURN NUMBER DETERMINISTIC 
 	IS 
 	PRAGMA UDF;
 	BEGIN 
-		RETURN case when p_Data_Scale IS NOT NULL then p_Data_Scale   
-			when p_Is_Currency = 'Y' then numbers_utl.g_Default_Currency_Scale
-		end;		
+		RETURN case 
+			when p_Data_Type = 'NUMBER' and p_Is_Currency = 'Y' then 
+				case when p_Data_Scale IS NULL then g_Default_Currency_Scale
+				else GREATEST(p_Data_Scale, g_Default_Currency_Scale)
+				end
+			when p_Data_Type = 'FLOAT' and p_Is_Currency = 'Y' then g_Default_Currency_Scale
+			else p_Data_Scale
+		end;
 	END Get_Default_Currency_Scale;
 
 	FUNCTION Get_Export_Float_Format RETURN VARCHAR2 IS BEGIN RETURN g_Export_Float_Format; END;
@@ -3248,6 +3262,12 @@ $END
 				|| Enquote_Literal('TM9')
 				|| ')';
             end if;
+        when p_Data_Type = 'FLOAT' AND p_Data_Scale IS NOT NULL then
+        	v_Format_Mask := Get_Number_Format_Mask(p_Data_Precision, p_Data_Scale, v_Use_Group_Separator, p_Export => 'Y', p_Use_Trim => p_Use_Trim);
+            v_Result := 'TO_CHAR(' || p_Column_Name || ', '
+            || Enquote_Literal(v_Format_Mask)
+            || case when p_use_NLS_params = 'Y' then ', ' || Get_Export_NumChars end
+            || ')';
         when p_Data_Type = 'FLOAT' then
             v_Format_Mask := Get_Number_Format_Mask(numbers_utl.g_Default_Data_Precision, null, v_Use_Group_Separator, p_Export => 'Y', p_Use_Trim => p_Use_Trim);
             v_Result := 'TO_CHAR(' || p_Column_Name || ', '
@@ -3266,18 +3286,21 @@ $END
         when p_Data_Type = 'DATE' then
             v_Result := 'TO_CHAR(' 
             || p_Column_Name
-            || ', ' || Enquote_Literal(Get_Export_Date_Format) 
+            || case when g_Use_App_Date_Time_Format = 'NO' then ', ' || Enquote_Literal(g_Export_Date_Format) end
             || ')';
-        /*when p_Data_Type LIKE 'TIMESTAMP%' and p_Datetime = 'Y' then
-            v_Result := 'TO_CHAR(CAST(' || p_Column_Name || ' AS DATE), ' || Enquote_Literal(Get_Export_DateTime_Format) || ')';*/
+        when p_Data_Type LIKE 'TIMESTAMP%' AND p_Datetime = 'Y' then
+            v_Result := 'TO_CHAR(' || p_Column_Name 
+            || ', ' || Enquote_Literal(Get_Timestamp_Format(p_Is_DateTime => p_Datetime)) || ')';
         when p_Data_Type LIKE 'TIMESTAMP%' then
-            v_Result := 'TO_CHAR(' || p_Column_Name || ', ' || Enquote_Literal(Get_Timestamp_Format(p_Is_DateTime => p_Datetime)) || ')';
+            v_Result := 'TO_CHAR(' || p_Column_Name 
+            || case when g_Use_App_Date_Time_Format = 'NO' then ', ' || Enquote_Literal(g_Export_Timestamp_Format) end
+            || ')';
         else 
 			v_Result := p_Column_Name;
         	if p_Use_Trim = 'Y' then 
 				v_Export_Text_Limit := LEAST(g_Export_Text_Limit, g_TextArea_Max_Length); -- technical limit for apex_item_ref
 				if p_Char_Length > v_Export_Text_Limit OR p_Data_Type IN ('CLOB', 'NCLOB') then
-					v_Result := 'CAST(SUBSTR(' || p_Column_Name || ', 1, ' || v_Export_Text_Limit || ') AS VARCHAR2(' || v_Export_Text_Limit || '))';
+					v_Result := 'CAST(' || p_Column_Name || ' AS VARCHAR2(' || v_Export_Text_Limit || '))';
 				end if;
 			end if;
 		end case;
@@ -3298,6 +3321,8 @@ $END
 	BEGIN
         RETURN case
         when p_Data_Type = 'NUMBER' then
+            LENGTH(Get_Number_Format_Mask(p_Data_Precision, p_Data_Scale, p_Use_Group_Separator, p_Export => 'N', p_Use_Trim => 'N'))
+		when p_Data_Type = 'FLOAT' AND p_Data_Scale IS NOT NULL then
             LENGTH(Get_Number_Format_Mask(p_Data_Precision, p_Data_Scale, p_Use_Group_Separator, p_Export => 'N', p_Use_Trim => 'N'))
         when p_Data_Type = 'FLOAT' then
         	numbers_utl.g_Default_Data_Precision
@@ -3330,6 +3355,8 @@ $END
 	BEGIN
         RETURN case
         when p_Data_Type = 'NUMBER' then
+            Get_Number_Format_Mask(p_Data_Precision, p_Data_Scale, p_Use_Group_Separator, p_Export => 'N')
+        when p_Data_Type = 'FLOAT' and p_Data_Scale IS NOT NULL then -- Currency 
             Get_Number_Format_Mask(p_Data_Precision, p_Data_Scale, p_Use_Group_Separator, p_Export => 'N')
         when p_Data_Type = 'FLOAT' then
         	Get_Number_Format_Mask(numbers_utl.g_Default_Data_Precision, null, p_Use_Group_Separator, p_Export => 'N') -- g_Export_Float_Format

@@ -138,18 +138,35 @@ IS
         v_Data_Scale CONSTANT PLS_INTEGER := NVL(p_Data_Scale, g_Default_Data_Scale);
         v_Data_Precision CONSTANT PLS_INTEGER := NVL(p_Data_Precision, g_Default_Data_Precision + g_Default_Data_Scale) - v_Data_Scale + 1; -- one char for minus sign
         v_fraction_char CONSTANT VARCHAR2(1) := case when p_Data_Scale IS NULL then '9' else '0' end;
+        v_mask VARCHAR2(1000);
+        v_max_len PLS_INTEGER;
     BEGIN
         if p_Data_Scale IS NULL and p_Data_Precision IS NULL and p_Export = 'Y' and p_Use_Group_Separator = 'N' then 
             RETURN 'TM9';
         else 
-            RETURN SUBSTR(
-                    case when p_Use_Trim = 'Y' then 'FM' end
-                    || case when p_Use_Group_Separator = 'Y' 
+			if p_Use_Trim = 'Y' then
+				v_mask := case when p_Use_Group_Separator = 'Y' 
                         then SUBSTR(LPAD('0', CEIL((v_Data_Precision)/3)*4, 'G999'), -(v_Data_Precision+FLOOR((v_Data_Precision-1)/3)) )
                         else LPAD('0', v_Data_Precision, '9')
                     end
-                    || case when v_Data_Scale > 0 then RPAD('D0', v_Data_Scale+1, v_fraction_char) end
-                , 1, numbers_utl.g_Format_Max_Length); -- maximum length 
+                    || case when v_Data_Scale > 0 then RPAD('D0', v_Data_Scale+1, v_fraction_char) end;
+				v_max_len := numbers_utl.g_Format_Max_Length - 2;
+				if LENGTH(v_mask) > v_max_len then 
+					v_mask := SUBSTR(v_mask, LENGTH(v_mask) - v_max_len + 1);
+				end if;
+				v_mask := 'FM' || v_mask;
+			else 
+				v_mask := case when p_Use_Group_Separator = 'Y' 
+						then SUBSTR(LPAD('0', CEIL((v_Data_Precision)/3)*4, 'G999'), -(v_Data_Precision+FLOOR((v_Data_Precision-1)/3)) )
+						else LPAD('0', v_Data_Precision, '9')
+					end
+					|| case when v_Data_Scale > 0 then RPAD('D0', v_Data_Scale+1, v_fraction_char) end;
+				v_max_len := numbers_utl.g_Format_Max_Length;
+				if LENGTH(v_mask) > v_max_len then 
+					v_mask := SUBSTR(v_mask, LENGTH(v_mask) - v_max_len + 1); 
+				end if;
+			end if; 
+			RETURN v_mask;	
         end if;
     END Get_Number_Format_Mask;
 

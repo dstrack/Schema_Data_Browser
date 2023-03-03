@@ -250,7 +250,7 @@ is
         v_Result_PLSQL				CLOB;
         v_Result_Stat				CLOB;
         v_Use_Group_Separator 		CONSTANT VARCHAR2(1) := 'Y';
-		v_use_NLS_params 			CONSTANT VARCHAR2(1) := 'Y'; -- case when p_Data_Source = 'COLLECTION' then 'Y' else 'N' end
+		v_use_NLS_params 			CONSTANT VARCHAR2(1) := case when p_View_Mode IN ('IMPORT_VIEW','EXPORT_VIEW') then 'Y' else 'N' end;
 		v_Apex_Item_Rows_Call 		VARCHAR2(1024);
     	v_Procedure_Name 			VARCHAR2(50);
     	v_Procedure_Name2 			VARCHAR2(50);
@@ -1430,7 +1430,7 @@ $END
 		v_Result		NUMBER;
 		cv 				SYS_REFCURSOR;
 		v_Use_Group_Separator CONSTANT VARCHAR2(1) := 'Y';
-		v_use_NLS_params CONSTANT VARCHAR2(1) := 'Y';
+		v_use_NLS_params CONSTANT VARCHAR2(1) := case when p_View_Mode IN ('IMPORT_VIEW','EXPORT_VIEW') then 'Y' else 'N' end;
 	BEGIN
 		v_Column_Value := p_Column_Value;
 		for c_cur IN ( -- single column checks
@@ -3441,7 +3441,7 @@ $END
 		v_Compare_Case_Insensitive	VARCHAR2(10);
 		v_Search_Keys_Unique		VARCHAR2(10);
 		v_Insert_Foreign_Keys		VARCHAR2(10);
-		v_use_NLS_params CONSTANT VARCHAR2(1) := 'Y';
+		v_use_NLS_params CONSTANT VARCHAR2(1) := case when p_View_Mode IN ('IMPORT_VIEW','EXPORT_VIEW') then 'Y' else 'N' end;
 
         CURSOR form_view_cur
         IS
@@ -4716,7 +4716,7 @@ $END
         v_Column_List	CLOB;
         v_Values_List	CLOB;
         v_Result_Stat	CLOB;
-        v_use_NLS_params CONSTANT VARCHAR2(1) := 'Y';
+        v_use_NLS_params CONSTANT VARCHAR2(1) := case when p_View_Mode IN ('IMPORT_VIEW','EXPORT_VIEW') then 'Y' else 'N' end;
         v_Delimiter     CONSTANT VARCHAR2(50) := ', ' || NL(20);
         v_Delimiter2	VARCHAR2(50);
 		v_Indent 		PLS_INTEGER;
@@ -5012,7 +5012,7 @@ $END
 		v_Row_Number 	PLS_INTEGER := 1;	--	used for form validation
 		v_Delimiter2	VARCHAR2(50);
 		v_Use_Group_Separator 	CONSTANT VARCHAR2(1) := 'Y';
-		v_use_NLS_params 		CONSTANT VARCHAR2(1) := 'Y'; -- case when p_Data_Source = 'COLLECTION' then 'Y' else 'N' end
+		v_use_NLS_params 		CONSTANT VARCHAR2(1) := case when p_View_Mode IN ('IMPORT_VIEW','EXPORT_VIEW') then 'Y' else 'N' end;
 		v_Apex_Item_Rows_Call VARCHAR2(1024);
 		v_Row_Op        VARCHAR2(50);
 		v_Parent_Key_Visible  VARCHAR2(10);

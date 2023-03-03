@@ -21,6 +21,7 @@ is
 		v_View_Name VARCHAR2,				-- Table Name or View Name of master table
 		v_Unique_Key_Column VARCHAR2,		-- Unique Key Column or NULL. Used to build a Link_ID_Expression
 		v_View_Mode VARCHAR2,				-- RECORD_VIEW, FORM_VIEW, HISTORY, NAVIGATION_VIEW, NESTED_VIEW
+		v_Edit_Mode VARCHAR2,				-- YES, NO
 		v_Data_Format VARCHAR2,				-- FORM, HTML, CSV, NATIVE. Format of the final projection columns.
 		v_Select_Columns VARCHAR2,			-- Select Column names of the final projection, Optional
 		v_Parent_Name VARCHAR2,				-- Parent View or Table name. if set columns from the view are included in the Column list in View_Mode NAVIGATION_VIEW
@@ -170,7 +171,10 @@ is
 				end IS_SEARCHABLE_REF,
 				T.IS_SUMMAND, T.IS_VIRTUAL_COLUMN, 
 				data_browser_select.Date_Time_Required(T.DATA_TYPE, v_Data_Format, T.IS_DATETIME) IS_DATETIME,
-				T.COLUMN_ID, 1 POSITION, T.DATA_TYPE, T.DATA_PRECISION, T.DATA_SCALE, T.DATA_DEFAULT, T.CHAR_LENGTH,
+				T.COLUMN_ID, 1 POSITION, T.DATA_TYPE, 
+				case when v_Edit_Mode = 'NO' then T.FORM_DATA_PRECISION else T.DATA_PRECISION end DATA_PRECISION, 
+				case when v_Edit_Mode = 'NO' then T.FORM_DATA_SCALE else T.DATA_SCALE end DATA_SCALE, 
+				T.DATA_DEFAULT, T.CHAR_LENGTH,
 				T.NULLABLE, T.IS_PRIMARY_KEY, T.IS_SEARCH_KEY, T.IS_FOREIGN_KEY, 
 				T.IS_DISPLAYED_KEY_COLUMN IS_DISP_KEY_COLUMN, T.CHECK_UNIQUE,
 				T.HAS_HELP_TEXT,
@@ -184,8 +188,8 @@ is
 					and T.YES_NO_COLUMN_TYPE IS NULL then
 						data_browser_conf.Get_Col_Format_Mask(
 							p_Data_Type			=> T.DATA_TYPE, 
-							p_Data_Precision	=> T.DATA_PRECISION, 
-							p_Data_Scale		=> T.DATA_SCALE, 
+							p_Data_Precision	=> case when v_Edit_Mode = 'NO' then T.FORM_DATA_PRECISION else T.DATA_PRECISION end , 
+							p_Data_Scale		=> case when v_Edit_Mode = 'NO' then T.FORM_DATA_SCALE else T.DATA_SCALE end, 
 							p_Char_Length		=> T.CHAR_LENGTH, 
 							p_Use_Group_Separator => case when v_Data_Format IN ('FORM', 'HTML', 'QUERY') then 'Y' else 'N' end, 
 							p_Datetime			=> data_browser_select.Date_Time_Required(T.DATA_TYPE, v_Data_Format, T.IS_DATETIME)
@@ -265,8 +269,8 @@ is
 												'SUM(A.' || T.COLUMN_NAME || ')'
 											else 'A.' || T.COLUMN_NAME end,
 							p_DATA_TYPE => T.DATA_TYPE,
-							p_DATA_PRECISION => T.DATA_PRECISION,
-							p_DATA_SCALE => T.DATA_SCALE,
+							p_DATA_PRECISION => case when v_Edit_Mode = 'NO' then T.FORM_DATA_PRECISION else T.DATA_PRECISION end ,
+							p_DATA_SCALE => case when v_Edit_Mode = 'NO' then T.FORM_DATA_SCALE else T.DATA_SCALE end,
 							p_CHAR_LENGTH => T.CHAR_LENGTH,
 							p_Data_Format => v_Data_Format,
 							p_USE_TRIM => 'Y', -- trimming of formated numbers is required for input fields.
@@ -276,8 +280,8 @@ is
 						data_browser_select.Get_ConversionColFunction (
 							p_COLUMN_NAME => 'A.' || T.COLUMN_NAME,
 							p_DATA_TYPE => T.DATA_TYPE,
-							p_DATA_PRECISION => T.DATA_PRECISION,
-							p_DATA_SCALE => T.DATA_SCALE,
+							p_DATA_PRECISION => case when v_Edit_Mode = 'NO' then T.FORM_DATA_PRECISION else T.DATA_PRECISION end ,
+							p_DATA_SCALE => case when v_Edit_Mode = 'NO' then T.FORM_DATA_SCALE else T.DATA_SCALE end,
 							p_CHAR_LENGTH => T.CHAR_LENGTH,
 							p_Data_Format => 'CSV',
 							p_USE_TRIM => 'N',
@@ -458,7 +462,10 @@ is
 						|| ')' 
 						|| case when v_Calc_Totals = 'YES' then ')' end
 						ROW_COUNT_QUERY,
-						DATA_TYPE, DATA_PRECISION, DATA_SCALE, DATA_DEFAULT, CHAR_LENGTH, A.COMMENTS
+						DATA_TYPE, 
+						case when v_Edit_Mode = 'NO' then A.FORM_DATA_PRECISION else A.DATA_PRECISION end  DATA_PRECISION, 
+						case when v_Edit_Mode = 'NO' then A.FORM_DATA_SCALE else A.DATA_SCALE end DATA_SCALE, 
+						DATA_DEFAULT, CHAR_LENGTH, A.COMMENTS
 					FROM MVDATA_BROWSER_SIMPLE_COLS A
 					JOIN BROWSER_VIEW S ON S.VIEW_NAME = A.VIEW_NAME
 					JOIN MVDATA_BROWSER_REFERENCES E ON E.R_PRIMARY_KEY_COLS = A.COLUMN_NAME AND E.R_VIEW_NAME = S.VIEW_NAME
@@ -544,12 +551,15 @@ is
 							p_R_View_Name => E.R_VIEW_NAME
 						) COLUMN_HEADER, 
 						E.R_VIEW_NAME VIEW_NAME, A.COLUMN_NAME,
-						A.DATA_TYPE, A.DATA_PRECISION, A.DATA_SCALE, A.DATA_DEFAULT, 
+						A.DATA_TYPE, 
+						case when v_Edit_Mode = 'NO' then A.FORM_DATA_PRECISION else A.DATA_PRECISION end DATA_PRECISION, 
+						case when v_Edit_Mode = 'NO' then A.FORM_DATA_SCALE else A.DATA_SCALE end DATA_SCALE, 
+						A.DATA_DEFAULT, 
 						A.CHAR_LENGTH, A.IS_DATETIME, A.NULLABLE, A.COMMENTS,
 						data_browser_conf.Get_Col_Format_Mask(
 							p_Data_Type			=> A.DATA_TYPE, 
-							p_Data_Precision	=> A.DATA_PRECISION, 
-							p_Data_Scale		=> A.DATA_SCALE, 
+							p_Data_Precision	=> case when v_Edit_Mode = 'NO' then A.FORM_DATA_PRECISION else A.DATA_PRECISION end, 
+							p_Data_Scale		=> case when v_Edit_Mode = 'NO' then A.FORM_DATA_SCALE else A.DATA_SCALE end, 
 							p_Char_Length		=> A.CHAR_LENGTH, 
 							p_Use_Group_Separator => case when v_Data_Format IN ('FORM', 'HTML', 'QUERY') then 'Y' else 'N' end, 
 							p_Datetime			=> A.IS_DATETIME
@@ -1449,7 +1459,7 @@ is
 	) RETURN VARCHAR2 DETERMINISTIC
 	IS
 	PRAGMA UDF;
-		v_use_NLS_params		CONSTANT VARCHAR2(1) := 'Y'; -- case when p_Data_Format IN ('FORM', 'HTML', 'QUERY') then 'N' else 'Y' end;
+		v_use_NLS_params		CONSTANT VARCHAR2(1) := case when p_Data_Format IN ('FORM', 'HTML', 'QUERY') then 'N' else 'Y' end;
 		v_Use_Group_Separator	CONSTANT VARCHAR2(1) := case when p_Data_Format IN ('FORM', 'HTML', 'QUERY') then 'Y' else 'N' end;
 		v_Datetime				CONSTANT VARCHAR2(1) := data_browser_select.Date_Time_Required(p_Data_Type, p_Data_Format, p_Datetime);
 	BEGIN
@@ -2633,8 +2643,8 @@ $END
 					data_browser_select.Get_ConversionColFunction (
 						p_Column_Name => TABLE_ALIAS || COLUMN_NAME,
 						p_Data_Type => DATA_TYPE,
-						p_Data_Precision => DATA_PRECISION,
-						p_Data_Scale => DATA_SCALE,
+						p_Data_Precision => case when p_View_Mode IN ('IMPORT_VIEW', 'EXPORT_VIEW') then DATA_PRECISION else FORM_DATA_PRECISION end,
+						p_Data_Scale => case when p_View_Mode IN ('IMPORT_VIEW', 'EXPORT_VIEW') then DATA_SCALE else FORM_DATA_SCALE end,
 						p_Char_Length => CHAR_LENGTH,
 						p_Data_Format => case when R_VIEW_NAME IS NULL then 'FORM' else 'NATIVE' end,
 						p_Use_Trim => 'Y',
@@ -2688,7 +2698,7 @@ $END
 					)
 					SELECT --+ USE_NL_WITH_INDEX(C) USE_NL_WITH_INDEX(F) USE_NL_WITH_INDEX(G)
 						C.VIEW_NAME, T.COLUMN_NAME, T.POSITION, F.R_POSITION, C.NULLABLE,
-						C.DATA_TYPE, C.DATA_PRECISION, C.DATA_SCALE, C.CHAR_LENGTH, C.IS_DATETIME,
+						C.DATA_TYPE, C.DATA_PRECISION, C.DATA_SCALE, C.FORM_DATA_PRECISION, C.FORM_DATA_SCALE,	C.CHAR_LENGTH, C.IS_DATETIME,
 						F.R_VIEW_NAME, F.R_PRIMARY_KEY_COLS, F.R_COLUMN_NAME,
 						case when COUNT(F.R_VIEW_NAME) OVER (PARTITION BY C.VIEW_NAME) > 0
 						or PA.Alias_Required = 'YES'
@@ -2756,7 +2766,7 @@ $END
 					)
 				)
 				GROUP BY VIEW_NAME, TABLE_ALIAS, COLUMN_NAME, POSITION, NULLABLE, -- one line or each foreign key
-					DATA_TYPE, DATA_PRECISION, DATA_SCALE, CHAR_LENGTH, IS_DATETIME,
+					DATA_TYPE, DATA_PRECISION, DATA_SCALE, FORM_DATA_PRECISION, FORM_DATA_SCALE, CHAR_LENGTH, IS_DATETIME,
 					R_VIEW_NAME, R_PRIMARY_KEY_COLS, R_TABLE_ALIAS, R_SUB_QUERY, Group_Delimiter
 			) T
 			ORDER BY VIEW_NAME, POSITION, R_POSITION;
@@ -3499,8 +3509,8 @@ $END
 					data_browser_select.Get_ConversionColFunction (
 						p_Column_Name => TABLE_ALIAS || COLUMN_NAME,
 						p_Data_Type => DATA_TYPE,
-						p_Data_Precision => DATA_PRECISION,
-						p_Data_Scale => DATA_SCALE,
+						p_Data_Precision => case when p_View_Mode IN ('IMPORT_VIEW', 'EXPORT_VIEW') then DATA_PRECISION else FORM_DATA_PRECISION end,
+						p_Data_Scale => case when p_View_Mode IN ('IMPORT_VIEW', 'EXPORT_VIEW') then DATA_SCALE else FORM_DATA_SCALE end,
 						p_Char_Length => CHAR_LENGTH,
 						p_Data_Format => case when R_VIEW_NAME IS NULL then 'FORM' else 'NATIVE' end,
 						p_Use_Trim => 'Y',
@@ -3519,7 +3529,7 @@ $END
 				FROM (
 					SELECT --+ USE_NL_WITH_INDEX(C) USE_NL_WITH_INDEX(F) USE_NL_WITH_INDEX(G)
 						C.VIEW_NAME, T.COLUMN_NAME, T.POSITION, C.NULLABLE,
-						C.DATA_TYPE, C.DATA_PRECISION, C.DATA_SCALE, C.CHAR_LENGTH, C.IS_DATETIME,
+						C.DATA_TYPE, C.DATA_PRECISION, C.DATA_SCALE, C.FORM_DATA_PRECISION, C.FORM_DATA_SCALE, C.CHAR_LENGTH, C.IS_DATETIME,
 						F.R_VIEW_NAME, F.R_PRIMARY_KEY_COLS, F.R_COLUMN_NAME,
 						case when COUNT(F.R_VIEW_NAME) OVER (PARTITION BY C.VIEW_NAME) > 0
 							then v_Alias_Prefix || '.' -- use table alias in FROM clause, when foreign keys are contained in the display columns list
@@ -3556,7 +3566,7 @@ $END
 					AND (F.R_COLUMN_NAME IS NULL OR R.FILTER_KEY_COLUMN IS NULL OR F.R_COLUMN_NAME != R.FILTER_KEY_COLUMN)
 				)
 				GROUP BY VIEW_NAME, TABLE_ALIAS, COLUMN_NAME, POSITION, NULLABLE, -- one line or each foreign key
-					DATA_TYPE, DATA_PRECISION, DATA_SCALE, CHAR_LENGTH, IS_DATETIME,
+					DATA_TYPE, DATA_PRECISION, DATA_SCALE, FORM_DATA_PRECISION, FORM_DATA_SCALE, CHAR_LENGTH, IS_DATETIME,
 					R_VIEW_NAME, R_PRIMARY_KEY_COLS, R_TABLE_ALIAS, R_SUB_QUERY
 			) T
 			WHERE VIEW_NAME = p_Table_Name
@@ -4309,12 +4319,12 @@ $END
 			v_Unique_Key_Column := p_Unique_Key_Column;
 		end if;
 		v_Unique_Key_Expr := data_browser_conf.Get_Link_ID_Expression(p_Unique_Key_Column=> v_Unique_Key_Column, p_Table_Alias=> 'A', p_View_Mode=> p_View_Mode);
-		v_Describe_Cols_md5 := wwv_flow_item.md5 (v_Table_Name, v_Unique_Key_Column, p_View_Mode, v_Data_Format, 
+		v_Describe_Cols_md5 := wwv_flow_item.md5 (v_Table_Name, v_Unique_Key_Column, p_View_Mode, p_Edit_Mode, v_Data_Format, 
 												v_Select_Columns, p_Parent_Name, p_Parent_Key_Column,
 												p_Link_Page_ID, p_Detail_Page_ID, v_Calc_Totals);
 		v_is_cached := case when g_Describe_Cols_md5 != v_Describe_Cols_md5 then 'load' else 'cached!' end;
 		if v_is_cached != 'cached!' then
-			OPEN data_browser_select.Describe_Cols_cur (v_Table_Name, v_Unique_Key_Column, p_View_Mode, v_Data_Format, 
+			OPEN data_browser_select.Describe_Cols_cur (v_Table_Name, v_Unique_Key_Column, p_View_Mode, p_Edit_Mode, v_Data_Format, 
 												v_Select_Columns, p_Parent_Name, p_Parent_Key_Column,
 												p_Link_Page_ID, p_Detail_Page_ID, v_Calc_Totals);
 			FETCH data_browser_select.Describe_Cols_cur BULK COLLECT INTO g_Describe_Cols_tab;
@@ -4647,12 +4657,12 @@ $END
 	BEGIN
 		v_Select_Columns := FN_Terminate_List(p_Select_Columns);
 		v_Parent_Key_Visible := FN_Parent_Key_Visible (p_Parent_Key_Visible, p_Edit_Mode, p_View_Mode, v_Data_Format, p_Select_Columns);
-		v_Describe_Cols_md5 := wwv_flow_item.md5 (v_Table_Name, p_Unique_Key_Column, p_View_Mode, v_Data_Format, 
+		v_Describe_Cols_md5 := wwv_flow_item.md5 (v_Table_Name, p_Unique_Key_Column, p_View_Mode, p_Edit_Mode, v_Data_Format, 
 												v_Select_Columns, p_Parent_Name, p_Parent_Key_Column,
 												p_Link_Page_ID, p_Detail_Page_ID, v_Calc_Totals);
 		v_is_cached := case when g_Describe_Cols_md5 != v_Describe_Cols_md5 then 'load' else 'cached!' end;
 		if v_is_cached != 'cached!' then
-			OPEN data_browser_select.Describe_Cols_cur (v_Table_Name, p_Unique_Key_Column, p_View_Mode, v_Data_Format, 
+			OPEN data_browser_select.Describe_Cols_cur (v_Table_Name, p_Unique_Key_Column, p_View_Mode, p_Edit_Mode, v_Data_Format, 
 												v_Select_Columns, p_Parent_Name, p_Parent_Key_Column,
 												p_Link_Page_ID, p_Detail_Page_ID, v_Calc_Totals);
 			FETCH data_browser_select.Describe_Cols_cur BULK COLLECT INTO g_Describe_Cols_tab;
@@ -4779,12 +4789,12 @@ $END
 		v_Select_Columns := FN_Terminate_List(p_Select_Columns);
 		v_Parent_Key_Visible := FN_Parent_Key_Visible (p_Parent_Key_Visible, p_Edit_Mode, p_View_Mode, p_Data_Format, p_Select_Columns);
 		if p_View_Mode IN ('FORM_VIEW', 'HISTORY', 'RECORD_VIEW', 'NAVIGATION_VIEW', 'NESTED_VIEW') then
-			v_Describe_Cols_md5 := wwv_flow_item.md5 (v_Table_Name, p_Unique_Key_Column, p_View_Mode, p_Data_Format, 
+			v_Describe_Cols_md5 := wwv_flow_item.md5 (v_Table_Name, p_Unique_Key_Column, p_View_Mode, p_Edit_Mode, p_Data_Format, 
 												v_Select_Columns, p_Parent_Name, p_Parent_Key_Column,
 												p_Link_Page_ID, p_Detail_Page_ID, v_Calc_Totals);
 			v_is_cached := case when g_Describe_Cols_md5 != v_Describe_Cols_md5 then 'load' else 'cached!' end;
 			if v_is_cached != 'cached!' then
-				OPEN data_browser_select.Describe_Cols_cur (v_Table_Name, p_Unique_Key_Column, p_View_Mode, p_Data_Format, 
+				OPEN data_browser_select.Describe_Cols_cur (v_Table_Name, p_Unique_Key_Column, p_View_Mode, p_Edit_Mode, p_Data_Format, 
 												v_Select_Columns, p_Parent_Name, p_Parent_Key_Column,
 												p_Link_Page_ID, p_Detail_Page_ID, v_Calc_Totals);
 				FETCH data_browser_select.Describe_Cols_cur BULK COLLECT INTO g_Describe_Cols_tab;
