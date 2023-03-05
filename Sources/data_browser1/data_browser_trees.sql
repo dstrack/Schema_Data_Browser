@@ -156,7 +156,10 @@ IS
 						end TABLE_ICON,
 					COALESCE(R.CONSTRAINT_NAME, T.CONSTRAINT_NAME, T.VIEW_NAME) CONSTRAINT_NAME,
 					data_browser_conf.Table_Name_To_Header(T.VIEW_NAME) TABLE_LABEL,
-					data_browser_conf.Column_Name_to_Header(p_Column_Name => R.COLUMN_NAME, p_Remove_Extension => 'YES', p_Remove_Prefix => T.COLUMN_PREFIX) REF_LABEL,
+					data_browser_conf.Column_Name_to_Header(
+						p_Column_Name => R.COLUMN_NAME, 
+						p_Remove_Extension => 'YES', 
+						p_Remove_Prefix => T.COLUMN_PREFIX) REF_LABEL,
 					case when v_Calculate_NUM_ROWS = 'NO' then 
 						NULL
 					when data_browser_conf.Has_Multiple_Workspaces = 'NO' then
@@ -181,7 +184,7 @@ IS
 			) T
 			start with R_VIEW_NAME is null
 			connect by NOCYCLE prior A_VIEW_NAME = R_VIEW_NAME AND LEVEL <= v_Max_Relations_Levels
-			order siblings by VIEW_NAME
+			order siblings by TABLE_LABEL, REF_LABEL
 		);
     	v_App_Developer_Mode CONSTANT VARCHAR2(10) := NVL(p_App_Developer_Mode, 'NO');
     	v_Calculate_NUM_ROWS CONSTANT VARCHAR2(10) := NVL(p_Calculate_NUM_ROWS, data_browser_conf.Get_Show_Tree_Num_Rows);

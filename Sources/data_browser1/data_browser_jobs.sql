@@ -597,7 +597,7 @@ IS
 				FROM USER_SCHEDULER_JOBS
 				WHERE JOB_NAME LIKE v_Job_Name_Prefix || '%'
 				-- AND JOB_ACTION = p_Sql 
-				AND STATE IN ('SCHEDULED', 'RETRY SCHEDULED')
+				AND STATE IN ('SCHEDULED', 'RETRY SCHEDULED', 'RUNNING')
                 AND ROWNUM = 1;
 				$IF data_browser_jobs.g_debug $THEN
 					apex_debug.message(

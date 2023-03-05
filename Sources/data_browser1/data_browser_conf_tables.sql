@@ -140,6 +140,12 @@ begin
 			Translations_Published_Date	TIMESTAMP (6) WITH LOCAL TIME ZONE,
 			Bytes_Used					NUMBER,
 			Tablespace_Names			VARCHAR2(2000),
+			Email_From_Address			VARCHAR2(128),
+			Errors_Listed_Limit			NUMBER(10) DEFAULT 100 NOT NULL,
+			Edit_Rows_Limit				NUMBER(10) DEFAULT 500 NOT NULL,
+			Automatic_Sorting_Limit		NUMBER(10) DEFAULT 10000 NOT NULL,
+			Automatic_Search_Limit		NUMBER(10) DEFAULT 10000 NOT NULL,
+			Navigation_Link_Limit		NUMBER(10) DEFAULT 10 NOT NULL,
 			Created_At              	TIMESTAMP(6) WITH LOCAL TIME ZONE DEFAULT LOCALTIMESTAMP NOT NULL,
 			Created_By              	VARCHAR2 (32) DEFAULT NVL(SYS_CONTEXT('APEX$SESSION','APP_USER'), SYS_CONTEXT('USERENV','SESSION_USER')) NOT NULL,
 			Last_Modified_At 			TIMESTAMP (6) WITH LOCAL TIME ZONE DEFAULT LOCALTIMESTAMP NOT NULL,
@@ -181,7 +187,22 @@ begin
 		]';
 		EXECUTE IMMEDIATE v_Stat;
 	end if;
-
+	SELECT COUNT(*) INTO v_count
+	FROM USER_TAB_COLUMNS WHERE TABLE_NAME = 'DATA_BROWSER_CONFIG' AND COLUMN_NAME = 'EMAIL_FROM_ADDRESS';
+	if v_count = 0 then 
+		v_stat := q'[
+		ALTER TABLE DATA_BROWSER_CONFIG ADD
+		(
+			Email_From_Address			VARCHAR2(128),
+			Errors_Listed_Limit			NUMBER(10) DEFAULT 100 NOT NULL,
+			Edit_Rows_Limit				NUMBER(10) DEFAULT 500 NOT NULL,
+			Automatic_Sorting_Limit		NUMBER(10) DEFAULT 10000 NOT NULL,
+			Automatic_Search_Limit		NUMBER(10) DEFAULT 10000 NOT NULL,
+			Navigation_Link_Limit		NUMBER(10) DEFAULT 10 NOT NULL
+		)
+		]';
+		EXECUTE IMMEDIATE v_Stat;
+	end if;
 end;
 /
 

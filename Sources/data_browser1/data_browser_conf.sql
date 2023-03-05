@@ -140,6 +140,7 @@ IS
 	PROCEDURE Set_App_Installation_Code (p_Code IN VARCHAR2);
 	FUNCTION Get_Configuration_ID RETURN NUMBER;
     FUNCTION Get_Configuration_Name RETURN VARCHAR2;
+    FUNCTION Get_Email_From_Address RETURN VARCHAR2;
     FUNCTION Get_Schema_Icon RETURN VARCHAR2;
     FUNCTION Get_Reports_Application_ID RETURN NUMBER;
     FUNCTION Get_Reports_App_Page_ID RETURN NUMBER;
@@ -518,7 +519,6 @@ IS
 	FUNCTION Get_Select_Columns_Limit RETURN PLS_INTEGER DETERMINISTIC;
 	FUNCTION Get_Errors_Listed_Limit RETURN PLS_INTEGER DETERMINISTIC;
 	FUNCTION Get_Edit_Rows_Limit RETURN PLS_INTEGER DETERMINISTIC;
-	FUNCTION Get_Calc_Cardinality_Limit RETURN PLS_INTEGER DETERMINISTIC;
 	FUNCTION Get_Automatic_Sorting_Limit RETURN PLS_INTEGER DETERMINISTIC;
 	FUNCTION Get_Automatic_Search_Limit RETURN PLS_INTEGER DETERMINISTIC;
 	FUNCTION Is_Automatic_Search_Enabled ( p_Table_Name VARCHAR2  ) RETURN VARCHAR2;
@@ -890,11 +890,11 @@ IS
 	g_Schema_Icon				VARCHAR2(2000)	:= 'fa-pyramid-chart';
 	g_Description				VARCHAR2(2000);
 	g_Edit_Enabled_Query 		VARCHAR2(2000) 	:= 		-- Authorization Scheme to enable editing of table data. Exists-Subquery that returns rows when the login user is permitted.
-	'select 1 from app_users ' || chr(10) ||
+	'select 1 from V_CONTEXT_USERS ' || chr(10) ||
 	'where upper_login_name = sys_context(''APEX$SESSION'',''APP_USER'') ' || chr(10) ||
 	'and user_level <= 4';
 	g_Data_Deduction_Query 		VARCHAR2(2000) 	:= 		-- Authorization Scheme to enable data deduction of table data. Exists-Subquery that returns rows when the login user is included.
-	'select 1 from app_users ' || chr(10) ||
+	'select 1 from V_CONTEXT_USERS ' || chr(10) ||
 	'where upper_login_name = sys_context(''APEX$SESSION'',''APP_USER'') ' || chr(10) ||
 	'and user_level >= 5';
 	g_User_Is_Data_Deducted		VARCHAR2(10)    := NULL;
@@ -904,11 +904,11 @@ IS
 	g_Client_App_Page_ID		NUMBER;
 $IF data_browser_specs.g_use_custom_ctx $THEN
 	c_Custom_Edit_Enabled_Query CONSTANT VARCHAR2(2000) :=
-	'select 1 from app_users ' || chr(10) ||
+	'select 1 from V_CONTEXT_USERS ' || chr(10) ||
 	'where upper_login_name = sys_context(''APEX$SESSION'',''APP_USER'') ' || chr(10) ||
 	'and user_level <= 4';
 	c_Custom_Admin_Enabled_Query CONSTANT VARCHAR2(2000) :=	-- currently not used
-	'select 1 from app_users ' || chr(10) ||
+	'select 1 from V_CONTEXT_USERS ' || chr(10) ||
 	'where upper_login_name = sys_context(''APEX$SESSION'',''APP_USER'') ' || chr(10) ||
 	'and user_level <= 2';
 $ELSE
@@ -966,7 +966,7 @@ $END
 	g_Generate_Compact_Queries	VARCHAR2(5)		:= 'NO';	-- Generate Compact Queries to avoid overflow errors
 	g_TextArea_Min_Length  		PLS_INTEGER 	:= 300;		-- Minimum character length of column before a textarea is used.
 	g_TextArea_Max_Length  		CONSTANT PLS_INTEGER := 1300;	-- Maximum character length of column for textarea. 2000 is the technical limit
-    g_Export_Text_Limit         PLS_INTEGER     := 30000;	-- Limit for the text in export reports
+    g_Export_Text_Limit         PLS_INTEGER     := 30000;	-- Limit for text columns in export reports
     g_Minimum_Field_Width		PLS_INTEGER 	:= 8;		-- Minimum input field width
     g_Maximum_Field_Width		PLS_INTEGER 	:= 50;		-- Maximum input field width
     g_Stretch_Form_Fields		VARCHAR2(5)  	:= 'YES';	-- Stretch input fields to maximum width
@@ -990,6 +990,14 @@ $END
     g_Insert_Foreign_Keys		VARCHAR2(5)  	:= 'YES';	-- Enable insert of new foreign keys in import views
 	g_Include_Query_Schema		VARCHAR2(5)  	:= 'NO';	-- Include Query Schema in from clause to enable usage in  create_collection_from_query_b
 	g_Apex_Version				VARCHAR2(64)	:= 'APEX_050000';
+	g_Email_From_Address		VARCHAR2(128)    := '';      -- Email From Address for emails from the application. Used to Invite new users via E-mail and Request a new password via E-mail.
+	-------------------------------------------
+	g_Errors_Listed_Limit		PLS_INTEGER := 100;			-- Limit for the number of rows in the data validation error list.
+	g_Edit_Rows_Limit			PLS_INTEGER := 500;			-- Limit for the number of rows for a details-report in edit mode.
+	g_Automatic_Sorting_Limit	PLS_INTEGER := 10000;		-- Limit for Automatic Sorting. When the base table row count is greater than the limit Automatic Sorting is disabled.
+	g_Automatic_Search_Limit	PLS_INTEGER := 10000;		-- Limit for Automatic Search. When the base table row count is greater than the limit Automatic Search is disabled.
+	g_Navigation_Link_Limit		PLS_INTEGER := 10;			-- Limit for the count of Navigation Links in Navigation View report columns.
+	-------------------------------------------
 
 	g_DateTime_Columns_Array apex_t_varchar2 := apex_t_varchar2();
 	g_ReadOnly_Tables_Array 	apex_t_varchar2 := apex_t_varchar2();
@@ -1022,12 +1030,6 @@ $END
 	g_Collection_Columns_Limit  CONSTANT PLS_INTEGER := 50;		-- Count of character columns in APEX_COLLECTIONS
 	g_Edit_Columns_Limit  		CONSTANT PLS_INTEGER := 60;		-- queries get too larger.
 	g_Select_Columns_Limit  	CONSTANT PLS_INTEGER := 100;
-	g_Errors_Listed_Limit		CONSTANT PLS_INTEGER := 100;
-	g_Edit_Rows_Limit			CONSTANT PLS_INTEGER := 500;
-	g_Calc_Cardinality_Limit	CONSTANT PLS_INTEGER := 10000;
-	g_Automatic_Sorting_Limit	CONSTANT PLS_INTEGER := 10000;
-	g_Automatic_Search_Limit	CONSTANT PLS_INTEGER := 10000;
-	g_Navigation_Link_Limit		CONSTANT PLS_INTEGER := 10;		-- 16 is to large for Oracle 11g
 	g_New_Rows_Default			CONSTANT PLS_INTEGER := 5;
 	g_Clob_Collection			CONSTANT VARCHAR2(50) := 'CLOB_CONTENT';
 	g_Import_Data_Collection	CONSTANT VARCHAR2(50) := 'IMPORTED_DATA';
@@ -1066,7 +1068,8 @@ $END
 			Rec_Desc_Delimiter, Rec_Desc_Group_Delimiter, TextArea_Min_Length, Export_Text_Limit, Minimum_Field_Width, Maximum_Field_Width,
 			Stretch_Form_Fields, Select_List_Rows_Limit, Detect_Column_Prefix, Translate_Umlaute, Key_Column_Ext, 
 			Show_Tree_Num_Rows, Update_Tree_Num_Rows, Max_Relations_Levels, Base_Table_Prefix, Base_Table_Ext,
-			Base_View_Prefix, Base_View_Ext, History_View_Ext, Compare_Case_Insensitive, Search_Keys_Unique, Insert_Foreign_Keys
+			Base_View_Prefix, Base_View_Ext, History_View_Ext, Compare_Case_Insensitive, Search_Keys_Unique, Insert_Foreign_Keys,
+			Email_From_Address, Errors_Listed_Limit, Edit_Rows_Limit, Automatic_Sorting_Limit, Automatic_Search_Limit, Navigation_Link_Limit
         ) = (
         	SELECT g_Configuration_Name, g_Schema_Icon, g_Description, c_Custom_Edit_Enabled_Query, g_Data_Deduction_Query, 
         		g_Reports_Application_ID, g_Reports_App_Page_ID, g_Client_Application_ID, g_Client_App_Page_ID,
@@ -1078,7 +1081,8 @@ $END
 				g_Rec_Desc_Delimiter, g_Rec_Desc_Group_Delimiter, g_TextArea_Min_Length, g_Export_Text_Limit, g_Minimum_Field_Width, g_Maximum_Field_Width,
 				g_Stretch_Form_Fields, g_Select_List_Rows_Limit, g_Detect_Column_Prefix, g_Translate_Umlaute, g_Key_Column_Ext,
 				g_Show_Tree_Num_Rows, g_Update_Tree_Num_Rows, g_Max_Relations_Levels, g_Base_Table_Prefix, g_Base_Table_Ext,
-				g_Base_View_Prefix, g_Base_View_Ext, g_History_View_Ext, g_Compare_Case_Insensitive, g_Search_Keys_Unique, g_Insert_Foreign_Keys
+				g_Base_View_Prefix, g_Base_View_Ext, g_History_View_Ext, g_Compare_Case_Insensitive, g_Search_Keys_Unique, g_Insert_Foreign_Keys,
+				g_Email_From_Address, g_Errors_Listed_Limit, g_Edit_Rows_Limit, g_Automatic_Sorting_Limit, g_Automatic_Search_Limit, g_Navigation_Link_Limit
         	FROM DUAL
         ) WHERE ID = g_Configuration_ID;
         if SQL%ROWCOUNT = 0 then
@@ -1093,7 +1097,8 @@ $END
 				Rec_Desc_Delimiter, Rec_Desc_Group_Delimiter, TextArea_Min_Length, Export_Text_Limit, Minimum_Field_Width, Maximum_Field_Width,
 				Stretch_Form_Fields, Select_List_Rows_Limit, Detect_Column_Prefix, Translate_Umlaute, Key_Column_Ext, 
 				Show_Tree_Num_Rows, Update_Tree_Num_Rows, Max_Relations_Levels, Base_Table_Prefix, Base_Table_Ext,
-				Base_View_Prefix, Base_View_Ext, History_View_Ext, Compare_Case_Insensitive, Search_Keys_Unique, Insert_Foreign_Keys
+				Base_View_Prefix, Base_View_Ext, History_View_Ext, Compare_Case_Insensitive, Search_Keys_Unique, Insert_Foreign_Keys,
+				Email_From_Address, Errors_Listed_Limit, Edit_Rows_Limit, Automatic_Sorting_Limit, Automatic_Search_Limit, Navigation_Link_Limit
 			)
 			VALUES (g_Configuration_ID,
 				g_Configuration_Name, g_Schema_Icon, g_Description, c_Custom_Edit_Enabled_Query, g_Data_Deduction_Query, 
@@ -1106,7 +1111,8 @@ $END
 				g_Rec_Desc_Delimiter, g_Rec_Desc_Group_Delimiter, g_TextArea_Min_Length, g_Export_Text_Limit, g_Minimum_Field_Width, g_Maximum_Field_Width,
 				g_Stretch_Form_Fields, g_Select_List_Rows_Limit, g_Detect_Column_Prefix, g_Translate_Umlaute, g_Key_Column_Ext, 
 				g_Show_Tree_Num_Rows, g_Update_Tree_Num_Rows, g_Max_Relations_Levels, g_Base_Table_Prefix, g_Base_Table_Ext,
-				g_Base_View_Prefix, g_Base_View_Ext, g_History_View_Ext, g_Compare_Case_Insensitive, g_Search_Keys_Unique, g_Insert_Foreign_Keys
+				g_Base_View_Prefix, g_Base_View_Ext, g_History_View_Ext, g_Compare_Case_Insensitive, g_Search_Keys_Unique, g_Insert_Foreign_Keys,
+				g_Email_From_Address, g_Errors_Listed_Limit, g_Edit_Rows_Limit, g_Automatic_Sorting_Limit, g_Automatic_Search_Limit, g_Navigation_Link_Limit
 			);
         end if;
         COMMIT;
@@ -1139,7 +1145,9 @@ $END
 			Rec_Desc_Delimiter, Rec_Desc_Group_Delimiter, TextArea_Min_Length, Export_Text_Limit, Minimum_Field_Width, Maximum_Field_Width,
 			Stretch_Form_Fields, Select_List_Rows_Limit, Detect_Column_Prefix, Translate_Umlaute, Key_Column_Ext, 
 			Show_Tree_Num_Rows, Update_Tree_Num_Rows, Max_Relations_Levels, Base_Table_Prefix, Base_Table_Ext,
-			Base_View_Prefix, Base_View_Ext, History_View_Ext, Compare_Case_Insensitive, Search_Keys_Unique, Insert_Foreign_Keys, Created_At, Created_By
+			Base_View_Prefix, Base_View_Ext, History_View_Ext, Compare_Case_Insensitive, Search_Keys_Unique, Insert_Foreign_Keys,
+			Email_From_Address, Errors_Listed_Limit, Edit_Rows_Limit, Automatic_Sorting_Limit, Automatic_Search_Limit, Navigation_Link_Limit, 
+			Created_At, Created_By
         INTO
         	g_Configuration_Name, g_Schema_Icon, g_Description, g_Edit_Enabled_Query, g_Data_Deduction_Query, 
         	g_Reports_Application_ID, g_Reports_App_Page_ID, g_Client_Application_ID, g_Client_App_Page_ID,
@@ -1153,7 +1161,9 @@ $END
 			g_Rec_Desc_Delimiter, g_Rec_Desc_Group_Delimiter, g_TextArea_Min_Length, g_Export_Text_Limit, g_Minimum_Field_Width, g_Maximum_Field_Width,
 			g_Stretch_Form_Fields, g_Select_List_Rows_Limit, g_Detect_Column_Prefix, g_Translate_Umlaute, g_Key_Column_Ext, 
 			g_Show_Tree_Num_Rows, g_Update_Tree_Num_Rows, g_Max_Relations_Levels, g_Base_Table_Prefix, g_Base_Table_Ext,
-			g_Base_View_Prefix, g_Base_View_Ext, g_History_View_Ext, g_Compare_Case_Insensitive, g_Search_Keys_Unique, g_Insert_Foreign_Keys, g_App_Created_At, g_App_Created_By
+			g_Base_View_Prefix, g_Base_View_Ext, g_History_View_Ext, g_Compare_Case_Insensitive, g_Search_Keys_Unique, g_Insert_Foreign_Keys,
+			g_Email_From_Address, g_Errors_Listed_Limit, g_Edit_Rows_Limit, g_Automatic_Sorting_Limit, g_Automatic_Search_Limit, g_Navigation_Link_Limit, 
+			g_App_Created_At, g_App_Created_By
         FROM DATA_BROWSER_CONFIG
         WHERE ID = g_Configuration_ID;
 		g_Apex_Version := NULL;
@@ -1365,6 +1375,7 @@ $END
 	
     FUNCTION Get_Configuration_ID RETURN NUMBER IS BEGIN RETURN g_Configuration_ID; END;
     FUNCTION Get_Configuration_Name RETURN VARCHAR2 IS BEGIN RETURN g_Configuration_Name; END;
+    FUNCTION Get_Email_From_Address RETURN VARCHAR2 IS BEGIN RETURN g_Email_From_Address; END;
     FUNCTION Get_Schema_Icon RETURN VARCHAR2 IS BEGIN RETURN g_Schema_Icon; END;
     FUNCTION Get_Reports_Application_ID RETURN NUMBER IS BEGIN RETURN g_Reports_Application_ID; END;
     FUNCTION Get_Reports_App_Page_ID RETURN NUMBER IS BEGIN RETURN g_Reports_App_Page_ID; END;
@@ -2512,11 +2523,6 @@ $END
 	FUNCTION Get_Select_Columns_Limit RETURN PLS_INTEGER DETERMINISTIC IS BEGIN RETURN g_Select_Columns_Limit; END;
 	FUNCTION Get_Errors_Listed_Limit RETURN PLS_INTEGER DETERMINISTIC IS BEGIN RETURN g_Errors_Listed_Limit; END;
 	FUNCTION Get_Edit_Rows_Limit RETURN PLS_INTEGER DETERMINISTIC IS BEGIN RETURN g_Edit_Rows_Limit; END;
-
-	FUNCTION Get_Calc_Cardinality_Limit RETURN PLS_INTEGER DETERMINISTIC
-	IS
-	PRAGMA UDF;
-	BEGIN RETURN g_Calc_Cardinality_Limit; END;
 
 	FUNCTION Get_Automatic_Sorting_Limit RETURN PLS_INTEGER DETERMINISTIC
 	IS

@@ -217,7 +217,10 @@ is
 						p_Order_by			=> NVL(E.ORDERING_COLUMN_NAME, '1')
 					)
 				end LOV_QUERY, -- query for popup list of values
-				T.COLUMN_ALIGN,
+				case when E.DISPLAYED_COLUMN_NAMES IS NOT NULL or T.YES_NO_COLUMN_TYPE IS NOT NULL
+					then 'LEFT'
+					else T.COLUMN_ALIGN
+				end COLUMN_ALIGN,
 				T.COLUMN_HEADER, 
 				case when T.IS_IGNORED = 'Y'
 						or T.COLUMN_NAME = S.ROW_VERSION_COLUMN_NAME then -- hidden column

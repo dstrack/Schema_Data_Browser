@@ -47,9 +47,6 @@ AS
    	)
    	RETURN VARCHAR2;
 
-	FUNCTION Custom_VPD_Active
-	RETURN BOOLEAN;
-
 	PROCEDURE Guest_New_password (
 		p_User_ID				IN NUMBER,
 		p_Account_Ablaufdatum 	IN DATE,
@@ -101,8 +98,8 @@ AS
 		p_Sender_ID		IN NUMBER DEFAULT NULL,		-- Sender User ID
 		p_App_ID  		IN NUMBER,
 		p_Startpage		IN NUMBER,
-		p_instance_url 	IN VARCHAR2 DEFAULT NULL, 	-- https://apex.wecoserv.de/apex
-		p_Host_Name 	IN VARCHAR2 DEFAULT NULL, 	-- apex.wecoserv.de
+		p_instance_url 	IN VARCHAR2 DEFAULT NULL, 
+		p_Host_Name 	IN VARCHAR2 DEFAULT NULL, 
 		p_Workspace 	IN VARCHAR2 DEFAULT NULL,
 		p_Mail_Type     IN NUMBER DEFAULT 3			-- 1=Self registration - confirm e-mail address, 2= requests a new password - account credentials, 3=Guests Invitation - confirm e-mail address
 	);
@@ -134,22 +131,14 @@ CREATE OR REPLACE PACKAGE BODY data_browser_login AS
    	IS
 	BEGIN
 		RETURN apex_util.host_url('SCRIPT');
-	END;
+	END Get_App_Base_URL;
 
    	FUNCTION Get_App_Host_Name
    	RETURN VARCHAR2
    	IS
-   		v_App_Host_Name	VARCHAR2(2000);
-	BEGIN
-		v_App_Host_Name := apex_util.host_url('NULL');
-		if v_App_Host_Name IS NULL and OWA.NUM_CGI_VARS IS NOT NULL then
-			v_App_Host_Name := 
-				OWA_UTIL.get_cgi_env ('REQUEST_PROTOCOL')
-				|| '://'
-				|| OWA_UTIL.get_cgi_env ('HTTP_HOST');
-		end if;
-		RETURN LOWER(v_App_Host_Name);
-	END;
+	BEGIN -- example: https://abc-strack02.adb.eu-frankfurt-1.oraclecloudapps.com/ords/
+		RETURN APEX_MAIL.GET_INSTANCE_URL;
+	END Get_App_Host_Name;
 
 	-- Domain Name der Anwendung ohne Protokoll und ohne Pfade --
    	FUNCTION Get_App_Domain_Name(
@@ -194,22 +183,7 @@ CREATE OR REPLACE PACKAGE BODY data_browser_login AS
 			v_App_Host_Name := INITCAP(v_App_Host_Name);
 		end if;
 		RETURN v_App_Host_Name;
-	END;
-
-	FUNCTION Custom_VPD_Active
-	RETURN BOOLEAN
-	IS
-		l_num pls_integer;
-	BEGIN
-		SELECT 1
-		INTO l_num
-		FROM USER_NAMESPACES WHERE WORKSPACE_NAME != SYS_CONTEXT('USERENV', 'CURRENT_SCHEMA')
-		AND ROWNUM < 2;
-		RETURN TRUE;
-	exception
-	  when NO_DATA_FOUND then
-		RETURN FALSE;
-	END;
+	END Get_App_Domain_Name;
 
 	---------------------------------------------------------------------------
 
@@ -218,8 +192,8 @@ CREATE OR REPLACE PACKAGE BODY data_browser_login AS
 		p_Account_Ablaufdatum 	IN DATE,
 		p_App_ID  				IN NUMBER,
 		p_Startpage		 		IN NUMBER,
-		p_instance_url 			IN VARCHAR2 DEFAULT NULL, 	-- https://apex.wecoserv.de/apex
-		p_Host_Name 			IN VARCHAR2 DEFAULT NULL 	-- apex.wecoserv.de
+		p_instance_url 			IN VARCHAR2 DEFAULT NULL, 
+		p_Host_Name 			IN VARCHAR2 DEFAULT NULL 
 	)
 	IS
 	    v_count1        NUMBER 		:= 0;
@@ -229,9 +203,8 @@ CREATE OR REPLACE PACKAGE BODY data_browser_login AS
     	v_Workspace     VARCHAR2(50);
     	v_Apex_Workspace VARCHAR2(255);
     	v_Mail_type     pls_integer;
-    	v_Sender_ID 	NUMBER;
 	BEGIN
-       	v_Workspace := case when data_browser_login.Custom_VPD_Active then SYS_CONTEXT('CUSTOM_CTX', 'WORKSPACE_NAME') else NULL end;
+       	v_Workspace := case when data_browser_conf.Has_Multiple_Workspaces = 'YES' then SYS_CONTEXT('CUSTOM_CTX', 'WORKSPACE_NAME') end;
 		v_Password := data_browser_auth.Temporary_Password();
 
 		SELECT case when EMAIL_VALIDATED = 'N' then dbms_random.string('X',32) end TOKEN,
@@ -252,12 +225,10 @@ CREATE OR REPLACE PACKAGE BODY data_browser_login AS
 		  into v_Apex_Workspace
 		from APEX_APPLICATIONS
 		where APPLICATION_ID = p_App_ID;
-		v_Sender_ID := SYS_CONTEXT('CUSTOM_CTX', 'USER_ID');
 		data_browser_login.Account_Info_Mail (
 			p_User_ID				=> p_User_ID,
 			p_Password 				=> v_Password,
 			p_Account_Token			=> v_Token,
-			p_Sender_ID				=> v_Sender_ID,
 			p_App_ID  				=> p_App_ID,
 			p_Startpage		 		=> p_Startpage,
 			p_instance_url 			=> p_instance_url,
@@ -266,15 +237,15 @@ CREATE OR REPLACE PACKAGE BODY data_browser_login AS
 			p_Mail_Type				=> v_Mail_type
 		);
 		COMMIT;
-	END;
+	END Guest_New_password;
 
 	PROCEDURE Request_New_password (
 		p_Name					IN VARCHAR2,
 		p_EMail					IN VARCHAR2,
 		p_App_ID  				IN NUMBER,
-		p_Startpage 			IN NUMBER DEFAULT 303,		-- APP_USERS Account Freischalten
-		p_instance_url 			IN VARCHAR2 DEFAULT NULL, 	-- https://apex.wecoserv.de/apex
-		p_Host_Name 			IN VARCHAR2 DEFAULT NULL, 	-- data.wegner.de / apex.wecoserv.de
+		p_Startpage 			IN NUMBER DEFAULT 303,	
+		p_instance_url 			IN VARCHAR2 DEFAULT NULL, 
+		p_Host_Name 			IN VARCHAR2 DEFAULT NULL, 
 		p_Message				OUT VARCHAR2
 	)
 	is
@@ -304,15 +275,12 @@ CREATE OR REPLACE PACKAGE BODY data_browser_login AS
 			p_instance_url 			=> p_instance_url,
 			p_Host_Name 			=> p_Host_Name
 		);
-
-		COMMIT;
-		RETURN;
 	EXCEPTION
 	  when others then
 	  	COMMIT;
 		APEX_UTIL.PAUSE(1);
 		p_Message := APEX_LANG.LANG('The service is currently not available.');
-	end;
+	end Request_New_password;
 
 	-- when the passed token is valid, the user_id is returned
 	PROCEDURE Use_Account_Token (
@@ -348,7 +316,7 @@ CREATE OR REPLACE PACKAGE BODY data_browser_login AS
 	  when others then
 		APEX_UTIL.PAUSE(1);
 		RAISE;
-	END;
+	END Use_Account_Token;
 
 	FUNCTION Get_Unique_Login_Name (
 		p_First_Name VARCHAR2,
@@ -466,7 +434,7 @@ CREATE OR REPLACE PACKAGE BODY data_browser_login AS
 		p_Sender_ID		IN NUMBER DEFAULT NULL,		-- Sender User ID
 		p_App_ID  		IN NUMBER,
 		p_Startpage		IN NUMBER,
-		p_instance_url 	IN VARCHAR2 DEFAULT NULL, 	-- https://apex.wecoserv.de/apex
+		p_instance_url 	IN VARCHAR2 DEFAULT NULL, 	-- https://apex.wecoserv.de/apex -- is used to construct a link to the p_Startpage
 		p_Host_Name 	IN VARCHAR2 DEFAULT NULL, 	-- apex.wecoserv.de
 		p_Workspace 	IN VARCHAR2 DEFAULT NULL,
 		p_Mail_Type     IN NUMBER DEFAULT 3			-- 1=Self registration - confirm e-mail address, 2= requests a new password - account credentials, 3=Guests Invitation - confirm e-mail address
@@ -483,7 +451,7 @@ CREATE OR REPLACE PACKAGE BODY data_browser_login AS
 		v_ErrorMessage  VARCHAR2(1024);
 		v_Privileges  VARCHAR2(4000);
 		v_AccountName VARCHAR2(50);
-		v_Subject VARCHAR2(200);
+		v_Subject VARCHAR2(2000);
 		v_Workspace_Name VARCHAR2(200);
 		v_Name_To VARCHAR2(100);
 		v_Mail_From VARCHAR2(100);
@@ -493,8 +461,8 @@ CREATE OR REPLACE PACKAGE BODY data_browser_login AS
 		v_Date_Format   VARCHAR2(20) :='DD-Mon-YYYY';
     	v_Language_Code V_CONTEXT_USERS.LANGUAGE_CODE%TYPE;
 		v_instance_url 	VARCHAR2(1024);
-		v_host_name 	VARCHAR2(1024) := NVL(p_host_name, data_browser_login.Get_App_Host_Name);
-		v_domain_name   VARCHAR2(1024) := data_browser_login.Get_App_Domain_Name(p_host_name);
+		v_host_name 	VARCHAR2(1024) := NVL(p_host_name, data_browser_login.Get_App_Host_Name) || 'f?p=' || p_App_ID || ':LOGIN_DESKTOP'; 
+		v_Application_Name VARCHAR2(1024) := data_browser_conf.Get_Configuration_Name;
 		v_confirm_url   VARCHAR2(1024);
 		v_Mail_Footer	VARCHAR2(4000);
 		v_conn 			utl_smtp.connection;
@@ -504,15 +472,15 @@ CREATE OR REPLACE PACKAGE BODY data_browser_login AS
 		end if;
 		-- call set_security_group_id to enable access to translation repository
 		for c1 in (
-			select workspace_id, application_name
+			select workspace_id
 			from apex_applications
 			where application_id = p_App_ID )
 		loop
 			apex_util.set_security_group_id(p_security_group_id => c1.workspace_id);
-			v_Name_From := c1.application_name;
 		end loop;
-
-		SELECT LOGIN_NAME, LAST_NAME, EMAIL_ADDRESS, ACCOUNT_EXPIRATION_DATE, LANGUAGE_CODE,
+		
+		SELECT LOGIN_NAME, NVL(TRIM(FIRST_NAME || ' ' ||  LAST_NAME), LOGIN_NAME) NAME_TO, 
+			EMAIL_ADDRESS, ACCOUNT_EXPIRATION_DATE, LANGUAGE_CODE,
 			(SELECT APEX_LANG.LANG (
 					p_primary_text_string => S.DESCRIPTION || ' - ' || S.REMARKS,
 					p_primary_language => B.LANGUAGE_CODE)
@@ -524,17 +492,19 @@ CREATE OR REPLACE PACKAGE BODY data_browser_login AS
 		WHERE USER_ID = p_User_ID
 		;
 		if p_Sender_ID IS NOT NULL then
-			SELECT NVL(TRIM(B.FIRST_NAME || ' ' || B.LAST_NAME), B.LOGIN_NAME) NAME_FROM
+			SELECT NVL(TRIM(FIRST_NAME || ' ' ||  LAST_NAME), LOGIN_NAME) NAME_FROM
 			INTO v_Name_From
 			FROM V_CONTEXT_USERS B
 			WHERE B.USER_ID = p_Sender_ID;
+		else 
+			v_Name_From := data_browser_conf.Get_Configuration_Name;
 		end if;
-
+		v_Mail_From := data_browser_conf.Get_Email_From_Address;
+		
 		SELECT DESCRIPTION 
 		INTO v_Mail_Footer
 		FROM DATA_BROWSER_CONFIG
 		WHERE ID = data_browser_conf.Get_Configuration_ID;
-		v_Mail_From		:= COALESCE(APEX_UTIL.GET_EMAIL(V('APP_USER')), 'info@' || v_domain_name);
 
 		v_instance_url := RTRIM(NVL(p_instance_url, data_browser_login.Get_App_Base_URL), '/ ');
 		v_confirm_url  := v_instance_url || '/f?p=' || p_App_ID 
@@ -553,7 +523,7 @@ CREATE OR REPLACE PACKAGE BODY data_browser_login AS
 		if p_Mail_Type = 1 then -- 1=Self registration - confirm e-mail address
 			v_Subject := apex_lang.message(
 				p_name => 'APP.P101.MAIL_SUBJECT1',
-				p0 => v_domain_name,
+				p0 => v_Application_Name,
 				p_lang => v_Language_Code,
 				p_application_id => p_App_ID
 			);
@@ -565,7 +535,7 @@ CREATE OR REPLACE PACKAGE BODY data_browser_login AS
 				p3 => v_confirm_url,
 				p4 => NVL(TO_CHAR(v_Account_Expiration_Date, v_Date_Format), '---'),
 				p5 => v_instance_url,
-				p6 => v_domain_name,
+				p6 => v_Application_Name,
 				p7 => v_Mail_Footer,
 				p_lang => v_Language_Code,
 				p_application_id => p_App_ID
@@ -574,7 +544,7 @@ CREATE OR REPLACE PACKAGE BODY data_browser_login AS
 			v_instance_url := v_instance_url || '/f?p=' || p_App_ID || ':1:0::::';
 			v_Subject := apex_lang.message(
 				p_name => 'APP.P101.MAIL_SUBJECT2',
-				p0 => v_domain_name,
+				p0 => v_Application_Name,
 				p_lang => v_Language_Code,
 				p_application_id => p_App_ID
 			);
@@ -586,7 +556,7 @@ CREATE OR REPLACE PACKAGE BODY data_browser_login AS
 				p3 => p_Password,
 				p4 => NVL(TO_CHAR(v_Account_Expiration_Date, v_Date_Format), '---'),
 				p5 => v_instance_url,
-				p6 => v_domain_name,
+				p6 => v_Application_Name,
 				p7 => v_Mail_Footer,
 				p_lang => v_Language_Code,
 				p_application_id => p_App_ID
@@ -594,7 +564,7 @@ CREATE OR REPLACE PACKAGE BODY data_browser_login AS
 		elsif p_Mail_Type = 3 then -- 3=Guests Invitation - confirm e-mail address
 			v_Subject := apex_lang.message(
 				p_name => 'APP.P101.MAIL_SUBJECT3',
-				p0 => v_domain_name,
+				p0 => v_Application_Name,
 				p_lang => v_Language_Code,
 				p_application_id => p_App_ID
 			);
@@ -622,6 +592,7 @@ CREATE OR REPLACE PACKAGE BODY data_browser_login AS
 		);
 		commit;
 		apex_mail.push_queue;
+		DBMS_OUTPUT.PUT_LINE('data_browser_login.Account_Info_Mail(p_from:'||v_Mail_From||', Mail_To:'||v_Mail_To||') - completed ');
 	END Account_Info_Mail;
 
 	PROCEDURE Load_Job(
@@ -646,7 +617,7 @@ CREATE OR REPLACE PACKAGE BODY data_browser_login AS
 			comments => p_Comment,
 			enabled => true );
 		COMMIT;
-	END;
+	END Load_Job;
 
 	PROCEDURE Account_Info_Mail_Job (
 		p_User_ID		IN NUMBER,
@@ -673,8 +644,8 @@ CREATE OR REPLACE PACKAGE BODY data_browser_login AS
 			v_Mail_type := 3; -- Invitation
 		end if;
 		v_instance_url 	:= data_browser_login.Get_App_Base_URL;
-		v_host_name 	:= data_browser_login.Get_App_Domain_Name;
-       	v_Workspace 	:= case when data_browser_login.Custom_VPD_Active then SYS_CONTEXT('CUSTOM_CTX', 'WORKSPACE_NAME') end;
+		v_host_name 	:= data_browser_login.Get_App_Host_Name;
+       	v_Workspace 	:= case when data_browser_conf.Has_Multiple_Workspaces = 'YES' then SYS_CONTEXT('CUSTOM_CTX', 'WORKSPACE_NAME') end;
 		begin
 			select PAGE_ID
 			  into v_startpage
@@ -724,48 +695,48 @@ show errors
 CREATE OR REPLACE TRIGGER APP_USERS_PWD_TR
 BEFORE INSERT OR UPDATE ON APP_USERS FOR EACH ROW
 DECLARE
-	v_Password APP_USERS.PASSWORD_HASH%TYPE;
-	v_Token    APP_USERS.EMAIL_VALIATION_TOKEN%TYPE;
+    v_Password APP_USERS.PASSWORD_HASH%TYPE;
+    v_Token    APP_USERS.EMAIL_VALIATION_TOKEN%TYPE;
 BEGIN
     if INSERTING then
-    	:new.LANGUAGE_CODE := COALESCE(:new.LANGUAGE_CODE, APEX_UTIL.GET_SESSION_LANG, 'de');
-    	if :new.PASSWORD_HASH IS NULL then
-    		:new.PASSWORD_RESET := 'Y';
-    		v_Password := data_browser_auth.Temporary_Password();
-			:new.PASSWORD_HASH := data_browser_auth.hex_hash(:new.ID, v_Password);
-    	else
-    		v_Password := :new.PASSWORD_HASH;	-- is password may be already hashed by the program.
-    		if data_browser_auth.is_hex_key(:new.PASSWORD_HASH) = 0  then
-				:new.PASSWORD_HASH := data_browser_auth.hex_hash(:new.ID, v_Password);
-			end if;
-    	end if;
-		if :new.EMAIL_ADDRESS IS NOT NULL then 
-			data_browser_login.Split_EMail_Adress (
-				p_Email => :new.EMAIL_ADDRESS,
-				p_Main_Group_Name => :new.MAIN_GROUP_NAME,
-				p_First_Name => :new.FIRST_NAME,
-				p_Last_Name => :new.LAST_NAME,
-				p_Login_Name => :new.LOGIN_NAME
-			);
-			if :new.PASSWORD_RESET = 'Y' then 
-				:new.ACCOUNT_EXPIRATION_DATE := NVL(:new.ACCOUNT_EXPIRATION_DATE, SYSDATE+2);
-				v_Token := dbms_random.string('X',32);
-				:new.EMAIL_VALIATION_TOKEN :=  data_browser_auth.hex_hash(:new.ID, v_Token);
-				data_browser_auth.log_message('APP_USERS_PWD_TR', 'Account_Info_Mail_Job(' || :new.ID ||', ' || v_Password || ', ' || v_Token|| ', ' || V('APP_ID') || ')' );
-				data_browser_login.Account_Info_Mail_Job(
-					p_User_ID		=> :new.ID,
-					p_Password		=> v_Password,
-					p_Account_Token	=> v_Token,
-					p_App_ID => V('APP_ID')
-				);
-			end if;
-		end if;
+        :new.LANGUAGE_CODE := COALESCE(:new.LANGUAGE_CODE, APEX_UTIL.GET_SESSION_LANG, 'de');
+        if :new.PASSWORD_HASH IS NULL then
+            :new.PASSWORD_RESET := 'Y';
+            v_Password := data_browser_auth.Temporary_Password();
+            :new.PASSWORD_HASH := data_browser_auth.hex_hash(:new.ID, v_Password);
+        else
+            v_Password := :new.PASSWORD_HASH;   -- is password may be already hashed by the program.
+            if data_browser_auth.is_hex_key(:new.PASSWORD_HASH) = 0  then
+                :new.PASSWORD_HASH := data_browser_auth.hex_hash(:new.ID, v_Password);
+            end if;
+        end if;
+        if :new.EMAIL_ADDRESS IS NOT NULL then 
+            data_browser_login.Split_EMail_Adress (
+                p_Email => :new.EMAIL_ADDRESS,
+                p_Main_Group_Name => :new.MAIN_GROUP_NAME,
+                p_First_Name => :new.FIRST_NAME,
+                p_Last_Name => :new.LAST_NAME,
+                p_Login_Name => :new.LOGIN_NAME
+            );
+            if :new.PASSWORD_RESET = 'Y' then 
+                :new.ACCOUNT_EXPIRATION_DATE := NVL(:new.ACCOUNT_EXPIRATION_DATE, SYSDATE+2);
+                v_Token := dbms_random.string('X',32);
+                :new.EMAIL_VALIATION_TOKEN :=  data_browser_auth.hex_hash(:new.ID, v_Token);
+                data_browser_auth.log_message('APP_USERS_PWD_TR', 'Account_Info_Mail_Job(' || :new.ID ||', ' || v_Password || ', ' || v_Token|| ', ' || V('APP_ID') || ')' );
+                data_browser_login.Account_Info_Mail_Job(
+                    p_User_ID       => :new.ID,
+                    p_Password      => v_Password,
+                    p_Account_Token => v_Token,
+                    p_App_ID => V('APP_ID')
+                );
+            end if;
+        end if;
     elsif UPDATING then
-		if :new.PASSWORD_HASH IS NOT NULL AND data_browser_auth.is_hex_key(:new.PASSWORD_HASH) = 0  then
-			:new.PASSWORD_HASH := data_browser_auth.Hex_Hash(:new.ID, :new.PASSWORD_HASH);
-		elsif :new.PASSWORD_HASH IS NULL then
-			:new.PASSWORD_HASH := :old.PASSWORD_HASH;
-		end if;
+        if :new.PASSWORD_HASH IS NOT NULL AND data_browser_auth.is_hex_key(:new.PASSWORD_HASH) = 0  then
+            :new.PASSWORD_HASH := data_browser_auth.Hex_Hash(:new.ID, :new.PASSWORD_HASH);
+        elsif :new.PASSWORD_HASH IS NULL then
+            :new.PASSWORD_HASH := :old.PASSWORD_HASH;
+        end if;
     end if;
 END;
 /
