@@ -1117,7 +1117,6 @@ FROM (
 		end IS_AUDIT_COLUMN,
 		case when data_browser_pattern.Match_Ignored_Columns(T.COLUMN_NAME) = 'YES'
 			and data_browser_pattern.Match_File_Created_Columns(T.COLUMN_NAME) = 'NO'
-			--and (T.COLUMN_NAME != FILE_DATE_COLUMN_NAME OR FILE_DATE_COLUMN_NAME IS NULL)
 			then 'Y' else 'N'
 		end IS_IGNORED,
 		case when data_browser_pattern.Match_Summand_Field_Columns(T.COLUMN_NAME) = 'YES'
@@ -1171,13 +1170,15 @@ FROM (
 			case when T.COLUMN_NAME = S.SCALAR_KEY_COLUMN AND S.SEQUENCE_NAME IS NOT NULL 
 				then 'Y' else 'N' 
 			end IS_SERIAL_KEY,
-			T.COLUMN_NAME, T.COLUMN_ID, 0 POSITION,
+			C.COLUMN_NAME, 
+			C.COLUMN_ID, -- COLUMN_ID in the View
+			0 POSITION,
 			T.DATA_TYPE, T.DATA_TYPE_OWNER, T.DATA_PRECISION, T.DATA_SCALE, T.DATA_DEFAULT,
 			T.CHAR_LENGTH, T.NULLABLE, T.DEFAULT_LENGTH, T.VIRTUAL_COLUMN,
 			NVL(B.IS_FOREIGN_KEY, 'N') IS_FOREIGN_KEY,
 			NVL(B.IS_REFERENCE, 'N') IS_REFERENCE,
 			NVL(B.CHECK_UNIQUE, 'N') CHECK_UNIQUE,
-			case when T.DATA_TYPE IN ('CHAR', 'VARCHAR', 'VARCHAR2', 'NUMBER') and B.IS_FOREIGN_KEY = 'N' then 
+			case when T.DATA_TYPE IN ('CHAR', 'VARCHAR', 'VARCHAR2', 'NUMBER') and NVL(B.IS_FOREIGN_KEY,'N') = 'N' then 
 				data_browser_conf.Get_Yes_No_Column_Type (
 					p_Table_Name => T.TABLE_NAME,
 					p_Table_Owner => S.TABLE_OWNER,
@@ -1189,7 +1190,7 @@ FROM (
 					p_Nullable => T.NULLABLE,
 					p_Num_Distinct => T.NUM_DISTINCT,
 					p_Default_Text => T.DATA_DEFAULT,
-                    p_Check_Condition => B.CHECK_CONDITION
+                    p_Check_Condition => case when B.CHECK_CONSTRAINT_NAME != 'AUTOMATICALLY' then B.CHECK_CONDITION end
 				) 
 			end YES_NO_COLUMN_TYPE,
 			CAST(data_browser_conf.Is_Simple_IN_List(B.CHECK_CONDITION, T.COLUMN_NAME) AS VARCHAR2(3)) IS_SIMPLE_IN_LIST,
@@ -1215,7 +1216,9 @@ FROM (
 			FROM MVDATA_BROWSER_CHECKS_DEFS B
 			WHERE B.CONS_COLS_COUNT = 1 
 		) B
-		WHERE S.VIEW_NAME = T.TABLE_NAME AND S.TABLE_OWNER = T.TABLE_OWNER -- only columns that appear in the view
+		, SYS.ALL_TAB_COLS C -- visible columns of the view. used to filter the column list and to provide the proper COLUMN_ID
+		WHERE S.TABLE_NAME = T.TABLE_NAME AND S.TABLE_OWNER = T.TABLE_OWNER --columns from the base table. Required for T.NUM_DISTINCT and B.CHECK_CONDITION
+		AND S.VIEW_NAME = C.TABLE_NAME AND S.TABLE_OWNER = C.OWNER AND T.COLUMN_NAME = C.COLUMN_NAME -- only columns that appear in the view
 		AND T.HIDDEN_COLUMN = 'NO'
 		AND T.DATA_TYPE_OWNER IS NULL 				-- complex data types are not supported
 		AND S.TABLE_NAME = D.TABLE_NAME (+) AND T.COLUMN_NAME = D.COLUMN_NAME (+) AND S.TABLE_OWNER = D.OWNER (+)

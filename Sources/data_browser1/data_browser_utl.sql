@@ -4004,7 +4004,7 @@ end if;
         IS
 			SELECT 1 the_level,
 				S.FIELD_NAME
-				|| ' ( '|| S.FIELD_VALUE ||' ) '
+				|| ' ( '|| NVL(S.FIELD_VALUE, apex_lang.lang('-none-')) ||' ) '
 				label,
 				case when S.FIELD_VALUE IS NOT NULL then
 					-- apex_util.prepare_url - is not called here, because this is done by the list plugin
@@ -4029,7 +4029,7 @@ end if;
 				p_Parent_Key_Item => p_Parent_Key_Item
 				)
 			) S
-			WHERE S.FIELD_VALUE IS NOT NULL
+			-- Bugfix: DS 20230305 - removed WHERE S.FIELD_VALUE IS NOT NULL, because the list should be displayed with Label -none- for empty foreign key fields.
 			ORDER BY S.POSITION;
 		v_out_tab data_browser_conf.tab_apex_links_list;
 	begin

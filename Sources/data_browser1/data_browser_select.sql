@@ -217,11 +217,18 @@ is
 						p_Order_by			=> NVL(E.ORDERING_COLUMN_NAME, '1')
 					)
 				end LOV_QUERY, -- query for popup list of values
-				case when E.DISPLAYED_COLUMN_NAMES IS NOT NULL or T.YES_NO_COLUMN_TYPE IS NOT NULL
+				/*case when E.DISPLAYED_COLUMN_NAMES IS NOT NULL or T.YES_NO_COLUMN_TYPE IS NOT NULL
 					then 'LEFT'
 					else T.COLUMN_ALIGN
-				end COLUMN_ALIGN,
-				T.COLUMN_HEADER, 
+				end COLUMN_ALIGN,*/
+				T.COLUMN_ALIGN,
+				case when v_View_Mode = 'RECORD_VIEW' 
+					then data_browser_conf.Column_Name_to_Header(
+						p_Column_Name => T.COLUMN_NAME,
+						p_Remove_Extension => 'NO', 
+						p_Is_Upper_Name => T.IS_UPPER_NAME)
+					else T.COLUMN_HEADER
+				end COLUMN_HEADER, 
 				case when T.IS_IGNORED = 'Y'
 						or T.COLUMN_NAME = S.ROW_VERSION_COLUMN_NAME then -- hidden column
 							'A.' || T.COLUMN_NAME

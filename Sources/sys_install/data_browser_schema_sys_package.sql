@@ -536,7 +536,7 @@ $END
 			join APEX_APPLICATIONS APP on S.WORKSPACE_NAME = APP.WORKSPACE
 			join sys.DBA_SEGMENTS A on S.SCHEMA = A.OWNER
 			join sys.DBA_TABLES B on A.owner = B.owner and B.table_name = 'DATA_BROWSER_CONFIG'
-			join sys.DBA_TABLES C on A.owner = C.owner and C.table_name = 'APP_USERS'
+			join sys.DBA_TABLES C on A.owner = C.owner and C.table_name = 'VDATA_BROWSER_USERS'
 			where APP.APPLICATION_ID = p_application_id
 			group by A.owner
 		) loop 
@@ -547,7 +547,7 @@ $END
 			|| 'select ' || dbms_assert.enquote_literal(c_cur.owner) || ' SCHEMA_NAME, A.APP_VERSION_NUMBER, '
 			||  dbms_assert.enquote_literal(c_cur.USED_BYTES) || ' SPACE_USED_BYTES, B.USER_LEVEL,'
 			||  'A.SCHEMA_ICON, A.DESCRIPTION, A.CONFIGURATION_NAME' || chr(10)
-			|| 'from ' || c_cur.owner || '.DATA_BROWSER_CONFIG A, ' || c_cur.owner || '.APP_USERS B, param P'|| chr(10)
+			|| 'from ' || c_cur.owner || '.DATA_BROWSER_CONFIG A, ' || c_cur.owner || '.VDATA_BROWSER_USERS B, param P'|| chr(10)
 			|| 'where A.ID = 1 and B.UPPER_LOGIN_NAME = P.LOGIN_NAME';
 		end loop;
 		if v_stat IS NOT NULL then 

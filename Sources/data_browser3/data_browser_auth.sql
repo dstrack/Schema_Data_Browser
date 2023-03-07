@@ -50,6 +50,7 @@ GRANT EXECUTE ON CUSTOM_KEYS.SCHEMA_KEYCHAIN TO OWNER;
 DROP SYNONYM SCHEMA_KEYCHAIN;
 DROP VIEW VCURRENT_WORKSPACE;
 DROP VIEW V_CONTEXT_USERS;
+DROP VIEW VDATA_BROWSER_USERS;
 DROP PACKAGE data_browser_auth;
 DROP TABLE APP_PREFERENCES;
 DROP TABLE APP_USERS;
@@ -68,7 +69,7 @@ CREATE OR REPLACE SYNONYM SCHEMA_KEYCHAIN FOR CUSTOM_KEYS.SCHEMA_KEYCHAIN;
 CREATE OR REPLACE VIEW VCURRENT_WORKSPACE AS
 SELECT WORKSPACE$_ID, WORKSPACE_NAME, CREATED_BY, CREATION_DATE, WORKSPACE_STATUS STATUS, WORKSPACE_TYPE TYPE, TEMPLATE_NAME, APPLICATION_GROUP, EXPIRATION_DATE, APPLICATION_ID
 FROM USER_NAMESPACES
-WHERE WORKSPACE$_ID = custom_changelog.Get_Current_Workspace_ID
+WHERE WORKSPACE$_ID = SYS_CONTEXT('CUSTOM_CTX', 'WORKSPACE_ID')
 WITH CHECK OPTION;
 
 CREATE OR REPLACE PACKAGE data_browser_auth
@@ -77,6 +78,7 @@ IS
     FUNCTION Get_Admin_Workspace_Name RETURN VARCHAR2;
 
 	FUNCTION Get_App_Schema_Name RETURN VARCHAR2;
+    FUNCTION Get_Context_Workspace_Name RETURN VARCHAR2;
 $IF data_browser_specs.g_use_dbms_crypt $THEN
 	-- initialize the crypto key table - add a row for each user
 	PROCEDURE init_keys;
@@ -201,7 +203,10 @@ $END
 		p_newpasswordPage NUMBER DEFAULT NULL
 	);
 
-	PROCEDURE Set_Apex_Context(p_Schema_Name IN VARCHAR2 DEFAULT SYS_CONTEXT('USERENV', 'CURRENT_SCHEMA'));
+	PROCEDURE Set_Apex_Context (
+		p_Schema_Name IN VARCHAR2 DEFAULT SYS_CONTEXT('USERENV', 'CURRENT_SCHEMA'),
+		p_Workspace_Name IN VARCHAR2 DEFAULT V('APP_WORKSPACE')
+	);
 	PROCEDURE Clear_Context;	
 
 	FUNCTION strong_password_check (
@@ -234,30 +239,62 @@ CREATE OR REPLACE PACKAGE BODY data_browser_auth IS
 
     FUNCTION Get_Admin_Workspace_Name RETURN VARCHAR2
     IS
-    	v_workspace_name VARCHAR2(50);
+        v_result varchar2(32767);
     BEGIN
+        $IF data_browser_conf.g_debug $THEN
+            EXECUTE IMMEDIATE api_trace.Dyn_Log_Start;
+        $END
         SELECT DISTINCT FIRST_VALUE(WORKSPACE_NAME) OVER (ORDER BY WORKSPACE$_ID) WORKSPACE_NAME
-        INTO v_workspace_name
+        INTO v_result
         FROM USER_NAMESPACES
         WHERE WORKSPACE_TYPE = 'INTERNAL';
-        return v_workspace_name;
+        ----
+        $IF data_browser_conf.g_debug $THEN
+            EXECUTE IMMEDIATE api_trace.Dyn_Log_Function_Call
+            USING v_result;
+        $END
+        return v_result;
 	exception
 	  when NO_DATA_FOUND then
+        EXECUTE IMMEDIATE api_trace.Dyn_Log_Exception;
         return REGEXP_REPLACE(SYS_CONTEXT('USERENV', 'CURRENT_SCHEMA'), g_AppUserExt || '$');
+      when OTHERS then 
+        EXECUTE IMMEDIATE api_trace.Dyn_Log_Exception;
+        RAISE;
     END;
 
     FUNCTION Get_App_Schema_Name RETURN VARCHAR2
     IS
-    	v_workspace_name VARCHAR2(50);
+        v_result varchar2(32767);
     BEGIN
-        return REGEXP_REPLACE(SYS_CONTEXT('USERENV', 'CURRENT_SCHEMA'), g_AppUserExt || '$');
-    END;
+        v_result := REGEXP_REPLACE(SYS_CONTEXT('USERENV', 'CURRENT_SCHEMA'), g_AppUserExt || '$');
+        ----
+        $IF data_browser_conf.g_debug $THEN
+            EXECUTE IMMEDIATE api_trace.Dyn_Log_Function_Call
+            USING v_result;
+        $END
+        return v_result;
+    END Get_App_Schema_Name;
+
+    FUNCTION Get_Context_Workspace_Name RETURN VARCHAR2
+    IS
+        v_result varchar2(32767);
+    BEGIN
+        v_result := COALESCE(SYS_CONTEXT('CUSTOM_CTX', 'WORKSPACE_NAME'), APEX_UTIL.GET_SESSION_STATE('APP_WORKSPACE'), SYS_CONTEXT('USERENV', 'CURRENT_SCHEMA'));
+        ----
+        $IF data_browser_conf.g_debug $THEN
+            EXECUTE IMMEDIATE api_trace.Dyn_Log_Function_Call
+            USING v_result;
+        $END
+        return v_result;
+    END Get_Context_Workspace_Name;
+
 
 $IF data_browser_specs.g_use_crypt_key_chain $THEN
 	FUNCTION int_crypto_key (p_Crypto_Key_ID IN NUMBER) RETURN RAW
 	IS
 	BEGIN
-		RETURN schema_keychain.Crypto_Key (p_Crypto_Key_ID, Get_App_Schema_Name, custom_changelog.Get_Context_Workspace_Name);
+		RETURN schema_keychain.Crypto_Key (p_Crypto_Key_ID, Get_App_Schema_Name, Get_Context_Workspace_Name);
 	END;
 
 	-- initialize the crypto key table - add a row for each user
@@ -388,15 +425,22 @@ $IF data_browser_specs.g_use_dbms_crypt $THEN
     IS
     	v_Crypto_Key_ID NUMBER;
     	v_salt VARCHAR2(300);
+        v_result varchar2(32767);
     BEGIN
     	if p_Text IS NOT NULL then 
 			v_Crypto_Key_ID := TO_NUMBER(p_User_ID);
 			v_salt := crypto_salt (v_Crypto_Key_ID);
-			RETURN rawtohex(sys.dbms_crypto.hash (
+			v_result := rawtohex(sys.dbms_crypto.hash (
 						   sys.utl_raw.cast_to_raw(p_Text || v_salt),
 						   sys.dbms_crypto.HASH_SH1 ));
 		end if; 
-		return NULL;
+        ----
+        $IF data_browser_conf.g_debug $THEN
+        	apex_debug.message('hex_hash - Key:%s, Salt: %s', v_Crypto_Key_ID, v_salt);
+            EXECUTE IMMEDIATE api_trace.Dyn_Log_Function_Call
+            USING p_user_id,p_text,v_result;
+        $END
+        return v_result;
     END hex_hash;
 
 $ELSE
@@ -409,26 +453,41 @@ $ELSE
     IS
     	v_Crypto_Key_ID NUMBER;
     	v_salt VARCHAR2(300);
+        v_result varchar2(32767);
     BEGIN
     	if p_Text IS NOT NULL then 
 			v_Crypto_Key_ID := TO_NUMBER(p_User_ID);
 			v_salt := crypto_salt (v_Crypto_Key_ID);
-			RETURN rawtohex(
+			v_result := rawtohex(
 				sys.utl_raw.cast_to_raw(
 					SUBSTR(apex_util.get_hash(p_values => apex_t_varchar2 ( p_Text, v_salt ), p_salted => false), 1, 32)
 				)
 			);
 		end if; 
-		return NULL;
+        ----
+        $IF data_browser_conf.g_debug $THEN
+        	apex_debug.message('hex_hash - Key:%s, Salt: %s', v_Crypto_Key_ID, v_salt);
+            EXECUTE IMMEDIATE api_trace.Dyn_Log_Function_Call
+            USING p_user_id,p_text,v_result;
+        $END
+        return v_result;
     END hex_hash;
 
 $END
 	-- test for valid encrypted password string
     FUNCTION is_hex_key(
     	p_Text IN VARCHAR2)
-    RETURN NUMBER    IS
+    RETURN NUMBER    
+    IS
+        v_result number;
     BEGIN
-	  	RETURN CASE WHEN LENGTH(p_Text) >= 32 AND TRANSLATE(p_Text, '0123456789ABCDEF', NULL) IS NULL THEN 1 ELSE 0 END;
+	  	v_result := CASE WHEN LENGTH(p_Text) >= 32 AND TRANSLATE(p_Text, '0123456789ABCDEF', NULL) IS NULL THEN 1 ELSE 0 END;
+        ----
+        $IF data_browser_conf.g_debug $THEN
+            EXECUTE IMMEDIATE api_trace.Dyn_Log_Function_Call
+            USING p_Text, v_result;
+        $END
+        return v_result;
     END is_hex_key;
 
 	-- count valid encrypted password string
@@ -438,18 +497,29 @@ $END
     RETURN NUMBER
     IS
 		stat_cur	SYS_REFCURSOR;
-		v_cnt		NUMBER;
+        v_result number;
 	BEGIN
 		OPEN  stat_cur FOR
 			'SELECT COUNT(*) FROM '
 			|| DBMS_ASSERT.ENQUOTE_NAME(p_Table_Name)
     		|| ' WHERE data_browser_auth.is_hex_key(' || DBMS_ASSERT.ENQUOTE_NAME(p_Column_Name) || ') > 0';
-		FETCH stat_cur INTO v_cnt;
-		RETURN v_cnt;
+		FETCH stat_cur INTO v_result;
+        ----
+        $IF data_browser_conf.g_debug $THEN
+            EXECUTE IMMEDIATE api_trace.Dyn_Log_Function_Call
+        	USING p_table_name,p_column_name,v_result;
+        $END
+        return v_result;
 	EXCEPTION
-	WHEN others THEN
+	WHEN NO_DATA_FOUND THEN
+        EXECUTE IMMEDIATE api_trace.Dyn_Log_Exception
+        USING p_table_name,p_column_name;
 		return NULL;
-	END;
+      when OTHERS then 
+        EXECUTE IMMEDIATE api_trace.Dyn_Log_Exception
+        USING p_table_name,p_column_name;
+        RAISE;
+	END get_encrypted_count;
 
 
 
@@ -505,6 +575,10 @@ $END
     	v_Username	APP_USERS.LOGIN_NAME%TYPE;
     	v_EMail 	APP_USERS.EMAIL_ADDRESS%TYPE;
     BEGIN
+        $IF data_browser_conf.g_debug $THEN
+            EXECUTE IMMEDIATE api_trace.Dyn_Log_Start(p_overload => 1)
+            USING p_username,p_password,p_email,p_user_level,p_password_reset,p_account_locked,p_email_validated;
+        $END
     	v_Username := UPPER(TRIM(p_Username));
 		v_EMail := NVL(p_Email, APEX_UTIL.GET_EMAIL(v_Username));
     	SELECT MAX(USER_ID)
@@ -516,7 +590,17 @@ $END
 			INSERT INTO V_CONTEXT_USERS (User_Id, Login_Name, Password_Hash, Email_Address, Email_Validated, User_Level, Password_Reset, Account_Locked)
 			VALUES (v_id, TRIM(p_Username), v_Data, TRIM(p_Email), p_Email_Validated, p_User_level, p_Password_Reset, p_Account_Locked);
 		end if;
-    	RETURN v_id;
+        ----
+        $IF data_browser_conf.g_debug $THEN
+            EXECUTE IMMEDIATE api_trace.Dyn_Log_Function_Call(p_overload => 1)
+        	USING p_username,p_password,p_email,p_user_level,p_password_reset,p_account_locked,p_email_validated,v_id;
+        $END
+        return v_id;
+    exception 
+      when OTHERS then 
+        EXECUTE IMMEDIATE api_trace.Dyn_Log_Exception(p_overload => 1)
+        USING p_username,p_password,p_email,p_user_level,p_password_reset,p_account_locked,p_email_validated;
+        RAISE;
     END add_user;
 
     PROCEDURE add_user (
@@ -553,6 +637,11 @@ $END
 	)
 	IS
 	BEGIN
+        $IF data_browser_conf.g_debug $THEN
+            EXECUTE IMMEDIATE api_trace.Dyn_Log_Start
+            USING p_username,p_email,p_password;
+        $END
+        -- Add rows to USER_NAMESPACES when missing
 		custom_changelog.set_new_workspace(SYS_CONTEXT('USERENV', 'CURRENT_SCHEMA'));
 		-- Enable APEX_PUBLIC_USER as app user
 		data_browser_auth.add_user(p_Username => SYS_CONTEXT('USERENV', 'SESSION_USER'), p_Password => Temporary_Password, p_Account_Locked => 'Y');
@@ -572,11 +661,23 @@ $END
 				);
 			end;
 		end if;
+        ----
+        $IF data_browser_conf.g_debug $THEN
+            EXECUTE IMMEDIATE api_trace.Dyn_Log_Exit;
+        $END
+    exception 
+      when OTHERS then 
+        EXECUTE IMMEDIATE api_trace.Dyn_Log_Exception
+        USING p_username,p_email,p_password;
+        RAISE;
 	END Add_Admin;
 
 	PROCEDURE Add_Developers
 	IS
 	BEGIN
+        $IF data_browser_conf.g_debug $THEN
+            EXECUTE IMMEDIATE api_trace.Dyn_Log_Start;
+        $END
 		INSERT INTO V_CONTEXT_USERS (Login_Name, First_Name, Last_Name, EMail_Address, User_Level, Password_Reset, Email_Validated)
 		select D.USER_NAME, D.FIRST_NAME, D.LAST_NAME, D.EMAIL,
 			case when D.IS_ADMIN = 'Yes' then 1
@@ -593,6 +694,14 @@ $END
 			WHERE U.UPPER_LOGIN_NAME = D.USER_NAME
 		);
 		commit;
+        ----
+        $IF data_browser_conf.g_debug $THEN
+            EXECUTE IMMEDIATE api_trace.Dyn_Log_Exit;
+        $END
+    exception 
+      when OTHERS then 
+        EXECUTE IMMEDIATE api_trace.Dyn_Log_Exception;
+        RAISE;
 	END Add_Developers;
 
 	PROCEDURE First_Run (
@@ -604,6 +713,10 @@ $END
 	is
 		v_Count	PLS_INTEGER;
 	begin 
+        $IF data_browser_conf.g_debug $THEN
+            EXECUTE IMMEDIATE api_trace.Dyn_Log_Start
+            USING p_admin_user,p_admin_password,p_admin_email,p_add_demo_guest;
+        $END
 		select count(*) into v_Count from V_CONTEXT_USERS where UPPER_LOGIN_NAME = UPPER(p_Admin_User);
 		if v_Count = 0 then 
 			-- first run : add admin, demo, guest accounts
@@ -643,6 +756,15 @@ $END
 				);
 			end if;
 		end if;
+        ----
+        $IF data_browser_conf.g_debug $THEN
+            EXECUTE IMMEDIATE api_trace.Dyn_Log_Exit;
+        $END
+    exception 
+      when OTHERS then 
+        EXECUTE IMMEDIATE api_trace.Dyn_Log_Exception
+        USING p_admin_user,p_admin_password,p_admin_email,p_add_demo_guest;
+        RAISE;
 	end First_Run;
 
 	-- validate browser session cookie, replace zero session with cookie session
@@ -692,7 +814,7 @@ $END
 
 
 	-- validate user <p_Username> with <p_Password> exists in custom user table
-	-- validate Workspace Application_ID
+	-- validate Workspace Application_ID or Appliaction_Group
 	-- called in apex custom authorization schema
     FUNCTION authenticate(
     	p_Username IN VARCHAR2,
@@ -707,6 +829,10 @@ $END
 		v_reset_pw 		APP_USERS.Password_Reset%type;
 		v_message		VARCHAR2(50);
     BEGIN
+        $IF data_browser_conf.g_debug $THEN
+            EXECUTE IMMEDIATE api_trace.Dyn_Log_Start
+            USING p_username,p_password;
+        $END
     	v_user  := UPPER(TRIM(p_Username));
     	v_password := TRIM(p_Password);
     	if check_session_schema then
@@ -742,33 +868,76 @@ $END
 		if v_result = false then
 			APEX_UTIL.PAUSE(1);
 		end if;
+        $IF data_browser_conf.g_debug $THEN
+            EXECUTE IMMEDIATE api_trace.Dyn_Log_Function_Call
+            USING p_username,p_password,v_result;
+        $END
         return v_result;
+    exception 
+      when OTHERS then 
+        EXECUTE IMMEDIATE api_trace.Dyn_Log_Exception
+        USING p_username,p_password;
+        RAISE;
     END authenticate;
 
 	FUNCTION client_ip_address
 		RETURN VARCHAR2
 	IS
-	BEGIN
+        v_result varchar2(32767);
+    BEGIN
+        $IF data_browser_conf.g_debug $THEN
+            EXECUTE IMMEDIATE api_trace.Dyn_Log_Start;
+        $END
+        ----
 		if OWA.NUM_CGI_VARS IS NOT NULL then -- PL/SQL gateway connection (WEB client)
-			return SUBSTR(OWA_UTIL.get_cgi_env ('REMOTE_ADDR'), 1, 255);
+			v_result := SUBSTR(OWA_UTIL.get_cgi_env ('REMOTE_ADDR'), 1, 255);
 		else -- Direct connection over tcp/ip network
-			return SUBSTR(SYS_CONTEXT ('USERENV', 'IP_ADDRESS'), 1, 255);
+			v_result := SUBSTR(SYS_CONTEXT ('USERENV', 'IP_ADDRESS'), 1, 255);
 		end if;
+        ----
+        $IF data_browser_conf.g_debug $THEN
+            EXECUTE IMMEDIATE api_trace.Dyn_Log_Function_Call
+            USING v_result;
+        $END
+        return v_result;
+    exception 
+      when OTHERS then 
+        EXECUTE IMMEDIATE api_trace.Dyn_Log_Exception;
+        RAISE;
 	END client_ip_address;
 
 	-- Verify Function Name : quick check for valid session
 	FUNCTION check_session_schema RETURN BOOLEAN
 	IS
 		v_Privileges_Cnt NUMBER := 0;
-	BEGIN
+        v_result boolean;
+    BEGIN
+        $IF data_browser_conf.g_debug $THEN
+            EXECUTE IMMEDIATE api_trace.Dyn_Log_Start;
+        $END
+        -- The Application_Id or the Application_Group of the VCURRENT_WORKSPACE must match the current APEX_APPLICATIONS
 		SELECT COUNT(*) INTO v_Privileges_Cnt
-		FROM VCURRENT_WORKSPACE
-		WHERE APPLICATION_ID = V('APP_ID') OR APPLICATION_ID IS NULL;
-		if v_Privileges_Cnt = 1 then	-- Nur wenn APPLICATION_ID mit dem aktuellen Workspace übereinstimmen.
-			return TRUE;
+		FROM VCURRENT_WORKSPACE W, APEX_APPLICATIONS A
+		WHERE A.APPLICATION_ID = APEX_APPLICATION.G_FLOW_ID
+		AND (W.APPLICATION_ID = APEX_APPLICATION.G_FLOW_ID OR W.APPLICATION_ID IS NULL)
+		-- implemented later...
+		-- AND (W.APPLICATION_GROUP = A.APPLICATION_GROUP OR W.APPLICATION_GROUP IS NULL)
+		;
+		if v_Privileges_Cnt = 1 then
+			v_result := TRUE;
 		else
-			return FALSE;
+			v_result := FALSE;
 		end if;
+        ----
+        $IF data_browser_conf.g_debug $THEN
+            EXECUTE IMMEDIATE api_trace.Dyn_Log_Function_Call
+            USING v_result;
+        $END
+        return v_result;
+    exception 
+      when OTHERS then 
+        EXECUTE IMMEDIATE api_trace.Dyn_Log_Exception;
+        RAISE;
 	END check_session_schema;
 
 
@@ -785,6 +954,10 @@ $END
       v_redirect_url	VARCHAR2(200);
       v_client_ip_address VARCHAR2(255) := SUBSTR(data_browser_auth.client_ip_address(), 1, 255);
 	BEGIN
+        $IF data_browser_conf.g_debug $THEN
+            EXECUTE IMMEDIATE api_trace.Dyn_Log_Start
+            USING p_newpasswordpage;
+        $END
 		SELECT USER_ID, UPPER_LOGIN_NAME, Password_Hash, Password_Reset, Password_Expiration_Date
 		INTO v_id, v_user, v_pwd_hash, v_reset_pw, v_expire_date
 		FROM V_CONTEXT_USERS B
@@ -818,25 +991,45 @@ $END
 			apex_util.set_session_state(p_name => 'FSP_AFTER_LOGIN_URL',p_value => v_redirect_url);
         end if;
 
-	END post_authenticate;
+        ----
+        $IF data_browser_conf.g_debug $THEN
+            EXECUTE IMMEDIATE api_trace.Dyn_Log_Exit;
+        $END
+    exception 
+      when OTHERS then 
+        EXECUTE IMMEDIATE api_trace.Dyn_Log_Exception
+        USING p_newpasswordpage;
+        RAISE;
+    end post_authenticate;
 
-	PROCEDURE Set_Apex_Context(p_Schema_Name IN VARCHAR2 DEFAULT SYS_CONTEXT('USERENV', 'CURRENT_SCHEMA'))
+	PROCEDURE Set_Apex_Context (
+		p_Schema_Name IN VARCHAR2 DEFAULT SYS_CONTEXT('USERENV', 'CURRENT_SCHEMA'),
+		p_Workspace_Name IN VARCHAR2 DEFAULT V('APP_WORKSPACE')
+	)
 	IS 
 		v_Table_App_Users VARCHAR2(200) := changelog_conf.Get_Table_App_Users;
+		v_Client_Id 	VARCHAR2(200) := SYS_CONTEXT('USERENV','CLIENT_IDENTIFIER');
+		v_User_Name 	VARCHAR2(200) := V('APP_USER');
 	BEGIN
 $IF data_browser_specs.g_use_custom_ctx $THEN
 		if apex_application.g_debug then
-			apex_debug.message('set_custom_ctx.set_apex_context(p_Table_App_Users=>''%s'', p_Schema_Name=>''%s'')',v_Table_App_Users, p_Schema_Name);
-			apex_debug.message('-- SCHEMA: %s, APP_PARSING_SCHEMA: %s, APP_USER: %s, APP_WORKSPACE: %s', SYS_CONTEXT('USERENV', 'CURRENT_SCHEMA'), V('APP_PARSING_SCHEMA'), V('APP_USER'), V('APP_WORKSPACE') );
+			apex_debug.message('data_browser_auth.Set_Apex_Context(v_Table_App_Users=>''%s'', p_Schema_Name=>''%s'', p_Workspace_Name=>''%s'')', 
+				v_Table_App_Users, p_Schema_Name, p_Workspace_Name);
 		end if;
-		set_custom_ctx.set_apex_context(p_Table_App_Users=>v_Table_App_Users, p_Schema_Name=>p_Schema_Name);
+
+		set_custom_ctx.Set_Current_Workspace(p_Workspace_Name, v_Client_Id, p_Schema_Name);
+		set_custom_ctx.Set_Current_User(v_User_Name, v_Client_Id, v_Table_App_Users, p_Schema_Name);
+
 		if apex_application.g_debug then
-			apex_debug.message('-- USER_ID: %s, WORKSPACE_ID: %s ', SYS_CONTEXT('CUSTOM_CTX', 'USER_ID'), SYS_CONTEXT('CUSTOM_CTX', 'WORKSPACE_ID'));
+			apex_debug.message('--CUSTOM_CTX: USER_ID: %s, USER_NAME: %s, WORKSPACE_ID: %s, WORKSPACE_NAME: %s ', 
+				SYS_CONTEXT('CUSTOM_CTX', 'USER_ID'), SYS_CONTEXT('CUSTOM_CTX', 'USER_NAME'), 
+				SYS_CONTEXT('CUSTOM_CTX', 'WORKSPACE_ID'), SYS_CONTEXT('CUSTOM_CTX', 'WORKSPACE_NAME'));
+			apex_debug.message('--V(''APP_USER''): %s, V(''APP_WORKSPACE''): %s', V('APP_USER'), V('APP_WORKSPACE') );
 		end if;
 $ELSE
 		null;
 $END
-	END;
+	END Set_Apex_Context;
 
 	PROCEDURE Clear_Context
 	IS 
@@ -868,8 +1061,12 @@ $END
 		v_not_like_workspace_name_err boolean;
 		v_not_like_words_err          boolean;
 		v_not_reusable_err            boolean;
-		v_result                      varchar2(500);
+		v_result                      varchar2(32767);
 	BEGIN
+        $IF data_browser_conf.g_debug $THEN
+            EXECUTE IMMEDIATE api_trace.Dyn_Log_Start
+            USING p_username,p_password,p_old_password;
+        $END
 		v_workspace_name := APEX_UTIL.GET_DEFAULT_SCHEMA;
 
 	  APEX_UTIL.STRONG_PASSWORD_CHECK(
@@ -934,8 +1131,18 @@ $END
 	  IF v_not_reusable_err THEN
 		  v_result := v_result || ' ' || APEX_LANG.LANG('Password can not be reused.');
 	  END IF;
-	  return v_result;
-	END strong_password_check;
+       ----
+        $IF data_browser_conf.g_debug $THEN
+            EXECUTE IMMEDIATE api_trace.Dyn_Log_Function_Call
+            USING p_username,p_password,p_old_password,v_result;
+        $END
+        return v_result;
+    exception 
+      when OTHERS then 
+        EXECUTE IMMEDIATE api_trace.Dyn_Log_Exception
+        USING p_username,p_password,p_old_password;
+        RAISE;
+    end strong_password_check;
 
 -- change password in custom user table for <p_Username>. New password is <p_Password>
 	PROCEDURE change_password(
@@ -988,9 +1195,13 @@ $END
 
 END data_browser_auth;
 /
+-- for access by DATA_BROWSER_SCHEMA package
+grant select on APP_USERS to PUBLIC;
+grant select on V_CONTEXT_USERS to PUBLIC;
+grant select on VDATA_BROWSER_USERS to PUBLIC;
 
 
-
+/*
 declare
 	v_Count PLS_INTEGER;
 begin -- when the custom context exists, a trigger is installed. that trigger set the context on login 
@@ -1009,10 +1220,6 @@ END;
 	end if;
 end;
 /
--- for access by DATA_BROWSER_SCHEMA package
-grant select on APP_USERS to PUBLIC;
-grant select on V_CONTEXT_USERS to PUBLIC;
-/*
 
 begin if data_browser_auth.authenticate('DIRK', 'abc') then dbms_output.PUT_LINE('OK'); else dbms_output.PUT_LINE('failed'); end if; end;
 /

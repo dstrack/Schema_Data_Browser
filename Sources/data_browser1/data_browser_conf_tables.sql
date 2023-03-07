@@ -182,17 +182,7 @@ begin
 		(
 			Show_Tree_Num_Rows			VARCHAR2(5) DEFAULT 'YES' NOT NULL CONSTRAINT DATA_BRO_CONF_Show_Tree_Num_Rows_CK CHECK ( Show_Tree_Num_Rows IN ('YES','NO') ),
 			Update_Tree_Num_Rows		VARCHAR2(5) DEFAULT 'YES' NOT NULL CONSTRAINT DATA_BRO_CONF_Update_Tree_Num_Rows_CK CHECK ( Update_Tree_Num_Rows IN ('YES','NO') ),
-			Max_Relations_Levels		NUMBER DEFAULT 4
-		)
-		]';
-		EXECUTE IMMEDIATE v_Stat;
-	end if;
-	SELECT COUNT(*) INTO v_count
-	FROM USER_TAB_COLUMNS WHERE TABLE_NAME = 'DATA_BROWSER_CONFIG' AND COLUMN_NAME = 'EMAIL_FROM_ADDRESS';
-	if v_count = 0 then 
-		v_stat := q'[
-		ALTER TABLE DATA_BROWSER_CONFIG ADD
-		(
+			Max_Relations_Levels		NUMBER DEFAULT 4,
 			Email_From_Address			VARCHAR2(128),
 			Errors_Listed_Limit			NUMBER(10) DEFAULT 100 NOT NULL,
 			Edit_Rows_Limit				NUMBER(10) DEFAULT 500 NOT NULL,

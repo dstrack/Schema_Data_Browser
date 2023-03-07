@@ -398,7 +398,7 @@ CREATE OR REPLACE PACKAGE BODY custom_keys.set_custom_ctx IS
 		set_current_workspace(v_Workspace_Name, v_Client_Id);
 		set_current_user(v_User_Name, v_Client_Id);
 		COMMIT;
-		if g_debug > 0 then
+		if apex_application.g_debug then
 			Log_Message('Post_Db_Logon', '(' || v_Workspace_Name || ', ' || v_User_Name || ', ' || v_Client_Id || ')' );
 		end if;
 	END;
@@ -418,7 +418,7 @@ CREATE OR REPLACE PACKAGE BODY custom_keys.set_custom_ctx IS
 		set_current_workspace(v_Workspace_Name, v_Client_Id);
 		set_current_user(v_User_Name, v_Client_Id, p_Table_App_Users);
 		COMMIT;
-		if g_debug > 0 then
+		if apex_application.g_debug then
 			Log_Message('Post_Apex_Logon', '(' || v_Workspace_Name || ', ' || v_User_Name || ', ' || v_Client_Id || ')' );
 		end if;
 	END;
@@ -441,7 +441,7 @@ CREATE OR REPLACE PACKAGE BODY custom_keys.set_custom_ctx IS
 		if v_TimestampString IS NOT NULL then
 			Set_Query_Timestamp(TO_TIMESTAMP_TZ(v_TimestampString, g_CtxTimestampFormat), v_Client_Id);
 		end if;
-		if g_debug > 0 then
+		if apex_application.g_debug then
 			Log_Message('Set_Apex_Context', '(' || v_Workspace_Name || ', ' || v_User_Name || ', ' || v_Client_Id || ')' );
 		end if;
 	END;
@@ -462,12 +462,9 @@ CREATE OR REPLACE PACKAGE BODY custom_keys.set_custom_ctx IS
 		v_Subject VARCHAR2(40) := SUBSTR('CUSTOM_CTX: ' || p_CODE, 1, 40);
 		v_Info	VARCHAR2(300) := SUBSTR(p_MESSAGE, 1, 300);
 	BEGIN
-		-- DBMS_OUTPUT.PUT_LINE('CODE:' || v_Subject);
-		-- DBMS_OUTPUT.PUT_LINE('MESSAGE:' || v_Info);
-		if apex_application.g_debug then
-			apex_debug.message('set_custom_ctx.Log_Message( Subject:%s;  Ifos:%s )', v_Subject, v_Info);
-		end if;
-		if SYS_CONTEXT(g_CtxNamespace, g_CtxWorkspaceID) IS NOT NULL
+		apex_debug.message('set_custom_ctx.%s;  Ifos:%s', v_Subject, v_Info);
+		if g_debug != 0
+		and SYS_CONTEXT(g_CtxNamespace, g_CtxWorkspaceID) IS NOT NULL
 		and SYS_CONTEXT(g_CtxNamespace, g_CtxUserName) IS NOT NULL then
 			EXECUTE IMMEDIATE g_Log_Message_Query
 			USING IN v_Subject, v_Info;
@@ -476,10 +473,8 @@ CREATE OR REPLACE PACKAGE BODY custom_keys.set_custom_ctx IS
 		end if;
 	EXCEPTION
 	WHEN OTHERS THEN
-		DBMS_OUTPUT.PUT_LINE(g_Log_Message_Query || ' - failed with ' || DBMS_UTILITY.FORMAT_ERROR_STACK);
-		NULL;
+		apex_debug.error(g_Log_Message_Query || ' - failed with ' || DBMS_UTILITY.FORMAT_ERROR_STACK);
 	END;
-
 END set_custom_ctx;
 /
 

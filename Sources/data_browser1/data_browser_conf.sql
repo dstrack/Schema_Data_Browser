@@ -119,7 +119,7 @@ IS
 
 	g_use_exceptions 			CONSTANT BOOLEAN 	:= TRUE;	-- when enabled, errors are handled via exceptions; disable to find proper error line number.
 	g_runtime_exceptions		CONSTANT BOOLEAN 	:= FALSE;	-- when enabled, runtime parameter errors are handled via exceptions; disable to tolerate missing parameters
-	g_debug 					CONSTANT BOOLEAN 	:= FALSE;
+	g_debug 					CONSTANT BOOLEAN 	:= TRUE;
 	
 	PROCEDURE Save_Config_Defaults;
 	PROCEDURE Load_Config;
@@ -1814,10 +1814,10 @@ $END
 		v_Check_Condition 		VARCHAR2(32767);
 	BEGIN
 		if p_Column_Name IS NULL then
-			return NULL;
+			return case when p_Explain = 'YES' then 'FAILED. Reason: Column_Name IS NULL' end;
 		end if;
 		if p_Data_Type NOT IN ('CHAR', 'VARCHAR', 'VARCHAR2', 'NUMBER') then
-			return case when p_Explain = 'YES' then 'FAILED. Reason: datatype contradiction' end;
+			return case when p_Explain = 'YES' then 'FAILED. Reason: datatype contradiction. Datatype ''' || p_Data_Type || ''' is not supported.' end;
 		end if;
 		if p_Default_Text IS NOT NULL then
 			v_Is_Number_Yes_No_Default 	:= p_Default_Text IN (
@@ -1896,10 +1896,10 @@ $END
 			return case when p_Explain = 'YES' then 'FAILED. Reason: matching name, but no default value or check condition or weak hints (' || p_Default_Text || ')' end;
 		elsif Get_Detect_Yes_No_Static_LOV = 'YES' then
 			-- column name is not matching pattern and no contraditions
-			if (p_Data_Type IN ('CHAR', 'VARCHAR', 'VARCHAR2') AND p_Char_Length = 1)		-- string length 1; is a strong hint
+			if (p_Data_Type IN ('CHAR', 'VARCHAR', 'VARCHAR2') AND p_Char_Length <= 3)		-- string length <= 3; is a weak hint
 			and (v_Is_Char_Yes_No_Default or v_Is_Char_Yes_No_Check) then	-- require default value or check condition
 				return 'CHAR';
-			elsif (p_Data_Type IN ('CHAR', 'VARCHAR', 'VARCHAR2') AND p_Char_Length = 1)	-- string length 1; is a strong hint
+			elsif (p_Data_Type IN ('CHAR', 'VARCHAR', 'VARCHAR2') AND p_Char_Length <= 3)	-- string length <= 3; is a weak hint
 			and (v_Is_Number_Yes_No_Default 		-- default value Y or N;  is a strong hint
 				or v_Is_Number_Yes_No_Check			-- check condition;  is a strong hint
 			) then									-- require default value or check condition
@@ -2921,13 +2921,14 @@ $END
 		-- and NVL(APEX_UTIL.GET_SESSION_LANG, 'de') LIKE 'de%' 
 		then
 			v_Result :=
-				REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(p_Text,
+				REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(p_Text,
 				'ae', chr(50084)),
 				'ueh', chr(50108)||'h'),
 				'uef', chr(50108)||'f'),
 				'ueg', chr(50108)||'g'),
 				'ueb', chr(50108)||'b'),
 				'uec', chr(50108)||'c'),
+				'uer', chr(50108)||'r'),
 				'oe', chr(50102)),
 				'Ae', chr(50052)),
 				'Ue', chr(50076)),
@@ -2935,7 +2936,7 @@ $END
 			-- the profiler says that this REGEXP_REPLACE is slow:
 			-- v_Result := REGEXP_REPLACE(v_Result, '([b|g|f|h|k|l|r|t])(ue)(\w+)', '\1' || chr(50108) || '\3', 1, 1, 'c');
 			v_Result :=
-				REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(p_Text,
+				REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(v_Result,
 				'bue', 'b' || chr(50108)),
 				'gue', 'g' || chr(50108)),
 				'fue', 'f' || chr(50108)),

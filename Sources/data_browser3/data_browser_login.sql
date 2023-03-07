@@ -121,7 +121,6 @@ AS
 
 END data_browser_login;
 /
-show errors
 
 -------------------------------------------------------------------------------
 CREATE OR REPLACE PACKAGE BODY data_browser_login AS
@@ -129,15 +128,29 @@ CREATE OR REPLACE PACKAGE BODY data_browser_login AS
    	FUNCTION Get_App_Base_URL
    	RETURN VARCHAR2
    	IS
+   		v_result varchar2(32767);
 	BEGIN
-		RETURN apex_util.host_url('SCRIPT');
+		v_result := apex_util.host_url('SCRIPT');
+        ----
+        $IF data_browser_conf.g_debug $THEN
+            EXECUTE IMMEDIATE api_trace.Dyn_Log_Function_Call
+            USING v_result;
+        $END
+        return v_result;
 	END Get_App_Base_URL;
 
    	FUNCTION Get_App_Host_Name
    	RETURN VARCHAR2
    	IS
+        v_result varchar2(32767);
 	BEGIN -- example: https://abc-strack02.adb.eu-frankfurt-1.oraclecloudapps.com/ords/
-		RETURN APEX_MAIL.GET_INSTANCE_URL;
+		v_result := APEX_MAIL.GET_INSTANCE_URL;
+        ----
+        $IF data_browser_conf.g_debug $THEN
+            EXECUTE IMMEDIATE api_trace.Dyn_Log_Function_Call
+            USING v_result;
+        $END
+        return v_result;
 	END Get_App_Host_Name;
 
 	-- Domain Name der Anwendung ohne Protokoll und ohne Pfade --
@@ -146,43 +159,53 @@ CREATE OR REPLACE PACKAGE BODY data_browser_login AS
    	)
    	RETURN VARCHAR2
    	IS
-   		v_App_Host_Name	VARCHAR2(2000);
+        v_result varchar2(32767);
    		v_Offset INTEGER;
 	BEGIN
 		if p_Host_Name IS NOT NULL then
-			v_App_Host_Name := p_Host_Name;
+			v_result := p_Host_Name;
 		else
-			v_App_Host_Name := data_browser_login.Get_App_Host_Name;
+			v_result := data_browser_login.Get_App_Host_Name;
 		end if;	
 		-- remove protocol
-		if INSTR(v_App_Host_Name, '://') > 0 then
-			v_App_Host_Name := SUBSTR(v_App_Host_Name, INSTR(v_App_Host_Name, '://') + 3);
+		if INSTR(v_result, '://') > 0 then
+			v_result := SUBSTR(v_result, INSTR(v_result, '://') + 3);
 		end if;
 		-- remove www.
-		if SUBSTR(v_App_Host_Name, 1, 4) = 'www.' then
-			v_App_Host_Name := SUBSTR(v_App_Host_Name, 5);
+		if SUBSTR(v_result, 1, 4) = 'www.' then
+			v_result := SUBSTR(v_result, 5);
 		end if;
 		-- remove page parameter
-		v_Offset := INSTR(v_App_Host_Name, ':');
+		v_Offset := INSTR(v_result, ':');
 		if v_Offset > 0 then
-			v_App_Host_Name := SUBSTR(v_App_Host_Name, 1, v_Offset - 1);
+			v_result := SUBSTR(v_result, 1, v_Offset - 1);
 		end if;
 		-- remove call parameter
-		v_Offset := INSTR(v_App_Host_Name, '/');
+		v_Offset := INSTR(v_result, '/');
 		if v_Offset > 0 then
-			v_App_Host_Name := SUBSTR(v_App_Host_Name, 1, v_Offset - 1);
+			v_result := SUBSTR(v_result, 1, v_Offset - 1);
 		end if;
 		-- find domain extension 
 		-- initcap except extension
-		v_Offset := INSTR(v_App_Host_Name, '.', -1);
+		v_Offset := INSTR(v_result, '.', -1);
 		if v_Offset > 0 then
-			v_App_Host_Name :=
-				INITCAP(SUBSTR(v_App_Host_Name, 1, v_Offset))
-				|| SUBSTR(v_App_Host_Name, v_Offset + 1);
+			v_result :=
+				INITCAP(SUBSTR(v_result, 1, v_Offset))
+				|| SUBSTR(v_result, v_Offset + 1);
 		else
-			v_App_Host_Name := INITCAP(v_App_Host_Name);
+			v_result := INITCAP(v_result);
 		end if;
-		RETURN v_App_Host_Name;
+        ----
+        $IF data_browser_conf.g_debug $THEN
+            EXECUTE IMMEDIATE api_trace.Dyn_Log_Function_Call
+            USING p_host_name,v_result;
+        $END
+        return v_result;
+    exception 
+      when OTHERS then 
+        EXECUTE IMMEDIATE api_trace.Dyn_Log_Exception
+        USING p_host_name;
+        RAISE;
 	END Get_App_Domain_Name;
 
 	---------------------------------------------------------------------------
@@ -200,17 +223,20 @@ CREATE OR REPLACE PACKAGE BODY data_browser_login AS
     	v_count2        NUMBER 		:= 0;
 		v_Password      VARCHAR2(128);
 		v_Token         VARCHAR2(128);
-    	v_Workspace     VARCHAR2(50);
-    	v_Apex_Workspace VARCHAR2(255);
+    	v_Workspace     VARCHAR2(128);
     	v_Mail_type     pls_integer;
 	BEGIN
-       	v_Workspace := case when data_browser_conf.Has_Multiple_Workspaces = 'YES' then SYS_CONTEXT('CUSTOM_CTX', 'WORKSPACE_NAME') end;
+        $IF data_browser_conf.g_debug $THEN
+            EXECUTE IMMEDIATE api_trace.Dyn_Log_Start
+            USING p_user_id,p_account_ablaufdatum,p_app_id,p_startpage,p_instance_url,p_host_name;
+        $END
 		v_Password := data_browser_auth.Temporary_Password();
 
 		SELECT case when EMAIL_VALIDATED = 'N' then dbms_random.string('X',32) end TOKEN,
-			case when EMAIL_VALIDATED = 'N' then 3 else 2 end -- 2= requests a new password - account credentials, 3=Guests Invitation - confirm e-mail address
-		INTO v_Token, v_Mail_type
-		FROM V_CONTEXT_USERS
+			case when EMAIL_VALIDATED = 'N' then 3 else 2 end MAIL_TYPE, -- 2= requests a new password - account credentials, 3=Guests Invitation - confirm e-mail address
+			WORKSPACE_NAME
+		INTO v_Token, v_Mail_type, v_Workspace
+		FROM VDATA_BROWSER_USERS
 		WHERE USER_ID = p_User_ID FOR UPDATE;
 
 		UPDATE V_CONTEXT_USERS
@@ -221,10 +247,6 @@ CREATE OR REPLACE PACKAGE BODY data_browser_login AS
 		WHERE USER_ID = p_User_ID;
 		COMMIT;
 
-		select WORKSPACE
-		  into v_Apex_Workspace
-		from APEX_APPLICATIONS
-		where APPLICATION_ID = p_App_ID;
 		data_browser_login.Account_Info_Mail (
 			p_User_ID				=> p_User_ID,
 			p_Password 				=> v_Password,
@@ -233,10 +255,19 @@ CREATE OR REPLACE PACKAGE BODY data_browser_login AS
 			p_Startpage		 		=> p_Startpage,
 			p_instance_url 			=> p_instance_url,
 			p_Host_Name 			=> p_Host_Name,
-			p_Workspace				=> v_Workspace,
+			p_Workspace				=> case when data_browser_conf.Has_Multiple_Workspaces = 'YES' then v_Workspace end,
 			p_Mail_Type				=> v_Mail_type
 		);
 		COMMIT;
+        ----
+        $IF data_browser_conf.g_debug $THEN
+            EXECUTE IMMEDIATE api_trace.Dyn_Log_Exit;
+        $END
+    exception 
+      when OTHERS then 
+        EXECUTE IMMEDIATE api_trace.Dyn_Log_Exception
+        USING p_user_id,p_account_ablaufdatum,p_app_id,p_startpage,p_instance_url,p_host_name;
+        RAISE;
 	END Guest_New_password;
 
 	PROCEDURE Request_New_password (
@@ -251,16 +282,23 @@ CREATE OR REPLACE PACKAGE BODY data_browser_login AS
 	is
 		v_User_ID    NUMBER;
 		v_Name          VARCHAR2(50);
+	begin
+        $IF data_browser_conf.g_debug $THEN
+            EXECUTE IMMEDIATE api_trace.Dyn_Log_Start
+            USING p_name,p_email,p_app_id,p_startpage,p_instance_url,p_host_name;
+        $END
+		p_Message := NULL;
 		begin
-			p_Message := NULL;
-			begin
-				SELECT USER_ID
-				INTO v_User_ID
-				FROM V_CONTEXT_USERS
-				WHERE UPPER(EMAIL_ADDRESS) = UPPER(TRIM(p_EMail))
-				AND UPPER_LOGIN_NAME = UPPER(TRIM(p_Name));
-			exception
-			  when NO_DATA_FOUND then
+			SELECT MAX(USER_ID)
+			INTO v_User_ID
+			FROM VDATA_BROWSER_USERS
+			WHERE UPPER(EMAIL_ADDRESS) = UPPER(TRIM(p_EMail))
+			AND UPPER_LOGIN_NAME = UPPER(TRIM(p_Name))
+			AND (WORKSPACE_NAME = SYS_CONTEXT('CUSTOM_CTX', 'WORKSPACE_NAME') 
+				OR SYS_CONTEXT('CUSTOM_CTX', 'WORKSPACE_NAME') IS NULL
+				OR data_browser_conf.Has_Multiple_Workspaces = 'NO');
+		exception
+		  when NO_DATA_FOUND then
 			COMMIT;
 			APEX_UTIL.PAUSE(1);
 			p_Message := APEX_LANG.LANG('No matching data found.');
@@ -275,9 +313,16 @@ CREATE OR REPLACE PACKAGE BODY data_browser_login AS
 			p_instance_url 			=> p_instance_url,
 			p_Host_Name 			=> p_Host_Name
 		);
+        ----
+        $IF data_browser_conf.g_debug $THEN
+            EXECUTE IMMEDIATE api_trace.Dyn_Log_Exit
+            USING p_message;
+        $END
 	EXCEPTION
 	  when others then
 	  	COMMIT;
+        EXECUTE IMMEDIATE api_trace.Dyn_Log_Exception
+        USING p_name,p_email,p_app_id,p_startpage,p_instance_url,p_host_name,p_message;
 		APEX_UTIL.PAUSE(1);
 		p_Message := APEX_LANG.LANG('The service is currently not available.');
 	end Request_New_password;
@@ -290,6 +335,10 @@ CREATE OR REPLACE PACKAGE BODY data_browser_login AS
 	IS
 		v_User_ID	NUMBER := NULL;
 	BEGIN
+        $IF data_browser_conf.g_debug $THEN
+            EXECUTE IMMEDIATE api_trace.Dyn_Log_Start
+            USING p_account_token;
+        $END
 		p_User_ID := NULL;
 
 		SELECT USER_ID
@@ -310,10 +359,17 @@ CREATE OR REPLACE PACKAGE BODY data_browser_login AS
 
 		p_User_ID	:= v_User_ID;
 		COMMIT;
+        ----
+        $IF data_browser_conf.g_debug $THEN
+            EXECUTE IMMEDIATE api_trace.Dyn_Log_Exit
+            USING p_user_id;
+        $END
 	EXCEPTION
 	  when NO_DATA_FOUND then
 		NULL;
 	  when others then
+        EXECUTE IMMEDIATE api_trace.Dyn_Log_Exception
+        USING p_account_token,p_user_id;
 		APEX_UTIL.PAUSE(1);
 		RAISE;
 	END Use_Account_Token;
@@ -325,22 +381,35 @@ CREATE OR REPLACE PACKAGE BODY data_browser_login AS
 	IS 
 		v_Count  	PLS_INTEGER;
 		v_Extension	PLS_INTEGER;
-		v_Login_Name APP_USERS.LOGIN_NAME%TYPE;
+        v_result varchar2(32767);
 	BEGIN
-		v_Login_Name := TRIM('.' FROM TRIM(p_First_Name) || '.' || TRIM(p_Last_Name));
-		v_Login_Name := NVL(v_Login_Name, apex_lang.lang('Guest'));
-		SELECT COUNT(*) INTO v_Count FROM V_CONTEXT_USERS WHERE UPPER_LOGIN_NAME LIKE UPPER(v_Login_Name) || '-' || '%';
+        $IF data_browser_conf.g_debug $THEN
+            EXECUTE IMMEDIATE api_trace.Dyn_Log_Start
+            USING p_first_name,p_last_name;
+        $END
+		v_result := TRIM('.' FROM TRIM(p_First_Name) || '.' || TRIM(p_Last_Name));
+		v_result := NVL(v_result, apex_lang.lang('Guest'));
+		SELECT COUNT(*) INTO v_Count FROM VDATA_BROWSER_USERS WHERE UPPER_LOGIN_NAME LIKE UPPER(v_result) || '-' || '%';
 		if v_Count > 0 then
 			v_Extension := v_Count;
 			loop 
-				SELECT COUNT(*) INTO v_Count FROM V_CONTEXT_USERS WHERE UPPER_LOGIN_NAME = UPPER(v_Login_Name) || '-' || v_Extension;
+				SELECT COUNT(*) INTO v_Count FROM VDATA_BROWSER_USERS WHERE UPPER_LOGIN_NAME = UPPER(v_result) || '-' || v_Extension;
 				exit when v_Count = 0;
 				v_Extension := v_Extension + 1;
 			end loop;
-			v_Login_Name := v_Login_Name || '-' || v_Extension;
+			v_result := v_result || '-' || v_Extension;
 		end if;
-	
-		RETURN v_Login_Name;
+        ----
+        $IF data_browser_conf.g_debug $THEN
+            EXECUTE IMMEDIATE api_trace.Dyn_Log_Function_Call
+            USING v_result;
+        $END
+        return v_result;
+    exception 
+      when OTHERS then 
+        EXECUTE IMMEDIATE api_trace.Dyn_Log_Exception
+        USING p_first_name,p_last_name;
+        RAISE;
 	END Get_Unique_Login_Name;
 	
 	PROCEDURE Split_EMail_Adress (
@@ -357,6 +426,10 @@ CREATE OR REPLACE PACKAGE BODY data_browser_login AS
 		v_First_Name APP_USERS.FIRST_NAME%TYPE;
 		v_Last_Name APP_USERS.LAST_NAME%TYPE;
 	BEGIN
+        $IF data_browser_conf.g_debug $THEN
+            EXECUTE IMMEDIATE api_trace.Dyn_Log_Start
+            USING p_email;
+        $END
 		v_Main_Group_Name := LOWER(TRIM(SUBSTR(p_Email, INSTR(p_Email, '@') + 1, v_Max_Length)));
 		p_Main_Group_Name := NVL(p_Main_Group_Name, v_Main_Group_Name);
 		v_Name_From := SUBSTR(p_Email, 1, INSTR(p_Email, '@') - 1);
@@ -374,7 +447,17 @@ CREATE OR REPLACE PACKAGE BODY data_browser_login AS
 		if p_Login_Name IS NULL then
 			p_Login_Name := TRIM('.' FROM TRIM(p_First_Name) || '.' || TRIM(p_Last_Name));
 		end if;
-	END Split_EMail_Adress;
+        ----
+        $IF data_browser_conf.g_debug $THEN
+            EXECUTE IMMEDIATE api_trace.Dyn_Log_Exit
+            USING p_main_group_name,p_first_name,p_last_name,p_login_name;
+        $END
+    exception 
+      when OTHERS then 
+        EXECUTE IMMEDIATE api_trace.Dyn_Log_Exception
+        USING p_email,p_main_group_name,p_first_name,p_last_name,p_login_name;
+        RAISE;
+    end split_email_adress;
 	
 	PROCEDURE Save_Guest (
 		p_Name					IN VARCHAR2,
@@ -386,6 +469,10 @@ CREATE OR REPLACE PACKAGE BODY data_browser_login AS
 	    v_count1        NUMBER := 0;
     	v_count2        NUMBER := 0;
 	BEGIN
+        $IF data_browser_conf.g_debug $THEN
+            EXECUTE IMMEDIATE api_trace.Dyn_Log_Start
+            USING p_name,p_email,p_user_id;
+        $END
 	    p_Message := NULL;
 
         SELECT COUNT(*)
@@ -412,6 +499,16 @@ CREATE OR REPLACE PACKAGE BODY data_browser_login AS
         end if;
 
 		COMMIT;
+        ----
+        $IF data_browser_conf.g_debug $THEN
+            EXECUTE IMMEDIATE api_trace.Dyn_Log_Exit
+            USING p_message;
+        $END
+    exception 
+      when OTHERS then 
+        EXECUTE IMMEDIATE api_trace.Dyn_Log_Exception
+        USING p_name,p_email,p_user_id,p_message;
+        RAISE;
 	END Save_Guest;
 
 	/* This procedure is used to sent mails to account owners in various situations
@@ -461,15 +558,24 @@ CREATE OR REPLACE PACKAGE BODY data_browser_login AS
 		v_Date_Format   VARCHAR2(20) :='DD-Mon-YYYY';
     	v_Language_Code V_CONTEXT_USERS.LANGUAGE_CODE%TYPE;
 		v_instance_url 	VARCHAR2(1024);
-		v_host_name 	VARCHAR2(1024) := NVL(p_host_name, data_browser_login.Get_App_Host_Name) || 'f?p=' || p_App_ID || ':LOGIN_DESKTOP'; 
-		v_Application_Name VARCHAR2(1024) := data_browser_conf.Get_Configuration_Name;
+		v_home_url 		VARCHAR2(1024);
+		v_host_name 	VARCHAR2(1024); 
+		v_App_Name_Subject VARCHAR2(1024);
 		v_confirm_url   VARCHAR2(1024);
 		v_Mail_Footer	VARCHAR2(4000);
 		v_conn 			utl_smtp.connection;
 	BEGIN
+        $IF data_browser_conf.g_debug $THEN
+            EXECUTE IMMEDIATE api_trace.Dyn_Log_Start
+            USING p_user_id,p_password,p_account_token,p_sender_id,p_app_id,p_startpage,p_instance_url,p_host_name,p_workspace,p_mail_type;
+        $END
 		if p_User_ID IS NULL or p_App_ID IS NULL then 
 			return;
 		end if;
+		v_App_Name_Subject := data_browser_conf.Get_Configuration_Name;
+		v_App_Name_Subject := data_browser_conf.Get_Configuration_Name;
+		v_host_name := NVL(p_host_name, data_browser_login.Get_App_Host_Name) 
+		|| 'f?p=' || p_App_ID || ':LOGIN_DESKTOP'; 
 		-- call set_security_group_id to enable access to translation repository
 		for c1 in (
 			select workspace_id
@@ -478,7 +584,10 @@ CREATE OR REPLACE PACKAGE BODY data_browser_login AS
 		loop
 			apex_util.set_security_group_id(p_security_group_id => c1.workspace_id);
 		end loop;
-		
+		$IF data_browser_specs.g_use_custom_ctx $THEN
+			set_custom_ctx.set_current_workspace(p_Workspace_Name=>NVL(p_Workspace, SYS_CONTEXT('USERENV', 'CURRENT_SCHEMA')), p_Client_Id=>NULL);
+			set_custom_ctx.set_current_user(p_User_Name=>SYS_CONTEXT('USERENV', 'SESSION_USER'), p_Client_Id=>NULL);
+		$END
 		SELECT LOGIN_NAME, NVL(TRIM(FIRST_NAME || ' ' ||  LAST_NAME), LOGIN_NAME) NAME_TO, 
 			EMAIL_ADDRESS, ACCOUNT_EXPIRATION_DATE, LANGUAGE_CODE,
 			(SELECT APEX_LANG.LANG (
@@ -505,7 +614,10 @@ CREATE OR REPLACE PACKAGE BODY data_browser_login AS
 		INTO v_Mail_Footer
 		FROM DATA_BROWSER_CONFIG
 		WHERE ID = data_browser_conf.Get_Configuration_ID;
-
+		if v_Mail_Footer IS NOT NULL then 
+			v_Mail_Footer := '<br />------------<br />'||v_Mail_Footer;
+		end if;
+		
 		v_instance_url := RTRIM(NVL(p_instance_url, data_browser_login.Get_App_Base_URL), '/ ');
 		v_confirm_url  := v_instance_url || '/f?p=' || p_App_ID 
 			|| ':' || p_Startpage || ':0::::'
@@ -515,15 +627,16 @@ CREATE OR REPLACE PACKAGE BODY data_browser_login AS
 			|| case when p_Workspace IS NOT NULL then p_Workspace || ',' end
 			|| p_Password || ','
 			|| p_Account_Token || ':';
+		v_home_url := v_instance_url || '/f?p=' || p_App_ID || ':1:0::::';
+		if p_Workspace IS NOT NULL then 
+			v_home_url := v_home_url || 'LOGIN_WORKSPACE:' || p_Workspace;
+		end if;
 
 		v_body_html := '<html><body>' || v_cr;
-		v_Workspace_Name := case when p_Workspace IS NOT NULL
-			then apex_lang.lang('The workspace name is') || ' ' || p_Workspace || v_newline
-		end;
 		if p_Mail_Type = 1 then -- 1=Self registration - confirm e-mail address
 			v_Subject := apex_lang.message(
 				p_name => 'APP.P101.MAIL_SUBJECT1',
-				p0 => v_Application_Name,
+				p0 => v_App_Name_Subject,
 				p_lang => v_Language_Code,
 				p_application_id => p_App_ID
 			);
@@ -534,17 +647,16 @@ CREATE OR REPLACE PACKAGE BODY data_browser_login AS
 				p2 => v_AccountName,
 				p3 => v_confirm_url,
 				p4 => NVL(TO_CHAR(v_Account_Expiration_Date, v_Date_Format), '---'),
-				p5 => v_instance_url,
-				p6 => v_Application_Name,
+				p5 => v_home_url,
+				p6 => v_App_Name_Subject,
 				p7 => v_Mail_Footer,
 				p_lang => v_Language_Code,
 				p_application_id => p_App_ID
 			);
 		elsif p_Mail_Type = 2 then -- 2=requests a new password - account credentials
-			v_instance_url := v_instance_url || '/f?p=' || p_App_ID || ':1:0::::';
 			v_Subject := apex_lang.message(
 				p_name => 'APP.P101.MAIL_SUBJECT2',
-				p0 => v_Application_Name,
+				p0 => v_App_Name_Subject,
 				p_lang => v_Language_Code,
 				p_application_id => p_App_ID
 			);
@@ -555,8 +667,8 @@ CREATE OR REPLACE PACKAGE BODY data_browser_login AS
 				p2 => v_AccountName,
 				p3 => p_Password,
 				p4 => NVL(TO_CHAR(v_Account_Expiration_Date, v_Date_Format), '---'),
-				p5 => v_instance_url,
-				p6 => v_Application_Name,
+				p5 => v_home_url,
+				p6 => v_App_Name_Subject,
 				p7 => v_Mail_Footer,
 				p_lang => v_Language_Code,
 				p_application_id => p_App_ID
@@ -564,10 +676,13 @@ CREATE OR REPLACE PACKAGE BODY data_browser_login AS
 		elsif p_Mail_Type = 3 then -- 3=Guests Invitation - confirm e-mail address
 			v_Subject := apex_lang.message(
 				p_name => 'APP.P101.MAIL_SUBJECT3',
-				p0 => v_Application_Name,
+				p0 => v_App_Name_Subject,
 				p_lang => v_Language_Code,
 				p_application_id => p_App_ID
 			);
+			if p_Workspace IS NOT NULL then 
+				v_host_name := v_host_name || ':0::::LOGIN_WORKSPACE:' || p_Workspace;
+			end if;
 			v_AccountInfos :=  apex_lang.message(
 				p_name => 'APP.P101.MAIL_BODY3',
 				p0 => v_host_name,
@@ -593,6 +708,10 @@ CREATE OR REPLACE PACKAGE BODY data_browser_login AS
 		commit;
 		apex_mail.push_queue;
 		DBMS_OUTPUT.PUT_LINE('data_browser_login.Account_Info_Mail(p_from:'||v_Mail_From||', Mail_To:'||v_Mail_To||') - completed ');
+        ----
+        $IF data_browser_conf.g_debug $THEN
+            EXECUTE IMMEDIATE api_trace.Dyn_Log_Exit;
+        $END
 	END Account_Info_Mail;
 
 	PROCEDURE Load_Job(
@@ -606,6 +725,10 @@ CREATE OR REPLACE PACKAGE BODY data_browser_login AS
 		v_Job_Name USER_SCHEDULER_JOBS.JOB_NAME%TYPE;
 		v_Job_Name_Prefix USER_SCHEDULER_JOBS.JOB_NAME%TYPE := SUBSTR(c_Job_Name_Prefix || p_Job_Name, 1, 18);
 	BEGIN
+        $IF data_browser_conf.g_debug $THEN
+            EXECUTE IMMEDIATE api_trace.Dyn_Log_Start
+            USING p_job_name,p_comment,p_sql,p_repeat_interval,p_delay_seconds;
+        $END
 		v_Job_Name := dbms_scheduler.generate_job_name (v_Job_Name_Prefix);
 		DBMS_OUTPUT.PUT_LINE('data_browser_login.Load_Job - start ' || v_Job_Name || '; sql: ' || p_Sql);
 		dbms_scheduler.create_job(
@@ -617,6 +740,15 @@ CREATE OR REPLACE PACKAGE BODY data_browser_login AS
 			comments => p_Comment,
 			enabled => true );
 		COMMIT;
+        ----
+        $IF data_browser_conf.g_debug $THEN
+            EXECUTE IMMEDIATE api_trace.Dyn_Log_Exit;
+        $END
+    exception 
+      when OTHERS then 
+        EXECUTE IMMEDIATE api_trace.Dyn_Log_Exception
+        USING p_job_name,p_comment,p_sql,p_repeat_interval,p_delay_seconds;
+        RAISE;
 	END Load_Job;
 
 	PROCEDURE Account_Info_Mail_Job (
@@ -629,12 +761,15 @@ CREATE OR REPLACE PACKAGE BODY data_browser_login AS
 		v_instance_url 	VARCHAR2(1024);
 		v_host_name 	VARCHAR2(1024);
     	v_Workspace     VARCHAR2(50);
-    	v_Apex_Workspace VARCHAR2(255);
     	v_sql			VARCHAR2(4000);
     	v_startpage		NUMBER;
     	v_Mail_type     PLS_INTEGER;
     	v_Sender_ID 	NUMBER;
 	BEGIN
+        $IF data_browser_conf.g_debug $THEN
+            EXECUTE IMMEDIATE api_trace.Dyn_Log_Start
+            USING p_user_id,p_password,p_account_token,p_app_id;
+        $END
 		if p_App_ID is null then
 			return;
 		end if;
@@ -656,10 +791,6 @@ CREATE OR REPLACE PACKAGE BODY data_browser_login AS
 		  when NO_DATA_FOUND then
 			v_startpage		:= 104;
 		end;
-		select WORKSPACE
-		  into v_Apex_Workspace
-		from APEX_APPLICATIONS
-		where APPLICATION_ID = p_App_ID;
 		v_Sender_ID := SYS_CONTEXT('CUSTOM_CTX', 'USER_ID');
 		v_sql :=
         'begin ' || chr(10) ||
@@ -684,13 +815,21 @@ CREATE OR REPLACE PACKAGE BODY data_browser_login AS
             p_Sql => v_sql
         );
         COMMIT;
-	exception
+       ----
+        $IF data_browser_conf.g_debug $THEN
+            EXECUTE IMMEDIATE api_trace.Dyn_Log_Exit;
+        $END
+    exception 
 	  when NO_DATA_FOUND then
-	  	NULL;
+        EXECUTE IMMEDIATE api_trace.Dyn_Log_Exception
+        USING p_user_id,p_password,p_account_token,p_app_id;
+      when OTHERS then 
+        EXECUTE IMMEDIATE api_trace.Dyn_Log_Exception
+        USING p_user_id,p_password,p_account_token,p_app_id;
+        RAISE;
 	END Account_Info_Mail_Job;
 END data_browser_login;
 /
-show errors
 
 CREATE OR REPLACE TRIGGER APP_USERS_PWD_TR
 BEFORE INSERT OR UPDATE ON APP_USERS FOR EACH ROW

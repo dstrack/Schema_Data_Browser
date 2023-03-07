@@ -677,7 +677,7 @@ IS
 					v_row.NULLABLE 				:= v_in_rows(ind).NULLABLE;
 					v_row.NUM_DISTINCT 			:= v_in_rows(ind).NUM_DISTINCT;
 					v_row.DEFAULT_LENGTH 		:= v_in_rows(ind).DEFAULT_LENGTH;
-					v_row.DATA_DEFAULT 			:= SUBSTR(TO_CLOB(v_in_rows(ind).DATA_DEFAULT), 1, 800); -- special conversion of LONG type; give a margin of 200 bytes for char expansion
+					v_row.DATA_DEFAULT 			:= RTRIM(SUBSTR(TO_CLOB(v_in_rows(ind).DATA_DEFAULT), 1, 800)); -- special conversion of LONG type; give a margin of 200 bytes for char expansion
 					v_row.DATA_PRECISION 		:= v_in_rows(ind).DATA_PRECISION;
 					v_row.DATA_SCALE 			:= v_in_rows(ind).DATA_SCALE;
 					v_row.CHAR_LENGTH 			:= v_in_rows(ind).CHAR_LENGTH;
@@ -703,7 +703,7 @@ IS
 					v_row.NULLABLE 				:= v_in_rows(ind).NULLABLE;
 					v_row.NUM_DISTINCT 			:= v_in_rows(ind).NUM_DISTINCT;
 					v_row.DEFAULT_LENGTH 		:= v_in_rows(ind).DEFAULT_LENGTH;
-					v_row.DATA_DEFAULT 			:= SUBSTR(TO_CLOB(v_in_rows(ind).DATA_DEFAULT), 1, 800); -- special conversion of LONG type; give a margin of 200 bytes for char expansion
+					v_row.DATA_DEFAULT 			:= RTRIM(SUBSTR(TO_CLOB(v_in_rows(ind).DATA_DEFAULT), 1, 800)); -- special conversion of LONG type; give a margin of 200 bytes for char expansion
 					v_row.DATA_PRECISION 		:= v_in_rows(ind).DATA_PRECISION;
 					v_row.DATA_SCALE 			:= v_in_rows(ind).DATA_SCALE;
 					v_row.CHAR_LENGTH 			:= v_in_rows(ind).CHAR_LENGTH;			
@@ -1155,31 +1155,36 @@ IS
 	BEGIN
 		for c_cur in (
 			select distinct /*+ RESULT_CACHE */ 
-				B.owner, SUM(case when C.column_name = 'TABLESPACE_NAMES' then 1 else 0 end) ts_col
+				B.owner
 			from APEX_WORKSPACE_SCHEMAS S
 			join APEX_APPLICATIONS APP on S.WORKSPACE_NAME = APP.WORKSPACE
-			join SYS.ALL_OBJECTS B on S.SCHEMA = B.owner and B.OBJECT_NAME = 'APP_USERS' and B.OBJECT_TYPE IN ('TABLE', 'VIEW')
-			join SYS.ALL_TAB_COLUMNS C on S.SCHEMA = C.owner and C.table_name = 'DATA_BROWSER_CONFIG'
+			join SYS.ALL_OBJECTS B on S.SCHEMA = B.owner and B.OBJECT_NAME = 'VDATA_BROWSER_USERS' and B.OBJECT_TYPE = 'VIEW'
+			join SYS.ALL_OBJECTS C on S.SCHEMA = C.owner and C.OBJECT_NAME = 'DATA_BROWSER_CONFIG' and C.OBJECT_TYPE = 'TABLE'
 			where APP.APPLICATION_ID = p_application_id
 			group by B.owner
 		) loop 
 			v_stat := v_stat 
 			|| case when v_stat IS NOT NULL then 
-				chr(10)||'union all ' 
+				chr(10)||'union '
 			end         
-			|| 'select /*+ RESULT_CACHE */ ' || dbms_assert.enquote_literal(c_cur.owner) 
+			|| 'select '
+			|| case when v_stat IS NULL then '/*+ RESULT_CACHE */ DISTINCT ' end
+			|| dbms_assert.enquote_literal(c_cur.owner) 
 			|| ' SCHEMA_NAME, A.APP_VERSION_NUMBER, '
-			|| case when c_cur.ts_col = 1 
-				then 'A.BYTES_USED SPACE_USED_BYTES, A.TABLESPACE_NAMES, '
-				else 'null SPACE_USED_BYTES, null TABLESPACE_NAMES, '
-			end 
+			|| 'A.BYTES_USED SPACE_USED_BYTES, A.TABLESPACE_NAMES, '
 			|| 'B.USER_LEVEL,'
 			||  'A.SCHEMA_ICON, A.DESCRIPTION, A.CONFIGURATION_NAME' || chr(10)
-			|| 'from ' || c_cur.owner || '.DATA_BROWSER_CONFIG A, ' || c_cur.owner || '.APP_USERS B, param P'|| chr(10)
+			|| 'from ' || c_cur.owner || '.DATA_BROWSER_CONFIG A, ' || c_cur.owner || '.VDATA_BROWSER_USERS B, param P'|| chr(10)
 			|| 'where A.ID = 1 and B.UPPER_LOGIN_NAME = P.LOGIN_NAME';
 		end loop;
 		if v_stat IS NOT NULL then 
 			v_stat := 'with param as (select :a LOGIN_NAME from dual) select * from (' || chr(10) || v_stat || chr(10) || ')';
+			$IF data_browser_conf.g_debug $THEN
+				apex_debug.log_long_message(p_message=>'API: ' || 'data_browser_pipes.fn_pipe_accessible_schemas('
+					 || 'p_User_Name=>' || api_trace.Literal(p_User_Name)
+					 || ', p_Application_Id=>' || api_trace.Literal(p_Application_Id) || ')'
+					 || ' Query: ' || v_stat, p_level=>5);
+			$END
 			open s_cur for v_stat using IN p_User_Name;
 			loop
 				FETCH s_cur INTO v_row;
