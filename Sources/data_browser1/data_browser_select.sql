@@ -1595,6 +1595,10 @@ is
 
 		v_in_rows tab_data_browser_qc_refs;
 	BEGIN
+        $IF data_browser_conf.g_debug $THEN
+            EXECUTE IMMEDIATE api_trace.Dyn_Log_Start
+            USING p_view_name,p_data_format;
+        $END
 		OPEN keys_cur(p_View_Name);
 		LOOP
 			FETCH keys_cur BULK COLLECT INTO v_in_rows LIMIT 100;
@@ -1604,6 +1608,18 @@ is
 			END LOOP;
 		END LOOP;
 		CLOSE keys_cur;
+        ----
+        $IF data_browser_conf.g_debug $THEN
+            EXECUTE IMMEDIATE api_trace.Dyn_Log_Exit
+            USING v_in_rows.COUNT;
+        $END
+    exception 
+      when NO_DATA_NEEDED then
+        NULL;
+      when OTHERS then 
+        EXECUTE IMMEDIATE api_trace.Dyn_Log_Exception
+        USING p_view_name,p_data_format;
+        RAISE;
 	END FN_Pipe_browser_qc_refs;
 
 	/*
@@ -1708,6 +1724,10 @@ is
 
 		v_in_rows tab_data_browser_fc_refs;
 	BEGIN
+        $IF data_browser_conf.g_debug $THEN
+            EXECUTE IMMEDIATE api_trace.Dyn_Log_Start
+            USING p_view_name;
+        $END
 		OPEN keys_cur(p_View_Name);
 		LOOP
 			FETCH keys_cur BULK COLLECT INTO v_in_rows LIMIT 100;
@@ -1717,6 +1737,11 @@ is
 			END LOOP;
 		END LOOP;
 		CLOSE keys_cur;
+        ----
+        $IF data_browser_conf.g_debug $THEN
+            EXECUTE IMMEDIATE api_trace.Dyn_Log_Exit
+            USING v_in_rows.COUNT;
+        $END
 	END FN_Pipe_browser_fc_refs;
 	
 	/*
@@ -1766,8 +1791,8 @@ is
 			AND DELETE_RULE = 'CASCADE'
 		)
 		SELECT /*+ RESULT_CACHE */ 
-			F.REF_TABLE_NAME TABLE_NAME,
 			F.REF_VIEW_NAME VIEW_NAME,
+			F.REF_TABLE_NAME TABLE_NAME,
 			F.IMP_COLUMN_NAME,
 			F.DEST_COLUMN_NAME,
 			COLUMN_PREFIX, IS_UPPER_NAME, 
@@ -1804,8 +1829,8 @@ is
 			H.PARENT_KEY_COLUMN -- COLUMN OF TABLE F.VIEW_NAME
 		FROM (
 			SELECT DISTINCT 
-					CONNECT_BY_ROOT TABLE_NAME Ref_Table_Name,
 					CONNECT_BY_ROOT VIEW_NAME Ref_View_Name,
+					CONNECT_BY_ROOT TABLE_NAME Ref_Table_Name,
 					CONNECT_BY_ROOT FOREIGN_KEY_COLS Ref_Column_Name,
 					PRIOR TABLE_NAME TABLE_NAME, 
 					PRIOR VIEW_NAME VIEW_NAME,
@@ -1890,7 +1915,7 @@ is
 			FROM MVDATA_BROWSER_F_REFS -- , (select 'EMPLOYEES' v_View_Name, 'FORM' v_Data_Format from dual) par
 			WHERE LEVEL > 1
 			CONNECT BY NOCYCLE VIEW_NAME = PRIOR R_VIEW_NAME AND FOREIGN_KEY_COLS = PRIOR R_COLUMN_NAME 
-			START WITH TABLE_NAME = v_View_Name 
+			START WITH VIEW_NAME = v_View_Name -- Bugfix: DS 20230309 TABLE_NAME was used wrong here.
 		) F, FOREIGN_KEY_PARENTS H 
 		WHERE F.J_VIEW_NAME = H.R_VIEW_NAME (+) AND F.VIEW_NAME = H.VIEW_NAME2 (+) AND F.FOREIGN_KEY_COLS = H.COLUMN_NAME (+)
 		;
@@ -1898,6 +1923,10 @@ is
 		v_q_ref_cols_md5	VARCHAR2(300);
 		v_is_cached			VARCHAR2(10);
 	BEGIN
+        $IF data_browser_conf.g_debug $THEN
+            EXECUTE IMMEDIATE api_trace.Dyn_Log_Start
+            USING p_view_name,p_data_format,p_include_schema;
+        $END
 		v_q_ref_cols_md5 := wwv_flow_item.md5 (p_View_Name, p_Data_Format, p_Include_Schema);
 		v_is_cached := case when g_q_ref_cols_md5 != v_q_ref_cols_md5 then 'load' else 'cached!' end;
 		if v_is_cached != 'cached!' then
@@ -1909,6 +1938,18 @@ is
 		FOR ind IN 1 .. g_q_ref_cols_tab.COUNT LOOP
 			pipe row (g_q_ref_cols_tab(ind));
 		END LOOP;
+        ----
+        $IF data_browser_conf.g_debug $THEN
+            EXECUTE IMMEDIATE api_trace.Dyn_Log_Exit
+            USING g_q_ref_cols_tab.COUNT;
+        $END
+    exception 
+      when NO_DATA_NEEDED then
+        NULL;
+      when OTHERS then 
+        EXECUTE IMMEDIATE api_trace.Dyn_Log_Exception
+        USING p_view_name,p_data_format,p_include_schema;
+        RAISE;
 	END FN_Pipe_browser_q_refs;
 
 
@@ -1949,14 +1990,25 @@ is
 		WHERE S.TABLE_NAME = NVL(v_Table_Name, S.TABLE_NAME)
 		AND S.R_COLUMN_ID IS NOT NULL;
 		v_in_row rec_table_imp_fk;
+		v_Count PLS_INTEGER := 0;
 	BEGIN
+        $IF data_browser_conf.g_debug $THEN
+            EXECUTE IMMEDIATE api_trace.Dyn_Log_Start
+            USING p_table_name;
+        $END
 		OPEN views_cur(p_Table_Name);
 		LOOP
 			FETCH views_cur INTO v_in_row;
 			EXIT WHEN views_cur%NOTFOUND;
 			pipe row (v_in_row);
+			v_Count := v_Count + 1;
 		END LOOP;
 		CLOSE views_cur;
+        ----
+        $IF data_browser_conf.g_debug $THEN
+            EXECUTE IMMEDIATE api_trace.Dyn_Log_Exit
+            USING v_Count;
+        $END
 	end FN_Pipe_table_imp_fk1;
 
 	FUNCTION FN_Pipe_table_imp_fk2 (
@@ -1996,18 +2048,30 @@ is
 			SUM(case when Q.U_MEMBERS = 1 THEN 1 else 0 end ) OVER (PARTITION BY Q.TABLE_NAME, Q.FOREIGN_KEY_COLS) HAS_SIMPLE_UNIQUE,
 			case when Q.IS_REFERENCE = 'N' then 0 else 1 end HAS_FOREIGN_KEY,
 			Q.U_CONSTRAINT_NAME, Q.U_MEMBERS, 1 POSITION2
-		FROM TABLE(data_browser_select.FN_Pipe_browser_q_refs(p_View_Name => v_Table_Name, p_Data_Format => p_Data_Format)) Q 
-		where Q.IS_FILE_FOLDER_REF = 'N';
+		FROM MVDATA_BROWSER_VIEWS S, TABLE(data_browser_select.FN_Pipe_browser_q_refs(p_View_Name => S.VIEW_NAME, p_Data_Format => p_Data_Format)) Q 
+		where Q.IS_FILE_FOLDER_REF = 'N' 
+		and S.TABLE_NAME = v_Table_Name;	-- Bugfix: DS 20230309 TABLE_NAME was used wrong here.
 		
 		v_in_row rec_table_imp_fk;
+		v_Count PLS_INTEGER := 0;
 	BEGIN
+        $IF data_browser_conf.g_debug $THEN
+            EXECUTE IMMEDIATE api_trace.Dyn_Log_Start
+            USING p_table_name,p_as_of_timestamp,p_data_format;
+        $END
 		OPEN views_cur(p_Table_Name);
 		LOOP
 			FETCH views_cur INTO v_in_row;
 			EXIT WHEN views_cur%NOTFOUND;
 			pipe row (v_in_row);
+			v_Count := v_Count + 1;
 		END LOOP;
 		CLOSE views_cur;
+        ----
+        $IF data_browser_conf.g_debug $THEN
+            EXECUTE IMMEDIATE api_trace.Dyn_Log_Exit
+            USING v_Count;
+        $END
 	end FN_Pipe_table_imp_fk2;
 
 	FUNCTION NL(p_Indent PLS_INTEGER) RETURN VARCHAR2 
@@ -2132,11 +2196,10 @@ is
 			or NOT(p_Ref_View_Name = p_Parent_Name and p_R_Column_Name = NVL(p_Parent_Key_Column, p_R_Column_Name))
 		) then 'NO' else 'YES' end;
 	
-$IF data_browser_conf.g_debug $THEN
-            EXECUTE IMMEDIATE api_trace.Dyn_Log_Call
-            USING p_parent_key_visible,p_parent_name,p_parent_key_column,p_ref_view_name,p_r_column_name;
-			apex_debug.message(p_message => v_Result, p_max_length => 3500, p_level => apex_debug.c_log_level_app_trace);
-$END
+        $IF data_browser_conf.g_debug $THEN
+            EXECUTE IMMEDIATE api_trace.Dyn_Log_Function_Call
+            USING p_parent_key_visible,p_parent_name,p_parent_key_column,p_ref_view_name,p_r_column_name,v_result;
+        $END
 
 		return v_Result;
 	end FN_Filter_Parent_Key;
@@ -2202,7 +2265,7 @@ $END
 	is
 	begin
 		if p_cols_rec.COLUMN_NAME = 'CONTROL_BREAK$' then 
-			return (p_Report_Mode = 'YES');
+			return (p_Report_Mode = 'YES' and p_View_Mode NOT IN ('RECORD_VIEW', 'IMPORT_VIEW', 'EXPORT_VIEW'));
 		elsif p_cols_rec.IS_SEARCH_KEY = 'Y' and p_cols_rec.DISPLAY_IN_REPORT = 'N' then
 			return (p_Report_Mode IN ('NO', 'ALL') or p_View_Mode IN ('RECORD_VIEW', 'IMPORT_VIEW', 'EXPORT_VIEW'));
 		elsif p_cols_rec.COLUMN_NAME IN ('LINK_ID$', 'ROW_SELECTOR$') 
@@ -2919,10 +2982,6 @@ $END
 	PRAGMA UDF;
 		v_Result VARCHAR2(32767);
 	begin
-$IF data_browser_conf.g_debug $THEN
-            EXECUTE IMMEDIATE api_trace.Dyn_Log_Call
-            USING p_table_name,p_display_col_names,p_extra_col_names,p_search_key_col,p_search_value,p_view_mode,p_filter_cond,p_exclude_col_name,p_folder_par_col_name,p_folder_name_col_name,p_folder_cont_col_name,p_folder_cont_alias,p_active_col_name,p_active_data_type,p_order_by,p_level,p_indent;
-$END
 		v_Result :=
 		case when p_Folder_Name_Col_Name IS NOT NULL
 			and p_Folder_Par_Col_Name IS NOT NULL
@@ -2958,15 +3017,16 @@ $END
 				p_Indent			=> p_Indent
 			)
 		end;
-		$IF data_browser_conf.g_debug $THEN
-			apex_debug.message(
-				p_message => 'Result Query : %s',
-				p0 => v_Result,
-				p_max_length => 3500
-				--, p_level => apex_debug.c_log_level_app_trace
-			);
-		$END
+        $IF data_browser_conf.g_debug $THEN
+            EXECUTE IMMEDIATE api_trace.Dyn_Log_Function_Call
+            USING p_table_name,p_display_col_names,p_extra_col_names,p_search_key_col,p_search_value,p_view_mode,p_filter_cond,p_exclude_col_name,p_folder_par_col_name,p_folder_name_col_name,p_folder_cont_col_name,p_folder_cont_alias,p_active_col_name,p_active_data_type,p_order_by,p_level,p_indent,v_result;
+        $END
 		return v_Result;
+    exception 
+      when OTHERS then 
+        EXECUTE IMMEDIATE api_trace.Dyn_Log_Exception
+        USING p_table_name,p_display_col_names,p_extra_col_names,p_search_key_col,p_search_value,p_view_mode,p_filter_cond,p_exclude_col_name,p_folder_par_col_name,p_folder_name_col_name,p_folder_cont_col_name,p_folder_cont_alias,p_active_col_name,p_active_data_type,p_order_by,p_level,p_indent;
+        RAISE;
 	end Key_Values_Path_Query;
 
 	FUNCTION Key_Values_Query (
@@ -3254,16 +3314,25 @@ $END
 			INTO v_query
 			FROM MVDATA_BROWSER_DESCRIPTIONS
 			WHERE VIEW_NAME = p_Table_Name;
-			return v_query;
 		else
-			return 'select null d, null r from dual';
+			v_query := 'select null d, null r from dual';
 		end if;
+        ----
+        $IF data_browser_conf.g_debug $THEN
+            EXECUTE IMMEDIATE api_trace.Dyn_Log_Function_Call
+            USING p_table_name,p_parent_table,p_parent_key_column,p_parent_key_item,p_filter_cond,p_order_by,v_query;
+        $END
+        return v_query;
 	exception when NO_DATA_FOUND then
 $IF data_browser_conf.g_runtime_exceptions $THEN
 		RAISE_APPLICATION_ERROR(-20101, 'Bad Parameter for Get_LOV_Query detected. Column: ' 
 		|| dbms_assert.enquote_name(p_Table_Name) || '.' || dbms_assert.enquote_name(p_Parent_Key_Column));
 $END
 		return 'select null d, null r from dual';
+      when OTHERS then 
+        EXECUTE IMMEDIATE api_trace.Dyn_Log_Exception
+        USING p_table_name,p_parent_table,p_parent_key_column,p_parent_key_item,p_filter_cond,p_order_by;
+        RAISE;
 	end Get_LOV_Query;
 
 	FUNCTION LOV_CURSOR (
@@ -3410,6 +3479,11 @@ $END
 		else 
 			v_Query := v_Default_Query;
 		end if;
+        ----
+        $IF data_browser_conf.g_debug $THEN
+            EXECUTE IMMEDIATE api_trace.Dyn_Log_Function_Call
+            USING p_table_name,p_parent_key_column,p_parent_key_item,v_Query;
+        $END
 		return v_Query;
 	exception when NO_DATA_FOUND then
 		return v_Default_Query;
@@ -3436,11 +3510,8 @@ $END
 		v_Folder_Par_Col_Name		MVDATA_BROWSER_REFERENCES.FOLDER_PARENT_COLUMN_NAME%TYPE;
 		v_Folder_Name_Col_Name		MVDATA_BROWSER_REFERENCES.FOLDER_NAME_COLUMN_NAME%TYPE;
 		v_Folder_Cont_Col_Name		MVDATA_BROWSER_REFERENCES.FOLDER_CONTAINER_COLUMN_NAME%TYPE;
+        v_result varchar2(32767);
 	begin
-$IF data_browser_conf.g_debug $THEN
-            EXECUTE IMMEDIATE api_trace.Dyn_Log_Call
-            USING p_table_name,p_fk_column_id,p_column_name,p_parent_table,p_parent_key_column,p_parent_key_item;
-$END
 		if p_Table_Name IS NOT NULL then 
 			SELECT R_VIEW_NAME, R_PRIMARY_KEY_COLS, DISPLAYED_COLUMN_NAMES, ACTIVE_LOV_COLUMN_NAME, ACTIVE_LOV_DATA_TYPE, 
 					ORDERING_COLUMN_NAME, PARENT_KEY_COLUMN, FILTER_KEY_COLUMN, 
@@ -3456,7 +3527,7 @@ $END
 				v_filter := 'L1.' || v_Filter_Key_Column
 				|| ' = NVL(V(' || dbms_assert.enquote_literal(p_Parent_Key_Item) || '), L1.' || v_Filter_Key_Column || ')';
 			end if;
-			return data_browser_select.Key_Values_Path_Query(
+			v_result := data_browser_select.Key_Values_Path_Query(
 				p_Table_Name => v_R_View_Name,
 				p_Display_Col_Names => v_Displayed_Column_Names,
 				p_Search_Key_Col => v_Unique_Key_Column,
@@ -3473,14 +3544,23 @@ $END
 				p_Order_by => NVL(v_Ordering_Column_Name, '1')
 			);
 		else
-			return 'select null d, null r from dual';
+			v_result := 'select null d, null r from dual';
 		end if;
+        $IF data_browser_conf.g_debug $THEN
+            EXECUTE IMMEDIATE api_trace.Dyn_Log_Function_Call
+            USING p_table_name,p_fk_column_id,p_column_name,p_parent_table,p_parent_key_column,p_parent_key_item,v_result;
+        $END
+        return v_result;
 	exception when NO_DATA_FOUND then
 $IF data_browser_conf.g_runtime_exceptions $THEN
 		RAISE_APPLICATION_ERROR(-20101, 'Bad Parameter for Get_Ref_LOV_Query detected. Column: ' 
 		|| dbms_assert.enquote_name(p_Table_Name) || '.' || dbms_assert.enquote_name(p_FK_Column_ID));
 $END
 		return 'select null d, null r from dual';
+      when OTHERS then 
+        EXECUTE IMMEDIATE api_trace.Dyn_Log_Exception
+        USING p_table_name,p_fk_column_id,p_column_name,p_parent_table,p_parent_key_column,p_parent_key_item;
+        RAISE;
 	end Get_Ref_LOV_Query;
 
 
@@ -3586,10 +3666,10 @@ $END
 		v_out_tab			View_Cols_Tab;
 		v_Max_Link_Count CONSTANT PLS_INTEGER := data_browser_conf.Get_Navigation_Link_Limit;
 	BEGIN
-$IF data_browser_conf.g_debug $THEN
-            EXECUTE IMMEDIATE api_trace.Dyn_Log_Call
+        $IF data_browser_conf.g_debug $THEN
+            EXECUTE IMMEDIATE api_trace.Dyn_Log_Start
             USING p_table_name,p_display_col_names,p_search_key_col,p_search_value,p_view_mode,p_data_format,p_key_column,p_target1,p_target2,p_detail_page_id,p_link_page_id,p_level;
-$END
+        $END
 		OPEN Display_Values_cur;
 		FETCH Display_Values_cur BULK COLLECT INTO v_out_tab;
 		CLOSE Display_Values_cur;
@@ -3676,15 +3756,22 @@ $ELSE
 				|| ' AND ROWNUM <= ' || (v_Max_Link_Count + 1) || NL(8)
 $END
 				|| ')';
-				return DBMS_ASSERT.ENQUOTE_LITERAL('<div class="navigation_links">') || '||' || NL(4)
+				v_Result := DBMS_ASSERT.ENQUOTE_LITERAL('<div class="navigation_links">') || '||' || NL(4)
 				|| v_Result || '||' || DBMS_ASSERT.ENQUOTE_LITERAL('</div>');
 			end if;
-		end if;
+		else 
 $IF data_browser_conf.g_runtime_exceptions $THEN
 		RAISE_APPLICATION_ERROR(-20101, 'Bad Parameter for Child_Link_List_Query detected. Column: ' 
 		|| dbms_assert.enquote_name(p_Table_Name) || '.' || dbms_assert.enquote_name(p_Key_Column));
 $END
-		return 'null';
+			v_Result := 'null';
+		end if;
+        ----
+        $IF data_browser_conf.g_debug $THEN
+            EXECUTE IMMEDIATE api_trace.Dyn_Log_Exit
+            USING v_result;
+        $END
+        return v_result;
 $IF data_browser_conf.g_use_exceptions $THEN
 	exception
 	  when others then
@@ -3746,7 +3833,7 @@ $END
 	) RETURN CLOB
 	IS
 		v_Table_Name		MVDATA_BROWSER_VIEWS.VIEW_NAME%TYPE := UPPER(p_Table_Name);
-		v_Stat				CLOB;
+		v_result			CLOB;
 		v_Str				VARCHAR2(4000);
 		v_Describe_Cols_md5 VARCHAR2(300);
 		v_is_cached			VARCHAR2(10);
@@ -3769,7 +3856,7 @@ $END
 			CLOSE data_browser_select.Describe_Imp_Cols_cur;
 			g_Describe_Cols_md5 := v_Describe_Cols_md5;
 		end if;
-		dbms_lob.createtemporary(v_Stat, true, dbms_lob.call);
+		dbms_lob.createtemporary(v_result, true, dbms_lob.call);
 		FOR ind IN 1 .. g_Describe_Cols_tab.COUNT LOOP
 			if	(p_Edit_Mode = 'YES'		-- if Edit single record or not hidden
 			  and p_Report_Mode = 'NO'		-- in Edit single record mode, hidden (key) columns have no header
@@ -3789,7 +3876,7 @@ $END
 								and p_Enable_Sort = 'YES'
 								and v_Data_Format = 'FORM'
 								and g_Describe_Cols_tab(ind).COLUMN_ID > 0
-								and dbms_lob.getlength(v_Stat) < 3000 then
+								and dbms_lob.getlength(v_result) < 3000 then
 									-- the space for column headers is limited to 4000 bytes
 									data_browser_select.Get_Sort_Link_Html(
 										p_Column_Name => g_Describe_Cols_tab(ind).COLUMN_NAME,
@@ -3826,7 +3913,7 @@ $END
 							end
 				end;
 				if length(v_Str) > 1000 then
-					dbms_lob.writeappend(v_Stat, length(v_Str), v_Str);
+					dbms_lob.writeappend(v_result, length(v_Str), v_Str);
 					v_Str := NULL;
 				end if;
 				v_Delimiter := p_Delimiter;
@@ -3840,13 +3927,14 @@ $END
 			end if;
 		END LOOP;
 		if v_Str IS NOT NULL then
-			dbms_lob.writeappend(v_Stat, length(v_Str), v_Str);
+			dbms_lob.writeappend(v_result, length(v_Str), v_Str);
 		end if;
-$IF data_browser_conf.g_debug $THEN
-            EXECUTE IMMEDIATE api_trace.Dyn_Log_Call
-            USING p_table_name,p_unique_key_column,p_delimiter,p_data_columns_only,p_select_columns,p_columns_limit,p_format,p_join_options,p_view_mode,p_edit_mode,p_report_mode,p_enable_sort,p_order_by,p_order_direction,p_parent_name,p_parent_key_column,p_parent_key_visible;
-$END
-		RETURN v_Stat;
+        ----
+        $IF data_browser_conf.g_debug $THEN
+            EXECUTE IMMEDIATE api_trace.Dyn_Log_Function_Call
+            USING p_table_name,p_unique_key_column,p_delimiter,p_data_columns_only,p_select_columns,p_columns_limit,p_format,p_join_options,p_view_mode,p_edit_mode,p_report_mode,p_enable_sort,p_order_by,p_order_direction,p_parent_name,p_parent_key_column,p_parent_key_visible,v_result;
+        $END
+		RETURN v_result;
 $IF data_browser_conf.g_use_exceptions $THEN
 	exception
 	  when others then
@@ -4186,12 +4274,11 @@ $END
 		);
 		dbms_lob.append(v_Stat, v_From_Clause);
 
-$IF data_browser_conf.g_debug $THEN
-            EXECUTE IMMEDIATE api_trace.Dyn_Log_Call
-            USING p_table_name,p_unique_key_column,p_data_columns_only,p_columns_limit,p_as_of_timestamp,p_select_columns,p_control_break,p_join_options,p_view_mode,p_edit_mode,p_data_source,p_data_format,p_report_mode,p_form_page_id,p_form_parameter,p_search_field_item,p_search_column_name,p_comments,p_parent_name,p_parent_key_column,p_parent_key_visible,p_file_page_id;
-			apex_debug.message(p_message => v_is_cached, p_max_length => 3500);
-			apex_debug.message(p_message => v_Stat, p_max_length => 3500);
-$END
+        ----
+        $IF data_browser_conf.g_debug $THEN
+            EXECUTE IMMEDIATE api_trace.Dyn_Log_Function_Call
+            USING p_table_name,p_unique_key_column,p_data_columns_only,p_columns_limit,p_as_of_timestamp,p_select_columns,p_control_break,p_join_options,p_view_mode,p_edit_mode,p_data_source,p_data_format,p_report_mode,p_form_page_id,p_form_parameter,p_search_field_item,p_search_column_name,p_comments,p_parent_name,p_parent_key_column,p_parent_key_visible,p_file_page_id,v_Stat;
+        $END
 		RETURN v_Stat;
 $IF data_browser_conf.g_use_exceptions $THEN
 	exception
@@ -4567,20 +4654,19 @@ $END
 		);
 		dbms_lob.append(v_Stat, v_From_Clause);
 
-$IF data_browser_conf.g_debug $THEN
-		EXECUTE IMMEDIATE api_trace.Dyn_Log_Exit;
-$END
+        $IF data_browser_conf.g_debug $THEN
+            EXECUTE IMMEDIATE api_trace.Dyn_Log_Exit
+            USING v_Stat;
+        $END
 		return v_Stat;
-$IF data_browser_conf.g_use_exceptions $THEN
-	exception
-	  when others then
+    exception 
+      when OTHERS then 
 		if data_browser_select.Describe_Cols_cur%ISOPEN then
 			CLOSE data_browser_select.Describe_Cols_cur;
 		end if;
         EXECUTE IMMEDIATE api_trace.Dyn_Log_Exception
         USING p_table_name,p_unique_key_column,p_data_columns_only,p_columns_limit,p_select_columns,p_control_break,p_view_mode,p_edit_mode,p_data_format,p_data_source,p_empty_row,p_report_mode,p_parent_name,p_parent_key_column,p_parent_key_visible,p_link_page_id,p_link_parameter,p_detail_page_id,p_detail_parameter,p_form_page_id,p_form_parameter,p_file_page_id,p_search_field_item,p_search_column_name,p_calc_totals,p_nested_links,p_source_query,p_comments;
-		raise;
-$END
+        RAISE;
 	end Get_Form_View_Query;
 
 
@@ -4745,23 +4831,20 @@ $END
 			dbms_lob.writeappend(v_Stat, length(v_Str), v_Str);
 		end if;
 
-$IF data_browser_conf.g_debug $THEN
-            EXECUTE IMMEDIATE api_trace.Dyn_Log_Call
-            USING p_table_name,p_unique_key_column,p_delimiter,p_data_columns_only,p_select_columns,p_columns_limit,p_format,p_view_mode,p_edit_mode,p_report_mode,p_enable_sort,p_order_by,p_order_direction,p_parent_name,p_parent_key_column,p_parent_key_visible,p_link_page_id,p_link_parameter,p_detail_page_id,p_detail_parameter,p_file_page_id;
-			apex_debug.message(p_message => v_is_cached, p_max_length => 3500);
-			apex_debug.message(p_message => v_Stat, p_max_length => 3500);
-$END
-		RETURN v_Stat;
-$IF data_browser_conf.g_use_exceptions $THEN
-	exception
-	  when others then
+        ----
+        $IF data_browser_conf.g_debug $THEN
+            EXECUTE IMMEDIATE api_trace.Dyn_Log_Function_Call
+            USING p_table_name,p_unique_key_column,p_delimiter,p_data_columns_only,p_select_columns,p_columns_limit,p_format,p_view_mode,p_edit_mode,p_report_mode,p_enable_sort,p_order_by,p_order_direction,p_parent_name,p_parent_key_column,p_parent_key_visible,p_link_page_id,p_link_parameter,p_detail_page_id,p_detail_parameter,p_file_page_id,v_Stat;
+        $END
+        return v_Stat;
+    exception 
+      when OTHERS then 
 		if data_browser_select.Describe_Cols_cur%ISOPEN then
 			CLOSE data_browser_select.Describe_Cols_cur;
 		end if;
         EXECUTE IMMEDIATE api_trace.Dyn_Log_Exception
         USING p_table_name,p_unique_key_column,p_delimiter,p_data_columns_only,p_select_columns,p_columns_limit,p_format,p_view_mode,p_edit_mode,p_report_mode,p_enable_sort,p_order_by,p_order_direction,p_parent_name,p_parent_key_column,p_parent_key_visible,p_link_page_id,p_link_parameter,p_detail_page_id,p_detail_parameter,p_file_page_id;
-		raise;
-$END
+        RAISE;
 	END Get_Form_View_Column_List;
 
 	FUNCTION Get_View_Column_Cursor (	-- internal
@@ -4855,12 +4938,11 @@ $END
 		else
 			return;
 		end if;
-$IF data_browser_conf.g_debug $THEN
-            EXECUTE IMMEDIATE api_trace.Dyn_Log_Call
-            USING p_table_name,p_unique_key_column,p_columns_limit,p_data_columns_only,p_select_columns,p_join_options,p_view_mode,p_edit_mode,p_data_format,p_report_mode,p_parent_name,p_parent_key_column,p_parent_key_visible,p_link_page_id,p_link_parameter,p_detail_page_id,p_detail_parameter,p_file_page_id;
-			apex_debug.message(p_message => v_is_cached, p_max_length => 3500);
-$END
-$IF data_browser_conf.g_use_exceptions $THEN
+        ----
+        $IF data_browser_conf.g_debug $THEN
+            EXECUTE IMMEDIATE api_trace.Dyn_Log_Function_Call
+            USING p_table_name,p_unique_key_column,p_columns_limit,p_data_columns_only,p_select_columns,p_join_options,p_view_mode,p_edit_mode,p_data_format,p_report_mode,p_parent_name,p_parent_key_column,p_parent_key_visible,p_link_page_id,p_link_parameter,p_detail_page_id,p_detail_parameter,p_file_page_id,g_Describe_Cols_tab.COUNT;
+        $END
 	 exception
        when NO_DATA_NEEDED then
 		if data_browser_select.Describe_Imp_Cols_cur%ISOPEN then
@@ -4879,9 +4961,7 @@ $IF data_browser_conf.g_use_exceptions $THEN
 		EXECUTE IMMEDIATE api_trace.Dyn_Log_Exception
 		USING p_table_name,p_unique_key_column,p_columns_limit,p_data_columns_only,p_select_columns,p_join_options,p_view_mode,p_edit_mode,p_data_format,p_report_mode,p_parent_name,p_parent_key_column,p_parent_key_visible,p_link_page_id,p_link_parameter,p_detail_page_id,p_detail_parameter,p_file_page_id;
 		RAISE;
-$END
 	END Get_View_Column_Cursor;
 
 end data_browser_select;
 /
-show errors

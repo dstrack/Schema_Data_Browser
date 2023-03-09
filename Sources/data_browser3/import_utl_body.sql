@@ -52,7 +52,11 @@ limitations under the License.
 
 CREATE OR REPLACE PACKAGE BODY import_utl IS
 
-	FUNCTION FN_Pipe_table_imp_cols (p_Table_Name VARCHAR2)
+	FUNCTION FN_Pipe_table_imp_cols (
+		p_Table_Name VARCHAR2, 
+		p_Report_Mode VARCHAR2 DEFAULT 'YES',
+		p_Data_Format VARCHAR2 DEFAULT 'NATIVE'
+	)
 	RETURN tab_table_imp_cols PIPELINED
 	IS
         CURSOR views_cur (v_Table_Name VARCHAR2)
@@ -74,10 +78,10 @@ CREATE OR REPLACE PACKAGE BODY import_utl IS
 				p_Table_Name => S.VIEW_NAME,
 				p_Unique_Key_Column => S.SEARCH_KEY_COLS,
 				p_Data_Columns_Only => 'NO',
-				p_Data_Format => 'NATIVE',
+				p_Data_Format => p_Data_Format,
 				p_View_Mode => 'IMPORT_VIEW',
-				p_Edit_Mode => 'YES',
-				p_Report_Mode => 'NO'
+				p_Edit_Mode=> 'NO',
+				p_Report_Mode => p_Report_Mode
 			)
 		) E
 		WHERE S.VIEW_NAME = p_Table_Name
@@ -96,18 +100,18 @@ CREATE OR REPLACE PACKAGE BODY import_utl IS
 
 	FUNCTION FN_Pipe_table_imp_trigger (
 		p_Table_Name VARCHAR2,
-		p_Data_Format VARCHAR2 DEFAULT 'NATIVE' -- FORM, HTML, CSV, NATIVE. Format of the final projection columns.
+		p_Data_Format VARCHAR2 DEFAULT 'NATIVE', -- FORM, HTML, CSV, NATIVE. Format of the final projection columns.
+		p_use_NLS_params VARCHAR2 DEFAULT 'Y',
+		p_Use_Group_Separator VARCHAR2 DEFAULT 'Y',
+		p_Report_Mode VARCHAR2 DEFAULT 'YES'
 	)
 	RETURN tab_table_imp_trigger PIPELINED
 	IS
-		v_Use_Group_Separator 	CONSTANT VARCHAR2(1) := 'Y';
-		v_use_NLS_params 		CONSTANT VARCHAR2(1) := 'Y'; -- case when v_Data_Format = 'FORM' then 'N' else 'Y' end
-
-        CURSOR views_cur (v_Table_Name VARCHAR2, v_Data_Format VARCHAR2)
+        CURSOR views_cur (v_Table_Name VARCHAR2, v_View_Name VARCHAR2, v_Data_Format VARCHAR2, v_use_NLS_params VARCHAR2, v_Use_Group_Separator VARCHAR2)
         IS
 		WITH REFERENCES_Q AS (
 			SELECT E.*
-			FROM TABLE (import_utl.FN_Pipe_table_imp_cols(v_Table_Name)) E
+			FROM TABLE (import_utl.FN_Pipe_table_imp_cols(v_View_Name, p_Report_Mode, p_Data_Format)) E
 			WHERE (E.TABLE_ALIAS != 'A'  OR E.TABLE_ALIAS IS NULL OR E.COLUMN_EXPR_TYPE = 'HIDDEN')
 		)
 		, PARENT_LOOKUP_Q AS (
@@ -121,12 +125,12 @@ CREATE OR REPLACE PACKAGE BODY import_utl IS
 					Q.TABLE_NAME, Q.VIEW_NAME, Q.SEARCH_KEY_COLS, Q.SHORT_NAME,
 					Q.FOREIGN_KEY_COLS 	COLUMN_NAME,
                     Q.VIEW_NAME         S_VIEW_NAME,
-                    Q.PARENT_KEY_COLUMN,
+                    Q.PARENT_KEY_COLUMN,	-- BUG: When this column is NULL, a component column of the referenced table is missing in the view. 
 					Q.TABLE_ALIAS 		TABLE_ALIAS, 
 					S.R_VIEW_NAME 		D_VIEW_NAME,
 					S.IMP_COLUMN_NAME
 				FROM MVDATA_BROWSER_F_REFS S, TABLE(data_browser_select.FN_Pipe_browser_q_refs(
-					p_View_Name => S.VIEW_NAME,
+					p_View_Name => S.TABLE_NAME,
 					p_Data_Format => v_Data_Format,
 					p_Include_Schema => 'NO'
 				)) Q
@@ -135,7 +139,7 @@ CREATE OR REPLACE PACKAGE BODY import_utl IS
 					and Q.TABLE_ALIAS = S.TABLE_ALIAS
 					and Q.J_VIEW_NAME = S.R_VIEW_NAME
 					and Q.J_COLUMN_NAME = S.R_COLUMN_NAME
-				and S.VIEW_NAME = v_Table_Name
+				and S.VIEW_NAME = v_View_Name
 			) S
 			JOIN REFERENCES_Q E ON E.R_VIEW_NAME = S.S_VIEW_NAME AND E.COLUMN_NAME = S.PARENT_KEY_COLUMN
 			JOIN REFERENCES_Q F ON F.R_VIEW_NAME = S.D_VIEW_NAME AND F.COLUMN_NAME = S.IMP_COLUMN_NAME
@@ -274,7 +278,8 @@ CREATE OR REPLACE PACKAGE BODY import_utl IS
 						R_COLUMN_ID, R_COLUMN_NAME, POSITION, R_NULLABLE, R_DATA_TYPE, R_DATA_PRECISION, R_DATA_SCALE, 
 						R_CHAR_LENGTH, TABLE_ALIAS, IMP_COLUMN_NAME, JOIN_CLAUSE, HAS_NULLABLE, HAS_SIMPLE_UNIQUE, 
 						HAS_FOREIGN_KEY, U_CONSTRAINT_NAME, U_MEMBERS, POSITION2		
-					FROM TABLE(data_browser_select.FN_Pipe_table_imp_fk2 (v_Table_Name, import_utl.Get_As_Of_Timestamp, p_Data_Format))
+					FROM TABLE(data_browser_select.FN_Pipe_table_imp_fk2 (
+						p_Table_Name=>v_Table_Name, p_As_Of_Timestamp=>import_utl.Get_As_Of_Timestamp, p_Data_Format=>v_Data_Format))
 					UNION ALL
 					-- 1. level foreign keys
 					SELECT VIEW_NAME, TABLE_NAME, SEARCH_KEY_COLS, SHORT_NAME, COLUMN_NAME, 
@@ -331,6 +336,7 @@ CREATE OR REPLACE PACKAGE BODY import_utl IS
 			HAVING (MAX(T.U_CONSTRAINT_NAME) IS NOT NULL or import_utl.Get_Search_Keys_Unique = 'NO')
 			ORDER BY SUM(HAS_FOREIGN_KEY), T.TABLE_ALIAS DESC, T.U_MEMBERS, T.COLUMN_ID, T.D_REF
 		) 
+		----------------------------------------------------------------------------------
 		SELECT SQL_TEXT,
 			case when B.COLUMN_CHECK_EXPR IS NOT NULL then
 				'SELECT IMP.IMPORTJOB_ID$, IMP.LINK_ID$, IMP.LINE_NO$, '
@@ -412,8 +418,7 @@ CREATE OR REPLACE PACKAGE BODY import_utl IS
 				'T' CHECK_CONSTRAINT_TYPE,
 				---------------------------
 				0 DEFAULTS_MISSING, T.COLUMN_ID POSITION, 1 POSITION2, NULL R_VIEW_NAME
-			FROM TABLE (import_utl.FN_Pipe_table_imp_cols(v_Table_Name)) T
-			JOIN MVDATA_BROWSER_VIEWS S ON S.TABLE_NAME = T.TABLE_NAME
+			FROM MVDATA_BROWSER_VIEWS S, TABLE (import_utl.FN_Pipe_table_imp_cols(S.VIEW_NAME, p_Report_Mode, p_Data_Format)) T
 			WHERE import_utl.Get_ImpColumnCheck (T.DATA_TYPE, T.DATA_SCALE, T.CHAR_LENGTH, T.NULLABLE, T.COLUMN_NAME) IS NOT NULL
 			AND T.IS_VIRTUAL_COLUMN = 'N'
 			AND T.TABLE_ALIAS = 'A'
@@ -478,8 +483,7 @@ CREATE OR REPLACE PACKAGE BODY import_utl IS
 				FROM TABLE(data_browser_conf.Constraint_Condition_Cursor(p_Owner => SYS_CONTEXT('USERENV', 'CURRENT_SCHEMA')))
 			) A ON A.TABLE_NAME = S.TABLE_NAME
 			JOIN SYS.USER_CONS_COLUMNS B ON A.CONSTRAINT_NAME = B.CONSTRAINT_NAME AND A.TABLE_NAME = B.TABLE_NAME AND A.OWNER = B.OWNER
-			--JOIN SYS.USER_TAB_COLUMNS T ON A.TABLE_NAME = T.TABLE_NAME AND B.COLUMN_NAME = T.COLUMN_NAME
-			JOIN TABLE (import_utl.FN_Pipe_table_imp_cols(v_Table_Name)) T ON A.TABLE_NAME = T.TABLE_NAME AND B.COLUMN_NAME = T.COLUMN_NAME
+			JOIN TABLE (import_utl.FN_Pipe_table_imp_cols(v_View_Name, p_Report_Mode, p_Data_Format)) T ON S.VIEW_NAME = T.TABLE_NAME AND B.COLUMN_NAME = T.COLUMN_NAME
 			AND NOT EXISTS (-- no foreign key columns
 				SELECT 1 
 				FROM MVDATA_BROWSER_FKEYS FK
@@ -490,9 +494,19 @@ CREATE OR REPLACE PACKAGE BODY import_utl IS
 			AND S.TABLE_NAME = v_Table_Name
 			GROUP BY S.VIEW_NAME, A.CONSTRAINT_NAME, A.SEARCH_CONDITION, S.SHORT_NAME
 		) B;
+		v_Use_Group_Separator 	CONSTANT VARCHAR2(10) := NVL(p_Use_Group_Separator, 'Y');
+		v_use_NLS_params 		CONSTANT VARCHAR2(10) := NVL(p_use_NLS_params, 'Y'); -- case when v_Data_Format = 'FORM' then 'N' else 'Y' end
+        v_Table_Name 			MVDATA_BROWSER_VIEWS.TABLE_NAME%TYPE;
+        v_View_Name 			MVDATA_BROWSER_VIEWS.VIEW_NAME%TYPE;
+
         v_in_row rec_table_imp_trigger;
 	BEGIN
-		OPEN views_cur(p_Table_Name, p_Data_Format);
+		SELECT VIEW_NAME, TABLE_NAME
+		INTO v_View_Name, v_Table_Name
+		FROM MVDATA_BROWSER_VIEWS
+        WHERE TABLE_NAME = p_Table_Name;
+        
+		OPEN views_cur(v_Table_Name, v_View_Name, p_Data_Format, v_use_NLS_params, v_Use_Group_Separator);
 		LOOP
 			FETCH views_cur INTO v_in_row;
 			EXIT WHEN views_cur%NOTFOUND;
@@ -1214,7 +1228,8 @@ CREATE OR REPLACE PACKAGE BODY import_utl IS
     FUNCTION Get_Imp_Table_View (
     	p_Table_Name VARCHAR2,
     	p_As_Of_Timestamp VARCHAR2 DEFAULT 'NO',
-    	p_Data_Format VARCHAR2 DEFAULT 'FORM'	-- FORM, CSV, NATIVE. Format of the final projection columns.
+    	p_Data_Format VARCHAR2 DEFAULT 'FORM',	-- FORM, CSV, NATIVE. Format of the final projection columns.
+    	p_Report_Mode VARCHAR2 DEFAULT 'YES'
     ) RETURN CLOB
     IS
         v_Table_Name 				VARCHAR2(50) := UPPER(p_Table_Name);
@@ -1228,14 +1243,16 @@ CREATE OR REPLACE PACKAGE BODY import_utl IS
         FROM VUSER_TABLES_IMP
         WHERE VIEW_NAME = v_Table_Name;
 
-		RETURN 'CREATE OR REPLACE VIEW ' || case when p_As_Of_Timestamp = 'NO' then v_Import_View_Name else v_History_View_Name end
+		RETURN 'CREATE OR REPLACE VIEW ' 
+			|| data_browser_select.FN_Table_Prefix 
+			|| data_browser_conf.Enquote_Name_Required(case when p_As_Of_Timestamp = 'NO' then v_Import_View_Name else v_History_View_Name end)
 			|| chr(10) || '    ( '
 			|| data_browser_select.Get_Imp_Table_Column_List (
 					p_Table_Name => v_Table_Name,
 					p_Unique_Key_Column => v_Primary_Key_Cols,
 					p_Data_Columns_Only => 'NO',
 					p_View_Mode => 'IMPORT_VIEW',
-					p_Report_Mode => 'NO'
+					p_Report_Mode => p_Report_Mode
 				)
 			|| case when p_As_Of_Timestamp = 'NO' then 
 				data_browser_conf.NL(4)
@@ -1251,21 +1268,22 @@ CREATE OR REPLACE PACKAGE BODY import_utl IS
 				-- p_Exclude_Blob_Columns => import_utl.Get_Exclude_Blob_Columns,
 				p_View_Mode => 'IMPORT_VIEW',
 				p_Data_Format => p_Data_Format,
-				p_Report_Mode => 'NO'
+				p_Report_Mode => p_Report_Mode
 			);
     END Get_Imp_Table_View;
 
     FUNCTION Get_Imp_Table_View_trigger (
     	p_Table_Name VARCHAR2,
-		p_Data_Format VARCHAR2 DEFAULT 'NATIVE' -- FORM, HTML, CSV, NATIVE. Format of the final projection columns.
+		p_Data_Format VARCHAR2 DEFAULT 'NATIVE', -- FORM, HTML, CSV, NATIVE. Format of the final projection columns.
+		p_Report_Mode VARCHAR2 DEFAULT 'YES'
     ) RETURN CLOB
     IS
-        v_Table_Name 				VARCHAR2(50) := UPPER(p_Table_Name);
-        v_Import_Table_Name 		VARCHAR2(50);
-        v_Import_View_Name 			VARCHAR2(50);
-        v_Import_Trigger_Name 		VARCHAR2(50);
+        v_Table_Name 				VUSER_TABLES_IMP.TABLE_NAME%TYPE;
+        v_View_Name 				VUSER_TABLES_IMP.VIEW_NAME%TYPE;
+        v_Import_Table_Name 		VUSER_TABLES_IMP.IMPORT_TABLE_NAME%TYPE;
+        v_Import_View_Name 			VUSER_TABLES_IMP.IMPORT_VIEW_NAME%TYPE;
+        v_Import_Trigger_Name 		VUSER_TABLES_IMP.IMPORT_TRIGGER_NAME%TYPE;
         v_Primary_Key_Cols 			VUSER_TABLES_IMP.SEARCH_KEY_COLS%TYPE;
-        v_Has_Scalar_Primary_Key 	VARCHAR2(50);
         v_Stat CLOB;
         v_Default_Stat CLOB;
         v_Update_Values_Stat CLOB;
@@ -1275,18 +1293,25 @@ CREATE OR REPLACE PACKAGE BODY import_utl IS
     	dbms_lob.createtemporary(v_Default_Stat, true, dbms_lob.call);
     	dbms_lob.createtemporary(v_Update_Values_Stat, true, dbms_lob.call);
 
-        SELECT SEARCH_KEY_COLS, IMPORT_TABLE_NAME, IMPORT_VIEW_NAME, IMPORT_TRIGGER_NAME, HAS_SCALAR_PRIMARY_KEY
-        INTO v_Primary_Key_Cols, v_Import_Table_Name, v_Import_View_Name, v_Import_Trigger_Name, v_Has_Scalar_Primary_Key
+        v_View_Name := UPPER(p_Table_Name);
+        SELECT VIEW_NAME, TABLE_NAME, SEARCH_KEY_COLS, IMPORT_TABLE_NAME, IMPORT_VIEW_NAME, IMPORT_TRIGGER_NAME
+        INTO v_View_Name, v_Table_Name, v_Primary_Key_Cols, v_Import_Table_Name, v_Import_View_Name, v_Import_Trigger_Name
         FROM VUSER_TABLES_IMP
-        WHERE VIEW_NAME = v_Table_Name;
+        WHERE VIEW_NAME = v_View_Name;
 
         v_Stat :=
-        'CREATE OR REPLACE TRIGGER ' || v_Import_Trigger_Name  || ' INSTEAD OF INSERT OR UPDATE OR DELETE ON ' || v_Import_View_Name  || ' FOR EACH ROW  ' || chr(10)
+        'CREATE OR REPLACE TRIGGER ' 
+        || data_browser_select.FN_Table_Prefix 
+		|| data_browser_conf.Enquote_Name_Required(v_Import_Trigger_Name)
+        || ' INSTEAD OF INSERT OR UPDATE OR DELETE ON ' 
+        || data_browser_select.FN_Table_Prefix 
+		|| data_browser_conf.Enquote_Name_Required(v_Import_View_Name)  || ' FOR EACH ROW  ' || chr(10)
         || 'DECLARE ' || data_browser_conf.NL(4)
-        || 'v_row ' || v_Table_Name || '%ROWTYPE;' || chr(10);
+        || 'v_row ' || v_View_Name || '%ROWTYPE;' || chr(10);
         for c_cur in (
             SELECT DISTINCT 'v_' || D_REF || ' ' || R_VIEW_NAME || '.' || R_PRIMARY_KEY_COLS || '%TYPE;' SQL_TEXT
-            FROM TABLE (data_browser_select.FN_Pipe_table_imp_FK2(v_Table_Name, import_utl.Get_As_Of_Timestamp, p_Data_Format))
+            FROM TABLE (data_browser_select.FN_Pipe_table_imp_FK2(
+            	p_Table_Name=>v_Table_Name, p_As_Of_Timestamp=>import_utl.Get_As_Of_Timestamp, p_Data_Format=>p_Data_Format))
             ORDER BY 1
         ) loop
             v_Str := RPAD(' ', 4) || c_cur.SQL_TEXT || chr(10);
@@ -1295,7 +1320,9 @@ CREATE OR REPLACE PACKAGE BODY import_utl IS
 
         v_Str := 'BEGIN' || data_browser_conf.NL(4) 
 		|| 'if DELETING then ' || data_browser_conf.NL(8)
-		|| 'DELETE FROM ' || v_Table_Name || ' A ' || data_browser_conf.NL(8)
+		|| 'DELETE FROM ' 
+		|| data_browser_conf.Enquote_Name_Required(v_View_Name)
+		|| ' A ' || data_browser_conf.NL(8)
 		|| 'WHERE ' 
 		|| data_browser_conf.Get_Unique_Key_Expression (
 			p_Unique_Key_Column => v_Primary_Key_Cols,
@@ -1309,7 +1336,7 @@ CREATE OR REPLACE PACKAGE BODY import_utl IS
        
         for c_cur in (
             SELECT SQL_TEXT, POSITION
-            FROM TABLE (import_utl.FN_Pipe_table_imp_trigger(v_Table_Name, p_Data_Format))
+            FROM TABLE (import_utl.FN_Pipe_table_imp_trigger(v_Table_Name, p_Data_Format, p_Report_Mode))
             WHERE SQL_TEXT IS NOT NULL
         ) loop
             v_Str := c_cur.SQL_TEXT || chr(10);
@@ -1322,14 +1349,14 @@ CREATE OR REPLACE PACKAGE BODY import_utl IS
 				|| ' := NVL(v_row.' || T.COLUMN_NAME
 				|| ', ' || changelog_conf.Get_ColumnDefaultText(T.TABLE_NAME, T.COLUMN_NAME) || ');'
 				 SQL_TEXT
-			FROM TABLE (import_utl.FN_Pipe_table_imp_cols(v_Table_Name)) T
+			FROM TABLE (import_utl.FN_Pipe_table_imp_cols(v_View_Name, p_Report_Mode, p_Data_Format)) T
 			JOIN MVDATA_BROWSER_VIEWS S ON S.TABLE_NAME = T.TABLE_NAME
             AND data_browser_pattern.Match_Ignored_Columns(T.COLUMN_NAME) = 'NO'
             AND T.TABLE_ALIAS = 'A'
             AND T.IS_VIRTUAL_COLUMN = 'N'
             AND T.COLUMN_NAME != S.SEARCH_KEY_COLS
             AND T.COLUMN_NAME != 'LINK_ID$'
-			AND S.VIEW_NAME = v_Table_Name
+			AND S.VIEW_NAME = v_View_Name
 			ORDER BY T.COLUMN_ID
         ) loop
         	if c_cur.HAS_DEFAULT = 'Y' then
@@ -1346,9 +1373,9 @@ CREATE OR REPLACE PACKAGE BODY import_utl IS
 		v_Str := data_browser_conf.NL(4)
 		|| 'if INSERTING then ' || chr(10)
 		|| v_Default_Stat || rpad(' ', 8)
-		|| 'INSERT INTO ' || v_Table_Name|| ' VALUES v_row;' || data_browser_conf.NL(4)
+		|| 'INSERT INTO ' || v_View_Name|| ' VALUES v_row;' || data_browser_conf.NL(4)
 		|| 'else ' || data_browser_conf.NL(8)
-		|| 'UPDATE ' || v_Table_Name || ' SET ' || v_Update_Values_Stat || data_browser_conf.NL(8)
+		|| 'UPDATE ' || v_View_Name || ' SET ' || v_Update_Values_Stat || data_browser_conf.NL(8)
 		|| 'WHERE ' 
 		|| data_browser_conf.Get_Unique_Key_Expression (
 			p_Unique_Key_Column => v_Primary_Key_Cols,
@@ -1366,18 +1393,52 @@ CREATE OR REPLACE PACKAGE BODY import_utl IS
 
 	PROCEDURE Download_imp_views (
 		p_Schema_Name VARCHAR2 DEFAULT SYS_CONTEXT('USERENV', 'CURRENT_SCHEMA'),
-    	p_Data_Format VARCHAR2 DEFAULT 'NATIVE'	-- FORM, CSV, NATIVE. Format of the final projection columns.
+    	p_Data_Format VARCHAR2 DEFAULT 'NATIVE',	-- FORM, CSV, NATIVE. Format of the final projection columns.
+		p_use_NLS_params VARCHAR2 DEFAULT 'Y',
+		p_Use_Group_Separator VARCHAR2 DEFAULT 'Y',
+		p_Report_Mode VARCHAR2 DEFAULT 'YES'
 	) 
 	IS
         v_Stat 			CLOB;
         v_Result		CLOB;
         v_File_Name		VARCHAR2(128);
         v_Footer		VARCHAR2(100);
+		v_Compare_Case_Insensitive	VARCHAR2(10);
+		v_Search_Keys_Unique		VARCHAR2(10);
+		v_Insert_Foreign_Keys		VARCHAR2(10);
 	BEGIN
 		v_File_Name := LOWER(p_Schema_Name) || '_imp_views.sql';
     	dbms_lob.createtemporary(v_Stat, true, dbms_lob.call);
      	dbms_lob.createtemporary(v_Result, true, dbms_lob.call);
 
+		data_browser_conf.Get_Import_Parameter( v_Compare_Case_Insensitive, v_Search_Keys_Unique, v_Insert_Foreign_Keys);
+		import_utl.Set_Imp_Formats (
+			p_Export_Text_Limit       => data_browser_conf.Get_Export_Text_Limit,
+			p_Import_NumChars         => data_browser_conf.Get_Export_NumChars(p_Enquote => 'NO'),
+			p_Import_Float_Format     => data_browser_conf.Get_Export_Float_Format,
+			p_Export_Date_Format      => data_browser_conf.Get_Export_Date_Format,
+			p_Import_DateTime_Format  => data_browser_conf.Get_Export_DateTime_Format,
+			p_Import_Timestamp_Format => data_browser_conf.Get_Timestamp_Format,
+			p_Compare_Case_Insensitive	=> v_Compare_Case_Insensitive,
+			p_Search_Keys_Unique 	=> v_Search_Keys_Unique,
+			p_Insert_Foreign_Keys 	=> v_Insert_Foreign_Keys
+		);
+		v_Stat := apex_string.format(
+			p_message => '-- Import Views Parameter (Schema_Name=>%s, p_Data_Format=> %s, Use_NLS_params=> %s, p_Use_Group_Separator=> %s)',
+			p0 => p_Schema_Name,
+			p1 => p_Data_Format,
+            p2 => p_use_NLS_params,
+            p3 => p_Use_Group_Separator
+        ) || chr(10);
+		dbms_lob.append(v_Result, v_Stat);
+		v_Stat := apex_string.format(
+			p_message => '-- Import Control Parameter (Compare_Case_Insensitive=> %s, Search_Keys_Unique=> %s, Insert_Foreign_Keys=> %s)',
+            p0 => v_Compare_Case_Insensitive,
+            p1 => v_Search_Keys_Unique,
+            p2 => v_Insert_Foreign_Keys
+        ) || chr(10) || chr(10);
+		dbms_lob.append(v_Result, v_Stat);
+		
 		for c_cur IN (
 			SELECT TABLE_NAME, VIEW_NAME
 			FROM MVDATA_BROWSER_VIEWS
@@ -1386,14 +1447,16 @@ CREATE OR REPLACE PACKAGE BODY import_utl IS
 		) loop
 			v_Stat := import_utl.Get_Imp_Table_View (
 				p_Table_name => c_cur.VIEW_NAME,
-				p_Data_Format => p_Data_Format
+				p_Data_Format => p_Data_Format,
+				p_Report_Mode => p_Report_Mode
 			);
 			dbms_lob.append(v_Result, v_Stat);
 			v_Footer := ';' || chr(10) || chr(10);
 			dbms_lob.writeappend(v_Result, length(v_Footer), v_Footer);
 			v_Stat := import_utl.Get_Imp_Table_View_trigger (
 				p_Table_name => c_cur.VIEW_NAME,
-				p_Data_Format => p_Data_Format
+				p_Data_Format => p_Data_Format,
+				p_Report_Mode => p_Report_Mode
 			);
 			dbms_lob.append(v_Result, v_Stat);
 			v_Footer := chr(10) || '/' || chr(10) || chr(10);
@@ -2134,7 +2197,8 @@ CREATE OR REPLACE PACKAGE BODY import_utl IS
 
 	PROCEDURE Generate_Updatable_Views (
 		p_Schema_Name VARCHAR2 DEFAULT SYS_CONTEXT('USERENV', 'CURRENT_SCHEMA'),
-    	p_Data_Format VARCHAR2 DEFAULT 'NATIVE'	-- FORM, HTML, CSV, NATIVE. Format of the final projection columns.
+    	p_Data_Format VARCHAR2 DEFAULT 'NATIVE',	-- FORM, HTML, CSV, NATIVE. Format of the final projection columns.
+    	p_Report_Mode VARCHAR2 DEFAULT 'YES'
 	) 
 	IS
         v_Stat CLOB;
@@ -2148,12 +2212,14 @@ CREATE OR REPLACE PACKAGE BODY import_utl IS
 		) loop
 			v_Stat := import_utl.Get_Imp_Table_View (
 				p_Table_name => c_cur.VIEW_NAME,
-				p_Data_Format => p_Data_Format
+				p_Data_Format => p_Data_Format,
+				p_Report_Mode => p_Report_Mode
 			);
         	Run_DDL_Stat (v_Stat); -- create import view
 			v_Stat := import_utl.Get_Imp_Table_View_trigger (
 				p_Table_name => c_cur.VIEW_NAME,
-				p_Data_Format => p_Data_Format
+				p_Data_Format => p_Data_Format,
+				p_Report_Mode => p_Report_Mode
 			);
         	Run_DDL_Stat (v_Stat); -- create import trigger
 		end loop;

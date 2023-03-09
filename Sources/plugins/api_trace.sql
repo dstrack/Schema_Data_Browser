@@ -248,7 +248,8 @@ IS
 				when p_Data_Type IN (122, 251, 123) -- Nested table type, Index-by (PL/SQL) table type, Variable array
 				then 
 					p_bind_char || p_Formatted_Name 
-					|| '.COUNT || '
+					|| case when p_bind_char IS NULL then '.COUNT' end
+					|| c_conop
             		|| Literal(' rows') 
 				when p_Data_Type IN (			-- Is_Printable_Type:
 					2,3, 1, 8, 11, 12, 23,          -- number, varchar,long,rowid,date, raw
@@ -444,7 +445,8 @@ IS
             p_value_max_length => p_value_max_length,
             p_bind_char => ':',
             p_overload => p_overload,
-            p_in_out => 'OUT'
+            p_in_out => 'OUT',
+            p_return_variable => 'v_result'
         );
         if p_Logging_Call IS NOT NULL then 
             return Format_Call(p_Logging_Call=>p_Logging_Call, p_Call_Parameter=>v_result_str);

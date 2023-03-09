@@ -486,7 +486,7 @@ SELECT T.TABLE_NAME,
 			HAS_NULLABLE, HAS_SIMPLE_UNIQUE, 
 			HAS_FOREIGN_KEY, U_CONSTRAINT_NAME, U_MEMBERS, POSITION2,	
 			COUNT(DISTINCT R_COLUMN_NAME) OVER (PARTITION BY TABLE_NAME, COLUMN_NAME) COLUMN_CNT -- columns used for lookup
-		FROM TABLE(data_browser_select.FN_Pipe_table_imp_fk2 (null, 'NO'))
+		FROM TABLE(data_browser_select.FN_Pipe_table_imp_fk2 (p_Table_Name=>null, p_As_Of_Timestamp=>'NO'))
 		UNION
 		-- 1. level foreign keys
 		SELECT 	VIEW_NAME, TABLE_NAME, SEARCH_KEY_COLS, SHORT_NAME, COLUMN_NAME, 

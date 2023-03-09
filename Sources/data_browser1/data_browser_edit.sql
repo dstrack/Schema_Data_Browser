@@ -913,7 +913,7 @@ is
 	BEGIN
         $IF data_browser_conf.g_debug $THEN
             EXECUTE IMMEDIATE api_trace.Dyn_Log_Start
-            USING p_table_name,p_key_column,p_select_columns,p_columns_limit,p_view_mode,p_data_source,p_report_mode,p_join_options,p_parent_name,p_parent_key_column,p_parent_key_visible,p_parent_key_item,p_use_empty_columns;
+            USING p_table_name,p_key_column,p_key_value,p_select_columns,p_columns_limit,p_view_mode,p_data_source,p_report_mode,p_join_options,p_parent_name,p_parent_key_column,p_parent_key_visible,p_parent_key_item,p_use_empty_columns;
         $END
     	dbms_lob.createtemporary(v_Result_PLSQL, true, dbms_lob.call);
 		v_Result_PLSQL := Validate_Form_Checks_PL_SQL (
@@ -939,7 +939,8 @@ is
 			commit;
 		end if;
 		$IF data_browser_conf.g_debug $THEN
-            EXECUTE IMMEDIATE api_trace.Dyn_Log_Exit;
+            EXECUTE IMMEDIATE api_trace.Dyn_Log_Exit
+            USING v_Error_Message;
             apex_debug.info(
 				p_message => 'Import_Collection_Count => %s, Error_Collection_Count => %s',
 				p0 => APEX_COLLECTION.COLLECTION_MEMBER_COUNT( p_collection_name => data_browser_conf.Get_Import_Collection),
@@ -3010,7 +3011,8 @@ $END
 			end if;
 		end if;
         $IF data_browser_conf.g_debug $THEN
-            EXECUTE IMMEDIATE api_trace.Dyn_Log_Exit;
+            EXECUTE IMMEDIATE api_trace.Dyn_Log_Exit
+            USING g_Describe_Edit_Cols_tab.COUNT;
         $END
 $IF data_browser_conf.g_use_exceptions $THEN
     exception 
@@ -3443,14 +3445,14 @@ $END
 		v_Insert_Foreign_Keys		VARCHAR2(10);
 		v_use_NLS_params CONSTANT VARCHAR2(1) := case when p_View_Mode IN ('IMPORT_VIEW','EXPORT_VIEW') then 'Y' else 'N' end;
 
-        CURSOR form_view_cur
+        CURSOR form_view_cur(v_View_Name VARCHAR2, v_Table_Name VARCHAR2)
         IS
 		-- process foreign_keys of target table
 		WITH REFERENCES_Q AS (
 			SELECT E.REF_VIEW_NAME R_VIEW_NAME, E.COLUMN_NAME, E.REF_COLUMN_NAME, E.TABLE_ALIAS, E.COLUMN_HEADER,
 				E.APEX_ITEM_IDX, E.COLUMN_EXPR_TYPE, E.ROW_FACTOR, E.ROW_OFFSET, E.INPUT_ID, E.IS_REFERENCE
 			FROM TABLE ( data_browser_edit.Get_Form_Edit_Cursor (
-					p_Table_name => p_Table_name,
+					p_Table_name => v_View_Name,
 					p_Unique_Key_Column => p_Unique_Key_Column,
 					p_Select_Columns => p_Select_Columns,
 					p_Columns_Limit => p_Columns_Limit,
@@ -3509,7 +3511,7 @@ $END
 					and Q.TABLE_ALIAS = S.TABLE_ALIAS
 					and Q.J_VIEW_NAME = S.R_VIEW_NAME
 					and Q.J_COLUMN_NAME = S.R_COLUMN_NAME
-				and S.VIEW_NAME = p_Table_name
+				and S.VIEW_NAME = v_View_Name
 			) S
 			JOIN REFERENCES_Q E ON E.R_VIEW_NAME = S.S_VIEW_NAME AND E.COLUMN_NAME = S.PARENT_KEY_COLUMN
 			JOIN REFERENCES_Q F ON F.R_VIEW_NAME = S.D_VIEW_NAME AND F.COLUMN_NAME = S.IMP_COLUMN_NAME
@@ -3836,7 +3838,7 @@ $END
 					HAS_FOREIGN_KEY, U_CONSTRAINT_NAME, U_MEMBERS, POSITION2		
 				FROM 
 					-- (SELECT 'SW_FILES' p_Table_name, 'NO' p_As_Of_Timestamp FROM DUAL ) PAR,
-					TABLE(data_browser_select.FN_Pipe_table_imp_fk2 (p_Table_name, p_As_Of_Timestamp))
+					TABLE(data_browser_select.FN_Pipe_table_imp_fk2 (p_Table_name=>v_Table_Name, p_As_Of_Timestamp=>p_As_Of_Timestamp))
 				UNION
 				-- 1. level foreign keys
 				SELECT 	VIEW_NAME, TABLE_NAME, SEARCH_KEY_COLS, SHORT_NAME, COLUMN_NAME, 
@@ -3850,7 +3852,7 @@ $END
 					HAS_FOREIGN_KEY, U_CONSTRAINT_NAME, U_MEMBERS, POSITION2		
 				FROM 
 					-- (SELECT 'SW_FILES' p_Table_name, 'NO' p_As_Of_Timestamp FROM DUAL ) PAR,
-					TABLE(data_browser_select.FN_Pipe_table_imp_fk1 (p_Table_name))
+					TABLE(data_browser_select.FN_Pipe_table_imp_fk1 (p_Table_name=>v_Table_Name))
 			) S
 			JOIN REFERENCES_Q E ON E.R_VIEW_NAME = S.S_VIEW_NAME AND E.REF_COLUMN_NAME = S.R_COLUMN_NAME
 				AND (E.TABLE_ALIAS = S.TABLE_ALIAS OR E.TABLE_ALIAS IS NULL)
@@ -3888,7 +3890,7 @@ $END
 		-- , (SELECT 'SW_FILES' p_Table_name, 'YES' p_Use_Empty_Columns, 0 p_Exec_Phase, 'COLLECTION' p_Data_Source, 'Y' v_use_NLS_params, 'UPDATE' p_DML_Command, 'ID' p_Unique_Key_Column
 		-- , 'NO' v_Compare_Case_Insensitive, 'NO' v_Search_Keys_Unique, 'YES' v_Insert_Foreign_Keys, 'IMPORT_VIEW' p_View_Mode FROM DUAL ) PAR
 		WHERE R_COLUMN_ID IS NOT NULL
-		AND S.VIEW_NAME = p_Table_name
+		AND S.VIEW_NAME = v_View_Name
 		AND (p_Use_Empty_Columns = 'YES'
 		OR (data_browser_edit.Check_Item_Ref (S_ITEM_REF, T.S_COLUMN_NAME) != 'UNKNOWN'
 		AND data_browser_edit.Check_Item_Ref (D_ITEM_REF, T.COLUMN_NAME) != 'UNKNOWN'))
@@ -3909,19 +3911,17 @@ $END
         v_Str 				VARCHAR2(32767);
     	v_Procedure_Name 	VARCHAR2(50);
 		v_Unique_Key_Column MVDATA_BROWSER_VIEWS.SEARCH_KEY_COLS%TYPE;
+        v_Table_Name 		MVDATA_BROWSER_VIEWS.TABLE_NAME%TYPE;
+        v_View_Name 		MVDATA_BROWSER_VIEWS.VIEW_NAME%TYPE;
     begin
         $IF data_browser_conf.g_debug $THEN
             EXECUTE IMMEDIATE api_trace.Dyn_Log_Start
             USING p_table_name,p_unique_key_column,p_select_columns,p_columns_limit,p_view_mode,p_join_options,p_data_source,p_parent_name,p_parent_key_column,p_parent_key_visible,p_parent_key_item,p_dml_command,p_row_number,p_use_empty_columns,p_as_of_timestamp,p_exec_phase;
         $END
-		if p_Unique_Key_Column IS NULL then
-			SELECT SEARCH_KEY_COLS
-			INTO v_Unique_Key_Column
-			FROM MVDATA_BROWSER_VIEWS
-			WHERE VIEW_NAME = p_Table_Name;
-		else
-			v_Unique_Key_Column := p_Unique_Key_Column;
-		end if;
+		SELECT VIEW_NAME, TABLE_NAME, NVL(p_Unique_Key_Column, SEARCH_KEY_COLS) SEARCH_KEY_COLS
+		INTO v_View_Name, v_Table_Name, v_Unique_Key_Column
+		FROM MVDATA_BROWSER_VIEWS
+		WHERE VIEW_NAME = p_Table_Name;
 		data_browser_conf.Get_Import_Parameter( v_Compare_Case_Insensitive, v_Search_Keys_Unique, v_Insert_Foreign_Keys);
 		if p_DML_Command = 'LOOKUP' then 
 			v_Insert_Foreign_Keys := 'NO';
@@ -3930,7 +3930,7 @@ $END
     	if p_View_Mode IN ('IMPORT_VIEW', 'EXPORT_VIEW') then
 	    	dbms_lob.createtemporary(v_Result_PLSQL, true, dbms_lob.call);
 			dbms_lob.createtemporary(v_Stat, true, dbms_lob.call);
-			OPEN form_view_cur;
+			OPEN form_view_cur(v_View_Name, v_Table_Name);
 			LOOP
 				FETCH form_view_cur INTO v_Str;
 				EXIT WHEN form_view_cur%NOTFOUND;
@@ -3955,7 +3955,7 @@ $END
 							)
 						end APEX_ITEM_CALL
 					FROM TABLE (data_browser_edit.Get_Form_Edit_Cursor (
-							p_Table_Name => p_Table_name,
+							p_Table_Name => v_View_Name,
 							p_Unique_Key_Column => v_Unique_Key_Column,
 							p_Select_Columns => p_Select_Columns,
 							p_Columns_Limit => p_Columns_Limit,
@@ -3984,7 +3984,7 @@ $END
 					v_Init_Key_Stat := 'v_Key_Value := ' || c_cur.APEX_ITEM_CALL || ';' || chr(10);
 				end if;
 			end loop;
-			v_Procedure_Name := INITCAP(data_browser_conf.Compose_Table_Column_Name(p_Table_name, 'Lookup_FK'));
+			v_Procedure_Name := INITCAP(data_browser_conf.Compose_Table_Column_Name(v_View_Name, 'Lookup_FK'));
 			if p_Data_Source = 'COLLECTION' then
 				dbms_lob.append (v_Result_PLSQL,
 					'declare ' || NL(4) ||
@@ -3996,7 +3996,7 @@ $END
 						'v_Key_Value varchar2(4000);' || NL(8) ||
 						'v_CResult varchar2(4000);' || NL(8) ||
 						'v_NResult number;' || NL(8) ||
-						declare_error_call(p_Table_name, p_Unique_Key_Column) || 
+						declare_error_call(v_View_Name, p_Unique_Key_Column) || 
 					'begin ' || NL(8) ||
 					v_Init_Key_Stat
 				);
@@ -4010,7 +4010,7 @@ $END
 					'procedure ' || v_Procedure_Name || ' ( p_Row number )' || NL(4) ||
 					'is' || NL(8) ||
 						'v_Key_Value varchar2(4000);' || NL(8) ||
-						declare_error_call(p_Table_name, p_Unique_Key_Column) || 
+						declare_error_call(v_View_Name, p_Unique_Key_Column) || 
 					'begin ' || NL(8) ||
 					v_Init_Key_Stat
 				);
@@ -4051,9 +4051,10 @@ $END
 				'end;' || chr(10)
 			);
 
-			$IF data_browser_conf.g_debug $THEN
-				EXECUTE IMMEDIATE api_trace.Dyn_Log_Exit;
-			$END
+        $IF data_browser_conf.g_debug $THEN
+            EXECUTE IMMEDIATE api_trace.Dyn_Log_Exit
+            USING v_Result_PLSQL;
+        $END
 			RETURN v_Result_PLSQL;
 		end if;
 		RETURN NULL;
@@ -4140,7 +4141,8 @@ $END
 			);
 		$END
         $IF data_browser_conf.g_debug $THEN
-            EXECUTE IMMEDIATE api_trace.Dyn_Log_Exit;
+            EXECUTE IMMEDIATE api_trace.Dyn_Log_Exit
+            USING v_Error_Message;
         $END
 		return v_Error_Message;
 $IF data_browser_conf.g_use_exceptions $THEN
@@ -4189,6 +4191,10 @@ $END
     	v_Value_Exists  VARCHAR2(10);
 		v_Delimiter2	VARCHAR2(50);
 	begin
+        $IF data_browser_conf.g_debug $THEN
+            EXECUTE IMMEDIATE api_trace.Dyn_Log_Start
+            USING p_table_name,p_unique_key_column,p_select_columns,p_columns_limit,p_view_mode,p_data_source,p_report_mode,p_join_options,p_parent_name,p_parent_key_column,p_parent_key_visible,p_parent_key_item,p_use_empty_columns;
+        $END
     	dbms_lob.createtemporary(v_Check_Column_List, true, dbms_lob.call);
     	dbms_lob.createtemporary(v_Check_Values_List, true, dbms_lob.call);
         FOR c_cur IN (
@@ -5462,7 +5468,8 @@ $END
 		end if;
         ----
         $IF data_browser_conf.g_debug $THEN
-            EXECUTE IMMEDIATE api_trace.Dyn_Log_Exit;
+            EXECUTE IMMEDIATE api_trace.Dyn_Log_Exit
+            USING v_Result_PLSQL;
         $END
 		if DBMS_LOB.GETLENGTH(v_Result_PLSQL) > 1 then
 			return v_Result_PLSQL;
@@ -5979,7 +5986,6 @@ $END
 
 end data_browser_edit;
 /
-show errors
 
 /*
 data_browser_edit.Process_Form_DML (
