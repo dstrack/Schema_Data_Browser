@@ -226,6 +226,7 @@ IS
 		p_Table_name IN VARCHAR2,
     	p_Unique_Key_Column VARCHAR2,
     	p_Select_Columns VARCHAR2 DEFAULT NULL,	
+		p_Columns_Limit IN NUMBER DEFAULT 1000,
     	p_Control_Break  VARCHAR2 DEFAULT NULL,
     	p_Order_by VARCHAR2 DEFAULT NULL,				-- Example : NAME
 		p_View_Mode IN VARCHAR2 DEFAULT 'FORM_VIEW',	-- FORM_VIEW, RECORD_VIEW, NAVIGATION_VIEW, NESTED_VIEW, IMPORT_VIEW, EXPORT_VIEW
@@ -242,6 +243,7 @@ IS
         v_Links_Count		PLS_INTEGER := 0;
         v_Link_Lists_Count	PLS_INTEGER := 0;
         v_Nested_Links		VARCHAR2(10);
+        v_Parent_Key_Found	VARCHAR2(10);
         v_Select_Columns	VARCHAR2(32767);
         v_Grouping_Columns	VARCHAR2(32767);
         v_Control_Break		VARCHAR2(32767);
@@ -249,25 +251,27 @@ IS
 		$IF data_browser_conf.g_debug $THEN
 			apex_debug.message(
 				p_message => 'data_browser_utl.Get_Sub_Totals_Grouping ('
-				|| 'p_Table_name=> %s, p_Unique_Key_Column =>%s, p_Select_Columns=> %s, p_Control_Break=> %s, p_Order_by=> %s, ' || chr(10)
+				|| 'p_Table_name=> %s, p_Unique_Key_Column =>%s, p_Select_Columns=> %s, p_Columns_Limit=> %s, p_Control_Break=> %s, p_Order_by=> %s, ' || chr(10)
 				|| 'p_View_Mode=> %s, p_Data_Format=> %s, p_Join_Options=> %s, p_Parent_Table=> %s, p_Parent_Key_Column=> %s, p_Nested_Links=> %s)',
 				p0 => p_Table_name,
 				p1 => p_Unique_Key_Column,
 				p2 => p_Select_Columns,
-				p3 => p_Control_Break,
-				p4 => p_Order_by,
-				p5 => p_View_Mode,
-				p6 => p_Data_Format,
-				p7 => p_Join_Options,
-				p8 => p_Parent_Table,
-				p9 => p_Parent_Key_Column,
-				p10 => p_Nested_Links,
+				p3 => p_Columns_Limit,
+				p4 => p_Control_Break,
+				p5 => p_Order_by,
+				p6 => p_View_Mode,
+				p7 => p_Data_Format,
+				p8 => p_Join_Options,
+				p9 => p_Parent_Table,
+				p10 => p_Parent_Key_Column,
+				p11 => p_Nested_Links,
 				p_max_length => 3500, 
 				p_level => apex_debug.c_log_level_info
 			);
 		$END
 		v_Nested_Links := NVL(p_Nested_Links, 'NO');
 		v_Select_Columns := FN_Terminate_List( p_Select_Columns );
+		v_Parent_Key_Found := case when p_Parent_Key_Column IS NOT NULL then 'NO' else 'YES' end;
 		for c_cur in (
 			SELECT COLUMN_NAME, COLUMN_ID, DATA_TYPE, POSITION, TABLE_ALIAS, 
 				REF_COLUMN_NAME, R_COLUMN_NAME, IS_SUMMAND, IS_REFERENCE,
@@ -291,8 +295,9 @@ IS
 				data_browser_select.Get_View_Column_Cursor(
 					p_Table_name => p_Table_name,
 					p_Unique_Key_Column => p_Unique_Key_Column,
+					p_Columns_Limit => p_Columns_Limit,
 					p_Data_Columns_Only => 'NO', -- include hidden unique keys
-					p_Columns_Limit => 1000,
+					p_Select_Columns => p_Select_Columns,
 					p_Join_Options => p_Join_Options,
 					p_View_Mode => p_View_Mode,
 					p_Edit_Mode => 'NO', 
@@ -306,8 +311,10 @@ IS
 		) loop
 			if c_cur.COLUMN_EXPR_TYPE = 'LINK_ID' then 
 				v_is_Selected_Column := TRUE;
-			elsif c_cur.IS_PARENT_COL = 'Y' 		-- fk columns is required in the grouping set for references is FN_Detail_Link
-				or c_cur.IS_ORDER_COL = 'Y' then	-- columns is required in the grouping set for order by clause
+			elsif c_cur.IS_PARENT_COL = 'Y' then		-- fk columns is required in the grouping set for references is FN_Detail_Link
+				v_Parent_Key_Found := 'YES';
+				v_is_Selected_Column := TRUE;
+			elsif c_cur.IS_ORDER_COL = 'Y' then	-- columns is required in the grouping set for order by clause
 				v_is_Selected_Column := TRUE;
 			elsif p_Select_Columns IS NULL then 
 				v_is_Selected_Column := c_cur.DISPLAY_IN_REPORT = 'Y';
@@ -359,6 +366,7 @@ IS
 				|| '(' 
 				|| case when v_Control_Break IS NOT NULL then v_Control_Break || ', ' end
 				|| v_Grouping_Columns 
+				|| case when v_Parent_Key_Found = 'NO' then ', ' || p_Parent_Key_Column end
 				|| ', ROWNUM'	-- used to render unique ids in html tags - f.e. texttool
 				|| case when v_Nested_Links = 'NO' and v_Link_Lists_Count > 0 and p_Data_Format = 'FORM' then ', PAR.TARGET1' end
 				|| case when v_Nested_Links = 'NO' and v_Links_Count > 0 and p_Data_Format = 'FORM' then ', PAR.TARGET2' end
@@ -391,10 +399,6 @@ IS
         v_Expr 				VARCHAR2(4000);
         v_Select_List		VARCHAR2(4000);
     BEGIN
-        if apex_application.g_debug then
-            EXECUTE IMMEDIATE api_trace.Dyn_Log_Call
-            USING p_table_name,p_unique_key_column,p_view_mode,p_load_foreign_key,p_foreign_key_table,p_foreign_key_column,p_foreign_key_id,p_link_id;
-        end if;		
         -- Get Key column of p_Foreign_Key_Table
 		if p_Foreign_Key_Table IS NOT NULL then
 			begin
@@ -431,9 +435,13 @@ IS
 					v_Select_List := v_Select_List || ',' || v_Foreign_Key_Column;
 				end if;
 			exception when NO_DATA_FOUND then
-				return;
+				null;
 			end;
 		end if;
+        $IF data_browser_conf.g_debug $THEN
+            EXECUTE IMMEDIATE api_trace.Dyn_Log_Call
+            USING p_table_name,p_unique_key_column,p_view_mode,p_load_foreign_key,p_foreign_key_table,p_foreign_key_column,p_foreign_key_id,p_link_id;
+        $END
 	end Get_Foreign_Key_Details;
 	
     PROCEDURE Get_Form_Prev_Next (
@@ -725,6 +733,11 @@ IS
 			p_Order_by 				=> p_Order_by,
     		p_X_OF_Y 				=> p_X_OF_Y
 		);
+        ----
+        $IF data_browser_conf.g_debug $THEN
+            EXECUTE IMMEDIATE api_trace.Dyn_Log_Call(p_overload => 2)
+            USING p_table_name,p_unique_key_column,p_view_mode,p_edit_mode,p_join_options,p_foreign_key_table,p_foreign_key_column,p_foreign_key_id,p_link_id,p_order_by,p_next_link_id,p_prev_link_id,p_x_of_y;
+        $END
 	END Get_Form_Prev_Next;
 
 
@@ -787,6 +800,11 @@ IS
 			end loop;
 		end if;
 		dbms_sql.close_cursor(v_cur);
+        ----
+        $IF data_browser_conf.g_debug $THEN
+            EXECUTE IMMEDIATE api_trace.Dyn_Log_Function_Call
+            USING p_query,p_search_value,p_offset,p_exact,v_col_cnt;
+        $END
 $IF data_browser_conf.g_use_exceptions $THEN
 	 exception
 	  when others then
@@ -1159,6 +1177,11 @@ $END
 				END LOOP;
 			END IF;
 		end if;
+        ----
+        $IF data_browser_conf.g_debug $THEN
+            EXECUTE IMMEDIATE api_trace.Dyn_Log_Function_Call
+            USING p_table_name,p_unique_key_column,p_columns_limit,p_format,p_join_options,p_view_mode,p_edit_mode,p_parent_name,p_parent_key_column,p_parent_key_visible,v_out_tab.COUNT;
+        $END
 $IF data_browser_conf.g_use_exceptions $THEN
 	exception
 	  when others then
@@ -1489,10 +1512,6 @@ $END
         v_Wert              VARCHAR2(4000);
         v_Query 			VARCHAR2(32767);
     BEGIN
-        if apex_application.g_debug then
-            EXECUTE IMMEDIATE api_trace.Dyn_Log_Call
-            USING p_table_name,p_column_names,p_search_key_col,p_search_value,p_view_mode;
-        end if;
 		SELECT
 			data_browser_select.Key_Values_Path_Query(
 				p_Table_Name => VIEW_NAME,
@@ -1516,6 +1535,11 @@ $END
 		OPEN  stat_cur FOR v_Query USING p_Search_Value;
 		FETCH stat_cur INTO v_Wert;
 		CLOSE stat_cur;
+        ----
+        $IF data_browser_conf.g_debug $THEN
+            EXECUTE IMMEDIATE api_trace.Dyn_Log_Function_Call
+            USING p_table_name,p_column_names,p_search_key_col,p_search_value,p_view_mode,v_Wert;
+        $END
         RETURN v_Wert;
 	EXCEPTION
 	  WHEN NO_DATA_FOUND THEN
@@ -1782,6 +1806,7 @@ $END
 		v_Order_By_Hdr VARCHAR(4000);
 		v_Control_Break_Hdr VARCHAR(4000);
         v_Tab_Num_Rows PLS_INTEGER;
+        v_result varchar2(32767);
 	begin
 		if p_Table_name IS NULL then 
 			return null;
@@ -1817,7 +1842,13 @@ $END
 				p_Control_Break_Hdr => v_Control_Break_Hdr
 			);
 		end if;
-		return data_browser_conf.concat_list(v_Control_Break, v_Order_By, ', ');
+		v_result := data_browser_conf.concat_list(v_Control_Break, v_Order_By, ', ');
+        ----
+        $IF data_browser_conf.g_debug $THEN
+            EXECUTE IMMEDIATE api_trace.Dyn_Log_Function_Call(p_overload => 2)
+            USING p_table_name,p_unique_key_column,p_columns_limit,p_view_mode,p_parent_name,p_parent_key_column,p_parent_key_visible,v_result;
+        $END
+        return v_result;
 	exception when no_data_found then
 	  	return null;
 	end Get_Default_Order_by;
@@ -2012,6 +2043,11 @@ $END
 				end if;
 			end if;
 		end if;
+        ----
+        $IF data_browser_conf.g_debug $THEN
+            EXECUTE IMMEDIATE api_trace.Dyn_Log_Function_Call
+            USING p_table_name,p_view_mode,p_search_value,v_Edit_Enabled;
+        $END
 		return v_Edit_Enabled;
 	EXCEPTION WHEN NO_DATA_FOUND THEN
 		return 'NO';
@@ -3032,6 +3068,7 @@ data_browser_utl.Get_Report_Preferences(
 				p_Table_name => v_Table_name,
 				p_Unique_Key_Column => v_Unique_Key_Column,
 				p_Select_Columns => p_Select_Columns,
+				p_Columns_Limit => p_Columns_Limit,
 				p_Control_Break => p_Control_Break,
 				p_Order_by => p_Order_by,
 				p_View_Mode => p_View_Mode,
@@ -3460,7 +3497,7 @@ data_browser_utl.Get_Report_Preferences(
         CURSOR form_view_cur
         IS
         	SELECT B.COLUMN_NAME, B.TABLE_ALIAS,
-        			B.COLUMN_ID, B.POSITION, B.INPUT_ID, B.DATA_TYPE,
+        			B.COLUMN_ID, B.POSITION, B.INPUT_ID, B.REPORT_COLUMN_ID, B.DATA_TYPE,
 					B.DATA_PRECISION, B.DATA_SCALE, B.CHAR_LENGTH, B.NULLABLE, 
 					B.IS_PRIMARY_KEY, B.IS_SEARCH_KEY, B.IS_FOREIGN_KEY, B.IS_DISP_KEY_COLUMN,
 					B.REQUIRED, B.HAS_HELP_TEXT, B.HAS_DEFAULT, B.IS_BLOB, B.IS_PASSWORD, 
@@ -3546,6 +3583,11 @@ data_browser_utl.Get_Report_Preferences(
 				pipe row (v_out_tab(ind));
 			END LOOP;
 		END IF;
+        ----
+        $IF data_browser_conf.g_debug $THEN
+            EXECUTE IMMEDIATE api_trace.Dyn_Log_Function_Call
+            USING p_table_name,p_unique_key_column,p_search_value,p_select_columns,p_columns_limit,p_view_mode,p_join_options,p_edit_mode,p_parent_table,p_parent_key_column,p_parent_key_item,p_file_page_id,p_text_editor_page_id,p_text_tool_selector,v_out_tab.COUNT;
+        $END
 	end Get_Record_Data_Cursor;
 
 
@@ -3934,6 +3976,11 @@ data_browser_utl.Get_Report_Preferences(
 				END LOOP;
 			END IF;
 		end if;
+        ----
+        $IF data_browser_conf.g_debug $THEN
+            EXECUTE IMMEDIATE api_trace.Dyn_Log_Function_Call(p_overload => 1)
+            USING p_table_name,p_unique_key_column,p_search_value,p_parent_table,p_parent_key_item,v_out_tab.COUNT;
+        $END
 	end foreign_key_cursor;
 
 	FUNCTION foreign_key_cursor (
@@ -3969,6 +4016,11 @@ data_browser_utl.Get_Report_Preferences(
 				pipe row (v_out_tab(ind));
 			END LOOP;
 		END IF;
+        ----
+        $IF data_browser_conf.g_debug $THEN
+            EXECUTE IMMEDIATE api_trace.Dyn_Log_Function_Call(p_overload => 2)
+            USING p_table_name,v_out_tab.COUNT;
+        $END
 	end foreign_key_cursor;
 
 /*
@@ -4046,6 +4098,11 @@ end if;
 				pipe row (v_out_tab(ind));
 			END LOOP;
 		END IF;
+        ----
+        $IF data_browser_conf.g_debug $THEN
+            EXECUTE IMMEDIATE api_trace.Dyn_Log_Function_Call(p_overload => 1)
+            USING p_table_name,p_unique_key_column,p_search_value,p_parent_table,p_parent_key_item,p_link_page_id,p_link_items,v_out_tab.COUNT;
+        $END
 	end parents_list_cursor;
 
 	FUNCTION parents_list_cursor (
@@ -4092,6 +4149,11 @@ end if;
 				pipe row (v_out_tab(ind));
 			END LOOP;
 		END IF;
+        ----
+        $IF data_browser_conf.g_debug $THEN
+            EXECUTE IMMEDIATE api_trace.Dyn_Log_Function_Call(p_overload => 2)
+            USING p_table_name,p_link_page_id,p_link_items,p_request,v_out_tab.COUNT;
+        $END
 	end parents_list_cursor;
 	
 
@@ -4167,10 +4229,11 @@ end if;
 				END LOOP;
 			end if;
 		end if;
-        if apex_application.g_debug then
-            EXECUTE IMMEDIATE api_trace.Dyn_Log_Call
-            USING p_table_name,p_unique_key_column,p_search_value;
-        end if;
+        ----
+        $IF data_browser_conf.g_debug $THEN
+            EXECUTE IMMEDIATE api_trace.Dyn_Log_Function_Call
+            USING p_table_name,p_unique_key_column,p_search_value,g_Detail_Key_tab.COUNT;
+        $END
 	end detail_key_cursor;
 
 
@@ -4232,6 +4295,11 @@ FROM TABLE ( data_browser_utl.details_list_cursor(
 				pipe row (v_out_tab(ind));
 			END LOOP;
 		END IF;
+        ----
+        $IF data_browser_conf.g_debug $THEN
+            EXECUTE IMMEDIATE api_trace.Dyn_Log_Function_Call
+            USING p_table_name,p_unique_key_column,p_search_value,p_detail_table,p_detail_key_col,p_link_page_id,p_link_items,v_out_tab.COUNT;
+        $END
 	end details_list_cursor;
 
 	FUNCTION Report_View_Modes_List (
@@ -4372,6 +4440,11 @@ FROM TABLE ( data_browser_utl.details_list_cursor(
 				pipe row (v_out_tab(ind));
 			END LOOP;
 		END IF;
+        ----
+        $IF data_browser_conf.g_debug $THEN
+            EXECUTE IMMEDIATE api_trace.Dyn_Log_Function_Call
+            USING p_table_name,p_view_mode_item,v_out_tab.COUNT;
+        $END
 	end Report_View_Modes_List;
 
 	PROCEDURE Search_Table_Node (
@@ -4445,11 +4518,7 @@ FROM TABLE ( data_browser_utl.details_list_cursor(
 					p_Tree_Current_Node := NULL;
 					p_Tree_Path := NULL;
 				end;
-        if apex_application.g_debug then
-            EXECUTE IMMEDIATE api_trace.Dyn_Log_Call
-            USING p_search_table,p_constraint_name,p_table_name,p_unique_key_column,p_parent_name,p_parent_column,p_parent_key_column,p_tree_current_node,p_tree_path,p_search_exact;
-        end if;
-				return;
+				exit;
 			exception when no_data_found then
 				$IF data_browser_conf.g_debug $THEN
 					apex_debug.info(
@@ -4472,6 +4541,11 @@ FROM TABLE ( data_browser_utl.details_list_cursor(
 			v_Count := v_Count + 1;
 			exit when v_Count > 1;
 		end loop;
+        ----
+        $IF data_browser_conf.g_debug $THEN
+            EXECUTE IMMEDIATE api_trace.Dyn_Log_Call
+            USING p_search_table,p_constraint_name,p_table_name,p_unique_key_column,p_parent_name,p_parent_column,p_parent_key_column,p_tree_current_node,p_tree_path,p_search_exact;
+        $END
 	end Search_Table_Node;
 
 	PROCEDURE Load_Table_Node (	-- special load procedure for links from table tree view
@@ -4493,15 +4567,6 @@ FROM TABLE ( data_browser_utl.details_list_cursor(
 		v_Tree_Path 		VARCHAR2(2000);
     	v_Search_Path 		VARCHAR2(2000);
 	begin
-		$IF data_browser_conf.g_debug $THEN
-			apex_debug.info(
-				p_message => 'data_browser_utl.Load_Table_Node (p_Constraint_Name => %s, p_Tree_Current_Node => %s)',
-				p0 => DBMS_ASSERT.ENQUOTE_LITERAL(p_Constraint_Name),
-				p1 => DBMS_ASSERT.ENQUOTE_LITERAL(p_Tree_Current_Node),
-				p_max_length => 3500
-			);
-		$END
-
 		if p_Tree_Current_Node IS NOT NULL then 
 			begin 
 			select tree_path
@@ -4555,10 +4620,10 @@ FROM TABLE ( data_browser_utl.details_list_cursor(
 			end;
 			p_Tree_Path := v_Tree_Path;
 		end if;
-        if apex_application.g_debug then
+        $IF data_browser_conf.g_debug $THEN
             EXECUTE IMMEDIATE api_trace.Dyn_Log_Call
             USING p_constraint_name,p_tree_current_node,p_table_name,p_unique_key_column,p_parent_name,p_parent_column,p_parent_key_column,p_tree_path;
-        end if;		
+        $END
 	end Load_Table_Node;
 
 	PROCEDURE Load_Detail_View (	-- special load procedure for nested links from tabular form view
@@ -4573,18 +4638,6 @@ FROM TABLE ( data_browser_utl.details_list_cursor(
 	is
     	v_Search_Path VARCHAR2(2000);
 	begin
-		$IF data_browser_conf.g_debug $THEN
-			apex_debug.info(
-				p_message => 'data_browser_utl.Load_Detail_View (p_Table_Name => %s, p_Grand_Parent_Name => %s, p_Parent_Name => %s, p_Parent_Key_Column => %s)',
-				p1 => DBMS_ASSERT.ENQUOTE_LITERAL(p_Table_Name),
-				p2 => DBMS_ASSERT.ENQUOTE_LITERAL(p_Grand_Parent_Name),
-				p3 => DBMS_ASSERT.ENQUOTE_LITERAL(p_Parent_Name),
-				p4 => DBMS_ASSERT.ENQUOTE_LITERAL(p_Parent_Key_Column),
-				p_max_length => 3500
-			);
-		$END
-
-
         v_Search_Path := case when p_Tree_Path is not null then 
                 p_Tree_Path || '/' || p_Table_Name
             else 
@@ -4610,6 +4663,11 @@ FROM TABLE ( data_browser_utl.details_list_cursor(
 		exception when no_data_found then
 			p_Constraint_Name := NULL;
 		end;
+        ----
+        $IF data_browser_conf.g_debug $THEN
+            EXECUTE IMMEDIATE api_trace.Dyn_Log_Call
+            USING p_table_name,p_grand_parent_name,p_parent_name,p_parent_key_column,p_constraint_name,p_tree_current_node,p_tree_path;
+        $END
 	end Load_Detail_View;
 
 	PROCEDURE Reset_Cache

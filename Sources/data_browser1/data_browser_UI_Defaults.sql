@@ -164,13 +164,7 @@ IS
 			T.TABLE_NAME,
 			C.COLUMN_NAME,
 			C.COLUMN_HEADER LABEL,
-			data_browser_edit.Get_Form_Field_Help_Text(
-				p_Table_name => T.VIEW_NAME,
-				p_Column_Name => REF_COLUMN_NAME,
-				p_View_Mode => v_View_Mode,
-				p_Show_Statistics => 'NO',
-				p_Show_Title => 'NO'
-			) HELP_TEXT,
+			H.HELP_TEXT,
 			-- C.COMMENTS HELP_TEXT,
 			case when IS_AUDIT_COLUMN = 'Y'
 				then 'AUDIT_INFO' else 'FORM_FIELDS'
@@ -220,8 +214,15 @@ IS
 			p_View_Mode => v_View_Mode,
 			p_Report_Mode => 'ALL',
 			p_Data_Columns_Only => 'YES'
-		)) C
+		)) C, 
+		TABLE ( data_browser_edit.Get_Form_Field_Help_Text(
+			p_Table_name => T.VIEW_NAME,
+			p_View_Mode => v_View_Mode,
+			p_Show_Statistics => 'NO',
+			p_Show_Title => 'NO'
+		)) H
 		WHERE T.VIEW_NAME = v_Table_Name
+		AND H.COLUMN_NAME = C.COLUMN_NAME
 		AND C.COLUMN_EXPR_TYPE != 'HIDDEN'
 		AND C.TABLE_ALIAS IS NOT NULL;
 	TYPE form_view_Tab IS TABLE OF form_view_cur%ROWTYPE;

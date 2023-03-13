@@ -1641,69 +1641,35 @@ $END
 
 	FUNCTION Get_Form_Field_Help_Text ( -- External
 		p_Table_name VARCHAR2,
-		p_Column_Name VARCHAR2,
-		p_Parent_Name VARCHAR2 DEFAULT NULL,
-		p_View_Mode	VARCHAR2 DEFAULT 'FORM_VIEW',
-    	p_Join_Options VARCHAR2 DEFAULT NULL,
-    	p_Show_Statistics VARCHAR2 DEFAULT 'NO',
-		p_Show_Title VARCHAR2 DEFAULT 'YES'
-	) RETURN VARCHAR2
-	is
-		v_Help_Text			VARCHAR2(32767);
-		v_Ref_Table_Name 	VARCHAR2(128);
-		v_Ref_Column_Name 	VARCHAR2(128);
-	begin
-		Get_Form_Field_Help_Text ( -- External
-			p_Table_name => p_Table_name,
-			p_Column_Name => p_Column_Name,
-			p_Parent_Name => p_Parent_Name,
-			p_View_Mode	=> p_View_Mode,
-			p_Join_Options => p_Join_Options,
-			p_Show_Statistics => p_Show_Statistics,
-			p_Show_Title => p_Show_Title,
-			p_Help_Text => v_Help_Text,
-			p_Ref_Table_Name => v_Ref_Table_Name,
-			p_Ref_Column_Name => v_Ref_Column_Name
-		);
-		return v_Help_Text;
-	end;
-
-	PROCEDURE Get_Form_Field_Help_Text ( -- External
-		p_Table_name VARCHAR2,
-		p_Column_Name VARCHAR2,
 		p_Parent_Name VARCHAR2 DEFAULT NULL,
 		p_View_Mode	VARCHAR2 DEFAULT 'FORM_VIEW',
     	p_Join_Options VARCHAR2 DEFAULT NULL,
     	p_Show_Statistics VARCHAR2 DEFAULT 'NO',
 		p_Show_Title VARCHAR2 DEFAULT 'YES',
-    	p_Help_Text OUT VARCHAR2,
-    	p_Ref_Table_Name OUT VARCHAR2,
-    	p_Ref_Column_Name OUT VARCHAR2
-	)
+		p_Delimiter VARCHAR2 DEFAULT CHR(10)
+	) RETURN data_browser_edit.tab_table_Help_Text PIPELINED
 	is
 		v_Help_Text		VARCHAR2(32767);
-		v_Delimiter		CONSTANT VARCHAR2(10) := chr(10);
+		v_Delimiter		CONSTANT VARCHAR2(10) := p_Delimiter;
+		v_New_Line 		CONSTANT VARCHAR2(10) := case when p_Delimiter = chr(10) then p_Delimiter else ' ' end;
+		v_out_rec 		data_browser_edit.rec_table_Help_Text;
 	begin
-		if p_Column_Name = 'ROW_SELECTOR$' then
-			v_Help_Text := 'Select : '  || chr(10)|| chr(10) || APEX_LANG.LANG('Select rows for Actions') || v_Delimiter;
-		else 
-			v_Help_Text := p_Column_Name || ': ' || APEX_LANG.LANG('No help text found.');
-		end if;
 		for c_cur IN ( -- single column checks
-				select S.R_VIEW_NAME, S.R_TABLE_NAME, S.COLUMN_NAME, S.R_COLUMN_NAME, S.COLUMN_HEADER,
+				select T.VIEW_NAME, S.R_VIEW_NAME, S.R_TABLE_NAME, S.COLUMN_NAME, 
+					S.COLUMN_ID, S.R_COLUMN_NAME, S.COLUMN_HEADER,
 					S.REF_VIEW_NAME, S.REF_TABLE_NAME, S.REF_COLUMN_NAME, 
 					D.CHECK_CONDITION, D.CONSTRAINT_NAME, D.CHECK_CONSTRAINT_NAME,
 					S.REQUIRED, S.CHECK_UNIQUE, S.FORMAT_MASK, 
-					C.DATA_TYPE, C.DATA_PRECISION, C.DATA_SCALE, C.CHAR_LENGTH,
-					C.HAS_DEFAULT,  
-					C.DATA_DEFAULT,
+					S.DATA_TYPE, S.DATA_PRECISION, S.DATA_SCALE, S.CHAR_LENGTH,
+					S.HAS_DEFAULT,  
+					S.DATA_DEFAULT,
 					S.COLUMN_EXPR_TYPE,
 					S.IS_BLOB, S.IS_AUDIT_COLUMN, S.IS_OBFUSCATED, S.IS_UPPER_NAME, S.IS_NUMBER_YES_NO_COLUMN, S.IS_CHAR_YES_NO_COLUMN, 
 					S.IS_REFERENCE, S.IS_SEARCHABLE_REF, 
 					S.IS_PASSWORD, S.TABLE_ALIAS, 
 					C.IS_DATA_DEDUCTED, C.IS_READONLY, C.IS_VIRTUAL_COLUMN, C.IS_ORDERING_COLUMN,
 					C.IS_SUMMAND, C.IS_MINUEND, C.IS_FACTOR, C.IS_CURRENCY,
-					C.COMMENTS, TC.NUM_DISTINCT, 
+					S.COMMENTS, TC.NUM_DISTINCT, 
 					data_browser_edit.Convert_Raw_to_Varchar2 (TC.DATA_TYPE, TC.LOW_VALUE) LOW_VALUE, 
 					data_browser_edit.Convert_Raw_to_Varchar2 (TC.DATA_TYPE, TC.HIGH_VALUE) HIGH_VALUE, 
 					TC.DENSITY, TC.LAST_ANALYZED,
@@ -1730,24 +1696,22 @@ $END
 				) S 
 				left outer join MVDATA_BROWSER_SIMPLE_COLS C on S.R_VIEW_NAME = C.VIEW_NAME and S.R_COLUMN_NAME = C.COLUMN_NAME
 				left outer join SYS.USER_TAB_COLS TC on S.REF_TABLE_NAME = TC.TABLE_NAME and S.REF_COLUMN_NAME = TC.COLUMN_NAME
-				LEFT OUTER JOIN MVDATA_BROWSER_CHECKS_DEFS D ON D.VIEW_NAME = S.REF_VIEW_NAME AND D.COLUMN_NAME = S.REF_COLUMN_NAME AND D.CONS_COLS_COUNT = 1
-				where S.COLUMN_NAME = p_Column_Name
-				and T.VIEW_NAME = p_Table_name
+				left outer join MVDATA_BROWSER_CHECKS_DEFS D ON D.VIEW_NAME = S.REF_VIEW_NAME AND D.COLUMN_NAME = S.REF_COLUMN_NAME AND D.CONS_COLS_COUNT = 1
+				where T.VIEW_NAME = p_Table_name
 		) loop
-			if p_Show_Title = 'YES' then
-				v_Help_Text := data_browser_conf.Table_Name_To_Header(c_cur.R_VIEW_NAME) || ' - ' || c_cur.COLUMN_HEADER || ' :' || chr(10)|| chr(10);
+			if c_cur.Column_Name = 'ROW_SELECTOR$' then
+				v_Help_Text := 'Select :'  || v_New_Line|| v_New_Line || APEX_LANG.LANG('Select rows for Actions') || v_Delimiter;
+			elsif p_Show_Title = 'YES' then
+				v_Help_Text := data_browser_conf.Table_Name_To_Header(c_cur.R_VIEW_NAME) || ' - ' || c_cur.COLUMN_HEADER || ' :' || v_New_Line|| v_New_Line;
 			else 
-				v_Help_Text := null;
+				v_Help_Text := c_cur.COLUMN_HEADER || ' - ';
 			end if;
-			p_Ref_Table_Name  := c_cur.R_VIEW_NAME;
-			p_Ref_Column_Name := c_cur.R_COLUMN_NAME;
-			
 			if c_cur.COMMENTS IS NOT NULL then
 				v_Help_Text := v_Help_Text || APEX_LANG.LANG('Comments') ||' : ' || c_cur.COMMENTS || v_Delimiter;
 			end if;
-			if p_Column_Name = 'ROW_SELECTOR$' then
+			if c_cur.Column_Name = 'ROW_SELECTOR$' then
 				v_Help_Text := v_Help_Text || APEX_LANG.LANG('Select rows for Actions') || v_Delimiter;
-			elsif p_Column_Name = 'LINK_ID$' then
+			elsif c_cur.Column_Name = 'LINK_ID$' then
 				v_Help_Text := v_Help_Text || APEX_LANG.LANG('Show details in form page') || v_Delimiter;
 			elsif c_cur.IS_BLOB = 'Y'
 			or c_cur.IS_AUDIT_COLUMN = 'Y'
@@ -1776,7 +1740,8 @@ $END
 					|| ' '
 					|| data_browser_conf.Table_Name_To_Header(c_cur.R_VIEW_NAME) 
 					|| v_Delimiter;						
-				elsif c_cur.IS_REFERENCE != 'N' then 
+				elsif c_cur.IS_REFERENCE != 'N' 
+				and p_View_Mode NOT IN ('IMPORT_VIEW', 'EXPORT_VIEW') then -- REF_VIEW_NAME is not set for this view modes
 					v_Help_Text := v_Help_Text 
 					|| APEX_LANG.LANG(case when c_cur.IS_REFERENCE = 'C' then 'Container table' else 'Reference to table' end) 
 					|| ' '
@@ -1885,45 +1850,83 @@ $END
 					v_Help_Text := v_Help_Text || APEX_LANG.LANG('The permitted range is') || ' : ' || c_cur.CHECK_CONDITION || v_Delimiter;
 				end if;
 			end if;
-		end loop;
+			for c_cur2 IN ( -- multiple columns checks
+				SELECT B.VIEW_NAME, B.CONSTRAINT_NAME, B.CHECK_CONDITION, B.CHECK_UNIQUE,
+					LISTAGG(A.COLUMN_HEADER, ', ') WITHIN GROUP (ORDER BY A.COLUMN_ID, A.POSITION) COLUMN_NAMES
+				FROM MVDATA_BROWSER_VIEWS T
+					, TABLE (data_browser_select.Get_View_Column_Cursor (
+						p_Table_Name => T.VIEW_NAME,
+						p_Unique_Key_Column => T.SEARCH_KEY_COLS,
+						p_View_Mode => p_View_Mode,
+						p_Report_Mode => 'ALL',
+						p_Join_Options => p_Join_Options,
+						p_Parent_Name => p_Parent_Name,
+						p_Parent_Key_Visible => 'YES',
+						p_Data_Columns_Only => 'NO'
+					)) A,
+					( select S.VIEW_NAME, S.CONSTRAINT_NAME,
+							REGEXP_REPLACE(S.CHECK_CONDITION, '\s+', chr(32)) CHECK_CONDITION,
+							S.CHECK_UNIQUE,
+							T.COLUMN_VALUE COLUMN_NAME
+						FROM MVDATA_BROWSER_CHECKS_DEFS S, TABLE( apex_string.split( S.COLUMN_NAME, ', ') ) T
+						where S.VIEW_NAME = p_Table_name
+						and S.CONS_COLS_COUNT > 1  -- multiple columns unique constraints
+					) B
+				WHERE A.R_COLUMN_NAME = B.COLUMN_NAME
+				AND T.VIEW_NAME = p_Table_name
+				AND A.COLUMN_EXPR_TYPE != 'HIDDEN'
+				GROUP BY B.VIEW_NAME, B.CONSTRAINT_NAME, B.CHECK_CONDITION, B.CHECK_UNIQUE
+				HAVING SUM(case when A.COLUMN_NAME = c_cur.Column_Name then 1 else 0 end ) > 0
+			) loop
+				if c_cur2.CHECK_UNIQUE ='Y' then
+					v_Help_Text := v_Help_Text || '(' || c_cur2.COLUMN_NAMES || ') ' || APEX_LANG.LANG('Value combinations must be unique') || v_Delimiter;
+				else
+					v_Help_Text := v_Help_Text || APEX_LANG.LANG('The condition must be valid') || ' :' || c_cur2.CHECK_CONDITION || v_Delimiter;
+				end if;
+			end loop;
+			v_out_rec.VIEW_NAME			:= c_cur.VIEW_NAME;
+			v_out_rec.COLUMN_NAME		:= c_cur.COLUMN_NAME;
+			v_out_rec.REF_TABLE_NAME  	:= c_cur.R_VIEW_NAME;
+			v_out_rec.REF_COLUMN_NAME 	:= c_cur.R_COLUMN_NAME;			
+			v_out_rec.HELP_TEXT			:= RTRIM(v_Help_Text, v_Delimiter) || '.';
+			v_out_rec.COLUMN_ID 		:= c_cur.COLUMN_ID;
+			pipe row (v_out_rec);
+		end loop;		
+	end Get_Form_Field_Help_Text;
 
-		for c_cur IN ( -- multiple columns checks
-			SELECT B.VIEW_NAME, B.CONSTRAINT_NAME, B.CHECK_CONDITION, B.CHECK_UNIQUE,
-				LISTAGG(A.COLUMN_HEADER, ', ') WITHIN GROUP (ORDER BY A.COLUMN_ID, A.POSITION) COLUMN_NAMES
-			FROM MVDATA_BROWSER_VIEWS T
-				, TABLE (data_browser_select.Get_View_Column_Cursor (
-					p_Table_Name => T.VIEW_NAME,
-					p_Unique_Key_Column => T.SEARCH_KEY_COLS,
-					p_View_Mode => p_View_Mode,
-					p_Report_Mode => 'ALL',
-					p_Join_Options => p_Join_Options,
-					p_Parent_Name => p_Parent_Name,
-					p_Parent_Key_Visible => 'YES',
-					p_Data_Columns_Only => 'NO'
-				)) A,
-				( select S.VIEW_NAME, S.CONSTRAINT_NAME,
-						REGEXP_REPLACE(S.CHECK_CONDITION, '\s+', chr(32)) CHECK_CONDITION,
-						S.CHECK_UNIQUE,
-						T.COLUMN_VALUE COLUMN_NAME
-					FROM MVDATA_BROWSER_CHECKS_DEFS S, TABLE( apex_string.split( S.COLUMN_NAME, ', ') ) T
-					where S.VIEW_NAME = p_Table_name
-					and S.CONS_COLS_COUNT > 1  -- multiple columns unique constraints
-				) B
-			WHERE A.R_COLUMN_NAME = B.COLUMN_NAME
-			AND T.VIEW_NAME = p_Table_name
-			AND A.COLUMN_EXPR_TYPE != 'HIDDEN'
-			GROUP BY B.VIEW_NAME, B.CONSTRAINT_NAME, B.CHECK_CONDITION, B.CHECK_UNIQUE
-			HAVING SUM(case when A.COLUMN_NAME = p_Column_Name then 1 else 0 end ) > 0
-		) loop
-			if c_cur.CHECK_UNIQUE ='Y' then
-				v_Help_Text := v_Help_Text || c_cur.COLUMN_NAMES || ' - ' || APEX_LANG.LANG('Value combinations must be unique') || v_Delimiter;
-			else
-				v_Help_Text := v_Help_Text || APEX_LANG.LANG('The condition must be valid') || ' :'
-					|| chr(10) || c_cur.CHECK_CONDITION || v_Delimiter;
-			end if;
-		end loop;
 
-		p_Help_Text := v_Help_Text;
+	PROCEDURE Get_Form_Field_Help_Text ( -- External
+		p_Table_name VARCHAR2,
+		p_Column_Name VARCHAR2,
+		p_Parent_Name VARCHAR2 DEFAULT NULL,
+		p_View_Mode	VARCHAR2 DEFAULT 'FORM_VIEW',
+    	p_Join_Options VARCHAR2 DEFAULT NULL,
+    	p_Show_Statistics VARCHAR2 DEFAULT 'NO',
+		p_Show_Title VARCHAR2 DEFAULT 'YES',
+		p_Delimiter VARCHAR2 DEFAULT CHR(10),
+    	p_Help_Text OUT VARCHAR2,
+    	p_Ref_Table_Name OUT VARCHAR2,
+    	p_Ref_Column_Name OUT VARCHAR2
+	)
+	is 
+	begin
+		SELECT Ref_Table_Name, Ref_Column_Name, Help_Text
+		INTO p_Ref_Table_Name, p_Ref_Column_Name, p_Help_Text
+		FROM TABLE(Get_Form_Field_Help_Text ( -- External
+			p_Table_name => p_Table_name,
+			p_Parent_Name => p_Parent_Name,
+			p_View_Mode	=> p_View_Mode,
+			p_Join_Options => p_Join_Options,
+			p_Show_Statistics => p_Show_Statistics,
+			p_Show_Title => p_Show_Title,
+			p_Delimiter => p_Delimiter
+		))
+		WHERE COLUMN_NAME = p_Column_Name;
+	exception
+	when NO_DATA_FOUND then
+		p_Help_Text := p_Column_Name || ': ' || APEX_LANG.LANG('No help text found.');
+		p_Ref_Table_Name := p_Table_name;
+		p_Ref_Column_Name := p_Column_Name;
 	end Get_Form_Field_Help_Text;
 
 	FUNCTION Get_Column_Default_Value (
@@ -2206,6 +2209,16 @@ $END
 				end if;
 			end if;
 		elsif p_Data_Source = 'NEW_ROWS' then
+			-- for new rows in forms and grids it makes sense to set empty fields to there default values when thoose exists.
+			-- A user may be suprised that a value is saved in a field that he or she has not seen before saving the new row.
+			-- Currently a form has to be modified by a programmer to define the default even so there may exist a default definition in the database schema.
+			-- A Number Items should automatically display a formated 0, when 0 is the default value and a not null constraint exists.
+			-- Items types that can not show the null state, where a value is technically required like the Yes/No Switch and Select-List without a null entry.
+			-- APEX may assume that an empty switch means 'No' but the default in the database schema may be 'Yes'.
+			-- APEX may assume that the first select list entry should be used, but the default value may differ from that choise.
+			-- It would be good to have the option to change the Default SQL Expression in the SQL Workshop / Object Browser / Tables / Modify Columns form.
+			-- It would be nice to have the Default-Type : 'from Database Column definition' that is set in new created from field where this is appropriate.
+			-- As an alternative APEX could set the Default Type to PL/SQL Expression and copy the default expression from the database column for new created form-fields.
 			if p_Data_Default is not null and p_Column_Expr_Type = 'DATE_POPUP' then
 				v_Column_Expr := 'NULL';
 				v_Column_Value := p_Data_Default;
@@ -2573,7 +2586,7 @@ $END
     	v_Key_Value_Exp				VARCHAR2(4000);
         CURSOR form_view_cur
         IS
-			SELECT COLUMN_NAME, TABLE_ALIAS, COLUMN_ID, POSITION, INPUT_ID, DATA_TYPE,
+			SELECT COLUMN_NAME, TABLE_ALIAS, COLUMN_ID, POSITION, INPUT_ID, REPORT_COLUMN_ID, DATA_TYPE,
 					DATA_PRECISION, DATA_SCALE, CHAR_LENGTH, NULLABLE, IS_PRIMARY_KEY, IS_SEARCH_KEY, IS_FOREIGN_KEY, IS_DISP_KEY_COLUMN,
 					REQUIRED, HAS_HELP_TEXT, HAS_DEFAULT, IS_BLOB, IS_PASSWORD, 
 					IS_AUDIT_COLUMN, IS_OBFUSCATED, IS_UPPER_NAME,
@@ -2699,8 +2712,8 @@ $END
 					R_TABLE_NAME, R_VIEW_NAME, R_COLUMN_NAME,
 					REF_TABLE_NAME, REF_VIEW_NAME, REF_COLUMN_NAME, COMMENTS
         	FROM (
-				SELECT T.COLUMN_NAME, T.TABLE_ALIAS, T.COLUMN_ID, T.COLUMN_ORDER, T.POSITION, T.INPUT_ID, T.DATA_TYPE,
-						T.DATA_PRECISION, T.DATA_SCALE, T.CHAR_LENGTH, T.NULLABLE, 
+				SELECT T.COLUMN_NAME, T.TABLE_ALIAS, T.COLUMN_ID, T.COLUMN_ORDER, T.POSITION, T.INPUT_ID, T.REPORT_COLUMN_ID, 
+						T.DATA_TYPE, T.DATA_PRECISION, T.DATA_SCALE, T.CHAR_LENGTH, T.NULLABLE, 
 						T.IS_PRIMARY_KEY, T.IS_SEARCH_KEY, T.IS_FOREIGN_KEY, T.IS_DISP_KEY_COLUMN,
 						case when (COLUMN_EXPR_TYPE IN ('SELECT_LIST', 'SELECT_LIST_FROM_QUERY', 'POPUPKEY_FROM_LOV')
 										OR IS_CHAR_YES_NO_COLUMN = 'Y'
@@ -2792,8 +2805,8 @@ $END
 						end IS_FILE_FOLDER_REF
 				FROM (
 					SELECT 
-						B.COLUMN_NAME, B.TABLE_ALIAS, B.COLUMN_ID, B.COLUMN_ORDER, B.POSITION, B.INPUT_ID, B.DATA_TYPE,
-						B.DATA_PRECISION, B.DATA_SCALE, B.CHAR_LENGTH, B.NULLABLE, 
+						B.COLUMN_NAME, B.TABLE_ALIAS, B.COLUMN_ID, B.COLUMN_ORDER, B.POSITION, B.INPUT_ID, B.REPORT_COLUMN_ID, 
+						B.DATA_TYPE, B.DATA_PRECISION, B.DATA_SCALE, B.CHAR_LENGTH, B.NULLABLE, 
 						B.IS_PRIMARY_KEY, B.IS_SEARCH_KEY, B.IS_FOREIGN_KEY, B.IS_DISP_KEY_COLUMN,
 						B.REQUIRED,
 						B.HAS_HELP_TEXT,
@@ -2875,7 +2888,7 @@ $END
 							p_View_Mode => p_View_Mode,
 							p_Report_Mode => p_Report_Mode,
 							p_Edit_Mode => 'YES',
-							p_Data_Format => case when p_Data_Source = 'COLLECTION' then 'CSV' else data_browser_select.FN_Current_Data_Format end,
+							p_Data_Format => case when p_Data_Source = 'COLLECTION' then 'QUERY' else data_browser_select.FN_Current_Data_Format end,
 							p_Parent_Name => p_Parent_Name,
 							p_Parent_Key_Column => p_Parent_Key_Column,
 							p_Parent_Key_Visible => p_Parent_Key_Visible,
@@ -2894,7 +2907,6 @@ $END
     	v_Lag_Apex_Item_Idx NUMBER := 1;
     	v_Lag_Column_ID 	NUMBER := 1;
     	v_Check_Column_Idx 	NUMBER := 1;
-    	v_Column_Count		NUMBER := 0;
     	v_Build_MD5			CONSTANT BOOLEAN := TRUE;
     	v_Md5_Row_Factor  	PLS_INTEGER := 1;
 		v_out_md5 data_browser_conf.rec_record_edit;
@@ -2965,7 +2977,6 @@ $END
 					p1 => v_is_cached
 				);
 			$END
-			v_Column_Count := 0;
 			FOR ind IN 1 .. g_Describe_Edit_Cols_tab.COUNT
 			LOOP
 				if v_Build_MD5 and v_Lag_Apex_Item_Idx > g_Describe_Edit_Cols_tab(ind).APEX_ITEM_IDX and g_Describe_Edit_Cols_tab(ind).APEX_ITEM_IDX > 0 then
@@ -2983,7 +2994,6 @@ $END
 					);
 					pipe row (v_out_md5);
 					v_Check_Column_Idx := v_Check_Column_Idx + 1;
-					v_Column_Count := v_Column_Count + 1;
 				end if;
 
 				pipe row (g_Describe_Edit_Cols_tab(ind));
@@ -2991,7 +3001,6 @@ $END
 					v_Lag_Apex_Item_Idx := g_Describe_Edit_Cols_tab(ind).APEX_ITEM_IDX;
 					v_Lag_Column_ID := g_Describe_Edit_Cols_tab(ind).COLUMN_ID;
 				end if;
-				v_Column_Count := v_Column_Count + 1;
 			END LOOP;
 			if v_Build_MD5 and v_out_md5.COLUMN_ID != v_Lag_Column_ID then
 				v_out_md5.ROW_FACTOR := v_Md5_Row_Factor;
@@ -3007,7 +3016,6 @@ $END
 				);
 				pipe row (v_out_md5);
 				v_Check_Column_Idx := v_Check_Column_Idx + 1;
-				v_Column_Count := v_Column_Count + 1;
 			end if;
 		end if;
         $IF data_browser_conf.g_debug $THEN
@@ -3093,7 +3101,7 @@ $END
 										then 'QUERY' else p_Data_Source end;
         CURSOR form_view_cur
         IS
-			select INPUT_ID, COLUMN_NAME, COLUMN_EXPR, COLUMN_EXPR_TYPE, COLUMN_HEADER, APEX_ITEM_EXPR,
+			select INPUT_ID, REPORT_COLUMN_ID, COLUMN_NAME, COLUMN_EXPR, COLUMN_EXPR_TYPE, COLUMN_HEADER, APEX_ITEM_EXPR,
 				APEX_ITEM_IDX, ROW_FACTOR, ROW_OFFSET, FORMAT_MASK,
 				TABLE_ALIAS, R_COLUMN_NAME, REF_COLUMN_NAME, IS_PRIMARY_KEY, IS_SEARCH_KEY, IS_PASSWORD, 
 				DATA_TYPE, DATA_DEFAULT, IS_VIRTUAL_COLUMN,
@@ -3943,7 +3951,8 @@ $END
 			for c_cur IN (
 					SELECT R_VIEW_NAME, R_COLUMN_NAME, COLUMN_NAME, COLUMN_HEADER, 
 						REQUIRED, CHECK_UNIQUE, FORMAT_MASK, DATA_TYPE, DATA_SCALE, TABLE_ALIAS,
-						IS_PRIMARY_KEY, IS_SEARCH_KEY, APEX_ITEM_IDX, ROW_FACTOR, ROW_OFFSET, APEX_ITEM_REF, INPUT_ID,
+						IS_PRIMARY_KEY, IS_SEARCH_KEY, APEX_ITEM_IDX, ROW_FACTOR, ROW_OFFSET, APEX_ITEM_REF, 
+						INPUT_ID, REPORT_COLUMN_ID,
 						case when p_Data_Source = 'COLLECTION' then
 							'p_cur.' || INPUT_ID
 						else

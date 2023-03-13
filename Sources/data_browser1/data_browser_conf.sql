@@ -109,7 +109,7 @@ END;
 CREATE OR REPLACE PACKAGE data_browser_conf
 AUTHID DEFINER -- enable jobs to find translations.
 IS
-	g_App_Version_Number		VARCHAR2(64)	:= '1.9.13'; -- enable version upgrade to determinate required library updates
+	g_App_Version_Number		VARCHAR2(64)	:= '1.9.23'; -- enable version upgrade to determinate required library updates
 	g_App_Licence_Number		VARCHAR2(64)	:= '';		-- Licence Number from Software Registration
 	g_App_Licence_Owner			VARCHAR2(300)	:= '';		-- Licence Owner from Software Registration
 	g_App_Installation_Code		VARCHAR2(300)	:= '';		-- hashed installation date. Expire Demo Version after trial periode
@@ -119,7 +119,7 @@ IS
 
 	g_use_exceptions 			CONSTANT BOOLEAN 	:= TRUE;	-- when enabled, errors are handled via exceptions; disable to find proper error line number.
 	g_runtime_exceptions		CONSTANT BOOLEAN 	:= FALSE;	-- when enabled, runtime parameter errors are handled via exceptions; disable to tolerate missing parameters
-	g_debug 					CONSTANT BOOLEAN 	:= TRUE;
+	g_debug 					CONSTANT BOOLEAN 	:= FALSE;
 	
 	PROCEDURE Save_Config_Defaults;
 	PROCEDURE Load_Config;
@@ -473,7 +473,7 @@ IS
     FUNCTION Get_Char_to_Type_Expr (
     	p_Element VARCHAR2,
     	p_Element_Type VARCHAR2 DEFAULT 'C', -- C,N  = CHar/Number
-    	p_Data_Source VARCHAR2 DEFAULT 'TABLE', 			-- NEW_ROWS, TABLE, COLLECTION, MEMORY
+    	p_Data_Source VARCHAR2 DEFAULT 'TABLE', 			-- NEW_ROWS, TABLE, COLLECTION, MEMORY, VIEW
         p_Data_Type VARCHAR2,
         p_Data_Scale NUMBER,
         p_Format_Mask VARCHAR2,
@@ -729,6 +729,7 @@ IS
 		COLUMN_ID 			NUMBER(4),
 		POSITION			NUMBER(10),
 		INPUT_ID			VARCHAR2(4),
+		REPORT_COLUMN_ID	NUMBER(4),
 		DATA_TYPE 			VARCHAR2(128),
 		DATA_PRECISION		NUMBER(4),
 		DATA_SCALE			NUMBER(4),
@@ -829,6 +830,7 @@ IS
 		COLUMN_ID 			NUMBER(4),
 		POSITION			NUMBER(10),
 		INPUT_ID			VARCHAR2(4),
+		REPORT_COLUMN_ID	NUMBER(4),
 		DATA_TYPE 			VARCHAR2(128),
 		DATA_PRECISION		NUMBER(4),
 		DATA_SCALE			NUMBER,
@@ -3400,7 +3402,7 @@ $END
     FUNCTION Get_Char_to_Type_Expr (
     	p_Element VARCHAR2,
     	p_Element_Type VARCHAR2 DEFAULT 'C', 				-- C,N  = Char/Number
-    	p_Data_Source VARCHAR2 DEFAULT 'TABLE', 			-- NEW_ROWS, TABLE, COLLECTION, MEMORY
+    	p_Data_Source VARCHAR2 DEFAULT 'TABLE', 			-- NEW_ROWS, TABLE, COLLECTION, MEMORY, VIEW
         p_Data_Type VARCHAR2,
         p_Data_Scale NUMBER,
         p_Format_Mask VARCHAR2,
@@ -3414,18 +3416,19 @@ $END
 				then Get_Number_Format_Mask(numbers_utl.g_Default_Data_Precision, null, p_Use_Group_Separator => 'Y', p_Export => 'Y')
 				else p_Format_Mask
 			end;
+		v_FN_Prefix CONSTANT VARCHAR2(255) := case when p_Data_Source != 'VIEW' then 'FN_' end;
     BEGIN
     	if p_Element_Type = 'N' and p_Data_Source = 'COLLECTION' then 
     		RETURN p_Element;
     	else 
 			RETURN case
 			when p_Data_Type = 'NUMBER' and (p_Data_Scale > 0 or p_Use_Group_Separator = 'Y') and v_Format_Mask IS NOT NULL then
-				'FN_TO_NUMBER(' || p_Element
+				v_FN_Prefix || 'TO_NUMBER(' || p_Element 
 				|| ', ' || Enquote_Literal(v_Format_Mask)
 				|| case when p_use_NLS_params = 'Y' then ', ' || Get_Export_NumChars end
 				|| ')'
 			when p_Data_Type = 'FLOAT' and v_Format_Mask IS NOT NULL then
-				'FN_TO_NUMBER(' || p_Element
+				v_FN_Prefix || 'TO_NUMBER(' || p_Element
 				|| ', ' || Enquote_Literal(v_Format_Mask)
 				|| case when p_use_NLS_params = 'Y' then ', ' || Get_Export_NumChars end
 				|| ')'
@@ -3434,7 +3437,7 @@ $END
 			when p_Data_Type = 'RAW' then
 				'HEXTORAW(' || p_Element || ')'
 			when p_Data_Type = 'DATE' then
-				'FN_TO_DATE(' || p_Element
+				v_FN_Prefix || 'TO_DATE(' || p_Element
 				|| case when v_Format_Mask IS NOT NULL then ', ' || Enquote_Literal(v_Format_Mask) end
 				|| ')'
 			when p_Data_Type IN ('CLOB', 'NCLOB') then

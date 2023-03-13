@@ -118,6 +118,7 @@ IS
 		p_Show_Loops IN VARCHAR2 DEFAULT 'NO',
 		p_Load_Data IN VARCHAR2 DEFAULT 'NO',
 		p_Execute_Queries IN VARCHAR2 DEFAULT 'NO',
+		p_Execute_Validations IN VARCHAR2 DEFAULT 'NO',
 		p_Max_Errors IN INTEGER DEFAULT 1000,
 		p_Max_Loops IN INTEGER DEFAULT NULL,
 		p_app_id IN INTEGER DEFAULT NVL(NV('APP_ID'), 2000),
@@ -148,8 +149,13 @@ IS
     PROCEDURE Test_Query_Generator_Job(
 		p_Enabled VARCHAR2 DEFAULT 'YES',
 		p_app_id IN INTEGER DEFAULT NVL(NV('APP_ID'), 2000),
-    	p_context  IN  binary_integer DEFAULT FN_Scheduler_Context
+    	p_context  IN  binary_integer DEFAULT FN_Scheduler_Context,
+		p_Execute_Queries IN VARCHAR2 DEFAULT 'NO',
+		p_Execute_Validations IN VARCHAR2 DEFAULT 'NO'
 	);
+
+	function apex_error_handling (p_error in apex_error.t_error )
+	return apex_error.t_error_result;	
 END data_browser_check;
 /
 show errors
@@ -686,6 +692,7 @@ $END
 		p_Show_Loops IN VARCHAR2 DEFAULT 'NO',
 		p_Load_Data IN VARCHAR2 DEFAULT 'NO',
 		p_Execute_Queries IN VARCHAR2 DEFAULT 'NO',
+		p_Execute_Validations IN VARCHAR2 DEFAULT 'NO',
 		p_Max_Errors IN INTEGER DEFAULT 1000,
 		p_Max_Loops IN INTEGER DEFAULT NULL,
 		p_app_id IN INTEGER DEFAULT NVL(NV('APP_ID'), 2000),
@@ -962,6 +969,7 @@ $END
 			---------------------------------------------------------
 			if view_cur.VIEW_MODE in ('RECORD_VIEW', 'FORM_VIEW', 'IMPORT_VIEW', 'EXPORT_VIEW')
 			and view_cur.ROW_OPERATOR IN ('INSERT', 'UPDATE')
+			and p_Execute_Validations = 'YES'
 			and view_cur.EMPTY_ROWS = 'NO' and view_cur.EDIT_MODE = 'YES' then
 				v_Stat := NULL;
 				begin
@@ -1027,6 +1035,7 @@ $END
 			---------------------------------------------------------
 			if view_cur.VIEW_MODE IN ('IMPORT_VIEW', 'EXPORT_VIEW')
 			and view_cur.ROW_OPERATOR IN ('INSERT', 'UPDATE')
+			and p_Execute_Validations = 'YES'
 			and view_cur.EMPTY_ROWS = 'NO' and view_cur.EDIT_MODE = 'YES' then
 				v_Stat := NULL;
 				begin
@@ -1732,13 +1741,16 @@ $END
     PROCEDURE Test_Query_Generator_Job(
 		p_Enabled VARCHAR2 DEFAULT 'YES',
 		p_app_id IN INTEGER DEFAULT NVL(NV('APP_ID'), 2000),
-    	p_context  IN  binary_integer DEFAULT FN_Scheduler_Context
+    	p_context  IN  binary_integer DEFAULT FN_Scheduler_Context,
+		p_Execute_Queries IN VARCHAR2 DEFAULT 'NO',
+		p_Execute_Validations IN VARCHAR2 DEFAULT 'NO'
 	)
 	IS
 		v_sql USER_SCHEDULER_JOBS.JOB_ACTION%TYPE;
 	BEGIN
 		v_sql   := 'begin data_browser_check.Test_Query_Generator(p_Max_Errors => 1000, p_Max_Loops => 5000'
-			|| ',p_Execute_Queries=>' || DBMS_ASSERT.ENQUOTE_LITERAL('NO')
+			|| ',p_Execute_Queries=>' || DBMS_ASSERT.ENQUOTE_LITERAL(p_Execute_Queries)
+			|| ',p_Execute_Validations=>' || DBMS_ASSERT.ENQUOTE_LITERAL(p_Execute_Validations)
 			|| ',p_context=>' || DBMS_ASSERT.ENQUOTE_LITERAL(p_context)
 			|| ',p_app_id=>' || p_app_id
 			|| '); end;';
@@ -1760,6 +1772,74 @@ $END
 			p_Enabled => p_Enabled
 		);
 	END Test_Query_Generator_Job;
+
+   	PROCEDURE log_test_case_error (p_code number, p_message VARCHAR2, p_text_case_id NUMBER)
+	IS PRAGMA AUTONOMOUS_TRANSACTION;
+	BEGIN
+		UPDATE DATA_BROWSER_CHECKS
+		SET DML_SQL_CODE = NVL(p_code, -1000), DML_SQL_MESSAGE = SUBSTR(p_message, 1, 1000)
+		WHERE SEQUENCE_ID = p_text_case_id;
+		COMMIT;
+		APEX_DEBUG.message (p_message=> 'Log_Test_Case_Error SEQUENCE_ID: %s, CODE:%s, MESSAGE:%s'
+			, p0 => p_text_case_id
+			, p1 => p_code
+			, p2 => p_message
+			, p_level => apex_debug.c_log_level_error
+			, p_force => true
+		);
+	END log_test_case_error;
+
+	function apex_error_handling (p_error in apex_error.t_error )
+	return apex_error.t_error_result
+	is
+		l_result          apex_error.t_error_result;
+		l_reference_id    number;
+		l_constraint_name varchar2(255);
+	begin
+		l_result := apex_error.init_error_result (
+						p_error => p_error );
+		if p_error.is_internal_error then
+			if not p_error.is_common_runtime_error then
+				APEX_DEBUG.MESSAGE (p_message=>'INTERNAL_ERROR has occurred: %s, Component: %s, Item: %s'
+					, p0 => p_error.message
+					, p1 => p_error.component.name
+					, p2 => p_error.page_item_name
+					, p_level => apex_debug.c_log_level_error
+					, p_force => true
+				);
+				if NV('APP_PAGE_ID') = 30 and NV('P30_TEST_CASE_ID') IS NOT NULL then 
+					log_test_case_error (p_error.ora_sqlcode, p_error.message, NV('P30_TEST_CASE_ID'));
+				end if;
+			end if;
+		else
+			APEX_DEBUG.MESSAGE (p_message=>'PAGE_ERROR has occurred: %s, Component: %s, Item: %s'
+				, p0 => p_error.message
+				, p1 => p_error.component.name
+				, p2 => p_error.page_item_name
+				, p_level => apex_debug.c_log_level_error
+				, p_force => true
+			);
+			if NV('APP_PAGE_ID') = 30 and NV('P30_TEST_CASE_ID') IS NOT NULL then 
+				log_test_case_error (p_error.ora_sqlcode, p_error.message, NV('P30_TEST_CASE_ID'));
+			end if;
+			l_result.display_location := case
+			   when l_result.display_location = apex_error.c_on_error_page 
+			   then apex_error.c_inline_in_notification
+			   else l_result.display_location
+			end;
+			if p_error.ora_sqlcode is not null and l_result.message = p_error.message then
+				l_result.message := apex_error.get_first_ora_error_text (
+										p_error => p_error );
+			end if;
+			if l_result.page_item_name is null and l_result.column_alias is null then
+				apex_error.auto_set_associated_item (
+					p_error        => p_error,
+					p_error_result => l_result );
+			end if;
+		end if;
+
+		return l_result;
+	end apex_error_handling;
 
 end data_browser_check;
 /

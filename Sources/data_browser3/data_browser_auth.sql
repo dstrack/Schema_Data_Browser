@@ -229,6 +229,9 @@ $END
 	-- post_logout called in apex custom authorization schema
     PROCEDURE post_logout;
 
+	function apex_error_handling (p_error in apex_error.t_error )
+	return apex_error.t_error_result;
+
 END data_browser_auth;
 /
 
@@ -1002,6 +1005,28 @@ $END
         RAISE;
     end post_authenticate;
 
+	PROCEDURE Set_Existing_Apex_Item(
+		p_Item_Name VARCHAR2,
+		p_Item_Value VARCHAR2
+	)
+	IS
+		v_Count			PLS_INTEGER;
+	BEGIN
+		select count(*)
+		into v_Count
+		from APEX_APPLICATION_ITEMS
+		where APPLICATION_ID = NV('APP_ID')
+		and ITEM_NAME = p_Item_Name;
+		if v_Count > 0 then
+			APEX_UTIL.SET_SESSION_STATE(p_Item_Name, p_Item_Value);
+		else 
+			Log_Message('Set_Existing_Apex_Item', '(' || p_Item_Name || ', ' || p_Item_Value || ') not found!' );		
+		end if;	
+	EXCEPTION WHEN OTHERS THEN
+		Log_Message(SQLCODE, SQLERRM);
+		Log_Message('Set_Existing_Apex_Item', '(' || p_Item_Name || ', ' || p_Item_Value || ') failed!' );
+	END Set_Existing_Apex_Item;
+
 	PROCEDURE Set_Apex_Context (
 		p_Schema_Name IN VARCHAR2 DEFAULT SYS_CONTEXT('USERENV', 'CURRENT_SCHEMA'),
 		p_Workspace_Name IN VARCHAR2 DEFAULT V('APP_WORKSPACE')
@@ -1011,12 +1036,14 @@ $END
 		v_Client_Id 	VARCHAR2(200) := SYS_CONTEXT('USERENV','CLIENT_IDENTIFIER');
 		v_User_Name 	VARCHAR2(200) := V('APP_USER');
 	BEGIN
-$IF data_browser_specs.g_use_custom_ctx $THEN
 		if apex_application.g_debug then
 			apex_debug.message('data_browser_auth.Set_Apex_Context(v_Table_App_Users=>''%s'', p_Schema_Name=>''%s'', p_Workspace_Name=>''%s'')', 
 				v_Table_App_Users, p_Schema_Name, p_Workspace_Name);
 		end if;
-
+		Set_Existing_Apex_Item(p_Item_Name=>'APP_PARSING_SCHEMA', p_Item_Value=>p_Schema_Name);
+		EXECUTE IMMEDIATE 'ALTER SESSION SET CURRENT_SCHEMA='||p_Schema_Name; 
+		data_browser_conf.Load_Config;
+$IF data_browser_specs.g_use_custom_ctx $THEN
 		set_custom_ctx.Set_Current_Workspace(p_Workspace_Name, v_Client_Id, p_Schema_Name);
 		set_custom_ctx.Set_Current_User(v_User_Name, v_Client_Id, v_Table_App_Users, p_Schema_Name);
 
@@ -1026,8 +1053,6 @@ $IF data_browser_specs.g_use_custom_ctx $THEN
 				SYS_CONTEXT('CUSTOM_CTX', 'WORKSPACE_ID'), SYS_CONTEXT('CUSTOM_CTX', 'WORKSPACE_NAME'));
 			apex_debug.message('--V(''APP_USER''): %s, V(''APP_WORKSPACE''): %s', V('APP_USER'), V('APP_WORKSPACE') );
 		end if;
-$ELSE
-		null;
 $END
 	END Set_Apex_Context;
 
@@ -1192,6 +1217,50 @@ $END
 		v_Stat     := 'ALTER  USER ' || v_UserName || ' IDENTIFIED BY ' || v_UserPW;
 		EXECUTE IMMEDIATE v_Stat;
 	END;
+
+	function apex_error_handling (p_error in apex_error.t_error )
+	return apex_error.t_error_result
+	is
+		l_result          apex_error.t_error_result;
+		l_reference_id    number;
+		l_constraint_name varchar2(255);
+	begin
+		l_result := apex_error.init_error_result (
+						p_error => p_error );
+		if p_error.is_internal_error then
+			if not p_error.is_common_runtime_error then
+				APEX_DEBUG.MESSAGE (p_message=>'INTERNAL_ERROR has occurred: %s, Component: %s, Item: %s'
+					, p0 => p_error.message
+					, p1 => p_error.component.name
+					, p2 => p_error.page_item_name
+					, p_level => apex_debug.c_log_level_error
+					, p_force => true
+				);
+			end if;
+			APEX_DEBUG.LOG_LONG_MESSAGE (p_message=>'ERROR_BACKTRACE: '||p_error.error_backtrace 
+				, p_enabled => true
+				, p_level => apex_debug.c_log_level_error
+			);
+			log_message('INTERNAL_ERROR has occurred', p_error.message);
+		else
+			l_result.display_location := case
+			   when l_result.display_location = apex_error.c_on_error_page 
+			   then apex_error.c_inline_in_notification
+			   else l_result.display_location
+			end;
+			if p_error.ora_sqlcode is not null and l_result.message = p_error.message then
+				l_result.message := apex_error.get_first_ora_error_text (
+										p_error => p_error );
+			end if;
+			if l_result.page_item_name is null and l_result.column_alias is null then
+				apex_error.auto_set_associated_item (
+					p_error        => p_error,
+					p_error_result => l_result );
+			end if;
+		end if;
+
+		return l_result;
+	end apex_error_handling;
 
 END data_browser_auth;
 /

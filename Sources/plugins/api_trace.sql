@@ -53,7 +53,7 @@ IS
     RETURN VARCHAR2 DETERMINISTIC;
     FUNCTION Literal_PWD ( p_Value VARCHAR2, p_value_max_length PLS_INTEGER DEFAULT c_value_max_length )
     RETURN VARCHAR2 DETERMINISTIC;
-
+	FUNCTION Formatted_Name(p_arg_name VARCHAR2) RETURN VARCHAR2;
     FUNCTION Format_Call_Parameter(
         p_calling_subprog VARCHAR2,             -- name of the called procedure or function in a package format: owner.package_name.procedure_name
         p_synonym_name VARCHAR2 DEFAULT NULL,   -- optional name of the procedure in the log message
@@ -183,6 +183,19 @@ IS
         RETURN c_Quote || substr(rpad('X', LENGTH(p_Value), 'X'), 1, p_value_max_length) || c_Quote;
     END Literal_PWD;
 
+	FUNCTION Formatted_Name(p_arg_name VARCHAR2) RETURN VARCHAR2 
+	IS 
+		v_offset NUMBER;
+		v_result VARCHAR2(200);
+	BEGIN 
+		v_offset := INSTR(p_arg_name, '_');
+		if v_offset > 0 and v_offset < 4 then 
+			v_result := lower(substr(p_arg_name, 1, v_offset)) || initcap(substr(p_arg_name, v_offset+1));
+		else 
+			v_result := lower(p_arg_name);
+		end if;
+		RETURN v_result;
+	END Formatted_Name;
     -- build an expression that captures the parameters of an package procedure for logging.
     -- the procedure or function must be listed in the package header.
     -- when a procedure or function is overloaded then used the p_overload=>1 for the first and p_overload=>2 for the second variant.
@@ -224,19 +237,6 @@ IS
         v_idx   INTEGER := 0;
         v_count INTEGER := 0;
         
-		FUNCTION Formatted_Name(p_arg_name VARCHAR2) RETURN VARCHAR2 
-		IS 
-			v_offset NUMBER;
-			v_result VARCHAR2(200);
-		BEGIN 
-			v_offset := INSTR(v_arg_name(v_idx), '_');
-			if v_offset > 0 and v_offset < 4 then 
-				v_result := lower(substr(p_arg_name, 1, v_offset)) || initcap(substr(p_arg_name, v_offset+1));
-			else 
-				v_result := lower(p_arg_name);
-			end if;
-			RETURN v_result;
-		END;
 		FUNCTION Literal_Call (
 			p_Argument_Name VARCHAR2, 
 			p_Formatted_Name VARCHAR2,

@@ -553,6 +553,7 @@ IS
     	p_Join_Options VARCHAR2 DEFAULT NULL,
 		p_View_Mode IN VARCHAR2 DEFAULT 'EXPORT_VIEW',
 		p_Edit_Mode VARCHAR2 DEFAULT 'NO', 				-- YES, NO
+		p_Data_Format VARCHAR2 DEFAULT FN_Current_Data_Format,	-- FORM, HTML, CSV, NATIVE. Format of the final projection columns.
 		p_Report_Mode VARCHAR2 DEFAULT 'NO', 			-- YES, NO
 		p_Enable_Sort VARCHAR2 DEFAULT 'NO', 			-- YES, NO
     	p_Order_by VARCHAR2 DEFAULT NULL,				-- Example : 'LAST_NAME, FIRST_NAME'
@@ -662,6 +663,7 @@ IS
     	p_Format VARCHAR2 DEFAULT 'NAMES', 					-- NAMES, HEADER, ALIGN, ITEM_HELP
 		p_View_Mode IN VARCHAR2 DEFAULT 'FORM_VIEW', 		-- FORM_VIEW, RECORD_VIEW, NAVIGATION_VIEW, NESTED_VIEW, HISTORY
 		p_Edit_Mode VARCHAR2 DEFAULT 'NO', 					-- YES, NO
+		p_Data_Format VARCHAR2 DEFAULT FN_Current_Data_Format,	-- FORM, HTML, CSV, NATIVE. Format of the final projection columns.
 		p_Report_Mode VARCHAR2 DEFAULT 'NO', 				-- YES, NO
  		p_Enable_Sort VARCHAR2 DEFAULT 'NO', 				-- YES, NO
     	p_Order_by VARCHAR2 DEFAULT NULL,					-- Example : 'LAST_NAME, FIRST_NAME'
@@ -1751,15 +1753,26 @@ IS
 		p_Raw_Data RAW
 	) RETURN VARCHAR2 DETERMINISTIC;
 
+
+	TYPE rec_table_Help_Text IS RECORD (
+		VIEW_NAME					VARCHAR2(128),
+		COLUMN_NAME					VARCHAR2(128),
+		REF_TABLE_NAME				VARCHAR2(128),
+		REF_COLUMN_NAME				VARCHAR2(128),
+		HELP_TEXT					VARCHAR2(4000),
+		COLUMN_ID					NUMBER
+	);
+	TYPE tab_table_Help_Text IS TABLE OF rec_table_Help_Text;
+
 	FUNCTION Get_Form_Field_Help_Text ( -- External
 		p_Table_name VARCHAR2,
-		p_Column_Name VARCHAR2,
 		p_Parent_Name VARCHAR2 DEFAULT NULL,
 		p_View_Mode	VARCHAR2 DEFAULT 'FORM_VIEW',
     	p_Join_Options VARCHAR2 DEFAULT NULL,
     	p_Show_Statistics VARCHAR2 DEFAULT 'NO',
-		p_Show_Title VARCHAR2 DEFAULT 'YES'
-	) RETURN VARCHAR2;
+		p_Show_Title VARCHAR2 DEFAULT 'YES',
+		p_Delimiter VARCHAR2 DEFAULT CHR(10)
+	) RETURN data_browser_edit.tab_table_Help_Text PIPELINED;
 
 	PROCEDURE Get_Form_Field_Help_Text ( -- External
 		p_Table_name VARCHAR2,
@@ -1769,6 +1782,7 @@ IS
     	p_Join_Options VARCHAR2 DEFAULT NULL,
     	p_Show_Statistics VARCHAR2 DEFAULT 'NO',
 		p_Show_Title VARCHAR2 DEFAULT 'YES',
+		p_Delimiter VARCHAR2 DEFAULT CHR(10),
     	p_Help_Text OUT VARCHAR2,
     	p_Ref_Table_Name OUT VARCHAR2,
     	p_Ref_Column_Name OUT VARCHAR2

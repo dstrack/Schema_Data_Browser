@@ -563,6 +563,7 @@ CREATE OR REPLACE PACKAGE BODY data_browser_login AS
 		v_App_Name_Subject VARCHAR2(1024);
 		v_confirm_url   VARCHAR2(1024);
 		v_Mail_Footer	VARCHAR2(4000);
+		v_Schema_Name 	VARCHAR2(1024);
 		v_conn 			utl_smtp.connection;
 	BEGIN
         $IF data_browser_conf.g_debug $THEN
@@ -572,8 +573,9 @@ CREATE OR REPLACE PACKAGE BODY data_browser_login AS
 		if p_User_ID IS NULL or p_App_ID IS NULL then 
 			return;
 		end if;
-		v_App_Name_Subject := data_browser_conf.Get_Configuration_Name;
-		v_App_Name_Subject := data_browser_conf.Get_Configuration_Name;
+		v_Schema_Name := SYS_CONTEXT('USERENV', 'CURRENT_SCHEMA');
+		v_App_Name_Subject := data_browser_conf.Get_Configuration_Name
+		|| ' (' || INITCAP(v_Schema_Name) || ')' ;
 		v_host_name := NVL(p_host_name, data_browser_login.Get_App_Host_Name) 
 		|| 'f?p=' || p_App_ID || ':LOGIN_DESKTOP'; 
 		-- call set_security_group_id to enable access to translation repository
@@ -585,7 +587,7 @@ CREATE OR REPLACE PACKAGE BODY data_browser_login AS
 			apex_util.set_security_group_id(p_security_group_id => c1.workspace_id);
 		end loop;
 		$IF data_browser_specs.g_use_custom_ctx $THEN
-			set_custom_ctx.set_current_workspace(p_Workspace_Name=>NVL(p_Workspace, SYS_CONTEXT('USERENV', 'CURRENT_SCHEMA')), p_Client_Id=>NULL);
+			set_custom_ctx.set_current_workspace(p_Workspace_Name=>NVL(p_Workspace, v_Schema_Name), p_Client_Id=>NULL);
 			set_custom_ctx.set_current_user(p_User_Name=>SYS_CONTEXT('USERENV', 'SESSION_USER'), p_Client_Id=>NULL);
 		$END
 		SELECT LOGIN_NAME, NVL(TRIM(FIRST_NAME || ' ' ||  LAST_NAME), LOGIN_NAME) NAME_TO, 
@@ -621,16 +623,16 @@ CREATE OR REPLACE PACKAGE BODY data_browser_login AS
 		v_instance_url := RTRIM(NVL(p_instance_url, data_browser_login.Get_App_Base_URL), '/ ');
 		v_confirm_url  := v_instance_url || '/f?p=' || p_App_ID 
 			|| ':' || p_Startpage || ':0::::'
-			|| case when p_Workspace IS NOT NULL then 'P' || p_Startpage || '_WORKSPACE_NAME,' end
+			|| 'P' || p_Startpage || '_SCHEMA_NAME,'
+			|| 'P' || p_Startpage || '_WORKSPACE_NAME,'
 			|| 'P' || p_Startpage || '_PASSWORD,'
 			|| 'P' || p_Startpage || '_TOKEN:'
-			|| case when p_Workspace IS NOT NULL then p_Workspace || ',' end
+			|| v_Schema_Name || ',' 
+			|| p_Workspace || ','
 			|| p_Password || ','
 			|| p_Account_Token || ':';
 		v_home_url := v_instance_url || '/f?p=' || p_App_ID || ':1:0::::';
-		if p_Workspace IS NOT NULL then 
-			v_home_url := v_home_url || 'LOGIN_WORKSPACE:' || p_Workspace;
-		end if;
+		v_home_url := v_home_url || 'LOGIN_SCHEMA,LOGIN_WORKSPACE:' || v_Schema_Name || ',' || p_Workspace;
 
 		v_body_html := '<html><body>' || v_cr;
 		if p_Mail_Type = 1 then -- 1=Self registration - confirm e-mail address
@@ -680,9 +682,7 @@ CREATE OR REPLACE PACKAGE BODY data_browser_login AS
 				p_lang => v_Language_Code,
 				p_application_id => p_App_ID
 			);
-			if p_Workspace IS NOT NULL then 
-				v_host_name := v_host_name || ':0::::LOGIN_WORKSPACE:' || p_Workspace;
-			end if;
+			v_host_name := v_host_name || ':0::::LOGIN_SCHEMA,LOGIN_WORKSPACE:' || v_Schema_Name || ',' || p_Workspace;
 			v_AccountInfos :=  apex_lang.message(
 				p_name => 'APP.P101.MAIL_BODY3',
 				p0 => v_host_name,

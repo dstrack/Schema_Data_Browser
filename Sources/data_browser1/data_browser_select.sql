@@ -40,11 +40,16 @@ is
 			WHERE VIEW_NAME = v_View_Name
 		)
 		SELECT COLUMN_NAME, TABLE_ALIAS, 
-			-- data_browser_select.FN_List_Offest(v_Select_Columns, COLUMN_NAME) COLUMN_ORDER,
 			ROW_NUMBER() OVER (ORDER BY data_browser_select.FN_List_Offest(v_Select_Columns, COLUMN_NAME)
 								, IS_AUDIT_COLUMN, COLUMN_ID, POSITION) COLUMN_ORDER, 
 			COLUMN_ID, POSITION,
 			NULL INPUT_ID, -- Data Source COLLECTION is not supported
+			SUM(case when COLUMN_EXPR_TYPE != 'HIDDEN' and COLUMN_ID > 0 then 1 else 0  end ) 
+				OVER (ORDER BY data_browser_select.FN_List_Offest(v_Select_Columns, COLUMN_NAME)
+								, case when DISPLAY_IN_REPORT = 'Y' then 0 else 1 end
+								, IS_AUDIT_COLUMN, COLUMN_ID
+								, case when COLUMN_EXPR_TYPE != 'HIDDEN' and COLUMN_ID > 0 then 0 else 1  end
+								, POSITION) REPORT_COLUMN_ID, -- used to calculate the vivible report coöumn id that must be below the p_Column_Limit
 			DATA_TYPE, DATA_PRECISION, DATA_SCALE, DATA_DEFAULT, CHAR_LENGTH,
 			NULLABLE, IS_PRIMARY_KEY, IS_SEARCH_KEY, IS_FOREIGN_KEY, IS_DISP_KEY_COLUMN, CHECK_UNIQUE,
 			case when COLUMN_EXPR_TYPE IN ('DISPLAY_ONLY', 'DISPLAY_AND_SAVE', 'LINK', 'LINK_LIST', 'LINK_ID', 'ROW_SELECTOR')
@@ -66,7 +71,8 @@ is
 			FIELD_LENGTH, DISPLAY_IN_REPORT, '' COLUMN_DATA, R_TABLE_NAME, R_VIEW_NAME, R_COLUMN_NAME,
 			REF_TABLE_NAME, REF_VIEW_NAME, REF_COLUMN_NAME, COMMENTS
 		FROM (
-			SELECT COLUMN_NAME, 'A' TABLE_ALIAS, IS_AUDIT_COLUMN, 
+			SELECT COLUMN_NAME, 'A' TABLE_ALIAS, 
+				IS_AUDIT_COLUMN, 
 				'N' IS_OBFUSCATED, 'N' IS_UPPER_NAME, 
 				'N' IS_NUMBER_YES_NO_COLUMN, 'N' IS_CHAR_YES_NO_COLUMN, '' YES_NO_COLUMN_TYPE, 
 				'N' IS_SIMPLE_IN_LIST, '' STATIC_LOV_EXPR, 'N' HAS_AUTOMATIC_CHECK, 'N' HAS_RANGE_CHECK,
@@ -790,7 +796,8 @@ is
 			WHERE VIEW_NAME = v_View_Name
 		)
 		SELECT COLUMN_NAME, TABLE_ALIAS, 
-			ROW_NUMBER() OVER (ORDER BY COLUMN_ORDER, IS_AUDIT_COLUMN, COLUMN_ID, R_COLUMN_ID, POSITION, COLUMN_NAME) COLUMN_ORDER, 
+			ROW_NUMBER() OVER (ORDER BY COLUMN_ORDER, IS_AUDIT_COLUMN, COLUMN_ID
+					, R_COLUMN_ID, POSITION, COLUMN_NAME) COLUMN_ORDER, 
 			COLUMN_ID, POSITION,
 			case when HAS_COLLECTION_NUM_INDEX = 1 and COLLECTION_NUM_INDEX <= 5 then
 					'N' || LPAD(COLLECTION_NUM_INDEX, 3, '0')	-- apex_collections fields for hidden unique key columns
@@ -812,6 +819,14 @@ is
 									COLUMN_ID, R_COLUMN_ID, POSITION RANGE BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
 					), 3, '0')	-- apex_collections fields for hidden unique key columns, when more than 5 are needed.
 			end INPUT_ID,
+			SUM(case when COLUMN_EXPR_TYPE != 'HIDDEN' and COLUMN_ID > 0 then 1 else 0  end) 
+				OVER (ORDER BY COLUMN_ORDER
+					, case when DISPLAY_IN_REPORT = 'Y' then 0 else 1 end
+					, IS_AUDIT_COLUMN, COLUMN_ID
+					, case when COLUMN_EXPR_TYPE != 'HIDDEN' and COLUMN_ID > 0 then 0 else 1  end
+					-- there are multiole items per COLUMN_ID.
+					-- move hidden items to the begin of a group, so that visible items have the same index number as the hidden items
+					, R_COLUMN_ID, POSITION, COLUMN_NAME) REPORT_COLUMN_ID,-- used to calculate the vivible report coöumn id that must be below the p_Column_Limit
 			DATA_TYPE, DATA_PRECISION, DATA_SCALE, DATA_DEFAULT, CHAR_LENGTH,
 			NULLABLE, IS_PRIMARY_KEY, IS_SEARCH_KEY, IS_FOREIGN_KEY, IS_DISP_KEY_COLUMN, CHECK_UNIQUE,
 			case when COLUMN_EXPR_TYPE IN ('DISPLAY_ONLY', 'DISPLAY_AND_SAVE', 'LINK', 'LINK_LIST', 'LINK_ID', 'ROW_SELECTOR')
@@ -1500,6 +1515,10 @@ is
 		CURSOR keys_cur (v_View_Name VARCHAR2)
 		IS
 		-- find qualified unique key for target table of foreign key reference
+		WITH q_refs AS (
+			select F.VIEW_NAME, F.FOREIGN_KEY_COLS, F.COLUMN_ID, F.R_VIEW_NAME, F.R_COLUMN_NAME, F.TABLE_ALIAS, F.R_TABLE_ALIAS
+			from TABLE(data_browser_select.FN_Pipe_browser_q_refs(p_View_Name => v_View_Name, p_Data_Format => p_Data_Format)) F
+		)
 		SELECT VIEW_NAME, TABLE_NAME, COLUMN_NAME, COLUMN_ID, NULLABLE, POSITION,
 			R_VIEW_NAME, R_TABLE_NAME,
 			R_COLUMN_NAME,
@@ -1578,7 +1597,7 @@ is
 		) FC 
 		where not exists (
 			select 1 
-			from TABLE(data_browser_select.FN_Pipe_browser_q_refs(p_View_Name => FC.VIEW_NAME, p_Data_Format => p_Data_Format)) F
+			from q_refs F
 			where F.VIEW_NAME = FC.VIEW_NAME
 			and F.FOREIGN_KEY_COLS = FC.COLUMN_NAME 
 			and F.COLUMN_ID = FC.COLUMN_ID
@@ -1595,10 +1614,6 @@ is
 
 		v_in_rows tab_data_browser_qc_refs;
 	BEGIN
-        $IF data_browser_conf.g_debug $THEN
-            EXECUTE IMMEDIATE api_trace.Dyn_Log_Start
-            USING p_view_name,p_data_format;
-        $END
 		OPEN keys_cur(p_View_Name);
 		LOOP
 			FETCH keys_cur BULK COLLECT INTO v_in_rows LIMIT 100;
@@ -1610,8 +1625,8 @@ is
 		CLOSE keys_cur;
         ----
         $IF data_browser_conf.g_debug $THEN
-            EXECUTE IMMEDIATE api_trace.Dyn_Log_Exit
-            USING v_in_rows.COUNT;
+            EXECUTE IMMEDIATE api_trace.Dyn_Log_Function_Call
+            USING p_view_name,p_data_format,v_in_rows.COUNT;
         $END
     exception 
       when NO_DATA_NEEDED then
@@ -1723,24 +1738,22 @@ is
 		);
 
 		v_in_rows tab_data_browser_fc_refs;
+		v_Count PLS_INTEGER := 0;
 	BEGIN
-        $IF data_browser_conf.g_debug $THEN
-            EXECUTE IMMEDIATE api_trace.Dyn_Log_Start
-            USING p_view_name;
-        $END
 		OPEN keys_cur(p_View_Name);
 		LOOP
 			FETCH keys_cur BULK COLLECT INTO v_in_rows LIMIT 100;
 			EXIT WHEN v_in_rows.COUNT = 0;
 			FOR ind IN 1 .. v_in_rows.COUNT LOOP
 				pipe row (v_in_rows(ind));
+				v_Count := v_Count + 1;
 			END LOOP;
 		END LOOP;
 		CLOSE keys_cur;
         ----
         $IF data_browser_conf.g_debug $THEN
-            EXECUTE IMMEDIATE api_trace.Dyn_Log_Exit
-            USING v_in_rows.COUNT;
+            EXECUTE IMMEDIATE api_trace.Dyn_Log_Function_Call
+            USING p_view_name,v_Count;
         $END
 	END FN_Pipe_browser_fc_refs;
 	
@@ -1923,10 +1936,6 @@ is
 		v_q_ref_cols_md5	VARCHAR2(300);
 		v_is_cached			VARCHAR2(10);
 	BEGIN
-        $IF data_browser_conf.g_debug $THEN
-            EXECUTE IMMEDIATE api_trace.Dyn_Log_Start
-            USING p_view_name,p_data_format,p_include_schema;
-        $END
 		v_q_ref_cols_md5 := wwv_flow_item.md5 (p_View_Name, p_Data_Format, p_Include_Schema);
 		v_is_cached := case when g_q_ref_cols_md5 != v_q_ref_cols_md5 then 'load' else 'cached!' end;
 		if v_is_cached != 'cached!' then
@@ -1940,8 +1949,8 @@ is
 		END LOOP;
         ----
         $IF data_browser_conf.g_debug $THEN
-            EXECUTE IMMEDIATE api_trace.Dyn_Log_Exit
-            USING g_q_ref_cols_tab.COUNT;
+            EXECUTE IMMEDIATE api_trace.Dyn_Log_Function_Call
+            USING p_view_name,p_data_format,p_include_schema,g_q_ref_cols_tab.COUNT;
         $END
     exception 
       when NO_DATA_NEEDED then
@@ -1992,10 +2001,6 @@ is
 		v_in_row rec_table_imp_fk;
 		v_Count PLS_INTEGER := 0;
 	BEGIN
-        $IF data_browser_conf.g_debug $THEN
-            EXECUTE IMMEDIATE api_trace.Dyn_Log_Start
-            USING p_table_name;
-        $END
 		OPEN views_cur(p_Table_Name);
 		LOOP
 			FETCH views_cur INTO v_in_row;
@@ -2006,8 +2011,8 @@ is
 		CLOSE views_cur;
         ----
         $IF data_browser_conf.g_debug $THEN
-            EXECUTE IMMEDIATE api_trace.Dyn_Log_Exit
-            USING v_Count;
+            EXECUTE IMMEDIATE api_trace.Dyn_Log_Function_Call
+            USING p_table_name,v_Count;
         $END
 	end FN_Pipe_table_imp_fk1;
 
@@ -2055,10 +2060,6 @@ is
 		v_in_row rec_table_imp_fk;
 		v_Count PLS_INTEGER := 0;
 	BEGIN
-        $IF data_browser_conf.g_debug $THEN
-            EXECUTE IMMEDIATE api_trace.Dyn_Log_Start
-            USING p_table_name,p_as_of_timestamp,p_data_format;
-        $END
 		OPEN views_cur(p_Table_Name);
 		LOOP
 			FETCH views_cur INTO v_in_row;
@@ -2069,8 +2070,8 @@ is
 		CLOSE views_cur;
         ----
         $IF data_browser_conf.g_debug $THEN
-            EXECUTE IMMEDIATE api_trace.Dyn_Log_Exit
-            USING v_Count;
+            EXECUTE IMMEDIATE api_trace.Dyn_Log_Function_Call
+            USING p_table_name,p_as_of_timestamp,p_data_format,v_Count;
         $END
 	end FN_Pipe_table_imp_fk2;
 
@@ -2195,12 +2196,6 @@ is
 			or p_Parent_Name IS NULL
 			or NOT(p_Ref_View_Name = p_Parent_Name and p_R_Column_Name = NVL(p_Parent_Key_Column, p_R_Column_Name))
 		) then 'NO' else 'YES' end;
-	
-        $IF data_browser_conf.g_debug $THEN
-            EXECUTE IMMEDIATE api_trace.Dyn_Log_Function_Call
-            USING p_parent_key_visible,p_parent_name,p_parent_key_column,p_ref_view_name,p_r_column_name,v_result;
-        $END
-
 		return v_Result;
 	end FN_Filter_Parent_Key;
 
@@ -2236,7 +2231,7 @@ is
 	is
 	begin
 		if p_Column_Name = 'ROW_SELECTOR$' then 
-			return (p_Edit_Mode = 'YES' and p_Report_Mode = 'YES' and p_Data_Format IN ('FORM', 'CSV', 'NATIVE') 
+			return (p_Edit_Mode = 'YES' and p_Report_Mode = 'YES' and p_Data_Format IN ('FORM', 'CSV', 'NATIVE', 'QUERY') 
 				or p_View_Mode = 'HISTORY')	 and p_Data_Columns_Only = 'NO';
 		elsif p_Column_Name IN ('CONTROL_BREAK$', 'LINK_ID$') then
 			return p_Data_Columns_Only = 'NO';
@@ -2257,6 +2252,7 @@ is
 	end FN_Show_Import_Job;
 
 	FUNCTION FN_Display_In_Report (
+		p_Data_Format VARCHAR2,
 		p_Report_Mode VARCHAR2,		-- YES,NO,ALL
 		p_View_Mode VARCHAR2,
 		p_cols_rec data_browser_conf.rec_record_view,
@@ -2265,7 +2261,7 @@ is
 	is
 	begin
 		if p_cols_rec.COLUMN_NAME = 'CONTROL_BREAK$' then 
-			return (p_Report_Mode = 'YES' and p_View_Mode NOT IN ('RECORD_VIEW', 'IMPORT_VIEW', 'EXPORT_VIEW'));
+			return (p_Report_Mode = 'YES' and NOT(p_View_Mode IN ('IMPORT_VIEW', 'EXPORT_VIEW') and p_Data_Format IN ('CSV', 'NATIVE')));
 		elsif p_cols_rec.IS_SEARCH_KEY = 'Y' and p_cols_rec.DISPLAY_IN_REPORT = 'N' then
 			return (p_Report_Mode IN ('NO', 'ALL') or p_View_Mode IN ('RECORD_VIEW', 'IMPORT_VIEW', 'EXPORT_VIEW'));
 		elsif p_cols_rec.COLUMN_NAME IN ('LINK_ID$', 'ROW_SELECTOR$') 
@@ -2850,6 +2846,7 @@ is
 		v_Extra_Col_Names	VARCHAR2(4000);
 		v_Order_By			VARCHAR2(4000);
 		v_Order_Array		apex_t_varchar2;
+        v_result 			varchar2(32767);
 	BEGIN
 		OPEN Display_Values_cur;
 		FETCH Display_Values_cur BULK COLLECT INTO v_out_tab;
@@ -2938,11 +2935,11 @@ is
 			end if;
 			if p_Search_Value IS NOT NULL -- single row subquery
 			or (v_Order_By IS NULL and v_Extra_Col_Names IS NULL) then
-				RETURN 'SELECT ' || NVL(v_Column_List, v_Column_Expr) || ' D ' 
+				v_result := 'SELECT ' || NVL(v_Column_List, v_Column_Expr) || ' D ' 
 					|| v_From_Clause
 					|| v_Inner_Condition;
 			else
-				RETURN 'SELECT ' || NVL(v_Column_List, v_Column_Expr) || ' D, ' || NL(p_Indent + 4)
+				v_result := 'SELECT ' || NVL(v_Column_List, v_Column_Expr) || ' D, ' || NL(p_Indent + 4)
 					||	v_Column_Expr || ' R ' || v_Extra_Col_Names
 					|| v_From_Clause
 					|| v_Inner_Condition
@@ -2951,12 +2948,19 @@ is
 						|| 'ORDER BY ' || v_Order_By
 					end;
 			end if;
-		end if;
-		if p_Search_Value IS NOT NULL then
-			return p_Search_Value;
 		else
-			return 'select null d, null r from dual';
+			if p_Search_Value IS NOT NULL then
+				v_result := p_Search_Value;
+			else
+				v_result := 'select null d, null r from dual';
+			end if;
 		end if;
+        ----
+        $IF data_browser_conf.g_debug $THEN
+            EXECUTE IMMEDIATE api_trace.Dyn_Log_Function_Call(p_overload => 1)
+            USING p_table_name,p_display_col_names,p_extra_col_names,p_search_key_col,p_search_value,p_view_mode,p_filter_cond,p_exclude_col_name,p_active_col_name,p_active_data_type,p_order_by,p_level,p_indent,v_result;
+        $END
+        return v_result;
 	END Key_Values_Query;
 
 	FUNCTION Key_Values_Path_Query (
@@ -3145,10 +3149,13 @@ $END
 			NL(5) || v_Inner_Condition
 		end;
 		if p_Level > 1 then 
-			return INDENT(v_Query, (p_Level-1)*4);
-		else
-			return v_Query;
+			v_Query := INDENT(v_Query, (p_Level-1)*4);
 		end if;
+        $IF data_browser_conf.g_debug $THEN
+            EXECUTE IMMEDIATE api_trace.Dyn_Log_Function_Call
+            USING p_table_name,p_search_key_col,p_search_value,p_folder_par_col_name,p_folder_name_col_name,p_folder_cont_col_name,p_folder_cont_alias,p_view_mode,p_filter_cond,p_order_by,p_level,v_Query;
+        $END
+        return v_Query;
 	end Key_Path_Query;
 
 	FUNCTION Key_Path_Lookup_Query (
@@ -3197,6 +3204,11 @@ $END
 			|| NL(8+p_Level*4)
 		end
 		|| ') WHERE PATH = ' || p_Search_Path;
+        ----
+        $IF data_browser_conf.g_debug $THEN
+            EXECUTE IMMEDIATE api_trace.Dyn_Log_Function_Call
+            USING p_table_name,p_search_key_col,p_search_path,p_search_value,p_folder_par_col_name,p_folder_name_col_name,p_folder_cont_col_name,p_folder_cont_alias,p_level,v_Query;
+        $END
 		return v_Query;
 	end Key_Path_Lookup_Query;
 
@@ -3666,10 +3678,6 @@ $END
 		v_out_tab			View_Cols_Tab;
 		v_Max_Link_Count CONSTANT PLS_INTEGER := data_browser_conf.Get_Navigation_Link_Limit;
 	BEGIN
-        $IF data_browser_conf.g_debug $THEN
-            EXECUTE IMMEDIATE api_trace.Dyn_Log_Start
-            USING p_table_name,p_display_col_names,p_search_key_col,p_search_value,p_view_mode,p_data_format,p_key_column,p_target1,p_target2,p_detail_page_id,p_link_page_id,p_level;
-        $END
 		OPEN Display_Values_cur;
 		FETCH Display_Values_cur BULK COLLECT INTO v_out_tab;
 		CLOSE Display_Values_cur;
@@ -3768,8 +3776,8 @@ $END
 		end if;
         ----
         $IF data_browser_conf.g_debug $THEN
-            EXECUTE IMMEDIATE api_trace.Dyn_Log_Exit
-            USING v_result;
+            EXECUTE IMMEDIATE api_trace.Dyn_Log_Function_Call
+            USING p_table_name,p_display_col_names,p_search_key_col,p_search_value,p_view_mode,p_data_format,p_key_column,p_target1,p_target2,p_detail_page_id,p_link_page_id,p_level,v_result;
         $END
         return v_result;
 $IF data_browser_conf.g_use_exceptions $THEN
@@ -3823,6 +3831,7 @@ $END
 		p_Join_Options VARCHAR2 DEFAULT NULL,
 		p_View_Mode IN VARCHAR2 DEFAULT 'EXPORT_VIEW',
 		p_Edit_Mode VARCHAR2 DEFAULT 'NO',				-- YES, NO
+		p_Data_Format VARCHAR2 DEFAULT FN_Current_Data_Format,	-- FORM, HTML, CSV, NATIVE. Format of the final projection columns.
 		p_Report_Mode VARCHAR2 DEFAULT 'NO',			-- YES, NO
 		p_Enable_Sort VARCHAR2 DEFAULT 'NO',			-- YES, NO
 		p_Order_by VARCHAR2 DEFAULT NULL,				-- Example : 'LAST_NAME, FIRST_NAME'
@@ -3838,43 +3847,44 @@ $END
 		v_Describe_Cols_md5 VARCHAR2(300);
 		v_is_cached			VARCHAR2(10);
 		v_Delimiter			VARCHAR2(10);
-		v_Count				PLS_INTEGER := 0;
-		v_Map_Count			PLS_INTEGER := 0;
-		v_Data_Format		CONSTANT VARCHAR2(50) := data_browser_select.FN_Current_Data_Format;
 		v_Select_Columns	VARCHAR2(32767);
 		v_Parent_Key_Visible VARCHAR2(10);
+		v_Column_Limit		PLS_INTEGER := p_Columns_Limit;
 	BEGIN
 		v_Select_Columns := FN_Terminate_List(p_Select_Columns);
-		v_Parent_Key_Visible := FN_Parent_Key_Visible (p_Parent_Key_Visible, p_Edit_Mode, p_View_Mode, v_Data_Format, p_Select_Columns);
-		v_Describe_Cols_md5 := wwv_flow_item.md5 (v_Table_Name, p_Unique_Key_Column, p_View_Mode, v_Data_Format, 
+		v_Parent_Key_Visible := FN_Parent_Key_Visible (p_Parent_Key_Visible, p_Edit_Mode, p_View_Mode, p_Data_Format, p_Select_Columns);
+		v_Describe_Cols_md5 := wwv_flow_item.md5 (v_Table_Name, p_Unique_Key_Column, p_View_Mode, p_Data_Format, 
 												v_Select_Columns, p_Parent_Name, p_Parent_Key_Column, v_Parent_Key_Visible, p_Join_Options);
 		v_is_cached := case when g_Describe_Cols_md5 != v_Describe_Cols_md5 then 'load' else 'cached!' end;
 		if v_is_cached != 'cached!' then
-			OPEN data_browser_select.Describe_Imp_Cols_cur (v_Table_Name, p_Unique_Key_Column, p_View_Mode, v_Data_Format, 
+			OPEN data_browser_select.Describe_Imp_Cols_cur (v_Table_Name, p_Unique_Key_Column, p_View_Mode, p_Data_Format, 
 															v_Select_Columns, p_Parent_Name, p_Parent_Key_Column, v_Parent_Key_Visible, p_Join_Options);
 			FETCH data_browser_select.Describe_Imp_Cols_cur BULK COLLECT INTO g_Describe_Cols_tab;
 			CLOSE data_browser_select.Describe_Imp_Cols_cur;
 			g_Describe_Cols_md5 := v_Describe_Cols_md5;
 		end if;
 		dbms_lob.createtemporary(v_result, true, dbms_lob.call);
+		v_Column_Limit := case when p_View_Mode = 'IMPORT_VIEW' 
+			then LEAST(data_browser_conf.Get_Collection_Columns_Limit, p_Columns_Limit)
+			else p_Columns_Limit
+		end;
 		FOR ind IN 1 .. g_Describe_Cols_tab.COUNT LOOP
 			if	(p_Edit_Mode = 'YES'		-- if Edit single record or not hidden
 			  and p_Report_Mode = 'NO'		-- in Edit single record mode, hidden (key) columns have no header
 			  or g_Describe_Cols_tab(ind).COLUMN_EXPR_TYPE != 'HIDDEN')
 			and FN_Has_Collections_Adress(p_View_Mode, g_Describe_Cols_tab(ind))
-			and FN_Show_Row_Selector(v_Data_Format, p_Edit_Mode, p_Report_Mode, p_View_Mode, p_Data_Columns_Only, g_Describe_Cols_tab(ind).COLUMN_NAME)
-			and FN_Show_Import_Job(v_Data_Format, g_Describe_Cols_tab(ind).COLUMN_NAME)
-			and FN_Display_In_Report(p_Report_Mode, p_View_Mode, g_Describe_Cols_tab(ind), v_Select_Columns) then
-				if g_Describe_Cols_tab(ind).COLUMN_EXPR_TYPE != 'HIDDEN' and g_Describe_Cols_tab(ind).COLUMN_ID > 0 then 
-					v_Count := v_Count + 1;
-				end if;
+			and FN_Show_Row_Selector(p_Data_Format, p_Edit_Mode, p_Report_Mode, p_View_Mode, p_Data_Columns_Only, g_Describe_Cols_tab(ind).COLUMN_NAME)
+			and FN_Show_Import_Job(p_Data_Format, g_Describe_Cols_tab(ind).COLUMN_NAME)
+			and FN_Display_In_Report(p_Data_Format, p_Report_Mode, p_View_Mode, g_Describe_Cols_tab(ind), v_Select_Columns) 
+			and g_Describe_Cols_tab(ind).REPORT_COLUMN_ID <= v_Column_Limit
+			then
 				v_Str := v_Str
 				|| v_Delimiter
 				|| case p_Format
 						when 'HEADER' then
 							case when p_Report_Mode = 'YES'
 								and p_Enable_Sort = 'YES'
-								and v_Data_Format = 'FORM'
+								and p_Data_Format = 'FORM'
 								and g_Describe_Cols_tab(ind).COLUMN_ID > 0
 								and dbms_lob.getlength(v_result) < 3000 then
 									-- the space for column headers is limited to 4000 bytes
@@ -3917,13 +3927,6 @@ $END
 					v_Str := NULL;
 				end if;
 				v_Delimiter := p_Delimiter;
-				if p_View_Mode = 'IMPORT_VIEW' and SUBSTR(g_Describe_Cols_tab(ind).INPUT_ID, 1, 1) = 'C' then
-					v_Map_Count := v_Map_Count + 1;
-					EXIT WHEN v_Map_Count >= data_browser_conf.Get_Collection_Columns_Limit or v_Map_Count >= p_Columns_Limit;
-				elsif p_View_Mode = 'EXPORT_VIEW' and g_Describe_Cols_tab(ind).COLUMN_EXPR_TYPE NOT IN ('HIDDEN', 'ROW_SELECTOR', 'LINK', 'LINK_LIST', 'LINK_ID') then
-					v_Map_Count := v_Map_Count + 1;
-					EXIT WHEN v_Map_Count >= p_Columns_Limit;
-				end if;
 			end if;
 		END LOOP;
 		if v_Str IS NOT NULL then
@@ -3932,7 +3935,7 @@ $END
         ----
         $IF data_browser_conf.g_debug $THEN
             EXECUTE IMMEDIATE api_trace.Dyn_Log_Function_Call
-            USING p_table_name,p_unique_key_column,p_delimiter,p_data_columns_only,p_select_columns,p_columns_limit,p_format,p_join_options,p_view_mode,p_edit_mode,p_report_mode,p_enable_sort,p_order_by,p_order_direction,p_parent_name,p_parent_key_column,p_parent_key_visible,v_result;
+            USING p_table_name,p_unique_key_column,p_delimiter,p_data_columns_only,p_select_columns,p_columns_limit,p_format,p_join_options,p_view_mode,p_edit_mode,p_Data_Format,p_report_mode,p_enable_sort,p_order_by,p_order_direction,p_parent_name,p_parent_key_column,p_parent_key_visible,v_result;
         $END
 		RETURN v_result;
 $IF data_browser_conf.g_use_exceptions $THEN
@@ -4086,13 +4089,13 @@ $END
 		v_Describe_Cols_md5 VARCHAR2(300);
 		v_Column_Expr		VARCHAR2(32767);
 		v_is_cached			VARCHAR2(10);
-		v_Count				PLS_INTEGER := 0;
 		v_Map_Unique_Key	VARCHAR2(32);
 		v_Map_Column_List	VARCHAR2(32767);
 		v_Map_Count			PLS_INTEGER := 0;
 		v_Data_Format		VARCHAR2(20);
+		v_Column_Limit		PLS_INTEGER := p_Columns_Limit;
 	BEGIN
-		v_Data_Format := p_Data_Format;
+		v_Data_Format := case when p_Data_Source IN('COLLECTION', 'QUERY') then 'QUERY' else p_Data_Format end;
 		v_Select_Columns := FN_Terminate_List(p_Select_Columns);
 		v_Parent_Key_Visible := FN_Parent_Key_Visible (p_Parent_Key_Visible, p_Edit_Mode, p_View_Mode, v_Data_Format, p_Select_Columns);
 		if p_Unique_Key_Column IS NULL then
@@ -4103,11 +4106,11 @@ $END
 		else
 			v_Unique_Key_Column := p_Unique_Key_Column;
 		end if;
-		v_Describe_Cols_md5 := wwv_flow_item.md5 (v_Table_Name, v_Unique_Key_Column, p_View_Mode, v_Data_Format, 
+		v_Describe_Cols_md5 := wwv_flow_item.md5 (v_Table_Name, v_Unique_Key_Column, p_View_Mode, p_Data_Source, 
 												v_Select_Columns, p_Parent_Name, p_Parent_Key_Column, v_Parent_Key_Visible, p_Join_Options);
 		v_is_cached := case when g_Describe_Cols_md5 != v_Describe_Cols_md5 then 'load' else 'cached!' end;
 		if v_is_cached != 'cached!' then
-			OPEN data_browser_select.Describe_Imp_Cols_cur (v_Table_Name, v_Unique_Key_Column, p_View_Mode, v_Data_Format, 
+			OPEN data_browser_select.Describe_Imp_Cols_cur (v_Table_Name, v_Unique_Key_Column, p_View_Mode, p_Data_Source, 
 															v_Select_Columns, p_Parent_Name, p_Parent_Key_Column, v_Parent_Key_Visible, p_Join_Options);
 			FETCH data_browser_select.Describe_Imp_Cols_cur BULK COLLECT INTO g_Describe_Cols_tab;
 			CLOSE data_browser_select.Describe_Imp_Cols_cur;
@@ -4132,13 +4135,19 @@ $END
 			end if;
 		end if;
 
+		v_Column_Limit := case when p_View_Mode = 'IMPORT_VIEW' 
+			then LEAST(data_browser_conf.Get_Collection_Columns_Limit, p_Columns_Limit)
+			else p_Columns_Limit
+		end;
 		v_Str := 'SELECT ' || CM(p_Comments) || NL(4);
 		for ind IN 1 .. g_Describe_Cols_tab.COUNT loop
 			if (p_Data_Source = 'QUERY' or g_Describe_Cols_tab(ind).COLUMN_EXPR_TYPE != 'HIDDEN')	-- hidden (key) columns are excluded
 			and FN_Has_Collections_Adress(p_View_Mode, g_Describe_Cols_tab(ind))
-			and FN_Show_Row_Selector(p_Data_Format, p_Edit_Mode, p_Report_Mode, p_View_Mode, p_Data_Columns_Only, g_Describe_Cols_tab(ind).COLUMN_NAME)
-			and FN_Show_Import_Job(p_Data_Format, g_Describe_Cols_tab(ind).COLUMN_NAME)
-			and FN_Display_In_Report(p_Report_Mode, p_View_Mode, g_Describe_Cols_tab(ind), v_Select_Columns) then
+			and FN_Show_Row_Selector(v_Data_Format, p_Edit_Mode, p_Report_Mode, p_View_Mode, p_Data_Columns_Only, g_Describe_Cols_tab(ind).COLUMN_NAME)
+			and FN_Show_Import_Job(v_Data_Format, g_Describe_Cols_tab(ind).COLUMN_NAME)
+			and FN_Display_In_Report(v_Data_Format, p_Report_Mode, p_View_Mode, g_Describe_Cols_tab(ind), v_Select_Columns) 
+			and g_Describe_Cols_tab(ind).REPORT_COLUMN_ID <= v_Column_Limit
+			then
 				v_Column_Expr := g_Describe_Cols_tab(ind).COLUMN_EXPR;
 				if p_Data_Source = 'TABLE' then
 					if p_Data_Format IN ('FORM', 'HTML')
@@ -4180,7 +4189,6 @@ $END
 					when g_Describe_Cols_tab(ind).IS_VIRTUAL_COLUMN = 'Y' then
 						case when p_Data_Source = 'COLLECTION'
 							then g_Describe_Cols_tab(ind).DATA_DEFAULT
-						--	then g_Describe_Cols_tab(ind).TABLE_ALIAS || '.' || g_Describe_Cols_tab(ind).REF_COLUMN_NAME
 						else
 							v_Column_Expr
 						end
@@ -4247,13 +4255,7 @@ $END
 						if g_Describe_Cols_tab(ind).COLUMN_NAME = v_Unique_Key_Column then 
 							v_Map_Unique_Key := g_Describe_Cols_tab(ind).INPUT_ID;
 						end if;
-					elsif SUBSTR(g_Describe_Cols_tab(ind).INPUT_ID, 1, 1) = 'C' then
-						v_Map_Count := v_Map_Count + 1;
 					end if;
-					EXIT WHEN v_Map_Count >= data_browser_conf.Get_Collection_Columns_Limit or v_Map_Count >= p_Columns_Limit;
-				elsif p_View_Mode = 'EXPORT_VIEW' and g_Describe_Cols_tab(ind).COLUMN_EXPR_TYPE NOT IN ('HIDDEN', 'ROW_SELECTOR', 'LINK', 'LINK_LIST', 'LINK_ID') then
-					v_Map_Count := v_Map_Count + 1;
-					EXIT WHEN v_Map_Count >= p_Columns_Limit;
 				end if;
 			end if;
 		end loop;
@@ -4280,14 +4282,12 @@ $END
             USING p_table_name,p_unique_key_column,p_data_columns_only,p_columns_limit,p_as_of_timestamp,p_select_columns,p_control_break,p_join_options,p_view_mode,p_edit_mode,p_data_source,p_data_format,p_report_mode,p_form_page_id,p_form_parameter,p_search_field_item,p_search_column_name,p_comments,p_parent_name,p_parent_key_column,p_parent_key_visible,p_file_page_id,v_Stat;
         $END
 		RETURN v_Stat;
-$IF data_browser_conf.g_use_exceptions $THEN
 	exception
 	  when others then
 		if data_browser_select.Describe_Imp_Cols_cur%ISOPEN then
 			CLOSE data_browser_select.Describe_Imp_Cols_cur;
 		end if;
 		raise;
-$END
 	END Get_Imp_Table_Query;
 
 	---------------------------------------------------------------------------
@@ -4391,16 +4391,11 @@ $END
 		v_Describe_Cols_md5 VARCHAR2(300);
 		v_Column_Expr		VARCHAR2(32767);
 		v_is_cached			VARCHAR2(10);
-		v_Count				PLS_INTEGER := 0;
 		v_Links_Count		PLS_INTEGER := 0;
 		v_Link_List_Count	PLS_INTEGER := 0;
 		v_Data_Format		VARCHAR2(20);
 		v_Use_Grouping		BOOLEAN;
 	begin
-        $IF data_browser_conf.g_debug $THEN
-            EXECUTE IMMEDIATE api_trace.Dyn_Log_Start
-            USING p_table_name,p_unique_key_column,p_data_columns_only,p_columns_limit,p_select_columns,p_control_break,p_view_mode,p_edit_mode,p_data_format,p_data_source,p_empty_row,p_report_mode,p_parent_name,p_parent_key_column,p_parent_key_visible,p_link_page_id,p_link_parameter,p_detail_page_id,p_detail_parameter,p_form_page_id,p_form_parameter,p_file_page_id,p_search_field_item,p_search_column_name,p_calc_totals,p_nested_links,p_source_query,p_comments;
-        $END
 		v_Data_Format := case when p_Data_Source = 'QUERY' then 'QUERY' else p_Data_Format end;
 		v_Calc_Totals := NVL(p_Calc_Totals, 'NO');
 		v_Nested_Links := NVL(p_Nested_Links, 'NO');
@@ -4461,11 +4456,10 @@ $END
 		FOR ind IN 1 .. g_Describe_Cols_tab.COUNT LOOP
 			if (p_Data_Source = 'QUERY' or g_Describe_Cols_tab(ind).COLUMN_EXPR_TYPE != 'HIDDEN')	-- hidden (key) columns are excluded from read only views
 			and FN_Show_Parent_Key(v_Parent_Key_Visible, p_Parent_Name, p_Parent_Key_Column, g_Describe_Cols_tab(ind))
-			and FN_Show_Row_Selector(p_Data_Format, p_Edit_Mode, p_Report_Mode, p_View_Mode, p_Data_Columns_Only, g_Describe_Cols_tab(ind).COLUMN_NAME)
-			and FN_Display_In_Report(p_Report_Mode, p_View_Mode, g_Describe_Cols_tab(ind), v_Select_Columns) then
-				if g_Describe_Cols_tab(ind).COLUMN_EXPR_TYPE != 'HIDDEN' and g_Describe_Cols_tab(ind).COLUMN_ID > 0 then 
-					v_Count := v_Count + 1;
-				end if;
+			and FN_Show_Row_Selector(v_Data_Format, p_Edit_Mode, p_Report_Mode, p_View_Mode, p_Data_Columns_Only, g_Describe_Cols_tab(ind).COLUMN_NAME)
+			and FN_Display_In_Report(v_Data_Format, p_Report_Mode, p_View_Mode, g_Describe_Cols_tab(ind), v_Select_Columns) 
+			and g_Describe_Cols_tab(ind).REPORT_COLUMN_ID <= p_Columns_Limit
+			then
 				v_Column_Expr := g_Describe_Cols_tab(ind).COLUMN_EXPR;
 				if p_Data_Source = 'TABLE' 
 				and p_Data_Format IN ('FORM', 'HTML')
@@ -4624,7 +4618,6 @@ $END
 					v_Str := NULL;
 				end if;
 				v_Delimiter2 := v_Delimiter;
-				EXIT WHEN v_Count >= p_Columns_Limit;
 			end if;
 		END LOOP;
 		if v_Delimiter2 IS NULL then
@@ -4653,10 +4646,10 @@ $END
 			p_Parameter_Columns => v_Parameter_Columns
 		);
 		dbms_lob.append(v_Stat, v_From_Clause);
-
+        ----
         $IF data_browser_conf.g_debug $THEN
-            EXECUTE IMMEDIATE api_trace.Dyn_Log_Exit
-            USING v_Stat;
+            EXECUTE IMMEDIATE api_trace.Dyn_Log_Function_Call
+            USING p_table_name,p_unique_key_column,p_data_columns_only,p_columns_limit,p_select_columns,p_control_break,p_view_mode,p_edit_mode,p_data_format,p_data_source,p_empty_row,p_report_mode,p_parent_name,p_parent_key_column,p_parent_key_visible,p_link_page_id,p_link_parameter,p_detail_page_id,p_detail_parameter,p_form_page_id,p_form_parameter,p_file_page_id,p_search_field_item,p_search_column_name,p_calc_totals,p_nested_links,p_source_query,p_comments,v_Stat;
         $END
 		return v_Stat;
     exception 
@@ -4724,6 +4717,7 @@ $END
 		p_Format VARCHAR2 DEFAULT 'NAMES',					-- NAMES, HEADER, ALIGN, ITEM_HELP
 		p_View_Mode IN VARCHAR2 DEFAULT 'FORM_VIEW',		-- FORM_VIEW, RECORD_VIEW, NAVIGATION_VIEW, NESTED_VIEW, HISTORY
 		p_Edit_Mode VARCHAR2 DEFAULT 'NO',					-- YES, NO
+		p_Data_Format VARCHAR2 DEFAULT FN_Current_Data_Format,	-- FORM, HTML, CSV, NATIVE. Format of the final projection columns.
 		p_Report_Mode VARCHAR2 DEFAULT 'NO',				-- YES, NO
 		p_Enable_Sort VARCHAR2 DEFAULT 'NO',				-- YES, NO
 		p_Order_by VARCHAR2 DEFAULT NULL,					-- Example : 'LAST_NAME, FIRST_NAME'
@@ -4746,19 +4740,17 @@ $END
 		v_Nested_Links		VARCHAR2(10) := 'NO';
 		v_is_cached			VARCHAR2(10);
 		v_Delimiter			VARCHAR2(10);
-		v_Count				PLS_INTEGER := 0;
-		v_Data_Format		CONSTANT VARCHAR2(50) := data_browser_select.FN_Current_Data_Format;
 		v_Select_Columns	VARCHAR2(32767);
 		v_Parent_Key_Visible VARCHAR2(10);
 	BEGIN
 		v_Select_Columns := FN_Terminate_List(p_Select_Columns);
-		v_Parent_Key_Visible := FN_Parent_Key_Visible (p_Parent_Key_Visible, p_Edit_Mode, p_View_Mode, v_Data_Format, p_Select_Columns);
-		v_Describe_Cols_md5 := wwv_flow_item.md5 (v_Table_Name, p_Unique_Key_Column, p_View_Mode, p_Edit_Mode, v_Data_Format, 
+		v_Parent_Key_Visible := FN_Parent_Key_Visible (p_Parent_Key_Visible, p_Edit_Mode, p_View_Mode, p_Data_Format, p_Select_Columns);
+		v_Describe_Cols_md5 := wwv_flow_item.md5 (v_Table_Name, p_Unique_Key_Column, p_View_Mode, p_Edit_Mode, p_Data_Format, 
 												v_Select_Columns, p_Parent_Name, p_Parent_Key_Column,
 												p_Link_Page_ID, p_Detail_Page_ID, v_Calc_Totals);
 		v_is_cached := case when g_Describe_Cols_md5 != v_Describe_Cols_md5 then 'load' else 'cached!' end;
 		if v_is_cached != 'cached!' then
-			OPEN data_browser_select.Describe_Cols_cur (v_Table_Name, p_Unique_Key_Column, p_View_Mode, p_Edit_Mode, v_Data_Format, 
+			OPEN data_browser_select.Describe_Cols_cur (v_Table_Name, p_Unique_Key_Column, p_View_Mode, p_Edit_Mode, p_Data_Format, 
 												v_Select_Columns, p_Parent_Name, p_Parent_Key_Column,
 												p_Link_Page_ID, p_Detail_Page_ID, v_Calc_Totals);
 			FETCH data_browser_select.Describe_Cols_cur BULK COLLECT INTO g_Describe_Cols_tab;
@@ -4771,18 +4763,17 @@ $END
 			  and p_Report_Mode = 'NO'		-- in Edit single record mode, hidden (key) columns have no header
 			  or g_Describe_Cols_tab(ind).COLUMN_EXPR_TYPE != 'HIDDEN')
 			and FN_Show_Parent_Key(v_Parent_Key_Visible, p_Parent_Name, p_Parent_Key_Column, g_Describe_Cols_tab(ind))
-			and FN_Show_Row_Selector(v_Data_Format, p_Edit_Mode, p_Report_Mode, p_View_Mode, p_Data_Columns_Only, g_Describe_Cols_tab(ind).COLUMN_NAME)
-			and FN_Display_In_Report(p_Report_Mode, p_View_Mode, g_Describe_Cols_tab(ind), v_Select_Columns) then
-				if g_Describe_Cols_tab(ind).COLUMN_EXPR_TYPE != 'HIDDEN' and g_Describe_Cols_tab(ind).COLUMN_ID > 0 then 
-					v_Count := v_Count + 1;
-				end if;
+			and FN_Show_Row_Selector(p_Data_Format, p_Edit_Mode, p_Report_Mode, p_View_Mode, p_Data_Columns_Only, g_Describe_Cols_tab(ind).COLUMN_NAME)
+			and FN_Display_In_Report(p_Data_Format, p_Report_Mode, p_View_Mode, g_Describe_Cols_tab(ind), v_Select_Columns) 
+			and g_Describe_Cols_tab(ind).REPORT_COLUMN_ID <= p_Columns_Limit
+			then
 				v_Str := v_Str
 				|| v_Delimiter
 				|| case p_Format
 						when 'HEADER' then
 							case when p_Report_Mode = 'YES'
 								and p_Enable_Sort = 'YES'
-								and v_Data_Format = 'FORM'
+								and p_Data_Format = 'FORM'
 								and (g_Describe_Cols_tab(ind).COLUMN_ID > 0 or p_View_Mode = 'HISTORY')
 								and dbms_lob.getlength(v_Stat) < 3000 then
 									-- the space for column headers is limited to 4000 bytes
@@ -4824,7 +4815,6 @@ $END
 					v_Str := NULL;
 				end if;
 				v_Delimiter := p_Delimiter;
-				EXIT WHEN v_Count >= p_Columns_Limit;
 			end if;
 		END LOOP;
 		if v_Str IS NOT NULL then
@@ -4834,7 +4824,7 @@ $END
         ----
         $IF data_browser_conf.g_debug $THEN
             EXECUTE IMMEDIATE api_trace.Dyn_Log_Function_Call
-            USING p_table_name,p_unique_key_column,p_delimiter,p_data_columns_only,p_select_columns,p_columns_limit,p_format,p_view_mode,p_edit_mode,p_report_mode,p_enable_sort,p_order_by,p_order_direction,p_parent_name,p_parent_key_column,p_parent_key_visible,p_link_page_id,p_link_parameter,p_detail_page_id,p_detail_parameter,p_file_page_id,v_Stat;
+            USING p_table_name,p_unique_key_column,p_delimiter,p_data_columns_only,p_select_columns,p_columns_limit,p_format,p_view_mode,p_edit_mode,p_Data_Format,p_report_mode,p_enable_sort,p_order_by,p_order_direction,p_parent_name,p_parent_key_column,p_parent_key_visible,p_link_page_id,p_link_parameter,p_detail_page_id,p_detail_parameter,p_file_page_id,v_Stat;
         $END
         return v_Stat;
     exception 
@@ -4872,12 +4862,12 @@ $END
 		v_Table_Name	MVDATA_BROWSER_VIEWS.VIEW_NAME%TYPE := UPPER(p_Table_Name);
 		v_Describe_Cols_md5 VARCHAR2(300);
 		v_is_cached			VARCHAR2(10);
-		v_Count				PLS_INTEGER := 0;
 		v_Map_Count			PLS_INTEGER := 0;
 		v_Select_Columns	VARCHAR2(32767);
 		v_Parent_Key_Visible VARCHAR2(10);
 		v_Calc_Totals	VARCHAR2(10) := 'NO';
 		v_Nested_Links		VARCHAR2(10) := 'NO';
+		v_Column_Limit		PLS_INTEGER := p_Columns_Limit;
 	BEGIN
 		v_Select_Columns := FN_Terminate_List(p_Select_Columns);
 		v_Parent_Key_Visible := FN_Parent_Key_Visible (p_Parent_Key_Visible, p_Edit_Mode, p_View_Mode, p_Data_Format, p_Select_Columns);
@@ -4899,13 +4889,10 @@ $END
 				if (p_Edit_Mode = 'YES' or g_Describe_Cols_tab(ind).COLUMN_EXPR_TYPE != 'HIDDEN')	-- in Edit mode hidden (key) columns are included
 				and FN_Show_Parent_Key(v_Parent_Key_Visible, p_Parent_Name, p_Parent_Key_Column, g_Describe_Cols_tab(ind))
 				and FN_Show_Row_Selector(p_Data_Format, p_Edit_Mode, p_Report_Mode, p_View_Mode, p_Data_Columns_Only, g_Describe_Cols_tab(ind).COLUMN_NAME)
-				and FN_Display_In_Report(p_Report_Mode, p_View_Mode, g_Describe_Cols_tab(ind), v_Select_Columns) 
+				and FN_Display_In_Report(p_Data_Format, p_Report_Mode, p_View_Mode, g_Describe_Cols_tab(ind), v_Select_Columns) 
+				and g_Describe_Cols_tab(ind).REPORT_COLUMN_ID <= v_Column_Limit
 				then
-					if g_Describe_Cols_tab(ind).COLUMN_EXPR_TYPE != 'HIDDEN' and g_Describe_Cols_tab(ind).COLUMN_ID > 0 then 
-						v_Count := v_Count + 1; -- count visible table columns
-					end if;
 					pipe row (g_Describe_Cols_tab(ind));
-					EXIT WHEN v_Count >= p_Columns_Limit;
 				end if;
 			END LOOP;
 		elsif p_View_Mode IN ('IMPORT_VIEW', 'EXPORT_VIEW') then
@@ -4919,20 +4906,18 @@ $END
 				CLOSE data_browser_select.Describe_Imp_Cols_cur;
 				g_Describe_Cols_md5 := v_Describe_Cols_md5;
 			end if;
+			v_Column_Limit := case when p_View_Mode = 'IMPORT_VIEW' 
+				then LEAST(data_browser_conf.Get_Collection_Columns_Limit, p_Columns_Limit)
+				else p_Columns_Limit
+			end;
 			FOR ind IN 1 .. g_Describe_Cols_tab.COUNT
 			LOOP
 				if FN_Show_Row_Selector(p_Data_Format, p_Edit_Mode, p_Report_Mode, p_View_Mode, p_Data_Columns_Only, g_Describe_Cols_tab(ind).COLUMN_NAME)
 				and FN_Has_Collections_Adress(p_View_Mode, g_Describe_Cols_tab(ind))
-				and FN_Display_In_Report(p_Report_Mode, p_View_Mode, g_Describe_Cols_tab(ind), v_Select_Columns) 
+				and FN_Display_In_Report(p_Data_Format, p_Report_Mode, p_View_Mode, g_Describe_Cols_tab(ind), v_Select_Columns) 
+				and g_Describe_Cols_tab(ind).REPORT_COLUMN_ID <= v_Column_Limit
 				then
 					pipe row (g_Describe_Cols_tab(ind));
-					if p_View_Mode = 'IMPORT_VIEW' and SUBSTR(g_Describe_Cols_tab(ind).INPUT_ID, 1, 1) = 'C' then
-						v_Map_Count := v_Map_Count + 1;
-						EXIT WHEN v_Map_Count >= data_browser_conf.Get_Collection_Columns_Limit or v_Map_Count >= p_Columns_Limit;
-					elsif p_View_Mode = 'EXPORT_VIEW' and g_Describe_Cols_tab(ind).COLUMN_EXPR_TYPE NOT IN ('HIDDEN', 'ROW_SELECTOR', 'LINK', 'LINK_LIST', 'LINK_ID') then
-						v_Map_Count := v_Map_Count + 1;
-						EXIT WHEN v_Map_Count >= p_Columns_Limit;
-					end if;
 				end if;
 			END LOOP;
 		else

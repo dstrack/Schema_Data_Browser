@@ -168,7 +168,7 @@ is
 			WHERE S.VIEW_NAME = v_View_Name
 			AND S.JOIN_CLAUSE IS NOT NULL
 			AND S.PARENT_KEY_COLUMN IS NULL -- column is hidden because its content can be deduced from the references FILTER_KEY_COLUMN
-			AND S.IS_FILE_FOLDER_REF = 'N'
+			-- AND S.IS_FILE_FOLDER_REF = 'N' -- Bugfix DS 20230311 all tables in the join chain are needed
 			AND (J.COLUMNS_INCLUDED IN ('A','K') OR J.COLUMNS_INCLUDED IS NULL)
 			UNION ALL -- qc_refs: all 2. level table columns of indirect references from frefs => alias B_A. 
 			SELECT DISTINCT 
