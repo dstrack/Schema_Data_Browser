@@ -249,8 +249,8 @@ is
 		v_Key_Input_Type			VARCHAR2(10);
         v_Result_PLSQL				CLOB;
         v_Result_Stat				CLOB;
-        v_Use_Group_Separator 		CONSTANT VARCHAR2(1) := 'Y';
-		v_use_NLS_params 			CONSTANT VARCHAR2(1) := case when p_View_Mode IN ('IMPORT_VIEW','EXPORT_VIEW') then 'Y' else 'N' end;
+        v_Use_Group_Separator 		CONSTANT VARCHAR2(1) := 'Y';	-- match settings for Get_ConversionColFunction with p_Data_Format => 'FORM'
+		v_use_NLS_params 			CONSTANT VARCHAR2(1) := 'N';	-- match settings for Get_ConversionColFunction with p_Data_Format => 'FORM'
 		v_Apex_Item_Rows_Call 		VARCHAR2(1024);
     	v_Procedure_Name 			VARCHAR2(50);
     	v_Procedure_Name2 			VARCHAR2(50);
@@ -1431,7 +1431,7 @@ $END
 		v_Result		NUMBER;
 		cv 				SYS_REFCURSOR;
 		v_Use_Group_Separator CONSTANT VARCHAR2(1) := 'Y';
-		v_use_NLS_params CONSTANT VARCHAR2(1) := case when p_View_Mode IN ('IMPORT_VIEW','EXPORT_VIEW') then 'Y' else 'N' end;
+		v_use_NLS_params CONSTANT VARCHAR2(1) := 'N'; -- match settings for Get_ConversionColFunction with p_Data_Format => 'FORM'
 	BEGIN
 		v_Column_Value := p_Column_Value;
 		for c_cur IN ( -- single column checks
@@ -3425,6 +3425,36 @@ $IF data_browser_conf.g_use_exceptions $THEN
 $END
 	end Get_Form_Edit_Query;
 
+    FUNCTION Get_Compare_Case_Insensitive (
+        p_Column_Name VARCHAR2,
+    	p_Element VARCHAR2,
+    	p_Element_Type VARCHAR2 DEFAULT 'C', 	-- C,N  = CHar/Number
+    	p_Data_Source VARCHAR2 DEFAULT 'TABLE', -- NEW_ROWS, TABLE, COLLECTION, MEMORY
+        p_Data_Type VARCHAR2,
+        p_Data_Precision NUMBER,
+        p_Data_Scale NUMBER,
+        p_Format_Mask VARCHAR2,
+        p_Use_Group_Separator VARCHAR2 DEFAULT 'Y', -- 'N' for HIDDEN items 
+        p_Compare_Case_Insensitive VARCHAR2 DEFAULT data_browser_conf.Do_Compare_Case_Insensitive
+    ) RETURN VARCHAR2
+    IS 
+    BEGIN
+        RETURN case when p_Compare_Case_Insensitive = 'YES' and p_Data_Type IN ('CHAR', 'VARCHAR2', 'NVARCHAR2', 'CLOB', 'NCLOB')
+            then 'UPPER(' || p_Column_Name || ') = UPPER(' || p_Element || ')'
+            else p_Column_Name
+            	|| ' = '
+            	|| data_browser_conf.Get_Char_to_Type_Expr (
+						p_Element 		=> p_Element,
+						p_Data_Type 	=> p_Data_Type,
+						p_Element_Type	=> p_Element_Type,
+						p_Data_Source	=> p_Data_Source,
+						p_Data_Scale 	=> p_Data_Scale,
+						p_Format_Mask 	=> p_Format_Mask,
+						p_Use_Group_Separator => p_Use_Group_Separator,
+						p_use_NLS_params => 'N'	-- match settings for Get_ConversionColFunction with p_Data_Format => 'FORM'
+					)
+            end;
+    END Get_Compare_Case_Insensitive;
 
     FUNCTION Get_Form_Foreign_Keys_PLSQL (
 		p_Table_name IN VARCHAR2,
@@ -3451,7 +3481,7 @@ $END
 		v_Compare_Case_Insensitive	VARCHAR2(10);
 		v_Search_Keys_Unique		VARCHAR2(10);
 		v_Insert_Foreign_Keys		VARCHAR2(10);
-		v_use_NLS_params CONSTANT VARCHAR2(1) := case when p_View_Mode IN ('IMPORT_VIEW','EXPORT_VIEW') then 'Y' else 'N' end;
+		v_use_NLS_params CONSTANT VARCHAR2(1) := 'N'; -- match settings for Get_ConversionColFunction with p_Data_Format => 'FORM'
 
         CURSOR form_view_cur(v_View_Name VARCHAR2, v_Table_Name VARCHAR2)
         IS
@@ -3556,7 +3586,7 @@ $END
 				|| LISTAGG(
 						case when (HAS_NULLABLE > 0 OR HAS_SIMPLE_UNIQUE > 0) AND T.U_MEMBERS > 1
 						then '('
-							|| data_browser_conf.Get_Compare_Case_Insensitive(
+							|| data_browser_edit.Get_Compare_Case_Insensitive(
 									p_Column_Name 	=> T.TABLE_ALIAS || '.' || T.R_COLUMN_NAME,
 									p_Element 		=> T.S_REF,
 									p_Element_Type	=> T.S_REF_TYPE,
@@ -3572,7 +3602,7 @@ $END
 							|| case when T.R_NULLABLE = 'Y' then T.TABLE_ALIAS || '.' || T.R_COLUMN_NAME || ' IS NULL AND ' end
 							|| S_REF || ' IS NULL)'
 						else
-							data_browser_conf.Get_Compare_Case_Insensitive(
+							data_browser_edit.Get_Compare_Case_Insensitive(
 								p_Column_Name 	=> T.TABLE_ALIAS || '.' || T.R_COLUMN_NAME,
 								p_Element 		=> T.S_REF,
 								p_Element_Type	=> T.S_REF_TYPE,
@@ -3631,7 +3661,7 @@ $END
 							p_Data_Type 	=> T.R_DATA_TYPE,
 							p_Data_Scale 	=> T.R_DATA_SCALE,
 							p_Format_Mask 	=> T.FORMAT_MASK,
-							p_Use_Group_Separator => 'Y',
+							p_Use_Group_Separator => 'Y',	-- match settings for Get_ConversionColFunction with p_Data_Format => 'FORM'
 							p_use_NLS_params => v_use_NLS_params
 						)
 						, ', ') WITHIN GROUP (ORDER BY R_COLUMN_ID, POSITION)
@@ -3747,10 +3777,10 @@ $END
 			)
 			|| data_browser_conf.NL(10)
 			|| 'end;' || data_browser_conf.NL(8)
-			|| case when p_DML_Command = 'UPDATE' and p_Data_Source != 'COLLECTION' then
+			/*|| case when p_DML_Command = 'UPDATE' and p_Data_Source != 'COLLECTION' then
 				'else' || data_browser_conf.NL(12)
 				|| D_REF || ' := NULL;' || data_browser_conf.NL(8)
-			end
+			end*/
 			|| 'end if;'
 			|| chr(10)
 			SQL_TEXT
@@ -3825,6 +3855,7 @@ $END
 					p_Data_Precision 	=> S.R_DATA_PRECISION,
 					p_Data_Scale 		=> S.R_DATA_SCALE,
 					p_Char_Length 		=> S.R_CHAR_LENGTH,
+					p_Use_Group_Separator => 'Y', 
 					p_Datetime			=> S.IS_DATETIME
 				) FORMAT_MASK,
 				S.TABLE_ALIAS,
@@ -4108,6 +4139,7 @@ $END
         $IF data_browser_conf.g_debug $THEN
             EXECUTE IMMEDIATE api_trace.Dyn_Log_Start
             USING p_table_name,p_unique_key_column,p_data_source,p_select_columns,p_columns_limit,p_view_mode,p_join_options,p_parent_name,p_parent_key_column,p_parent_key_visible,p_parent_key_item,p_dml_command,p_row_number,p_use_empty_columns,p_as_of_timestamp,p_exec_phase;
+			data_browser_edit.Dump_Application_Items;
         $END
     	dbms_lob.createtemporary(v_Result_PLSQL, true, dbms_lob.call);    	
 		v_Result_PLSQL := data_browser_edit.Get_Form_Foreign_Keys_PLSQL(
@@ -4731,7 +4763,7 @@ $END
         v_Column_List	CLOB;
         v_Values_List	CLOB;
         v_Result_Stat	CLOB;
-        v_use_NLS_params CONSTANT VARCHAR2(1) := case when p_View_Mode IN ('IMPORT_VIEW','EXPORT_VIEW') then 'Y' else 'N' end;
+        v_use_NLS_params CONSTANT VARCHAR2(1) := 'N'; -- match settings for Get_ConversionColFunction with p_Data_Format => 'FORM'
         v_Delimiter     CONSTANT VARCHAR2(50) := ', ' || NL(20);
         v_Delimiter2	VARCHAR2(50);
 		v_Indent 		PLS_INTEGER;
@@ -5026,8 +5058,8 @@ $END
         v_Search_Condition	VARCHAR2(32767);
 		v_Row_Number 	PLS_INTEGER := 1;	--	used for form validation
 		v_Delimiter2	VARCHAR2(50);
-		v_Use_Group_Separator 	CONSTANT VARCHAR2(1) := 'Y';
-		v_use_NLS_params 		CONSTANT VARCHAR2(1) := case when p_View_Mode IN ('IMPORT_VIEW','EXPORT_VIEW') then 'Y' else 'N' end;
+		v_Use_Group_Separator 	CONSTANT VARCHAR2(1) := 'Y'; -- match settings for Get_ConversionColFunction with p_Data_Format => 'FORM'
+		v_use_NLS_params 		CONSTANT VARCHAR2(1) := 'N'; -- match settings for Get_ConversionColFunction with p_Data_Format => 'FORM'
 		v_Apex_Item_Rows_Call VARCHAR2(1024);
 		v_Row_Op        VARCHAR2(50);
 		v_Parent_Key_Visible  VARCHAR2(10);

@@ -1914,6 +1914,19 @@ IS
 	)
 	RETURN CLOB;
 
+    FUNCTION Get_Compare_Case_Insensitive (
+        p_Column_Name VARCHAR2,
+    	p_Element VARCHAR2,
+    	p_Element_Type VARCHAR2 DEFAULT 'C', 	-- C,N  = CHar/Number
+    	p_Data_Source VARCHAR2 DEFAULT 'TABLE', -- NEW_ROWS, TABLE, COLLECTION, MEMORY
+        p_Data_Type VARCHAR2,
+        p_Data_Precision NUMBER,
+        p_Data_Scale NUMBER,
+        p_Format_Mask VARCHAR2,
+        p_Use_Group_Separator VARCHAR2 DEFAULT 'Y', -- 'N' for HIDDEN items 
+        p_Compare_Case_Insensitive VARCHAR2 DEFAULT data_browser_conf.Do_Compare_Case_Insensitive
+    ) RETURN VARCHAR2;
+
     FUNCTION Get_Form_Foreign_Keys_PLSQL (
 		p_Table_name IN VARCHAR2,
     	p_Unique_Key_Column VARCHAR2 DEFAULT NULL,

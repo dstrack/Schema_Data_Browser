@@ -796,17 +796,21 @@ is
 			WHERE VIEW_NAME = v_View_Name
 		)
 		SELECT COLUMN_NAME, TABLE_ALIAS, 
-			ROW_NUMBER() OVER (ORDER BY COLUMN_ORDER, IS_AUDIT_COLUMN, COLUMN_ID
-					, R_COLUMN_ID, POSITION, COLUMN_NAME) COLUMN_ORDER, 
+			ROW_NUMBER() OVER (ORDER BY COLUMN_ORDER NULLS LAST
+					, case when IS_DISP_KEY_COLUMN = 'Y' then 0 else 1 end
+					, case when DISPLAY_IN_REPORT = 'Y' then 0 else 1 end
+					, IS_AUDIT_COLUMN
+					, COLUMN_ID, R_COLUMN_ID, POSITION, COLUMN_NAME) COLUMN_ORDER, 
 			COLUMN_ID, POSITION,
 			case when HAS_COLLECTION_NUM_INDEX = 1 and COLLECTION_NUM_INDEX <= 5 then
 					'N' || LPAD(COLLECTION_NUM_INDEX, 3, '0')	-- apex_collections fields for hidden unique key columns
 				when HAS_COLLECTION_CHAR_INDEX = 1 then
 					'C' || LPAD(
 						SUM(case when HAS_COLLECTION_CHAR_INDEX = 1 then 1 else 0 end)
-							OVER (ORDER BY COLUMN_ORDER NULLS LAST,							-- ordered from left to right by v_Select_Columns
-									case when DISPLAY_IN_REPORT = 'Y' then 0 else 1 end,	-- or use default order (visible first)
-									COLUMN_ID, R_COLUMN_ID, POSITION RANGE BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
+							OVER (ORDER BY COLUMN_ORDER NULLS LAST							-- ordered from left to right by v_Select_Columns
+								, case when IS_DISP_KEY_COLUMN = 'Y' then 0 else 1 end
+								, case when DISPLAY_IN_REPORT = 'Y' then 0 else 1 end	-- or use default order (visible first)
+								, COLUMN_ID, R_COLUMN_ID, POSITION RANGE BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
 					), 3, '0')	-- collection fields for input columns
 				when HAS_COLLECTION_NUM_INDEX = 1 and COLLECTION_NUM_INDEX > 5-- over limit of 5 number fields in apex_collections
 					or HAS_COLLECTION_HIDDEN_INDEX = 1 and COLLECTION_HIDDEN_INDEX > 0 then -- find space for hidden char keys 
@@ -814,15 +818,18 @@ is
 						data_browser_conf.Get_Collection_Columns_Limit + 1 -
 						SUM(case when (HAS_COLLECTION_NUM_INDEX = 1 and COLLECTION_NUM_INDEX > 5)
 									or HAS_COLLECTION_HIDDEN_INDEX = 1 and COLLECTION_HIDDEN_INDEX > 0 then 1 else 0 end)
-							OVER (ORDER BY COLUMN_ORDER NULLS LAST,							-- ordered from left to right by v_Select_Columns
-									case when DISPLAY_IN_REPORT = 'Y' then 0 else 1 end,	-- or use default order (visible first)
-									COLUMN_ID, R_COLUMN_ID, POSITION RANGE BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
+							OVER (ORDER BY COLUMN_ORDER NULLS LAST							-- ordered from left to right by v_Select_Columns
+								, case when IS_DISP_KEY_COLUMN = 'Y' then 0 else 1 end
+								, case when DISPLAY_IN_REPORT = 'Y' then 0 else 1 end	-- or use default order (visible first)
+								, COLUMN_ID, R_COLUMN_ID, POSITION RANGE BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
 					), 3, '0')	-- apex_collections fields for hidden unique key columns, when more than 5 are needed.
 			end INPUT_ID,
 			SUM(case when COLUMN_EXPR_TYPE != 'HIDDEN' and COLUMN_ID > 0 then 1 else 0  end) 
-				OVER (ORDER BY COLUMN_ORDER
+				OVER (ORDER BY COLUMN_ORDER NULLS LAST
+					, case when IS_DISP_KEY_COLUMN = 'Y' then 0 else 1 end
 					, case when DISPLAY_IN_REPORT = 'Y' then 0 else 1 end
-					, IS_AUDIT_COLUMN, COLUMN_ID
+					, IS_AUDIT_COLUMN
+					, COLUMN_ID
 					, case when COLUMN_EXPR_TYPE != 'HIDDEN' and COLUMN_ID > 0 then 0 else 1  end
 					-- there are multiole items per COLUMN_ID.
 					-- move hidden items to the begin of a group, so that visible items have the same index number as the hidden items
@@ -4110,7 +4117,7 @@ $END
 												v_Select_Columns, p_Parent_Name, p_Parent_Key_Column, v_Parent_Key_Visible, p_Join_Options);
 		v_is_cached := case when g_Describe_Cols_md5 != v_Describe_Cols_md5 then 'load' else 'cached!' end;
 		if v_is_cached != 'cached!' then
-			OPEN data_browser_select.Describe_Imp_Cols_cur (v_Table_Name, v_Unique_Key_Column, p_View_Mode, p_Data_Source, 
+			OPEN data_browser_select.Describe_Imp_Cols_cur (v_Table_Name, v_Unique_Key_Column, p_View_Mode, v_Data_Format, 
 															v_Select_Columns, p_Parent_Name, p_Parent_Key_Column, v_Parent_Key_Visible, p_Join_Options);
 			FETCH data_browser_select.Describe_Imp_Cols_cur BULK COLLECT INTO g_Describe_Cols_tab;
 			CLOSE data_browser_select.Describe_Imp_Cols_cur;

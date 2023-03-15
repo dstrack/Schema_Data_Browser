@@ -314,7 +314,6 @@ IS
 		p_Decimal_Character VARCHAR2,
 		p_Group_Separator VARCHAR2
 	);
-	PROCEDURE Set_Use_App_Date_Time_Format(p_Yes_No VARCHAR2);
 	FUNCTION Get_Rec_Desc_Delimiter RETURN VARCHAR2;
 	FUNCTION Get_Rec_Desc_Group_Delimiter RETURN VARCHAR2;
 	FUNCTION Get_TextArea_Min_Length RETURN NUMBER;
@@ -501,18 +500,6 @@ IS
     ) RETURN VARCHAR2 DETERMINISTIC;
 
     FUNCTION Do_Compare_Case_Insensitive RETURN VARCHAR2;
-    FUNCTION Get_Compare_Case_Insensitive (
-        p_Column_Name VARCHAR2,
-    	p_Element VARCHAR2,
-    	p_Element_Type VARCHAR2 DEFAULT 'C', 	-- C,N  = CHar/Number
-    	p_Data_Source VARCHAR2 DEFAULT 'TABLE', -- NEW_ROWS, TABLE, COLLECTION, MEMORY
-        p_Data_Type VARCHAR2,
-        p_Data_Precision NUMBER,
-        p_Data_Scale NUMBER,
-        p_Format_Mask VARCHAR2,
-        p_Use_Group_Separator VARCHAR2 DEFAULT 'N',
-        p_Compare_Case_Insensitive VARCHAR2 DEFAULT Do_Compare_Case_Insensitive
-    ) RETURN VARCHAR2;
 	FUNCTION Get_Apex_Item_Limit RETURN PLS_INTEGER DETERMINISTIC;
 	FUNCTION Get_Collection_Columns_Limit RETURN PLS_INTEGER DETERMINISTIC;
 	FUNCTION Get_Edit_Columns_Limit RETURN PLS_INTEGER DETERMINISTIC;
@@ -2224,24 +2211,52 @@ $END
 
     FUNCTION Get_Export_NumChars(p_Enquote VARCHAR2 DEFAULT 'YES') RETURN VARCHAR2
     IS
+    	v_Result VARCHAR2(500);
     BEGIN
-		RETURN case when p_Enquote = 'NO' 
-			then 'NLS_NUMERIC_CHARACTERS = ' || Enquote_Literal(g_Export_NumChars) 
-			else 'q''[NLS_NUMERIC_CHARACTERS = ' || Enquote_Literal(g_Export_NumChars) || ']''' 
-		end;
+    	v_Result := case when g_Use_App_Date_Time_Format = 'NO' then 
+    		'NLS_NUMERIC_CHARACTERS = ' || Enquote_Literal(g_Export_NumChars) 
+    	else 
+    		'NLS_NUMERIC_CHARACTERS = ' || Enquote_Literal(Get_NLS_NumChars) 
+    	end; 
+    	if p_Enquote = 'YES' then 
+    		v_Result :=  'q''[' || v_Result || ']''';
+    	end if;
+    	RETURN v_Result;
     END;
+
+    FUNCTION Get_Config_NLS_Param RETURN VARCHAR2
+    IS
+    BEGIN
+    	RETURN 'NLS_NUMERIC_CHARACTERS = ' || dbms_assert.enquote_literal(g_Export_NumChars)
+			|| ' NLS_CURRENCY = ' || dbms_assert.enquote_literal(g_Export_Currency);
+    END Get_Config_NLS_Param;
+
+    FUNCTION Get_Session_NLS_Param RETURN VARCHAR2
+    IS
+    BEGIN
+    	RETURN 'NLS_NUMERIC_CHARACTERS = ' || dbms_assert.enquote_literal(Get_NLS_NumChars)
+			|| ' NLS_CURRENCY = ' || dbms_assert.enquote_literal(Get_NLS_Currency);
+
+    END Get_Session_NLS_Param;
 
     FUNCTION Get_Export_NLS_Param RETURN VARCHAR2
     IS
     BEGIN
-		RETURN 'NLS_NUMERIC_CHARACTERS = ' || dbms_assert.enquote_literal(g_Export_NumChars)
-		|| ' NLS_CURRENCY = ' || dbms_assert.enquote_literal(g_Export_Currency);
+		RETURN case when g_Use_App_Date_Time_Format = 'NO' then 
+			Get_Config_NLS_Param
+		else 
+			Get_Session_NLS_Param
+		end;
     END Get_Export_NLS_Param;
 
     FUNCTION Get_Export_Number (p_Value VARCHAR2) RETURN NUMBER
     IS
     BEGIN
-		RETURN TO_NUMBER(TRIM(p_Value), numbers_utl.Get_Number_Mask(p_Value, g_Export_NumChars, g_Export_Currency), Get_Export_NLS_Param);
+		RETURN case when g_Use_App_Date_Time_Format = 'NO' then 
+			TO_NUMBER(TRIM(p_Value), numbers_utl.Get_Number_Mask(p_Value, g_Export_NumChars, g_Export_Currency), Get_Config_NLS_Param)
+		else 
+			TO_NUMBER(TRIM(p_Value), numbers_utl.Get_Number_Mask(p_Value, Get_NLS_NumChars, Get_NLS_Currency), Get_Session_NLS_Param)
+		end;
     END Get_Export_Number;
 
     FUNCTION Get_Number_Decimal_Character RETURN VARCHAR2
@@ -2392,7 +2407,7 @@ $END
 		if p_Is_DateTime = 'N' then	
 			return v_Format_Mask;
 		else
-			-- remove milliseconds form format mask, because APEX_ITEM.DATE_POPUP2 does not support it.
+			-- remove milliseconds from format mask, because APEX_ITEM.DATE_POPUP2 does not support it.
 			return REGEXP_REPLACE(v_Format_Mask, 'SS[\.|,|X]FF$', 'SS');
 		end	if;
 	END;
@@ -2405,18 +2420,6 @@ $END
 	BEGIN
 		g_Export_NumChars := p_Decimal_Character || p_Group_Separator;
 	END;
-
-	PROCEDURE Set_Use_App_Date_Time_Format(p_Yes_No VARCHAR2)
-	IS
-		v_Yes_No VARCHAR2(10) := UPPER(p_Yes_No);
-	BEGIN
-		g_Use_App_Date_Time_Format := case
-			when v_Yes_No IN ('YES', 'NO') then p_Yes_No
-			when v_Yes_No = 'Y' then 'YES'
-			when v_Yes_No = 'N' then 'NO'
-			else g_Use_App_Date_Time_Format
-		end;
-	END Set_Use_App_Date_Time_Format;
 
 	FUNCTION Get_Rec_Desc_Delimiter RETURN VARCHAR2 IS BEGIN RETURN g_Rec_Desc_Delimiter; END;
 	FUNCTION Get_Rec_Desc_Group_Delimiter RETURN VARCHAR2 IS BEGIN RETURN g_Rec_Desc_Group_Delimiter; END;
@@ -3295,14 +3298,11 @@ $END
         when p_Data_Type = 'DATE' then
             v_Result := 'TO_CHAR(' 
             || p_Column_Name
-            || case when g_Use_App_Date_Time_Format = 'NO' then ', ' || Enquote_Literal(g_Export_Date_Format) end
+            || ', ' || Enquote_Literal(Get_Export_Date_Format) -- for APEX_ITEM.DATE_POPUP2 the format mask is required.
             || ')';
-        when p_Data_Type LIKE 'TIMESTAMP%' AND p_Datetime = 'Y' then
-            v_Result := 'TO_CHAR(' || p_Column_Name 
-            || ', ' || Enquote_Literal(Get_Timestamp_Format(p_Is_DateTime => p_Datetime)) || ')';
         when p_Data_Type LIKE 'TIMESTAMP%' then
             v_Result := 'TO_CHAR(' || p_Column_Name 
-            || case when g_Use_App_Date_Time_Format = 'NO' then ', ' || Enquote_Literal(g_Export_Timestamp_Format) end
+            || ', ' || Enquote_Literal(Get_Timestamp_Format(p_Is_DateTime => p_Datetime)) -- for APEX_ITEM.DATE_POPUP2 the format mask is required.
             || ')';
         else 
 			v_Result := p_Column_Name;
@@ -3499,38 +3499,6 @@ $END
 	PROCEDURE Set_Include_Query_Schema (p_Value VARCHAR2) IS BEGIN g_Include_Query_Schema := p_Value; END;
 
 	FUNCTION Do_Compare_Case_Insensitive RETURN VARCHAR2 IS BEGIN RETURN g_Compare_Case_Insensitive; END;
-
-    FUNCTION Get_Compare_Case_Insensitive (
-        p_Column_Name VARCHAR2,
-    	p_Element VARCHAR2,
-    	p_Element_Type VARCHAR2 DEFAULT 'C', 	-- C,N  = CHar/Number
-    	p_Data_Source VARCHAR2 DEFAULT 'TABLE', -- NEW_ROWS, TABLE, COLLECTION, MEMORY
-        p_Data_Type VARCHAR2,
-        p_Data_Precision NUMBER,
-        p_Data_Scale NUMBER,
-        p_Format_Mask VARCHAR2,
-        p_Use_Group_Separator VARCHAR2 DEFAULT 'N',
-        p_Compare_Case_Insensitive VARCHAR2 DEFAULT Do_Compare_Case_Insensitive
-    ) RETURN VARCHAR2
-    IS
-		v_use_NLS_params 	CONSTANT VARCHAR2(1) := 'Y'; -- case when p_Data_Source = 'COLLECTION' then 'Y' else 'N' end
-    BEGIN
-        RETURN case when p_Compare_Case_Insensitive = 'YES' and p_Data_Type IN ('CHAR', 'VARCHAR2', 'NVARCHAR2', 'CLOB', 'NCLOB')
-            then 'UPPER(' || p_Column_Name || ') = UPPER(' || p_Element || ')'
-            else p_Column_Name
-            	|| ' = '
-            	|| data_browser_conf.Get_Char_to_Type_Expr (
-						p_Element 		=> p_Element,
-						p_Data_Type 	=> p_Data_Type,
-						p_Element_Type	=> p_Element_Type,
-						p_Data_Source	=> p_Data_Source,
-						p_Data_Scale 	=> p_Data_Scale,
-						p_Format_Mask 	=> p_Format_Mask,
-						p_Use_Group_Separator => p_Use_Group_Separator,
-						p_use_NLS_params => v_use_NLS_params
-					)
-            end;
-    END Get_Compare_Case_Insensitive;
 
 	FUNCTION Get_Search_Keys_Unique RETURN VARCHAR2
 	IS
