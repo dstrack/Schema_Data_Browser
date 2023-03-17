@@ -168,7 +168,6 @@ is
 			WHERE S.VIEW_NAME = v_View_Name
 			AND S.JOIN_CLAUSE IS NOT NULL
 			AND S.PARENT_KEY_COLUMN IS NULL -- column is hidden because its content can be deduced from the references FILTER_KEY_COLUMN
-			-- AND S.IS_FILE_FOLDER_REF = 'N' -- Bugfix DS 20230311 all tables in the join chain are needed
 			AND (J.COLUMNS_INCLUDED IN ('A','K') OR J.COLUMNS_INCLUDED IS NULL)
 			UNION ALL -- qc_refs: all 2. level table columns of indirect references from frefs => alias B_A. 
 			SELECT DISTINCT 
@@ -233,15 +232,11 @@ is
 				pipe row (g_record_joins_tab(ind));
 			END LOOP;
 		end if;
-		$IF data_browser_conf.g_debug $THEN
-			apex_debug.info(
-				p_message => 'data_browser_joins.Get_Detail_Table_Joins_Cursor (%s, %s, %s) : %s',
-				p0 => DBMS_ASSERT.ENQUOTE_LITERAL(p_Table_Name),
-				p1 => DBMS_ASSERT.ENQUOTE_LITERAL(p_As_Of_Timestamp),
-				p2 => DBMS_ASSERT.ENQUOTE_LITERAL(p_Join_Options),
-				p3 => v_is_cached
-			);
-		$END
+        ----
+        $IF data_browser_conf.g_debug $THEN
+            EXECUTE IMMEDIATE api_trace.Dyn_Log_Function_Call
+            USING p_table_name,p_as_of_timestamp,p_join_options,p_include_schema,p_list_excluded,g_record_joins_tab.COUNT;
+        $END
 	exception
 	  when others then
 		if Describe_Joins_cur%ISOPEN then
@@ -301,6 +296,11 @@ is
 				pipe row (v_out_tab(ind));
 			END LOOP;
 		end if;
+        ----
+        $IF data_browser_conf.g_debug $THEN
+            EXECUTE IMMEDIATE api_trace.Dyn_Log_Function_Call
+            USING p_table_name,p_join_options,v_out_tab.COUNT;
+        $END
 	exception
 	  when others then
 		if join_options_cur%ISOPEN then
@@ -320,7 +320,11 @@ is
 		INTO v_Join_Options
 		FROM table(data_browser_joins.Get_Detail_Table_Joins_Cursor(p_Table_Name)) S
 		WHERE S.TABLE_ALIAS != 'A';
-
+        ----
+        $IF data_browser_conf.g_debug $THEN
+            EXECUTE IMMEDIATE api_trace.Dyn_Log_Function_Call
+            USING p_table_name,p_option,v_Join_Options;
+        $END
 		RETURN v_Join_Options;
 	END Get_Default_Join_Options;
 
@@ -333,15 +337,6 @@ is
 	IS
 		v_Join_Options VARCHAR2(4000);
 	BEGIN
-		$IF data_browser_conf.g_debug $THEN
-			apex_debug.info(
-				p_message => 'data_browser_joins.Get_Details_Join_Options (p_Table_name=>%s, p_View_Mode=>%s, p_Parent_Key_Column=>%s, p_Parent_Key_Visible=>%s)',
-				p0 => DBMS_ASSERT.ENQUOTE_LITERAL(p_Table_Name),
-				p1 => DBMS_ASSERT.ENQUOTE_LITERAL(p_View_Mode),
-				p2 => DBMS_ASSERT.ENQUOTE_LITERAL(p_Parent_Key_Column),
-				p3 => DBMS_ASSERT.ENQUOTE_LITERAL(p_Parent_Key_Visible)
-			);
-		$END
 		-- Setup default joins
 		-- By default only natural key columns are included.
 		-- But all columns of the master table are included in the view mode EXPORT_VIEW
@@ -357,6 +352,11 @@ is
 		INTO v_Join_Options
 		FROM table(data_browser_joins.Get_Detail_Table_Joins_Cursor(p_Table_name)) S
 		WHERE S.TABLE_ALIAS != 'A';
+        ----
+        $IF data_browser_conf.g_debug $THEN
+            EXECUTE IMMEDIATE api_trace.Dyn_Log_Function_Call
+            USING p_table_name,p_view_mode,p_parent_key_column,p_parent_key_visible,v_Join_Options;
+        $END
 		RETURN v_Join_Options;
 	END Get_Details_Join_Options;
 
@@ -368,6 +368,11 @@ is
 			v_Join_Options := v_Join_Options || APEX_APPLICATION.G_F48(i) || ';' || APEX_APPLICATION.G_F49(i)
 			|| case when i < APEX_APPLICATION.G_F48.COUNT then ':' end;
 		END LOOP;
+        ----
+        $IF data_browser_conf.g_debug $THEN
+            EXECUTE IMMEDIATE api_trace.Dyn_Log_Function_Call
+            USING v_Join_Options;
+        $END
 		return v_Join_Options;
 	END Process_Join_Options;
 

@@ -615,8 +615,8 @@ IS
 	TYPE tab_join_options IS TABLE OF rec_join_options;
 
 	TYPE rec_col_value IS RECORD (
-		COLUMN_NAME VARCHAR2(512),
-		COLUMN_HEADER VARCHAR2(1024),
+		COLUMN_NAME VARCHAR2(4000),
+		COLUMN_HEADER VARCHAR2(4000),
 		COLUMN_DATA t_col_value
 	);
 	-- output of data_browser_utl.Column_Value_List, data_browser_utl.Get_Detail_View_Column_Cursor

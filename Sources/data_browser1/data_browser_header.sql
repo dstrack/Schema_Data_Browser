@@ -24,10 +24,10 @@ IS
 		p_Include_Schema VARCHAR2 DEFAULT 'YES',
 		p_List_Excluded VARCHAR2 DEFAULT 'NO'
 	) RETURN data_browser_conf.tab_describe_joins PIPELINED;
-    g_detail_joins_tab		data_browser_conf.tab_describe_joins;
+    g_detail_joins_tab		data_browser_conf.tab_describe_joins := data_browser_conf.tab_describe_joins();
 	g_detail_joins_md5 		VARCHAR2(300) := 'X';
 
-    g_record_joins_tab		data_browser_conf.tab_describe_joins;
+    g_record_joins_tab		data_browser_conf.tab_describe_joins := data_browser_conf.tab_describe_joins();
 	g_record_joins_md5 		VARCHAR2(300) := 'X';
 
 	FUNCTION Get_Joins_Options_Cursor (
