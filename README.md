@@ -23,7 +23,7 @@ Application to analyse your DB and APEX Applications
 	Environment / Encoding = UTF-8
 	Database / Worksheet / Standardpath for Scripts
 	
-	...Schema_Data_Browser/Sources/sys_install 
+	...Schema_Data_Browser/Sources 
 	
 3. Installation of SYS components for schema management (optional)
 	

@@ -19,27 +19,32 @@ Package with special functions used in the data browser application.
 set serveroutput on size unlimited
 set scan off
 
+--DROP PACKAGE data_browser_schema;
+--DROP PACKAGE BODY data_browser_schema;
+
+
 declare 
     v_Schema_Name VARCHAR2(128) := SYS_CONTEXT('USERENV', 'CURRENT_SCHEMA');
-	v_Use_Special_Features VARCHAR2(128);
-	v_Use_APEX_Instance_Admin VARCHAR2(128);
+	v_Use_Admin_Features VARCHAR2(128);
+	v_package_exists NUMBER;
 	v_stat VARCHAR2(32767);
 begin
 	SELECT case when COUNT(*) > 0 then 'TRUE' else 'FALSE' end 
-	INTO v_Use_Special_Features
+	INTO v_Use_Admin_Features
 	FROM DBA_ROLE_PRIVS 
 	WHERE GRANTEE = v_Schema_Name
 	AND GRANTED_ROLE = 'DBA';
 
-	SELECT case when exists(
-		SELECT 1 FROM ALL_TAB_PRIVS 
-		WHERE TABLE_NAME = 'APEX_INSTANCE_ADMIN' 
-		AND GRANTEE IN (v_Schema_Name, 'PUBLIC')
-		AND PRIVILEGE = 'EXECUTE'	
-	) then 'TRUE' else 'FALSE' end 
-	INTO v_Use_APEX_Instance_Admin
-	FROM DUAL;
+	SELECT COUNT(*) 
+	INTO v_package_exists
+	FROM USER_OBJECTS 
+	WHERE OBJECT_NAME = 'DATA_BROWSER_SCHEMA'
+	AND OBJECT_TYPE = 'PACKAGE';
 
+	if v_package_exists != 0 then
+		EXECUTE IMMEDIATE 'DROP PACKAGE DATA_BROWSER_SCHEMA';
+	end if;
+	
 	v_stat := q'[
 CREATE OR REPLACE PACKAGE data_browser_schema 
 AUTHID DEFINER
@@ -133,13 +138,12 @@ IS
 		p_Add_Demo_Guest VARCHAR2
 	);
 
-	g_Use_Special_Features	   CONSTANT BOOLEAN := ]'
-	|| v_Use_Special_Features || ';
-	g_Use_APEX_Instance_Admin	   CONSTANT BOOLEAN := '
-	|| v_Use_APEX_Instance_Admin || ';' || chr(10) 
-	|| 'END;' || chr(10) ;
+	g_Use_Admin_Features	   CONSTANT BOOLEAN := ]'
+	|| v_Use_Admin_Features || ';' || chr(10) 
+	|| 'END data_browser_schema;' || chr(10) ;
 	EXECUTE IMMEDIATE v_Stat;
-end data_browser_schema;
+    --dbms_output.put_line(v_Stat);
+end;
 /
 
 CREATE OR REPLACE PACKAGE BODY data_browser_schema
@@ -148,7 +152,7 @@ IS
     FUNCTION FN_GET_PARAMETER(p_Name VARCHAR2) RETURN VARCHAR2 
     IS 
     BEGIN
-$IF data_browser_schema.g_Use_APEX_Instance_Admin $THEN 
+$IF data_browser_schema.g_Use_Admin_Features $THEN 
         return APEX_INSTANCE_ADMIN.GET_PARAMETER (p_Name);
 $ELSE 
 		return NULL;
@@ -207,10 +211,10 @@ $END
 		end if;
 		v_workspace_id := apex_util.find_security_group_id (p_workspace => v_Workspace_Name);
 		apex_util.set_security_group_id (p_security_group_id => v_workspace_id);
-$IF data_browser_schema.g_Use_Special_Features $THEN 
+$IF data_browser_schema.g_Use_Admin_Features $THEN 
 		APEX_INSTANCE_ADMIN.UNRESTRICT_SCHEMA(p_schema => p_Schema_Name);
 $END
-$IF data_browser_schema.g_Use_APEX_Instance_Admin $THEN 
+$IF data_browser_schema.g_Use_Admin_Features $THEN 
 		APEX_INSTANCE_ADMIN.ADD_SCHEMA(p_workspace => v_Workspace_Name, p_schema => p_Schema_Name);
 $ELSE 
 	DBMS_OUTPUT.PUT_LINE('Add the schema to the Workspace within the APEX ADMIN Page - Workspace to Schema Assignment');
@@ -268,7 +272,7 @@ $END
 			end if;
 		END Run_DDL_Stat;
 
-$IF DBMS_DB_VERSION.VERSION >= 12 and data_browser_schema.g_Use_Special_Features $THEN
+$IF DBMS_DB_VERSION.VERSION >= 12 and data_browser_schema.g_Use_Admin_Features $THEN
 		PROCEDURE grant_connect (p_app_owner VARCHAR2)
 		is
 		begin
@@ -279,7 +283,7 @@ $IF DBMS_DB_VERSION.VERSION >= 12 and data_browser_schema.g_Use_Special_Features
 								principal_type => xs_acl.ptype_db)
 			);
 		end grant_connect;
-$ELSIF DBMS_DB_VERSION.VERSION >= 12 and data_browser_schema.g_Use_Special_Features $THEN
+$ELSIF DBMS_DB_VERSION.VERSION >= 12 and data_browser_schema.g_Use_Admin_Features $THEN
 		procedure grant_connect (p_app_owner VARCHAR2)
 		is
 			l_ACL_Path VARCHAR2(4000);
@@ -363,17 +367,14 @@ $END
 		Run_Stat('GRANT SELECT ON SYS.V_$MYSTAT TO ' || v_app_owner);
 		-- chat room
 		Run_Stat('GRANT EXECUTE ON SYS.DBMS_ALERT TO ' || v_app_owner);
-		-- as_zip 
-		-- Run_Stat('GRANT EXECUTE ON SYS.UTL_FILE TO ' || v_app_owner);
 
-		-- Run_Stat('GRANT EXECUTE ON SYS.DBMS_SQL TO ' || v_app_owner);
-		-- Run_Stat('GRANT EXECUTE ON SYS.DBMS_SNAPSHOT TO ' || v_app_owner);
 		Run_Stat('GRANT CREATE JOB TO ' || v_app_owner);
 		Run_Stat('GRANT EXECUTE ON CTXSYS.CTX_DDL TO ' || v_app_owner);
 		Run_Stat ('GRANT CTXAPP TO '|| v_app_owner);	-- Use the Oracle Text PL/SQL packages
-$IF data_browser_schema.g_Use_Special_Features $THEN
-		-- enable users to duplicate a schema.
-		Run_Stat ('GRANT APEX_ADMINISTRATOR_ROLE TO ' || v_app_owner );
+$IF data_browser_schema.g_Use_Admin_Features $THEN
+		-- Schema Managment
+        Run_DDL_Stat ('GRANT APEX_ADMINISTRATOR_ROLE TO ' || v_Grantee_Name );
+        Run_DDL_Stat ('GRANT EXECUTE ON APEX_INSTANCE_ADMIN TO ' || v_Grantee_Name);
 		-- CTX_INDEXES access is not permitted on Oracle CLoud
 		Run_Stat ('GRANT SELECT ON CTXSYS.CTX_INDEXES TO '|| v_app_owner); -- used by wema_vpd_mgr
 		-- Enable Update of lov_query and lov_data in User Interface Defaults
@@ -400,7 +401,7 @@ $END
 			Run_Stat('GRANT EXECUTE ON ' || v_dba_schema || '.DATA_BROWSER_SCHEMA TO ' || v_app_owner);
 			Run_Stat('CREATE OR REPLACE SYNONYM ' || v_app_owner || '.DATA_BROWSER_SCHEMA FOR DATA_BROWSER_SCHEMA');
 
-$IF data_browser_schema.g_Use_Special_Features $THEN
+$IF data_browser_schema.g_Use_Admin_Features $THEN
 			SELECT COUNT(*) INTO v_cnt
 			FROM DBA_NETWORK_ACL_PRIVILEGES
 			WHERE UPPER(PRIVILEGE) = 'CONNECT' AND IS_GRANT = 'true'
@@ -467,8 +468,7 @@ $END
 		Run_Stat('REVOKE CREATE JOB FROM ' || l_app_owner);
 		Run_Stat('REVOKE EXECUTE ON CTXSYS.CTX_DDL FROM ' || l_app_owner);
 		Run_Stat('REVOKE CTXAPP FROM ' || l_app_owner);
-$IF data_browser_schema.g_Use_Special_Features $THEN
-		Run_Stat ('REVOKE APEX_ADMINISTRATOR_ROLE FROM ' || l_app_owner );
+$IF data_browser_schema.g_Use_Admin_Features $THEN
 		-- CTX_INDEXES access is not permitted on Oracle CLoud
 		Run_Stat('REVOKE SELECT ON CTXSYS.CTX_INDEXES FROM ' || l_app_owner);
 
@@ -590,7 +590,7 @@ $END
 		/* set parallel level */
 		dbms_datapump.set_parallel(handle => v_handle, degree => p_paral_lvl);
 		/* make any data copied consistent with respect to now */
-$IF data_browser_schema.g_Use_Special_Features $THEN
+$IF data_browser_schema.g_Use_Admin_Features $THEN
 		dbms_datapump.set_parameter (v_handle, 'FLASHBACK_SCN', dbms_flashback.get_system_change_number);
 $END
 		/* DS: privilege grants to the exported schemas should also be part of the operation */
@@ -634,7 +634,7 @@ $END
 			v_workspace_id := apex_util.find_security_group_id (p_workspace => v_Workspace_Name);
 			apex_util.set_security_group_id (p_security_group_id => v_workspace_id);
 
-$IF data_browser_schema.g_Use_APEX_Instance_Admin $THEN 
+$IF data_browser_schema.g_Use_Admin_Features $THEN 
 			APEX_INSTANCE_ADMIN.REMOVE_SCHEMA(v_Workspace_Name, p_Schema_Name);
 $ELSE 
 	DBMS_OUTPUT.PUT_LINE('Remove the schema from the Workspace within the APEX ADMIN Page - Workspace to Schema Assignment');
@@ -766,4 +766,21 @@ $END
 	
 end data_browser_schema;
 /
-
+declare 
+	procedure Run_Stat( p_Stat VARCHAR2) is
+	begin
+		DBMS_OUTPUT.PUT_LINE(p_Stat || ';');
+		EXECUTE IMMEDIATE p_Stat;
+	end Run_Stat;
+begin 
+	for cur in (select owner from all_objects where object_name = 'DATA_BROWSER_CONF' and object_type = 'PACKAGE') loop 
+		Run_Stat('GRANT EXECUTE ON DATA_BROWSER_SCHEMA TO ' || cur.owner);
+		Run_Stat('CREATE OR REPLACE SYNONYM ' || cur.owner || '.DATA_BROWSER_SCHEMA FOR DATA_BROWSER_SCHEMA');
+		IF data_browser_schema.g_Use_Admin_Features THEN
+		-- Schema Managment
+			Run_Stat ('GRANT APEX_ADMINISTRATOR_ROLE TO ' || cur.owner );
+			Run_Stat ('GRANT EXECUTE ON APEX_INSTANCE_ADMIN TO ' || cur.owner);
+		END IF;
+    end loop;
+end;
+/

@@ -129,7 +129,10 @@ IS
    		p_DateTime		IN DATE,
    		p_Client_Id 	IN VARCHAR2 DEFAULT SYS_CONTEXT('USERENV','CLIENT_IDENTIFIER')
    	);
-
+	PROCEDURE Unset_Userlevel (
+   		p_Client_Id 	IN VARCHAR2 DEFAULT SYS_CONTEXT('USERENV','CLIENT_IDENTIFIER')
+   	);
+	
 	FUNCTION Get_Query_Timestamp RETURN TIMESTAMP;
 	FUNCTION Get_Query_Timestamp_Function RETURN VARCHAR2 DETERMINISTIC;
 
@@ -350,7 +353,14 @@ CREATE OR REPLACE PACKAGE BODY custom_keys.set_custom_ctx IS
 		end if;
 	END;
 
-
+	PROCEDURE Unset_Userlevel (
+   		p_Client_Id 	IN VARCHAR2 DEFAULT SYS_CONTEXT('USERENV','CLIENT_IDENTIFIER')
+   	)
+	IS
+	BEGIN 
+		DBMS_SESSION.SET_CONTEXT(g_CtxNamespace, 'USERLEVEL', null, p_Client_Id);
+	END Unset_Userlevel;
+	
 	FUNCTION Get_Query_Timestamp RETURN TIMESTAMP
 	IS
 	BEGIN

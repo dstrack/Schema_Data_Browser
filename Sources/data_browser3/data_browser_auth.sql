@@ -662,6 +662,11 @@ $END
 					p_Username => p_Username,
 					p_Password => p_Password
 				);
+				if p_Email IS NOT NULL then 
+					UPDATE V_CONTEXT_USERS
+					SET Email_Address = p_Email
+					WHERE UPPER_LOGIN_NAME = UPPER(TRIM(p_Username));
+				end if;
 			end;
 		end if;
         ----
@@ -845,7 +850,7 @@ $END
 				FROM V_CONTEXT_USERS B
 				WHERE UPPER_LOGIN_NAME = v_user
 				AND (Account_Expiration_Date >= TRUNC(SYSDATE) OR Account_Expiration_Date IS NULL)
-				AND EMAIL_VALIDATED = 'Y'
+				AND (EMAIL_VALIDATED = 'Y' OR EMAIL_ADDRESS IS NULL)
 				AND ACCOUNT_LOCKED = 'N'
 				FOR UPDATE OF B.LAST_LOGIN_DATE;
 
@@ -1180,8 +1185,7 @@ $END
 			Password_Reset = 'N',
 			Password_Expiration_Date = NULL,
 			Account_Expiration_Date = case when Password_Reset = 'Y' then NULL else Account_Expiration_Date end,
-			Email_Validated = 'Y',
-			LAST_LOGIN_DATE = SYSDATE
+			Email_Validated = 'Y'
 		WHERE UPPER_LOGIN_NAME = UPPER(TRIM(p_Username));
 	END change_password;
 

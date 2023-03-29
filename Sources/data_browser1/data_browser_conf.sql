@@ -586,6 +586,8 @@ IS
 		p_Value IN VARCHAR2 DEFAULT NULL
 	) RETURN NUMBER;
 
+	FUNCTION Check_Data_Browser_Schema RETURN NUMBER;
+
 	PROCEDURE Compile_Invalid_Objects;
 	---------------------------------------------------------------------------
 
@@ -4107,6 +4109,43 @@ $END
     WHEN OTHERS THEN
         return NULL;
 	END FN_Query_Cardinality;
+
+
+	-- Check precondition for calls to the DATA_BROWSER_SCHEMA package-
+	FUNCTION Check_Data_Browser_Schema RETURN NUMBER 
+	is 
+		component_must_be_declared EXCEPTION;
+		PRAGMA EXCEPTION_INIT (component_must_be_declared, -6550); -- ORA-06550: component must be declared
+		v_Count NUMBER;
+		v_Name VARCHAR2(2000);
+	begin 
+		SELECT COUNT(*) INTO v_Count
+		FROM USER_TAB_PRIVS 
+		WHERE TABLE_NAME = 'DATA_BROWSER_SCHEMA'
+		AND TYPE = 'PACKAGE'
+		AND PRIVILEGE = 'EXECUTE';
+		if v_Count = 0 then 
+			return 0;
+		end if;
+		
+		SELECT COUNT(*) INTO v_Count
+		FROM USER_ROLE_PRIVS 
+		WHERE GRANTED_ROLE = 'APEX_ADMINISTRATOR_ROLE';
+		if v_Count = 0 then 
+			return 0;
+		end if;
+
+		EXECUTE IMMEDIATE 'begin :x := DATA_BROWSER_SCHEMA.FN_GET_PARAMETER(''SMTP_HOST_ADDRESS''); end;' USING OUT v_Name;
+		if v_Name IS NOT NULL then 
+			return 1;	-- this call delivers a value only when the package was installed with DBA privs.
+		end if;
+		return 0;
+    EXCEPTION
+    WHEN component_must_be_declared THEN
+        return 0;
+    WHEN OTHERS THEN
+		RAISE;
+	end Check_Data_Browser_Schema;
 
 	PROCEDURE Compile_Invalid_Objects
 	is 

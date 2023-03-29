@@ -23,7 +23,7 @@ begin
 			Main_Group_Name          VARCHAR2 (50 CHAR),
 			Account_Locked           VARCHAR2(1) DEFAULT 'N' NOT NULL CONSTRAINT APP_USERS_Account_Locke_CK CHECK (ACCOUNT_LOCKED IN ('Y','N')),
 			User_Level				 NUMBER(3) DEFAULT 3 NOT NULL,
-			Language_Code 			 VARCHAR2(10) default 'de' NOT NULL CONSTRAINT APP_USERS_Language_Code_CK CHECK (LANGUAGE_CODE IN ('de','en')),
+			Language_Code 			 VARCHAR2(10) default 'en' NOT NULL CONSTRAINT APP_USERS_Language_Code_CK CHECK (LANGUAGE_CODE IN ('en','de','es','fr','it','ja','ko','pt-br','zh-cn','zh-t')),
 			CREATED_BY               VARCHAR2 (32) DEFAULT NVL(SYS_CONTEXT('APEX$SESSION','APP_USER'), SYS_CONTEXT('USERENV','SESSION_USER')) NOT NULL ,
 			CREATED_AT               TIMESTAMP(6) WITH LOCAL TIME ZONE DEFAULT LOCALTIMESTAMP NOT NULL ,
 			LAST_MODIFIED_BY         VARCHAR2 (32) DEFAULT NVL(SYS_CONTEXT('APEX$SESSION','APP_USER'), SYS_CONTEXT('USERENV','SESSION_USER')) NOT NULL ,
@@ -45,6 +45,26 @@ begin
 		]';
 		EXECUTE IMMEDIATE v_Stat;
 	end if;
+	-- a User should not create or change user accounts to a userlevel that is lower than hi current userlevel
+	-- SYS_CONTEXT('CUSTOM_CTX', 'USERLEVEL') is set by set_custom_ctx.set_current_user in the APEX page init code
+$IF data_browser_specs.g_use_custom_ctx $THEN
+	set_custom_ctx.Clear_Context; 
+	SELECT COUNT(*) INTO v_count
+	FROM USER_CONSTRAINTS WHERE TABLE_NAME = 'APP_USERS' AND CONSTRAINT_NAME = 'APP_USERS_USERLEVEL_CK';
+	if v_count = 0 then 
+		v_stat := q'[
+		ALTER TABLE APP_USERS ADD CONSTRAINT APP_USERS_USERLEVEL_CK CHECK (USER_LEVEL >= SYS_CONTEXT('CUSTOM_CTX', 'USERLEVEL'))]';
+		EXECUTE IMMEDIATE v_Stat;
+	end if;
+$END
+	v_stat := q'[
+	ALTER TABLE APP_USERS DROP CONSTRAINT APP_USERS_Language_Code_CK]';
+	EXECUTE IMMEDIATE v_Stat;
+
+	v_stat := q'[
+	ALTER TABLE APP_USERS ADD CONSTRAINT APP_USERS_Language_Code_CK CHECK (LANGUAGE_CODE IN ('en','de','es','fr','it','ja','ko','pt-br','zh-cn','zh-t'))]';
+	EXECUTE IMMEDIATE v_Stat;
+	
 	SELECT COUNT(*) INTO v_count
 	FROM USER_TABLES WHERE TABLE_NAME = 'APP_USER_LEVELS';
 	if v_count = 0 then 
