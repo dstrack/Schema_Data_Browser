@@ -280,6 +280,7 @@ IS
 	FUNCTION Get_Sys_Guid_Function RETURN VARCHAR2 DETERMINISTIC;
 	FUNCTION Get_MD5_Column_Name RETURN VARCHAR2 DETERMINISTIC;
 	FUNCTION Get_MD5_Column_Index RETURN VARCHAR2 DETERMINISTIC;
+	FUNCTION Use_Session_NLS_Param RETURN BOOLEAN;
     FUNCTION Get_Export_CSV_Mode RETURN VARCHAR2;
     FUNCTION Get_Export_NumChars(p_Enquote VARCHAR2 DEFAULT 'YES') RETURN VARCHAR2;
     FUNCTION Get_Export_NLS_Param RETURN VARCHAR2;
@@ -1055,7 +1056,7 @@ $END
 			App_Version_Number, App_Licence_Number, App_Licence_Owner, App_Installation_Code,
 			Yes_No_Char_Static_LOV, Yes_No_Number_Static_LOV,
 			Detect_Yes_No_Static_LOV, Export_NumChars, Integer_Goup_Separator, Decimal_Goup_Separator,
-			Export_Float_Format, Export_Date_Format, Export_Timestamp_Format, Use_App_Date_Time_Format,
+			Export_Float_Format, Export_Date_Format, Export_DateTime_Format, Export_Timestamp_Format, Use_App_Date_Time_Format,
 			Rec_Desc_Delimiter, Rec_Desc_Group_Delimiter, TextArea_Min_Length, Export_Text_Limit, Minimum_Field_Width, Maximum_Field_Width,
 			Stretch_Form_Fields, Select_List_Rows_Limit, Detect_Column_Prefix, Translate_Umlaute, Key_Column_Ext, 
 			Show_Tree_Num_Rows, Update_Tree_Num_Rows, Max_Relations_Levels, Base_Table_Prefix, Base_Table_Ext,
@@ -1068,7 +1069,7 @@ $END
         		g_App_Version_Number, g_App_Licence_Number, g_App_Licence_Owner, g_App_Installation_Code,
 				g_Yes_No_Char_Static_LOV, g_Yes_No_Number_Static_LOV,
 				g_Detect_Yes_No_Static_LOV, g_Export_NumChars, g_Integer_Goup_Separator, g_Decimal_Goup_Separator,
-				g_Export_Float_Format, g_Export_Date_Format, g_Export_Timestamp_Format, g_Use_App_Date_Time_Format,
+				g_Export_Float_Format, g_Export_Date_Format, g_Export_DateTime_Format, g_Export_Timestamp_Format, g_Use_App_Date_Time_Format,
 				g_Rec_Desc_Delimiter, g_Rec_Desc_Group_Delimiter, g_TextArea_Min_Length, g_Export_Text_Limit, g_Minimum_Field_Width, g_Maximum_Field_Width,
 				g_Stretch_Form_Fields, g_Select_List_Rows_Limit, g_Detect_Column_Prefix, g_Translate_Umlaute, g_Key_Column_Ext,
 				g_Show_Tree_Num_Rows, g_Update_Tree_Num_Rows, g_Max_Relations_Levels, g_Base_Table_Prefix, g_Base_Table_Ext,
@@ -1084,7 +1085,7 @@ $END
         		App_Version_Number, App_Licence_Number, App_Licence_Owner, App_Installation_Code,
 	       		Yes_No_Char_Static_LOV, Yes_No_Number_Static_LOV,
 				Detect_Yes_No_Static_LOV, Export_NumChars, Integer_Goup_Separator, Decimal_Goup_Separator,
-				Export_Float_Format, Export_Date_Format, Export_Timestamp_Format, Use_App_Date_Time_Format,
+				Export_Float_Format, Export_Date_Format, Export_DateTime_Format, Export_Timestamp_Format, Use_App_Date_Time_Format,
 				Rec_Desc_Delimiter, Rec_Desc_Group_Delimiter, TextArea_Min_Length, Export_Text_Limit, Minimum_Field_Width, Maximum_Field_Width,
 				Stretch_Form_Fields, Select_List_Rows_Limit, Detect_Column_Prefix, Translate_Umlaute, Key_Column_Ext, 
 				Show_Tree_Num_Rows, Update_Tree_Num_Rows, Max_Relations_Levels, Base_Table_Prefix, Base_Table_Ext,
@@ -1098,7 +1099,7 @@ $END
         		g_App_Version_Number, g_App_Licence_Number, g_App_Licence_Owner, g_App_Installation_Code,
 				g_Yes_No_Char_Static_LOV, g_Yes_No_Number_Static_LOV,
 				g_Detect_Yes_No_Static_LOV, g_Export_NumChars, g_Integer_Goup_Separator, g_Decimal_Goup_Separator,
-				g_Export_Float_Format, g_Export_Date_Format, g_Export_Timestamp_Format, g_Use_App_Date_Time_Format,
+				g_Export_Float_Format, g_Export_Date_Format, g_Export_DateTime_Format, g_Export_Timestamp_Format, g_Use_App_Date_Time_Format,
 				g_Rec_Desc_Delimiter, g_Rec_Desc_Group_Delimiter, g_TextArea_Min_Length, g_Export_Text_Limit, g_Minimum_Field_Width, g_Maximum_Field_Width,
 				g_Stretch_Form_Fields, g_Select_List_Rows_Limit, g_Detect_Column_Prefix, g_Translate_Umlaute, g_Key_Column_Ext, 
 				g_Show_Tree_Num_Rows, g_Update_Tree_Num_Rows, g_Max_Relations_Levels, g_Base_Table_Prefix, g_Base_Table_Ext,
@@ -1132,7 +1133,7 @@ $END
 	       	Yes_No_Columns_Pattern, DateTime_Columns_Pattern, Data_Deduction_Pattern,
 	       	Yes_No_Char_Static_LOV, Yes_No_Number_Static_LOV,
 			Detect_Yes_No_Static_LOV, Export_NumChars, Integer_Goup_Separator, Decimal_Goup_Separator,
-			Export_Float_Format, Export_Date_Format, Export_Timestamp_Format, Use_App_Date_Time_Format,
+			Export_Float_Format, Export_Date_Format, Export_DateTime_Format, Export_Timestamp_Format, Use_App_Date_Time_Format,
 			Rec_Desc_Delimiter, Rec_Desc_Group_Delimiter, TextArea_Min_Length, Export_Text_Limit, Minimum_Field_Width, Maximum_Field_Width,
 			Stretch_Form_Fields, Select_List_Rows_Limit, Detect_Column_Prefix, Translate_Umlaute, Key_Column_Ext, 
 			Show_Tree_Num_Rows, Update_Tree_Num_Rows, Max_Relations_Levels, Base_Table_Prefix, Base_Table_Ext,
@@ -1148,7 +1149,7 @@ $END
         	v_Yes_No_Columns_Pattern, v_DateTime_Columns_Pattern, v_Data_Deduction_Pattern,
         	g_Yes_No_Char_Static_LOV, g_Yes_No_Number_Static_LOV,
 			g_Detect_Yes_No_Static_LOV, g_Export_NumChars, g_Integer_Goup_Separator, g_Decimal_Goup_Separator,
-			g_Export_Float_Format, g_Export_Date_Format, g_Export_Timestamp_Format, g_Use_App_Date_Time_Format,
+			g_Export_Float_Format, g_Export_Date_Format, g_Export_DateTime_Format, g_Export_Timestamp_Format, g_Use_App_Date_Time_Format,
 			g_Rec_Desc_Delimiter, g_Rec_Desc_Group_Delimiter, g_TextArea_Min_Length, g_Export_Text_Limit, g_Minimum_Field_Width, g_Maximum_Field_Width,
 			g_Stretch_Form_Fields, g_Select_List_Rows_Limit, g_Detect_Column_Prefix, g_Translate_Umlaute, g_Key_Column_Ext, 
 			g_Show_Tree_Num_Rows, g_Update_Tree_Num_Rows, g_Max_Relations_Levels, g_Base_Table_Prefix, g_Base_Table_Ext,
@@ -2198,6 +2199,12 @@ $END
     IS
 	PRAGMA UDF;
     BEGIN RETURN LPAD( g_MD5_Column_Index, 2, '0'); END;
+
+    FUNCTION Use_Session_NLS_Param RETURN BOOLEAN
+    IS
+    BEGIN
+    	RETURN g_Use_App_Date_Time_Format = 'YES';
+    END Use_Session_NLS_Param;
 
     FUNCTION Get_Export_CSV_Mode RETURN VARCHAR2
     IS

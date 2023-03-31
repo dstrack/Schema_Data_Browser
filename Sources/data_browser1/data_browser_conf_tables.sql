@@ -103,6 +103,7 @@ begin
 			Decimal_Goup_Separator		VARCHAR2(5) DEFAULT 'NO' NOT NULL CONSTRAINT DATA_BRO_CONF_Decimal_Goup_CK CHECK ( Decimal_Goup_Separator IN ('YES','NO') ),
 			Export_Float_Format   		VARCHAR2(64),
 			Export_Date_Format   		VARCHAR2(64),
+			Export_DateTime_Format   	VARCHAR2(64),
 			Export_Timestamp_Format	   	VARCHAR2(64),
 			Use_App_Date_Time_Format	VARCHAR2(5) DEFAULT 'NO' NOT NULL CONSTRAINT DATA_BRO_CONF_Use_App_Date_CK CHECK ( Use_App_Date_Time_Format IN ('YES','NO') ),
 			Rec_Desc_Delimiter			VARCHAR2(64),
@@ -192,6 +193,23 @@ begin
 		)
 		]';
 		EXECUTE IMMEDIATE v_Stat;
+	end if;
+	-- column Export_DateTime_Format
+	SELECT COUNT(*) INTO v_count
+	FROM USER_TAB_COLUMNS WHERE TABLE_NAME = 'DATA_BROWSER_CONFIG' AND COLUMN_NAME = 'EXPORT_DATETIME_FORMAT';
+	if v_count = 0 then 
+		v_stat := q'[
+		ALTER TABLE DATA_BROWSER_CONFIG ADD
+		(
+			Export_DateTime_Format   		VARCHAR2(64),
+		)
+		]';
+		EXECUTE IMMEDIATE v_Stat;
+		v_stat := q'[
+		UPDATE DATA_BROWSER_CONFIG SET Export_DateTime_Format = 'DD.MM.YYYY HH24:MI:SS'
+		]';
+		EXECUTE IMMEDIATE v_Stat;
+		COMMIT;
 	end if;
 end;
 /

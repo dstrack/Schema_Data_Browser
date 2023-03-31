@@ -1491,7 +1491,9 @@ is
 	) RETURN VARCHAR2 DETERMINISTIC
 	IS
 	PRAGMA UDF;
-		v_use_NLS_params		CONSTANT VARCHAR2(1) := case when p_Data_Format IN ('FORM', 'HTML', 'QUERY') then 'N' else 'Y' end;
+		v_use_NLS_params		CONSTANT VARCHAR2(1) := case when p_Data_Format IN ('FORM', 'HTML', 'QUERY') 
+														or data_browser_conf.Use_Session_NLS_Param then 'N' 
+														else 'Y' end;
 		v_Use_Group_Separator	CONSTANT VARCHAR2(1) := case when p_Data_Format IN ('FORM', 'HTML', 'QUERY') then 'Y' else 'N' end;
 		v_Datetime				CONSTANT VARCHAR2(1) := data_browser_select.Date_Time_Required(p_Data_Type, p_Data_Format, p_Datetime);
 	BEGIN
