@@ -199,10 +199,7 @@ begin
 	FROM USER_TAB_COLUMNS WHERE TABLE_NAME = 'DATA_BROWSER_CONFIG' AND COLUMN_NAME = 'EXPORT_DATETIME_FORMAT';
 	if v_count = 0 then 
 		v_stat := q'[
-		ALTER TABLE DATA_BROWSER_CONFIG ADD
-		(
-			Export_DateTime_Format   		VARCHAR2(64),
-		)
+		ALTER TABLE DATA_BROWSER_CONFIG ADD Export_DateTime_Format   		VARCHAR2(64)
 		]';
 		EXECUTE IMMEDIATE v_Stat;
 		v_stat := q'[
