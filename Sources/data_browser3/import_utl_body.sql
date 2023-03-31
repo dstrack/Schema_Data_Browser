@@ -147,14 +147,16 @@ CREATE OR REPLACE PACKAGE BODY import_utl IS
 		, FOREIGN_KEYS_LOOKUP_Q AS (
 			SELECT T.VIEW_NAME TABLE_NAME, 
 				 ---------------------------
-				case when MAX(T.U_CONSTRAINT_NAME) IS NOT NULL or import_utl.Get_Search_Keys_Unique = 'NO' then
+				-- case when MAX(T.U_CONSTRAINT_NAME) IS NOT NULL or import_utl.Get_Search_Keys_Unique = 'NO' then
 					case when MAX(IS_FILE_FOLDER_REF) = 'N' then 
 						RPAD(' ', 4) || 'if '
 						|| LISTAGG(S_REF || ' IS NOT NULL',
 							data_browser_conf.NL(4) 
-							|| case when HAS_NULLABLE > 0 OR HAS_SIMPLE_UNIQUE > 0 then 'or ' else 'and ' end
+							|| case when (HAS_NULLABLE > 0 OR HAS_SIMPLE_UNIQUE > 0) AND import_utl.Get_Search_Keys_Unique = 'NO' then 'or ' else 'and ' end
 						) WITHIN GROUP (ORDER BY R_COLUMN_ID, POSITION) -- conditions to trigger the search of foreign keys
-						|| ' then ' || chr(10)
+						|| ' then ' 
+						|| case when MAX(T.U_CONSTRAINT_NAME) IS NULL then ' -- Warning: there is not unique key defined for this lookup columns. ' end
+						|| chr(10)
 						|| case when D.DEFAULTS_MISSING = 0  AND import_utl.Get_Insert_Foreign_Keys = 'YES' 
 							then RPAD(' ', 6) || 'begin' || chr(10) end
 						|| RPAD(' ', 8) -- find foreign key values
@@ -163,7 +165,7 @@ CREATE OR REPLACE PACKAGE BODY import_utl IS
 						|| 'FROM ' || T.R_VIEW_NAME || ' ' || T.TABLE_ALIAS || ' ' || data_browser_conf.NL(8)
 						|| 'WHERE '
 						|| LISTAGG(
-								case when (HAS_NULLABLE > 0 OR HAS_SIMPLE_UNIQUE > 0) AND T.U_MEMBERS > 1
+								case when (HAS_NULLABLE > 0 OR HAS_SIMPLE_UNIQUE > 0) AND import_utl.Get_Search_Keys_Unique = 'NO' AND T.U_MEMBERS > 1
 								then '('
 									|| import_utl.Get_Compare_Case_Insensitive(T.TABLE_ALIAS || '.' || T.R_COLUMN_NAME, S_REF, T.R_DATA_TYPE)
 									|| ' OR '
@@ -211,7 +213,7 @@ CREATE OR REPLACE PACKAGE BODY import_utl IS
 							RPAD(' ', 2)
 							|| 'v_' || P.D_REF 
 							|| ' := '
-							|| T.D_REF || ';'
+							|| T.D_REF || '; -- copy shared parent key.'
 							|| data_browser_conf.NL(4)
 							, ''
 						) WITHIN GROUP (ORDER BY P.IMP_COLUMN_NAME)
@@ -221,7 +223,7 @@ CREATE OR REPLACE PACKAGE BODY import_utl IS
 					)
 				 ---------------------------
 					|| 'end if;'
-				end
+				-- end
 				SQL_TEXT,
 				---------------------------
 				T.COLUMN_NAME,
@@ -230,16 +232,16 @@ CREATE OR REPLACE PACKAGE BODY import_utl IS
 				COLUMN_CHECK_EXPR,
 				S.SHORT_NAME || '_IMP' FROM_CHECK_EXPR,
 				' (' || LISTAGG('IMP.' || T.IMP_COLUMN_NAME || ' IS NOT NULL',
-					case when HAS_NULLABLE > 0 OR HAS_SIMPLE_UNIQUE > 0 then ' OR ' else ' AND ' end
+					case when (HAS_NULLABLE > 0 OR HAS_SIMPLE_UNIQUE > 0) AND import_utl.Get_Search_Keys_Unique = 'NO' then ' OR ' else ' AND ' end
 				) WITHIN GROUP (ORDER BY R_COLUMN_ID, POSITION) -- conditions to trigger the search of foreign keys
 				|| ') ' || data_browser_conf.NL(8) || ' AND NOT EXISTS ( SELECT 1 FROM ' || T.R_VIEW_NAME || ' ' || T.TABLE_ALIAS || ' '
 				|| data_browser_conf.NL(12)
 				|| 'WHERE '
 				|| LISTAGG(
-						case when (HAS_NULLABLE > 0 OR HAS_SIMPLE_UNIQUE > 0) AND T.U_MEMBERS > 1
-						then '(' || import_utl.Get_Compare_Case_Insensitive(T.TABLE_ALIAS || '.' || T.R_COLUMN_NAME, 'IMP.' || T.IMP_COLUMN_NAME, T.R_DATA_TYPE)
-							|| ' OR '
-							|| case when T.R_NULLABLE = 'Y' then T.TABLE_ALIAS || '.' || T.R_COLUMN_NAME || ' IS NULL AND ' end
+						case when (HAS_NULLABLE > 0 OR HAS_SIMPLE_UNIQUE > 0) AND import_utl.Get_Search_Keys_Unique = 'NO' 
+							AND T.U_MEMBERS > 1 AND T.R_NULLABLE = 'Y' then
+							'(' || import_utl.Get_Compare_Case_Insensitive(T.TABLE_ALIAS || '.' || T.R_COLUMN_NAME, 'IMP.' || T.IMP_COLUMN_NAME, T.R_DATA_TYPE)
+							|| ' OR ' ||  T.TABLE_ALIAS || '.' || T.R_COLUMN_NAME || ' IS NULL AND '
 							|| 'IMP.' || T.IMP_COLUMN_NAME || ' IS NULL)'
 						else
 							import_utl.Get_Compare_Case_Insensitive(T.TABLE_ALIAS || '.' || T.R_COLUMN_NAME, 'IMP.' || T.IMP_COLUMN_NAME, T.R_DATA_TYPE)
@@ -256,7 +258,8 @@ CREATE OR REPLACE PACKAGE BODY import_utl IS
 				end WHERE_CHECK_EXPR2,
 				'R' CHECK_CONSTRAINT_TYPE,
 				---------------------------
-				D.DEFAULTS_MISSING + case when MAX(T.U_CONSTRAINT_NAME) IS NOT NULL or import_utl.Get_Search_Keys_Unique = 'NO' then 0 else 1 end DEFAULTS_MISSING,
+				D.DEFAULTS_MISSING,
+				-- + case when MAX(T.U_CONSTRAINT_NAME) IS NOT NULL or import_utl.Get_Search_Keys_Unique = 'NO' then 0 else 1 end DEFAULTS_MISSING,
 				T.COLUMN_ID POSITION, POSITION2, T.R_VIEW_NAME,
 				SUM(HAS_FOREIGN_KEY) S_HAS_FOREIGN_KEY
 			FROM
@@ -333,7 +336,7 @@ CREATE OR REPLACE PACKAGE BODY import_utl IS
 				T.R_VIEW_NAME, T.COLUMN_ID, S.SHORT_NAME,
 				T.HAS_NULLABLE, T.HAS_SIMPLE_UNIQUE, T.U_MEMBERS, 
 				T.NULLABLE, T.D_REF, T.D_COLUMN_NAME, T.POSITION2
-			HAVING (MAX(T.U_CONSTRAINT_NAME) IS NOT NULL or import_utl.Get_Search_Keys_Unique = 'NO')
+			-- HAVING (MAX(T.U_CONSTRAINT_NAME) IS NOT NULL or import_utl.Get_Search_Keys_Unique = 'NO')
 			ORDER BY SUM(HAS_FOREIGN_KEY), T.TABLE_ALIAS DESC, T.U_MEMBERS, T.COLUMN_ID, T.D_REF
 		) 
 		----------------------------------------------------------------------------------
@@ -554,7 +557,7 @@ CREATE OR REPLACE PACKAGE BODY import_utl IS
 			|| data_browser_conf.NL(4) || ' )' || data_browser_conf.NL(4)
 			|| 'WHERE ('
 			|| LISTAGG ( 'IMP.' || NVL(F.IMP_COLUMN_NAME, U.COLUMN_NAME) || ' IS NOT NULL',
-					case when U.HAS_NULLABLE > 0 then ' OR ' else ' AND ' end
+					case when U.HAS_NULLABLE > 0 AND import_utl.Get_Search_Keys_Unique = 'NO' then ' OR ' else ' AND ' end
 				) WITHIN GROUP (ORDER BY U.POSITION, F.R_COLUMN_ID) -- conditions to trigger the search of foreign keys
 			|| ') ' || data_browser_conf.NL(4) || 'AND IMP.LINK_ID$ IS NULL '
 			SQL_TEXT
@@ -1321,7 +1324,9 @@ CREATE OR REPLACE PACKAGE BODY import_utl IS
     FUNCTION Get_Imp_Table_View_trigger (
     	p_Table_Name VARCHAR2,
 		p_Data_Format VARCHAR2 DEFAULT 'NATIVE', -- FORM, HTML, CSV, NATIVE. Format of the final projection columns.
-		p_Report_Mode VARCHAR2 DEFAULT 'YES'
+		p_use_NLS_params VARCHAR2 DEFAULT 'Y',
+		p_Use_Group_Separator VARCHAR2 DEFAULT 'Y',
+		p_Report_Mode VARCHAR2 DEFAULT 'YES'	-- When enabled, exclude Audit Columns like Created At, Created By, Modified At, Modified By from the SELECT columns list.
     ) RETURN CLOB
     IS
         v_Table_Name 				VUSER_TABLES_IMP.TABLE_NAME%TYPE;
@@ -1382,7 +1387,13 @@ CREATE OR REPLACE PACKAGE BODY import_utl IS
        
         for c_cur in (
             SELECT SQL_TEXT, POSITION
-            FROM TABLE (import_utl.FN_Pipe_table_imp_trigger(v_Table_Name, p_Data_Format, p_Report_Mode))
+            FROM TABLE (import_utl.FN_Pipe_table_imp_trigger(
+				p_Table_Name => v_Table_Name,
+				p_Data_Format => p_Data_Format, 
+				p_use_NLS_params => p_use_NLS_params,
+				p_Use_Group_Separator => p_Use_Group_Separator,
+				p_Report_Mode => p_Report_Mode
+			))
             WHERE SQL_TEXT IS NOT NULL
         ) loop
             v_Str := c_cur.SQL_TEXT || chr(10);
@@ -1445,8 +1456,9 @@ CREATE OR REPLACE PACKAGE BODY import_utl IS
     	p_Data_Format VARCHAR2 DEFAULT 'NATIVE',	-- FORM, CSV, NATIVE. Format of the final projection columns.
 		p_use_NLS_params VARCHAR2 DEFAULT 'Y',
 		p_Use_Group_Separator VARCHAR2 DEFAULT 'Y',
-		p_Report_Mode VARCHAR2 DEFAULT 'YES',
-		p_Add_Comments VARCHAR2 DEFAULT 'YES'
+		p_Report_Mode VARCHAR2 DEFAULT 'YES',	-- When enabled, exclude Audit Columns like Created At, Created By, Modified At, Modified By from the SELECT columns list.
+		p_Add_Comments VARCHAR2 DEFAULT 'YES',	-- When enabled, comments are added to the columns of the created views.
+		p_Table_Name_Pattern VARCHAR2 DEFAULT '%'
 	) 
 	IS
         v_Stat 			CLOB;
@@ -1460,7 +1472,7 @@ CREATE OR REPLACE PACKAGE BODY import_utl IS
 		v_File_Name := LOWER(p_Schema_Name) || '_imp_views.sql';
     	dbms_lob.createtemporary(v_Stat, true, dbms_lob.call);
      	dbms_lob.createtemporary(v_Result, true, dbms_lob.call);
-
+		data_browser_conf.Load_Config;
 		data_browser_conf.Get_Import_Parameter( v_Compare_Case_Insensitive, v_Search_Keys_Unique, v_Insert_Foreign_Keys);
 		import_utl.Set_Imp_Formats (
 			p_Export_Text_Limit       => data_browser_conf.Get_Export_Text_Limit,
@@ -1474,17 +1486,18 @@ CREATE OR REPLACE PACKAGE BODY import_utl IS
 			p_Insert_Foreign_Keys 	=> v_Insert_Foreign_Keys
 		);
 		v_Stat := apex_string.format(
-			p_message =>  '-- Updatable Import Views based on a logical database model produced by software from %s.'
-			|| chr(10) || '-- Configuration Name		: %s'
-			|| chr(10) || '-- Schema_Name				: %s'
-			|| chr(10) || '-- Data_Format				: %s'
-			|| chr(10) || '-- Use_NLS_params			: %s'
-			|| chr(10) || '-- Use_Group_Separator		: %s'
-			|| chr(10) || '-- Compare_Case_Insensitive	: %s'
-			|| chr(10) || '-- Search_Keys_Unique		: %s'
-			|| chr(10) || '-- Insert_Foreign_Keys		: %s'
-			|| chr(10) || '-- Compare_Case_Insensitive	: %s'
-			|| chr(10) || '-- Current Date	            : %s',
+            p_message =>  '-- Updatable Import/Export Views based on a logical database model produced by software from %s.'
+            || chr(10) || '-- Configuration Name        : %s'
+            || chr(10) || '-- Schema Name               : %s'
+            || chr(10) || '-- Data Format               : %s'
+            || chr(10) || '-- Use NLS params            : %s'
+            || chr(10) || '-- Use Group Separator       : %s'
+            || chr(10) || '-- Compare Case Insensitive  : %s'
+            || chr(10) || '-- Assume Unique Keys Lookup : %s'
+            || chr(10) || '-- Insert Foreign Keys       : %s'
+            || chr(10) || '-- Compare Case Insensitive  : %s'
+            || chr(10) || '-- Current Date              : %s'
+            || chr(10) || '-- Table Name Pattern        : %s',
 			p0 => data_browser_conf.g_Software_Copyright,
 			p1 => data_browser_conf.Get_Configuration_Name,
 			p2 => p_Schema_Name,
@@ -1495,14 +1508,20 @@ CREATE OR REPLACE PACKAGE BODY import_utl IS
             p7 => v_Search_Keys_Unique,
             p8 => v_Insert_Foreign_Keys,
             p9 => v_Compare_Case_Insensitive,
-            p10 => SYSDATE
+            p10 => SYSDATE,
+            p11 => p_Table_Name_Pattern
         ) || chr(10) || chr(10);
 		dbms_lob.append(v_Result, v_Stat);
 		
 		for c_cur IN (
 			SELECT TABLE_NAME, VIEW_NAME
-			FROM MVDATA_BROWSER_VIEWS
+			FROM MVDATA_BROWSER_VIEWS A
 			WHERE READ_ONLY = 'NO'
+			AND EXISTS (
+				SELECT 1 
+				FROM apex_string.split(REPLACE(p_Table_Name_Pattern,'_','\_'), ',') B
+				WHERE A.TABLE_NAME LIKE TRIM(B.COLUMN_VALUE) ESCAPE '\'
+			)
 			ORDER BY TABLE_NAME
 		) loop
 			v_Stat := import_utl.Get_Imp_Table_View (
@@ -1526,6 +1545,8 @@ CREATE OR REPLACE PACKAGE BODY import_utl IS
 			v_Stat := import_utl.Get_Imp_Table_View_trigger (
 				p_Table_name => c_cur.VIEW_NAME,
 				p_Data_Format => p_Data_Format,
+				p_use_NLS_params => p_use_NLS_params,
+				p_Use_Group_Separator => p_Use_Group_Separator,
 				p_Report_Mode => p_Report_Mode
 			);
 			dbms_lob.append(v_Result, v_Stat);
@@ -2267,18 +2288,40 @@ CREATE OR REPLACE PACKAGE BODY import_utl IS
 
 	PROCEDURE Generate_Updatable_Views (
 		p_Schema_Name VARCHAR2 DEFAULT SYS_CONTEXT('USERENV', 'CURRENT_SCHEMA'),
-    	p_Data_Format VARCHAR2 DEFAULT 'NATIVE',	-- FORM, HTML, CSV, NATIVE. Format of the final projection columns.
+    	p_Data_Format VARCHAR2 DEFAULT 'NATIVE',	-- NATIVE/CSV
     	p_Report_Mode VARCHAR2 DEFAULT 'YES',
-		p_Add_Comments VARCHAR2 DEFAULT 'YES'
+		p_Add_Comments VARCHAR2 DEFAULT 'YES',
+		p_Table_Name_Pattern VARCHAR2 DEFAULT '%'
 	) 
 	IS
         v_Stat CLOB;
+		v_Compare_Case_Insensitive	VARCHAR2(10);
+		v_Search_Keys_Unique		VARCHAR2(10);
+		v_Insert_Foreign_Keys		VARCHAR2(10);
 	BEGIN
+		data_browser_conf.Load_Config;
+		data_browser_conf.Get_Import_Parameter( v_Compare_Case_Insensitive, v_Search_Keys_Unique, v_Insert_Foreign_Keys);
+		import_utl.Set_Imp_Formats (
+			p_Export_Text_Limit       => data_browser_conf.Get_Export_Text_Limit,
+			p_Import_NumChars         => data_browser_conf.Get_Export_NumChars(p_Enquote => 'NO'),
+			p_Import_Float_Format     => data_browser_conf.Get_Export_Float_Format,
+			p_Export_Date_Format      => data_browser_conf.Get_Export_Date_Format,
+			p_Import_DateTime_Format  => data_browser_conf.Get_Export_DateTime_Format,
+			p_Import_Timestamp_Format => data_browser_conf.Get_Timestamp_Format,
+			p_Compare_Case_Insensitive	=> v_Compare_Case_Insensitive,
+			p_Search_Keys_Unique 	=> v_Search_Keys_Unique,
+			p_Insert_Foreign_Keys 	=> v_Insert_Foreign_Keys
+		);
 		for c_cur IN (
 			SELECT TABLE_NAME, VIEW_NAME
-			FROM MVDATA_BROWSER_VIEWS
+			FROM MVDATA_BROWSER_VIEWS A 
 			WHERE READ_ONLY = 'NO'
 			AND VIEW_OWNER = p_Schema_Name
+			AND EXISTS (
+				SELECT 1 
+				FROM apex_string.split(REPLACE(p_Table_Name_Pattern,'_','\_'), ',') B
+				WHERE A.TABLE_NAME LIKE TRIM(B.COLUMN_VALUE) ESCAPE '\'
+			)
 			ORDER BY TABLE_NAME
 		) loop
 			v_Stat := import_utl.Get_Imp_Table_View (
