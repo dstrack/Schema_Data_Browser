@@ -1643,6 +1643,7 @@ $END
 		p_Table_name VARCHAR2,
 		p_Parent_Name VARCHAR2 DEFAULT NULL,
 		p_View_Mode	VARCHAR2 DEFAULT 'FORM_VIEW',
+		p_Report_Mode VARCHAR2 DEFAULT 'ALL', 				-- YES, NO, ALL
     	p_Join_Options VARCHAR2 DEFAULT NULL,
     	p_Show_Statistics VARCHAR2 DEFAULT 'NO',
 		p_Show_Title VARCHAR2 DEFAULT 'YES',
@@ -1687,7 +1688,7 @@ $END
 						p_Table_Name => T.VIEW_NAME,
 						p_Unique_Key_Column => T.SEARCH_KEY_COLS,
 						p_View_Mode => p_View_Mode,
-						p_Report_Mode => 'ALL',
+						p_Report_Mode => p_Report_Mode,
 						p_Join_Options => p_Join_Options,
 						p_Parent_Name => p_Parent_Name,
 						p_Parent_Key_Visible => 'YES',
@@ -1698,6 +1699,7 @@ $END
 				left outer join SYS.USER_TAB_COLS TC on S.REF_TABLE_NAME = TC.TABLE_NAME and S.REF_COLUMN_NAME = TC.COLUMN_NAME
 				left outer join MVDATA_BROWSER_CHECKS_DEFS D ON D.VIEW_NAME = S.REF_VIEW_NAME AND D.COLUMN_NAME = S.REF_COLUMN_NAME AND D.CONS_COLS_COUNT = 1
 				where T.VIEW_NAME = p_Table_name
+				and COLUMN_EXPR_TYPE != 'HIDDEN'
 		) loop
 			if c_cur.Column_Name = 'ROW_SELECTOR$' then
 				v_Help_Text := 'Select :'  || v_New_Line|| v_New_Line || APEX_LANG.LANG('Select rows for Actions') || v_Delimiter;

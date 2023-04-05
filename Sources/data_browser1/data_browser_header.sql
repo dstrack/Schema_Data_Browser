@@ -98,7 +98,11 @@ IS
 	);
 	TYPE tab_data_browser_qc_refs IS TABLE OF rec_data_browser_qc_refs;
 
-	FUNCTION FN_Pipe_browser_qc_refs (p_View_Name VARCHAR2, p_Data_Format VARCHAR2 DEFAULT 'FORM')
+	FUNCTION FN_Pipe_browser_qc_refs (
+		p_View_Name VARCHAR2, 
+		p_Data_Format VARCHAR2 DEFAULT 'FORM',
+		p_Use_Group_Separator  VARCHAR2 DEFAULT NULL	-- Y,N; use G in number format mask
+	)
 	RETURN data_browser_select.tab_data_browser_qc_refs PIPELINED;
 
 	TYPE rec_data_browser_fc_refs IS RECORD (
@@ -220,6 +224,7 @@ IS
 	FUNCTION FN_Pipe_browser_q_refs (
 		p_View_Name VARCHAR2, 
 		p_Data_Format VARCHAR2 DEFAULT 'FORM', 
+		p_Use_Group_Separator  VARCHAR2 DEFAULT NULL,	-- Y,N; use G in number format mask
 		p_Include_Schema VARCHAR2 DEFAULT data_browser_conf.Get_Include_Query_Schema
 	) RETURN data_browser_select.tab_data_browser_q_refs PIPELINED;
 
@@ -281,15 +286,16 @@ IS
     ) RETURN VARCHAR2 DETERMINISTIC;
 
     FUNCTION Get_ConversionColFunction (
-        p_Column_Name VARCHAR2,
-        p_Data_Type VARCHAR2,
-        p_Data_Precision NUMBER,
-        p_Data_Scale NUMBER,
-        p_Char_Length NUMBER,
-        p_Data_Format VARCHAR2 DEFAULT 'FORM',
-        p_Use_Trim VARCHAR2 DEFAULT 'Y',	-- trim leading spaces from formated numbers; trim text to limit
-        p_Datetime VARCHAR2 DEFAULT NULL 	-- Y,N
-    ) RETURN VARCHAR2 DETERMINISTIC;
+		p_Column_Name VARCHAR2,
+		p_Data_Type VARCHAR2,
+		p_Data_Precision NUMBER,
+		p_Data_Scale NUMBER,
+		p_Char_Length NUMBER,
+		p_Data_Format VARCHAR2 DEFAULT 'FORM',
+		p_Use_Trim VARCHAR2 DEFAULT 'Y',	-- trim leading spaces from formated numbers; trim text to limit
+		p_Datetime VARCHAR2 DEFAULT NULL,	-- Y,N
+		p_Use_Group_Separator  VARCHAR2 DEFAULT NULL	-- Y,N; use G in number format mask
+	) RETURN VARCHAR2 DETERMINISTIC;
 
 	FUNCTION FN_Pipe_table_imp_fk1 (p_Table_Name VARCHAR2)
 	RETURN data_browser_select.tab_table_imp_fk PIPELINED;
@@ -543,25 +549,26 @@ IS
 	---------------------------------------------------------------------------
 
     FUNCTION Get_Imp_Table_Column_List (
-    	p_Table_Name VARCHAR2,
-    	p_Unique_Key_Column VARCHAR2 DEFAULT NULL,
-    	p_Delimiter VARCHAR2 DEFAULT ', ',
-    	p_Data_Columns_Only VARCHAR2 DEFAULT 'NO',		-- YES, NO
-    	p_Select_Columns VARCHAR2 DEFAULT NULL,
-    	p_Columns_Limit INTEGER DEFAULT 1000,
-    	p_Format VARCHAR2 DEFAULT 'NAMES', 				-- NAMES, HEADER, ALIGN, ITEM_HELP
-    	p_Join_Options VARCHAR2 DEFAULT NULL,
+		p_Table_Name VARCHAR2,
+		p_Unique_Key_Column VARCHAR2 DEFAULT NULL,
+		p_Delimiter VARCHAR2 DEFAULT ', ',
+		p_Data_Columns_Only VARCHAR2 DEFAULT 'NO',		-- YES, NO
+		p_Select_Columns VARCHAR2 DEFAULT NULL,
+		p_Columns_Limit INTEGER DEFAULT 1000,
+		p_Format VARCHAR2 DEFAULT 'NAMES',				-- NAMES, HEADER, ALIGN, ITEM_HELP
+		p_Join_Options VARCHAR2 DEFAULT NULL,
 		p_View_Mode IN VARCHAR2 DEFAULT 'EXPORT_VIEW',
-		p_Edit_Mode VARCHAR2 DEFAULT 'NO', 				-- YES, NO
+		p_Edit_Mode VARCHAR2 DEFAULT 'NO',				-- YES, NO
 		p_Data_Format VARCHAR2 DEFAULT FN_Current_Data_Format,	-- FORM, HTML, CSV, NATIVE. Format of the final projection columns.
-		p_Report_Mode VARCHAR2 DEFAULT 'NO', 			-- YES, NO
-		p_Enable_Sort VARCHAR2 DEFAULT 'NO', 			-- YES, NO
-    	p_Order_by VARCHAR2 DEFAULT NULL,				-- Example : 'LAST_NAME, FIRST_NAME'
-    	p_Order_Direction VARCHAR2 DEFAULT 'ASC',		-- Example : 'ASC' or 'ASC NULLS LAST' or 'DESC' or 'DESC NULLS LAST'
-	   	p_Parent_Name VARCHAR2 DEFAULT NULL,			-- Parent View or Table name. In View_Mode NAVIGATION_VIEW if set columns from the view are included in the Column list
-    	p_Parent_Key_Column VARCHAR2 DEFAULT NULL,		-- Column Name with foreign key to Parent Table
-    	p_Parent_Key_Visible VARCHAR2 DEFAULT 'NO'		-- YES, NO, NULLABLE. Show foreign key column in View_Mode FORM_VIEW
-    ) RETURN CLOB;
+		p_Use_Group_Separator  VARCHAR2 DEFAULT NULL,	-- Y,N; use G in number format mask
+		p_Report_Mode VARCHAR2 DEFAULT 'NO',			-- YES, NO
+		p_Enable_Sort VARCHAR2 DEFAULT 'NO',			-- YES, NO
+		p_Order_by VARCHAR2 DEFAULT NULL,				-- Example : 'LAST_NAME, FIRST_NAME'
+		p_Order_Direction VARCHAR2 DEFAULT 'ASC',		-- Example : 'ASC' or 'ASC NULLS LAST' or 'DESC' or 'DESC NULLS LAST'
+		p_Parent_Name VARCHAR2 DEFAULT NULL,			-- Parent View or Table name. In View_Mode NAVIGATION_VIEW if set columns from the view are included in the Column list
+		p_Parent_Key_Column VARCHAR2 DEFAULT NULL,		-- Column Name with foreign key to Parent Table
+		p_Parent_Key_Visible VARCHAR2 DEFAULT 'NO'		-- YES, NO, NULLABLE. Show foreign key column in View_Mode FORM_VIEW
+	) RETURN CLOB;
 
     PROCEDURE Get_Collection_Columns (
 		p_Map_Column_List 	IN OUT NOCOPY VARCHAR2,
@@ -583,29 +590,30 @@ IS
     ) RETURN VARCHAR2;
 
     FUNCTION Get_Imp_Table_Query (
-    	p_Table_Name VARCHAR2,
-    	p_Unique_Key_Column VARCHAR2 DEFAULT NULL,
-    	p_Data_Columns_Only VARCHAR2 DEFAULT 'NO',
-    	p_Columns_Limit INTEGER DEFAULT 1000,
-    	p_As_Of_Timestamp VARCHAR2 DEFAULT 'NO',
-    	p_Select_Columns VARCHAR2 DEFAULT NULL,
-    	p_Control_Break  VARCHAR2 DEFAULT NULL,
-    	p_Join_Options VARCHAR2 DEFAULT NULL,
+		p_Table_Name VARCHAR2,
+		p_Unique_Key_Column VARCHAR2 DEFAULT NULL,
+		p_Data_Columns_Only VARCHAR2 DEFAULT 'NO',
+		p_Columns_Limit INTEGER DEFAULT 1000,
+		p_As_Of_Timestamp VARCHAR2 DEFAULT 'NO',
+		p_Select_Columns VARCHAR2 DEFAULT NULL,
+		p_Control_Break	 VARCHAR2 DEFAULT NULL,
+		p_Join_Options VARCHAR2 DEFAULT NULL,
 		p_View_Mode IN VARCHAR2 DEFAULT 'EXPORT_VIEW',
-		p_Edit_Mode VARCHAR2 DEFAULT 'NO', 					-- YES, NO
-    	p_Data_Source VARCHAR2 DEFAULT 'TABLE', 			-- TABLE, NEW_ROWS, COLLECTION, QUERY
-    	p_Data_Format VARCHAR2 DEFAULT FN_Current_Data_Format,	-- FORM, HTML, CSV, NATIVE. Format of the final projection columns.
-		p_Report_Mode VARCHAR2 DEFAULT 'NO', 				-- YES, NO
-    	p_Form_Page_ID NUMBER DEFAULT 32,					-- Page ID of target links 
+		p_Edit_Mode VARCHAR2 DEFAULT 'NO',					-- YES, NO
+		p_Data_Source VARCHAR2 DEFAULT 'TABLE',				-- TABLE, NEW_ROWS, COLLECTION, QUERY
+		p_Data_Format VARCHAR2 DEFAULT FN_Current_Data_Format,	-- FORM, HTML, CSV, NATIVE. Format of the final projection columns.
+		p_Use_Group_Separator  VARCHAR2 DEFAULT NULL,		-- Y,N; use G in number format mask
+		p_Report_Mode VARCHAR2 DEFAULT 'NO',				-- YES, NO
+		p_Form_Page_ID NUMBER DEFAULT 32,					-- Page ID of target links 
 		p_Form_Parameter VARCHAR2 DEFAULT NULL,				-- Parameter of target links 
-    	p_Search_Field_Item VARCHAR2 DEFAULT NULL,			-- Example : P30_SEARCH
-    	p_Search_Column_Name IN VARCHAR2 DEFAULT NULL,
-    	p_Comments VARCHAR2 DEFAULT NULL,					-- Comments
-	   	p_Parent_Name VARCHAR2 DEFAULT NULL,				-- Parent View or Table name. In View_Mode NAVIGATION_VIEW if set columns from the view are included in the Column list
-    	p_Parent_Key_Column VARCHAR2 DEFAULT NULL,			-- Column Name with foreign key to Parent Table
-    	p_Parent_Key_Visible VARCHAR2 DEFAULT 'NO',			-- YES, NO, NULLABLE. Show foreign key column in View_Mode FORM_VIEW
-    	p_File_Page_ID NUMBER DEFAULT 31				    -- Page ID of target links to file preview in View_Mode FORM_VIEW
-    ) RETURN CLOB;
+		p_Search_Field_Item VARCHAR2 DEFAULT NULL,			-- Example : P30_SEARCH
+		p_Search_Column_Name IN VARCHAR2 DEFAULT NULL,
+		p_Comments VARCHAR2 DEFAULT NULL,					-- Comments
+		p_Parent_Name VARCHAR2 DEFAULT NULL,				-- Parent View or Table name. In View_Mode NAVIGATION_VIEW if set columns from the view are included in the Column list
+		p_Parent_Key_Column VARCHAR2 DEFAULT NULL,			-- Column Name with foreign key to Parent Table
+		p_Parent_Key_Visible VARCHAR2 DEFAULT 'NO',			-- YES, NO, NULLABLE. Show foreign key column in View_Mode FORM_VIEW
+		p_File_Page_ID NUMBER DEFAULT 31					-- Page ID of target links to file preview in View_Mode FORM_VIEW
+	) RETURN CLOB;
 
 	---------------------------------------------------------------------------
 
@@ -679,24 +687,25 @@ IS
     ) RETURN CLOB;
 
 	FUNCTION Get_View_Column_Cursor (	-- internal
-    	p_Table_Name VARCHAR2,								-- Table Name or View Name
-    	p_Unique_Key_Column VARCHAR2 DEFAULT NULL,
+		p_Table_Name VARCHAR2,								-- Table Name or View Name
+		p_Unique_Key_Column VARCHAR2 DEFAULT NULL,
 		p_Columns_Limit IN NUMBER DEFAULT 1000,
-    	p_Data_Columns_Only VARCHAR2 DEFAULT 'NO',
-    	p_Select_Columns VARCHAR2 DEFAULT NULL,
-    	p_Join_Options VARCHAR2 DEFAULT NULL,
-		p_View_Mode IN VARCHAR2 DEFAULT 'FORM_VIEW', 		-- FORM_VIEW, RECORD_VIEW, NAVIGATION_VIEW, NESTED_VIEW, IMPORT_VIEW, EXPORT_VIEW
-		p_Edit_Mode VARCHAR2 DEFAULT 'NO', 					-- YES, NO
-    	p_Data_Format VARCHAR2 DEFAULT FN_Current_Data_Format,	-- FORM, HTML, CSV, NATIVE. Format of the final projection columns.
-		p_Report_Mode VARCHAR2 DEFAULT 'NO', 				-- YES, NO, ALL, If YES, none standard columns are excluded from the generated column list
-    	p_Parent_Name VARCHAR2 DEFAULT NULL,                -- Parent View or Table name. In View_Mode NAVIGATION_VIEW if set columns from the view are included in the Column list
-    	p_Parent_Key_Column VARCHAR2 DEFAULT NULL,			-- Column Name with foreign key to Parent Table
-    	p_Parent_Key_Visible VARCHAR2 DEFAULT 'NO',			-- YES, NO, NULLABLE. Show foreign key column in View_Mode FORM_VIEW
-    	p_Link_Page_ID NUMBER DEFAULT V('APP_PAGE_ID'),     -- Page ID of target links in View_Mode NAVIGATION_VIEW
+		p_Data_Columns_Only VARCHAR2 DEFAULT 'NO',
+		p_Select_Columns VARCHAR2 DEFAULT NULL,
+		p_Join_Options VARCHAR2 DEFAULT NULL,
+		p_View_Mode IN VARCHAR2 DEFAULT 'FORM_VIEW',		-- FORM_VIEW, RECORD_VIEW, NAVIGATION_VIEW, NESTED_VIEW, IMPORT_VIEW, EXPORT_VIEW
+		p_Edit_Mode VARCHAR2 DEFAULT 'NO',					-- YES, NO
+		p_Data_Format VARCHAR2 DEFAULT FN_Current_Data_Format,	-- FORM, HTML, CSV, NATIVE. Format of the final projection columns.
+		p_Use_Group_Separator  VARCHAR2 DEFAULT NULL,		-- Y,N; use G in number format mask
+		p_Report_Mode VARCHAR2 DEFAULT 'NO',				-- YES, NO, ALL, If YES, none standard columns are excluded from the generated column list
+		p_Parent_Name VARCHAR2 DEFAULT NULL,				-- Parent View or Table name. In View_Mode NAVIGATION_VIEW if set columns from the view are included in the Column list
+		p_Parent_Key_Column VARCHAR2 DEFAULT NULL,			-- Column Name with foreign key to Parent Table
+		p_Parent_Key_Visible VARCHAR2 DEFAULT 'NO',			-- YES, NO, NULLABLE. Show foreign key column in View_Mode FORM_VIEW
+		p_Link_Page_ID NUMBER DEFAULT V('APP_PAGE_ID'),		-- Page ID of target links in View_Mode NAVIGATION_VIEW
 		p_Link_Parameter VARCHAR2 DEFAULT NULL,				-- Parameter of target links in View_Mode NAVIGATION_VIEW
-    	p_Detail_Page_ID NUMBER DEFAULT 32,					-- Page ID of target links in View_Mode NAVIGATION_VIEW, NESTED_VIEW
+		p_Detail_Page_ID NUMBER DEFAULT 32,					-- Page ID of target links in View_Mode NAVIGATION_VIEW, NESTED_VIEW
 		p_Detail_Parameter VARCHAR2 DEFAULT NULL,			-- Parameter of target links in View_Mode NAVIGATION_VIEW, NESTED_VIEW
-    	p_File_Page_ID NUMBER DEFAULT 31				    -- Page ID of target links to file preview in View_Mode FORM_VIEW
+		p_File_Page_ID NUMBER DEFAULT 31					-- Page ID of target links to file preview in View_Mode FORM_VIEW
 	) RETURN data_browser_conf.tab_record_view PIPELINED;
 
 end data_browser_select;
@@ -1768,6 +1777,7 @@ IS
 		p_Table_name VARCHAR2,
 		p_Parent_Name VARCHAR2 DEFAULT NULL,
 		p_View_Mode	VARCHAR2 DEFAULT 'FORM_VIEW',
+		p_Report_Mode VARCHAR2 DEFAULT 'ALL', 				-- YES, NO, ALL
     	p_Join_Options VARCHAR2 DEFAULT NULL,
     	p_Show_Statistics VARCHAR2 DEFAULT 'NO',
 		p_Show_Title VARCHAR2 DEFAULT 'YES',

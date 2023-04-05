@@ -119,7 +119,7 @@ IS
 
 	g_use_exceptions 			CONSTANT BOOLEAN 	:= TRUE;	-- when enabled, errors are handled via exceptions; disable to find proper error line number.
 	g_runtime_exceptions		CONSTANT BOOLEAN 	:= FALSE;	-- when enabled, runtime parameter errors are handled via exceptions; disable to tolerate missing parameters
-	g_debug 					CONSTANT BOOLEAN 	:= FALSE;
+	g_debug 					CONSTANT BOOLEAN 	:= TRUE;
 	
 	PROCEDURE Save_Config_Defaults;
 	PROCEDURE Load_Config;
@@ -281,6 +281,9 @@ IS
 	FUNCTION Get_MD5_Column_Name RETURN VARCHAR2 DETERMINISTIC;
 	FUNCTION Get_MD5_Column_Index RETURN VARCHAR2 DETERMINISTIC;
 	FUNCTION Use_Session_NLS_Param RETURN BOOLEAN;
+	PROCEDURE Set_Use_Session_NLS_Param(p_Enabled VARCHAR2 DEFAULT 'YES');	--YES/NO
+	FUNCTION Get_Current_Data_Format RETURN VARCHAR2;
+	PROCEDURE Set_Current_Data_Format (p_Value VARCHAR2 DEFAULT 'FORM');
     FUNCTION Get_Export_CSV_Mode RETURN VARCHAR2;
     FUNCTION Get_Export_NumChars(p_Enquote VARCHAR2 DEFAULT 'YES') RETURN VARCHAR2;
     FUNCTION Get_Export_NLS_Param RETURN VARCHAR2;
@@ -348,7 +351,7 @@ IS
     FUNCTION Get_History_View_Name(p_Name VARCHAR2) RETURN VARCHAR2;
 
 	FUNCTION Get_Include_Query_Schema RETURN VARCHAR2;
-	PROCEDURE Set_Include_Query_Schema (p_Value VARCHAR2);
+	PROCEDURE Set_Include_Query_Schema (p_Value VARCHAR2 DEFAULT 'YES');
 	FUNCTION Get_Search_Keys_Unique RETURN VARCHAR2;
 	FUNCTION Get_Insert_Foreign_Keys RETURN VARCHAR2;
 	PROCEDURE Set_Import_Parameter (
@@ -981,6 +984,7 @@ $END
     g_Search_Keys_Unique		VARCHAR2(5)  	:= 'YES';   -- Require search with unique keys for loopup of foreign key values
     g_Insert_Foreign_Keys		VARCHAR2(5)  	:= 'YES';	-- Enable insert of new foreign keys in import views
 	g_Include_Query_Schema		VARCHAR2(5)  	:= 'NO';	-- Include Query Schema in from clause to enable usage in  create_collection_from_query_b
+	g_Current_Data_Format		VARCHAR2(64)    := 'FORM';
 	g_Apex_Version				VARCHAR2(64)	:= 'APEX_050000';
 	g_Email_From_Address		VARCHAR2(128)    := '';      -- Email From Address for emails from the application. Used to Invite new users via E-mail and Request a new password via E-mail.
 	-------------------------------------------
@@ -2200,23 +2204,33 @@ $END
 	PRAGMA UDF;
     BEGIN RETURN LPAD( g_MD5_Column_Index, 2, '0'); END;
 
+	PROCEDURE Set_Use_Session_NLS_Param(p_Enabled VARCHAR2 DEFAULT 'YES')
+    IS
+    BEGIN
+    	g_Use_App_Date_Time_Format := p_Enabled;
+    END Set_Use_Session_NLS_Param;
+	
     FUNCTION Use_Session_NLS_Param RETURN BOOLEAN
     IS
     BEGIN
     	RETURN g_Use_App_Date_Time_Format = 'YES';
     END Use_Session_NLS_Param;
 
+
+	FUNCTION Get_Current_Data_Format RETURN VARCHAR2 IS BEGIN RETURN g_Current_Data_Format; END;
+	PROCEDURE Set_Current_Data_Format (p_Value VARCHAR2 DEFAULT 'FORM') IS BEGIN g_Current_Data_Format := p_Value; END;
+
     FUNCTION Get_Export_CSV_Mode RETURN VARCHAR2
     IS
 	PRAGMA UDF;
     BEGIN -- https://www.talkapex.com/2010/06/how-to-only-display-column-when/
-    	return case when APEX_APPLICATION.G_EXCEL_FORMAT 
-    			then 'YES'
-    		when V('REQUEST') IN ('CSV','HTMLD')
+    	return case when g_Current_Data_Format ='CSV'
+    		or APEX_APPLICATION.G_EXCEL_FORMAT 
+    		or V('REQUEST') IN ('CSV','HTMLD')
     			then 'YES'
     		else 'NO'
     		end;
-    END;
+    END Get_Export_CSV_Mode;
 
     FUNCTION Get_Export_NumChars(p_Enquote VARCHAR2 DEFAULT 'YES') RETURN VARCHAR2
     IS
@@ -3415,8 +3429,8 @@ $END
         p_Data_Type VARCHAR2,
         p_Data_Scale NUMBER,
         p_Format_Mask VARCHAR2,
-        p_Use_Group_Separator VARCHAR2 DEFAULT 'N',
-        p_use_NLS_params VARCHAR2 DEFAULT 'Y'
+        p_Use_Group_Separator VARCHAR2 DEFAULT 'N',			-- Y/N; When enabled p_Format_Mask has group (G) symbols
+        p_use_NLS_params VARCHAR2 DEFAULT 'Y'				-- Y/N; When enabled add parameter q'[NLS_NUMERIC_CHARACTERS = '.,']' in TO_NUMBER conversions
     ) RETURN VARCHAR2 DETERMINISTIC
     IS
 	PRAGMA UDF;
@@ -3434,7 +3448,9 @@ $END
 			when p_Data_Type = 'NUMBER' and (p_Data_Scale > 0 or p_Use_Group_Separator = 'Y') and v_Format_Mask IS NOT NULL then
 				v_FN_Prefix || 'TO_NUMBER(' || p_Element 
 				|| ', ' || Enquote_Literal(v_Format_Mask)
-				|| case when p_use_NLS_params = 'Y' then ', ' || Get_Export_NumChars end
+				|| case when p_use_NLS_params = 'Y' 
+					and TRANSLATE(v_Format_Mask,'DG', 'XX') != v_Format_Mask 
+					then ', ' || Get_Export_NumChars end
 				|| ')'
 			when p_Data_Type = 'FLOAT' and v_Format_Mask IS NOT NULL then
 				v_FN_Prefix || 'TO_NUMBER(' || p_Element
@@ -3505,7 +3521,7 @@ $END
 	end Build_Parent_Key_Condition;
 
 	FUNCTION Get_Include_Query_Schema RETURN VARCHAR2 IS BEGIN RETURN g_Include_Query_Schema; END;
-	PROCEDURE Set_Include_Query_Schema (p_Value VARCHAR2) IS BEGIN g_Include_Query_Schema := p_Value; END;
+	PROCEDURE Set_Include_Query_Schema (p_Value VARCHAR2 DEFAULT 'YES') IS BEGIN g_Include_Query_Schema := p_Value; END;
 
 	FUNCTION Do_Compare_Case_Insensitive RETURN VARCHAR2 IS BEGIN RETURN g_Compare_Case_Insensitive; END;
 

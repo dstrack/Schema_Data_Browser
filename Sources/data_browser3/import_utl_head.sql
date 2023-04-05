@@ -17,12 +17,12 @@ limitations under the License.
 /*
 DROP TABLE USER_IMPORT_JOBS CASCADE CONSTRAINTS;
 DROP SEQUENCE USER_IMPORT_JOBS_SEQ;
-DROP PACKAGE import_utl;
+DROP PACKAGE Data_Browser_Import;
 DROP VIEW VUSER_TABLES_IMP;
 DROP VIEW VUSER_TABLES_IMP_JOINS;
 
 */
-CREATE OR REPLACE PACKAGE import_utl
+CREATE OR REPLACE PACKAGE Data_Browser_Import
 IS
 	g_linemaxsize			CONSTANT INTEGER	  := 4000;
 	g_Importjob_ID				INTEGER;
@@ -114,7 +114,8 @@ IS
 	FUNCTION FN_Pipe_table_imp_cols (
 		p_Table_Name VARCHAR2, 
 		p_Report_Mode VARCHAR2 DEFAULT 'YES',
-		p_Data_Format VARCHAR2 DEFAULT 'NATIVE'
+		p_Data_Format VARCHAR2 DEFAULT 'NATIVE',
+		p_Use_Group_Separator  VARCHAR2 DEFAULT NULL		-- Y,N; use G in number format mask
 	)
 	RETURN tab_table_imp_cols PIPELINED;
 
@@ -222,6 +223,7 @@ IS
     	p_Table_Name VARCHAR2,
     	p_As_Of_Timestamp VARCHAR2 DEFAULT 'NO',
     	p_Data_Format VARCHAR2 DEFAULT 'FORM',	-- FORM, CSV, NATIVE. Format of the final projection columns.
+    	p_Use_Group_Separator  VARCHAR2 DEFAULT NULL,	-- Y,N; use G in number format mask
     	p_Report_Mode VARCHAR2 DEFAULT 'YES'	-- When enabled, exclude Audit Columns like Created At, Created By, Modified At, Modified By from the SELECT columns list.
     ) RETURN CLOB;
     FUNCTION Get_Imp_Table_View_Comments (
@@ -238,10 +240,12 @@ IS
     ) RETURN CLOB;
 	PROCEDURE Download_imp_views (
 		p_Schema_Name VARCHAR2 DEFAULT SYS_CONTEXT('USERENV', 'CURRENT_SCHEMA'),
+		p_Include_Schema_Name VARCHAR2 DEFAULT 'YES',
     	p_Data_Format VARCHAR2 DEFAULT 'NATIVE',	-- FORM, CSV, NATIVE. Format of the final projection columns.
-		p_use_NLS_params VARCHAR2 DEFAULT 'Y',
-		p_Use_Group_Separator VARCHAR2 DEFAULT 'Y',
-		p_Report_Mode VARCHAR2 DEFAULT 'YES',	-- When enabled, eExclude Audit Columns like Created At, Created By, Modified At, Modified By from the SELECT columns list.
+    	p_Use_Session_NLS_Format VARCHAR2 DEFAULT 'NO',
+		p_use_NLS_params VARCHAR2 DEFAULT 'YES',	-- in TO_NUMBER
+		p_Use_Group_Separator  VARCHAR2 DEFAULT NULL,	-- YES/NO; use G in number format mask
+		p_Report_Mode VARCHAR2 DEFAULT 'YES',	-- When enabled, exclude Audit Columns like Created At, Created By, Modified At, Modified By from the SELECT columns list.
 		p_Add_Comments VARCHAR2 DEFAULT 'YES',	-- When enabled, comments are added to the columns of the created views.
 		p_Table_Name_Pattern VARCHAR2 DEFAULT '%'
 	);
@@ -296,7 +300,11 @@ IS
 	);
 	PROCEDURE Generate_Updatable_Views (
 		p_Schema_Name VARCHAR2 DEFAULT SYS_CONTEXT('USERENV', 'CURRENT_SCHEMA'),
+		p_Include_Schema_Name VARCHAR2 DEFAULT 'YES',
     	p_Data_Format VARCHAR2 DEFAULT 'NATIVE',	-- NATIVE/CSV
+    	p_Use_Session_NLS_Format VARCHAR2 DEFAULT 'NO',
+    	p_use_NLS_params VARCHAR2 DEFAULT 'YES',	-- in TO_NUMBER
+    	p_Use_Group_Separator  VARCHAR2 DEFAULT 'NO',	-- YES/NO; use G in number format mask
     	p_Report_Mode VARCHAR2 DEFAULT 'YES',
 		p_Add_Comments VARCHAR2 DEFAULT 'YES',
 		p_Table_Name_Pattern VARCHAR2 DEFAULT '%'
@@ -336,7 +344,7 @@ IS
 	PROCEDURE Refresh_MViews (
 		p_Schema_Name VARCHAR2 DEFAULT SYS_CONTEXT('USERENV', 'CURRENT_SCHEMA')
 	);
-END import_utl;
+END Data_Browser_Import;
 /
 
 

@@ -126,6 +126,7 @@ IS
     	p_Reference_Table 	IN VARCHAR2,	    -- For target of type reference; Parent View or Table name.
     	p_Reference_Type 	IN VARCHAR2,		-- For target of type reference; STATIC:Container;CONTAINER,Optional Container;OPTIONAL_CONTAINER,Required;REQUIRED,Optional;NULLABLE
 		p_Reference_Default_ID IN VARCHAR2,		-- For target of type reference; default reference
+     	p_Reference_Valid	OUT VARCHAR2, 		-- YES, NO
 		p_Check_Const_Options IN VARCHAR2,
 		p_Check_Condition	IN VARCHAR2,
     	p_Check_Unique		IN VARCHAR2,  		-- N,Y
@@ -181,6 +182,12 @@ IS
 	) RETURN VARCHAR2; -- YES / NO / N/A
 
 	PROCEDURE Check_Required_Constraints (p_Selected_Tables VARCHAR2);
+
+	FUNCTION FN_Query_Reference (
+		p_Table_Name IN VARCHAR2,
+		p_Parent_Table VARCHAR2,
+		p_Parent_Key_Column VARCHAR2
+	) RETURN VARCHAR2; -- YES / NO / N/A
 
 end data_browser_ddl;
 /
@@ -1167,6 +1174,7 @@ Load_Column_Constraints (
     	p_Reference_Table 	IN VARCHAR2,	    -- For target of type reference; Parent View or Table name.
     	p_Reference_Type 	IN VARCHAR2,		-- For target of type reference; STATIC:Container;CONTAINER,Optional Container;OPTIONAL_CONTAINER,Required;REQUIRED,Optional;NULLABLE
 		p_Reference_Default_ID IN VARCHAR2,		-- For target of type reference; default reference
+     	p_Reference_Valid	OUT VARCHAR2, 		-- YES, NO
 		p_Check_Const_Options IN VARCHAR2,
 		p_Check_Condition	IN VARCHAR2,
     	p_Check_Unique		IN VARCHAR2,  		-- N,Y
@@ -1211,6 +1219,7 @@ Load_Column_Constraints (
 		
 		p_Check_Unique_Valid := NULL;
 		p_Required_Valid := NULL;
+		p_Reference_Valid := NULL;
         p_DATA_DEFAULT_OLD := utl_url.unescape(p_DATA_DEFAULT_OLD);
         p_DATA_DEFAULT := case when p_REFERENCE_TABLE IS NOT NULL then 
                 p_REFERENCE_DEFAULT_ID
@@ -1425,6 +1434,11 @@ Load_Column_Constraints (
 					p_STATEMENT := p_STATEMENT || v_Stat
 					|| ';' || chr(10);
 				end if;			
+				p_Reference_Valid := FN_Query_Reference (
+					p_Table_Name  => p_TABLE_NAME,
+					p_Parent_Table => p_Reference_Table,
+					p_Parent_Key_Column => p_COLUMN_NAME
+				);
 			end if;
             v_Start_Step := LEAST(v_Start_Step, data_browser_jobs.Get_Refresh_Start_Foreign);
 		elsif v_Drop_Stat IS NOT NULL then 
@@ -1828,6 +1842,42 @@ Load_Column_Constraints (
 	exception
 		when e_20104 then null;
     END Check_Required_Constraints;
+
+	FUNCTION FN_Query_Reference (
+		p_Table_Name IN VARCHAR2,
+		p_Parent_Table VARCHAR2,
+		p_Parent_Key_Column VARCHAR2
+	) RETURN VARCHAR2 -- YES / NO / N/A
+	IS
+	PRAGMA UDF;
+		v_Query			VARCHAR2(32767);
+		v_Result    	PLS_INTEGER := 0;
+   		cv 				SYS_REFCURSOR;
+    	v_Table_Name	VARCHAR2(128);
+    	v_Table_Owner	VARCHAR2(128);
+    	v_Primary_Key_Cols VARCHAR2(128);
+	BEGIN
+		SELECT TABLE_NAME, TABLE_OWNER, PRIMARY_KEY_COLS
+		INTO v_Table_Name, v_Table_Owner, v_Primary_Key_Cols
+		FROM MVDATA_BROWSER_VIEWS
+		WHERE VIEW_NAME = p_Parent_Table;
+
+		v_Query := 'SELECT 1 FROM DUAL WHERE EXISTS (SELECT 1' 
+		|| ' FROM ' || DBMS_ASSERT.ENQUOTE_NAME(p_Table_Name) 
+		|| ' WHERE ' || DBMS_ASSERT.ENQUOTE_NAME(p_Parent_Key_Column) || ' IS NOT NULL '
+		|| ' AND ' || DBMS_ASSERT.ENQUOTE_NAME(p_Parent_Key_Column)
+		|| ' NOT IN (SELECT '||v_Primary_Key_Cols
+		|| ' FROM ' || DBMS_ASSERT.ENQUOTE_NAME(v_Table_Owner) || '.' || DBMS_ASSERT.ENQUOTE_NAME(v_Table_Name)
+		||'))';
+		OPEN cv FOR v_Query;
+		FETCH cv INTO v_Result;
+		CLOSE cv;
+		return case when v_Result = 1 then 'NO' else 'YES' end;
+	exception when NO_DATA_FOUND then
+        return 'NO';
+    when others then 
+        return 'N/A';
+	END FN_Query_Reference;
 
 end data_browser_ddl;
 /

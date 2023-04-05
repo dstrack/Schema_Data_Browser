@@ -265,8 +265,7 @@ IS
 				p9 => p_Parent_Table,
 				p10 => p_Parent_Key_Column,
 				p11 => p_Nested_Links,
-				p_max_length => 3500, 
-				p_level => apex_debug.c_log_level_info
+				p_max_length => 3500
 			);
 		$END
 		v_Nested_Links := NVL(p_Nested_Links, 'NO');
@@ -345,7 +344,7 @@ IS
 			end if;
 		end loop;
 		$IF data_browser_conf.g_debug $THEN
-			apex_debug.info(
+			apex_debug.message(
 				p_message => 'data_browser_utl.Get_Sub_Totals_Grouping (p_Select_Columns=> %s, p_Parent_Key_Column=> %s, v_Grouping_Columns=> %s, ' || chr(10)
 				|| 'v_Control_Break=> %s, v_Links_Count=> %s, v_Link_Lists_Count=> %s, v_Is_Summand_Cnt=> %s, p_Nested_Links=> %s)',
 				p0 => p_Select_Columns,
@@ -3114,7 +3113,7 @@ data_browser_utl.Get_Report_Preferences(
 		end if;
 
 		$IF data_browser_conf.g_debug $THEN
-			apex_debug.info(
+			apex_debug.message(
 				p_message => 'data_browser_utl.Get_Record_View_Query (v_Inner_Order_by=> %s, v_Outer_Order_by=> %s, v_Array_Row_Count => %s, p_Data_Source => %s ',
 				p0 => v_Inner_Order_by,
 				p1 => v_Outer_Order_by,
@@ -3446,7 +3445,7 @@ data_browser_utl.Get_Report_Preferences(
 		end if;
 
 		$IF data_browser_conf.g_debug $THEN
-			apex_debug.info(
+			apex_debug.message(
 				p_message => 'data_browser_utl.Get_Record_View_Query - Result-Size (%s) : ',
 				p0 => DBMS_LOB.GETLENGTH(v_Record_View_Query),
 				p_max_length => 3500
@@ -3942,6 +3941,7 @@ data_browser_utl.Get_Report_Preferences(
 			) A  ON E.COLUMN_NAME = A.COLUMN_NAME
 			WHERE E.VIEW_NAME = v_Table_name;
 		v_out_tab data_browser_conf.tab_foreign_key_value;
+		v_Count NUMBER := 0;
 	begin
         if apex_application.g_debug then
             EXECUTE IMMEDIATE api_trace.Dyn_Log_Call(p_overload => 1)
@@ -3970,6 +3970,7 @@ data_browser_utl.Get_Report_Preferences(
 			FETCH view_cur BULK COLLECT INTO v_out_tab;
 			CLOSE view_cur;
 			IF v_out_tab.FIRST IS NOT NULL THEN
+				v_Count := v_out_tab.COUNT;
 				FOR ind IN 1 .. v_out_tab.COUNT
 				LOOP
 					pipe row (v_out_tab(ind));
@@ -3979,7 +3980,7 @@ data_browser_utl.Get_Report_Preferences(
         ----
         $IF data_browser_conf.g_debug $THEN
             EXECUTE IMMEDIATE api_trace.Dyn_Log_Function_Call(p_overload => 1)
-            USING p_table_name,p_unique_key_column,p_search_value,p_parent_table,p_parent_key_item,v_out_tab.COUNT;
+            USING p_table_name,p_unique_key_column,p_search_value,p_parent_table,p_parent_key_item,v_Count;
         $END
 	end foreign_key_cursor;
 
@@ -4006,11 +4007,13 @@ data_browser_utl.Get_Report_Preferences(
 			JOIN MVDATA_BROWSER_VIEWS S ON S.VIEW_NAME = E.VIEW_NAME
 			WHERE E.VIEW_NAME = p_Table_Name;
 		v_out_tab data_browser_conf.tab_foreign_key_value;
+		v_Count NUMBER := 0;
 	begin
 		OPEN view_cur;
 		FETCH view_cur BULK COLLECT INTO v_out_tab;
 		CLOSE view_cur;
 		IF v_out_tab.FIRST IS NOT NULL THEN
+			v_Count := v_out_tab.COUNT;
 			FOR ind IN 1 .. v_out_tab.COUNT
 			LOOP
 				pipe row (v_out_tab(ind));
@@ -4019,7 +4022,7 @@ data_browser_utl.Get_Report_Preferences(
         ----
         $IF data_browser_conf.g_debug $THEN
             EXECUTE IMMEDIATE api_trace.Dyn_Log_Function_Call(p_overload => 2)
-            USING p_table_name,v_out_tab.COUNT;
+            USING p_table_name,v_Count;
         $END
 	end foreign_key_cursor;
 

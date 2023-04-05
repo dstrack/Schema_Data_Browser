@@ -644,6 +644,9 @@ $END
             EXECUTE IMMEDIATE api_trace.Dyn_Log_Start
             USING p_username,p_email,p_password;
         $END
+$IF data_browser_specs.g_use_custom_ctx $THEN
+		set_custom_ctx.unset_userlevel;
+$END
         -- Add rows to USER_NAMESPACES when missing
 		custom_changelog.set_new_workspace(SYS_CONTEXT('USERENV', 'CURRENT_SCHEMA'));
 		-- Enable APEX_PUBLIC_USER as app user
@@ -1053,10 +1056,10 @@ $IF data_browser_specs.g_use_custom_ctx $THEN
 		set_custom_ctx.Set_Current_User(v_User_Name, v_Client_Id, v_Table_App_Users, p_Schema_Name);
 
 		if apex_application.g_debug then
-			apex_debug.message('--CUSTOM_CTX: USER_ID: %s, USER_NAME: %s, WORKSPACE_ID: %s, WORKSPACE_NAME: %s ', 
+			apex_debug.message('CUSTOM_CTX: USER_ID: %s, USER_NAME: %s, WORKSPACE_ID: %s, WORKSPACE_NAME: %s ', 
 				SYS_CONTEXT('CUSTOM_CTX', 'USER_ID'), SYS_CONTEXT('CUSTOM_CTX', 'USER_NAME'), 
 				SYS_CONTEXT('CUSTOM_CTX', 'WORKSPACE_ID'), SYS_CONTEXT('CUSTOM_CTX', 'WORKSPACE_NAME'));
-			apex_debug.message('--V(''APP_USER''): %s, V(''APP_WORKSPACE''): %s', V('APP_USER'), V('APP_WORKSPACE') );
+			apex_debug.message('--V(''APP_USER''): %s, V(''APP_WORKSPACE''): %s, V(''REQUEST''): %s', V('APP_USER'), V('APP_WORKSPACE'), V('REQUEST') );
 		end if;
 $END
 	END Set_Apex_Context;

@@ -21,7 +21,7 @@ limitations under the License.
 	Katalogs und Prozeduren zur Erzeugung von Views und Triggers mit allen
 	Details zum Exportieren und Importieren je Benutzer Tabelle.
 
-	Die Prozedur import_utl.Generate_Imp_Table erzeugt für eine Benutzer
+	Die Prozedur Data_Browser_Import.Generate_Imp_Table erzeugt für eine Benutzer
 	Tabelle je eine - Import View mit instead of insert trigger mit allen
 	einfachen Spalten der Benutzer Tabelle und übersetzen
 	Fremdschlüsselwerten. Die seriellen Schlüsselwerte werden durch ihre
@@ -50,12 +50,13 @@ limitations under the License.
 
 */
 
-CREATE OR REPLACE PACKAGE BODY import_utl IS
+CREATE OR REPLACE PACKAGE BODY Data_Browser_Import IS
 
 	FUNCTION FN_Pipe_table_imp_cols (
 		p_Table_Name VARCHAR2, 
 		p_Report_Mode VARCHAR2 DEFAULT 'YES',
-		p_Data_Format VARCHAR2 DEFAULT 'NATIVE'
+		p_Data_Format VARCHAR2 DEFAULT 'NATIVE',
+		p_Use_Group_Separator  VARCHAR2 DEFAULT NULL		-- Y,N; use G in number format mask
 	)
 	RETURN tab_table_imp_cols PIPELINED
 	IS
@@ -63,10 +64,10 @@ CREATE OR REPLACE PACKAGE BODY import_utl IS
         IS
 		SELECT S.VIEW_NAME TABLE_NAME, COLUMN_NAME,
 			COLUMN_EXPR,
-			import_utl.Get_CompareFunction(DATA_TYPE) COLUMN_COMPARE,
-			import_utl.Get_MarkupFunction(DATA_TYPE) COLUMN_MARKUP,
+			Data_Browser_Import.Get_CompareFunction(DATA_TYPE) COLUMN_COMPARE,
+			Data_Browser_Import.Get_MarkupFunction(DATA_TYPE) COLUMN_MARKUP,
 			case when COLUMN_NAME != 'LINK_ID$' then
-				import_utl.Get_ImpColumnCheck (DATA_TYPE, DATA_SCALE, CHAR_LENGTH, NULLABLE, COLUMN_NAME)
+				Data_Browser_Import.Get_ImpColumnCheck (DATA_TYPE, DATA_SCALE, CHAR_LENGTH, NULLABLE, COLUMN_NAME)
 			end COLUMN_CHECK_EXPR,
 			COLUMN_ID, POSITION, COLUMN_NAME IMP_COLUMN_NAME, COLUMN_ALIGN, 
 			COLUMN_EXPR_TYPE,
@@ -79,13 +80,14 @@ CREATE OR REPLACE PACKAGE BODY import_utl IS
 				p_Unique_Key_Column => S.SEARCH_KEY_COLS,
 				p_Data_Columns_Only => 'NO',
 				p_Data_Format => p_Data_Format,
+				p_Use_Group_Separator => p_Use_Group_Separator,
 				p_View_Mode => 'IMPORT_VIEW',
 				p_Edit_Mode=> 'NO',
 				p_Report_Mode => p_Report_Mode
 			)
 		) E
 		WHERE S.VIEW_NAME = p_Table_Name
-		-- AND (import_utl.Get_Exclude_Blob_Columns = 'NO' or data_browser_select.FN_Is_Sortable_Column(COLUMN_EXPR_TYPE) = 'YES')
+		-- AND (Data_Browser_Import.Get_Exclude_Blob_Columns = 'NO' or data_browser_select.FN_Is_Sortable_Column(COLUMN_EXPR_TYPE) = 'YES')
 		;
         v_in_row rec_table_imp_cols;
 	BEGIN
@@ -111,7 +113,7 @@ CREATE OR REPLACE PACKAGE BODY import_utl IS
         IS
 		WITH REFERENCES_Q AS (
 			SELECT E.*
-			FROM TABLE (import_utl.FN_Pipe_table_imp_cols(v_View_Name, p_Report_Mode, p_Data_Format)) E
+			FROM TABLE (Data_Browser_Import.FN_Pipe_table_imp_cols(v_View_Name, p_Report_Mode, p_Data_Format, p_Use_Group_Separator)) E
 			WHERE (E.TABLE_ALIAS != 'A'  OR E.TABLE_ALIAS IS NULL OR E.COLUMN_EXPR_TYPE = 'HIDDEN')
 		)
 		, PARENT_LOOKUP_Q AS (
@@ -132,6 +134,7 @@ CREATE OR REPLACE PACKAGE BODY import_utl IS
 				FROM MVDATA_BROWSER_F_REFS S, TABLE(data_browser_select.FN_Pipe_browser_q_refs(
 					p_View_Name => S.TABLE_NAME,
 					p_Data_Format => v_Data_Format,
+					p_Use_Group_Separator => p_Use_Group_Separator,
 					p_Include_Schema => 'NO'
 				)) Q
 				where Q.VIEW_NAME = S.VIEW_NAME
@@ -147,17 +150,25 @@ CREATE OR REPLACE PACKAGE BODY import_utl IS
 		, FOREIGN_KEYS_LOOKUP_Q AS (
 			SELECT T.VIEW_NAME TABLE_NAME, 
 				 ---------------------------
-				-- case when MAX(T.U_CONSTRAINT_NAME) IS NOT NULL or import_utl.Get_Search_Keys_Unique = 'NO' then
+				-- case when MAX(T.U_CONSTRAINT_NAME) IS NOT NULL or Data_Browser_Import.Get_Search_Keys_Unique = 'NO' then
 					case when MAX(IS_FILE_FOLDER_REF) = 'N' then 
-						RPAD(' ', 4) || 'if '
-						|| LISTAGG(S_REF || ' IS NOT NULL',
-							data_browser_conf.NL(4) 
-							|| case when (HAS_NULLABLE > 0 OR HAS_SIMPLE_UNIQUE > 0) AND import_utl.Get_Search_Keys_Unique = 'NO' then 'or ' else 'and ' end
+						RPAD(' ', 4) || 'if ' -- check that all required columns have a value
+						|| COALESCE(LISTAGG(case when T.R_NULLABLE = 'N' -- key component column is not null
+												or Data_Browser_Import.Get_Search_Keys_Unique = 'YES' -- Assume Unique Keys Lookup
+							then S_REF || ' IS NOT NULL'
+							end,
+							data_browser_conf.NL(4) || 'and '
 						) WITHIN GROUP (ORDER BY R_COLUMN_ID, POSITION) -- conditions to trigger the search of foreign keys
+						, LISTAGG(S_REF || ' IS NOT NULL', -- when all may be null, check that any column has a value
+							data_browser_conf.NL(4) || 'or '
+						) WITHIN GROUP (ORDER BY R_COLUMN_ID, POSITION) -- conditions to trigger the search of foreign keys
+						, 'TRUE')
 						|| ' then ' 
-						|| case when MAX(T.U_CONSTRAINT_NAME) IS NULL then ' -- Warning: there is not unique key defined for this lookup columns. ' end
+						|| case when MAX(T.U_CONSTRAINT_NAME) IS NULL then ' -- Warning: there is not unique key defined for this lookup columns. ' 
+							when HAS_NULLABLE > 0 and HAS_SIMPLE_UNIQUE = 0 then ' -- Info: there are nullable columns in the lookup search condition. '
+						end
 						|| chr(10)
-						|| case when D.DEFAULTS_MISSING = 0  AND import_utl.Get_Insert_Foreign_Keys = 'YES' 
+						|| case when D.DEFAULTS_MISSING = 0  AND Data_Browser_Import.Get_Insert_Foreign_Keys = 'YES' 
 							then RPAD(' ', 6) || 'begin' || chr(10) end
 						|| RPAD(' ', 8) -- find foreign key values
 						|| 'SELECT ' || T.TABLE_ALIAS || '.' || T.R_PRIMARY_KEY_COLS || ' INTO ' 
@@ -165,21 +176,21 @@ CREATE OR REPLACE PACKAGE BODY import_utl IS
 						|| 'FROM ' || T.R_VIEW_NAME || ' ' || T.TABLE_ALIAS || ' ' || data_browser_conf.NL(8)
 						|| 'WHERE '
 						|| LISTAGG(
-								case when (HAS_NULLABLE > 0 OR HAS_SIMPLE_UNIQUE > 0) AND import_utl.Get_Search_Keys_Unique = 'NO' AND T.U_MEMBERS > 1
+								case when T.R_NULLABLE = 'Y' AND Data_Browser_Import.Get_Search_Keys_Unique = 'NO' AND T.U_MEMBERS > 1
 								then '('
-									|| import_utl.Get_Compare_Case_Insensitive(T.TABLE_ALIAS || '.' || T.R_COLUMN_NAME, S_REF, T.R_DATA_TYPE)
+									|| Data_Browser_Import.Get_Compare_Case_Insensitive(T.TABLE_ALIAS || '.' || T.R_COLUMN_NAME, S_REF, T.R_DATA_TYPE)
 									|| ' OR '
-									|| case when T.R_NULLABLE = 'Y' then T.TABLE_ALIAS || '.' || T.R_COLUMN_NAME || ' IS NULL AND ' end
+									|| T.TABLE_ALIAS || '.' || T.R_COLUMN_NAME || ' IS NULL AND '
 									|| S_REF || ' IS NULL)'
 								else
-									import_utl.Get_Compare_Case_Insensitive(T.TABLE_ALIAS || '.' || T.R_COLUMN_NAME, S_REF, T.R_DATA_TYPE)
+									Data_Browser_Import.Get_Compare_Case_Insensitive(T.TABLE_ALIAS || '.' || T.R_COLUMN_NAME, S_REF, T.R_DATA_TYPE)
 								end,
 							data_browser_conf.NL(8) || 'AND ') WITHIN GROUP (ORDER BY R_COLUMN_ID, POSITION)
 						|| ';' 
 					 ---------------------------
 						|| data_browser_conf.NL(4)
 						|| case when D.DEFAULTS_MISSING = 0 
-						and import_utl.Get_Insert_Foreign_Keys = 'YES' then
+						and Data_Browser_Import.Get_Insert_Foreign_Keys = 'YES' then
 							'  exception when NO_DATA_FOUND then' || data_browser_conf.NL(8)
 							|| 'INSERT INTO ' || T.R_VIEW_NAME || '('
 							|| LISTAGG(T.R_COLUMN_NAME, ', ') WITHIN GROUP (ORDER BY R_COLUMN_ID, POSITION)
@@ -232,19 +243,19 @@ CREATE OR REPLACE PACKAGE BODY import_utl IS
 				COLUMN_CHECK_EXPR,
 				S.SHORT_NAME || '_IMP' FROM_CHECK_EXPR,
 				' (' || LISTAGG('IMP.' || T.IMP_COLUMN_NAME || ' IS NOT NULL',
-					case when (HAS_NULLABLE > 0 OR HAS_SIMPLE_UNIQUE > 0) AND import_utl.Get_Search_Keys_Unique = 'NO' then ' OR ' else ' AND ' end
+					case when (HAS_NULLABLE > 0 OR HAS_SIMPLE_UNIQUE > 0) AND Data_Browser_Import.Get_Search_Keys_Unique = 'NO' then ' OR ' else ' AND ' end
 				) WITHIN GROUP (ORDER BY R_COLUMN_ID, POSITION) -- conditions to trigger the search of foreign keys
 				|| ') ' || data_browser_conf.NL(8) || ' AND NOT EXISTS ( SELECT 1 FROM ' || T.R_VIEW_NAME || ' ' || T.TABLE_ALIAS || ' '
 				|| data_browser_conf.NL(12)
 				|| 'WHERE '
 				|| LISTAGG(
-						case when (HAS_NULLABLE > 0 OR HAS_SIMPLE_UNIQUE > 0) AND import_utl.Get_Search_Keys_Unique = 'NO' 
+						case when (HAS_NULLABLE > 0 OR HAS_SIMPLE_UNIQUE > 0) AND Data_Browser_Import.Get_Search_Keys_Unique = 'NO' 
 							AND T.U_MEMBERS > 1 AND T.R_NULLABLE = 'Y' then
-							'(' || import_utl.Get_Compare_Case_Insensitive(T.TABLE_ALIAS || '.' || T.R_COLUMN_NAME, 'IMP.' || T.IMP_COLUMN_NAME, T.R_DATA_TYPE)
+							'(' || Data_Browser_Import.Get_Compare_Case_Insensitive(T.TABLE_ALIAS || '.' || T.R_COLUMN_NAME, 'IMP.' || T.IMP_COLUMN_NAME, T.R_DATA_TYPE)
 							|| ' OR ' ||  T.TABLE_ALIAS || '.' || T.R_COLUMN_NAME || ' IS NULL AND '
 							|| 'IMP.' || T.IMP_COLUMN_NAME || ' IS NULL)'
 						else
-							import_utl.Get_Compare_Case_Insensitive(T.TABLE_ALIAS || '.' || T.R_COLUMN_NAME, 'IMP.' || T.IMP_COLUMN_NAME, T.R_DATA_TYPE)
+							Data_Browser_Import.Get_Compare_Case_Insensitive(T.TABLE_ALIAS || '.' || T.R_COLUMN_NAME, 'IMP.' || T.IMP_COLUMN_NAME, T.R_DATA_TYPE)
 						end,
 					data_browser_conf.NL(12) || 'AND ') WITHIN GROUP (ORDER BY R_COLUMN_ID, POSITION)
 				|| data_browser_conf.NL(8) || ' )'
@@ -259,7 +270,7 @@ CREATE OR REPLACE PACKAGE BODY import_utl IS
 				'R' CHECK_CONSTRAINT_TYPE,
 				---------------------------
 				D.DEFAULTS_MISSING,
-				-- + case when MAX(T.U_CONSTRAINT_NAME) IS NOT NULL or import_utl.Get_Search_Keys_Unique = 'NO' then 0 else 1 end DEFAULTS_MISSING,
+				-- + case when MAX(T.U_CONSTRAINT_NAME) IS NOT NULL or Data_Browser_Import.Get_Search_Keys_Unique = 'NO' then 0 else 1 end DEFAULTS_MISSING,
 				T.COLUMN_ID POSITION, POSITION2, T.R_VIEW_NAME,
 				SUM(HAS_FOREIGN_KEY) S_HAS_FOREIGN_KEY
 			FROM
@@ -282,7 +293,7 @@ CREATE OR REPLACE PACKAGE BODY import_utl IS
 						R_CHAR_LENGTH, TABLE_ALIAS, IMP_COLUMN_NAME, JOIN_CLAUSE, HAS_NULLABLE, HAS_SIMPLE_UNIQUE, 
 						HAS_FOREIGN_KEY, U_CONSTRAINT_NAME, U_MEMBERS, POSITION2		
 					FROM TABLE(data_browser_select.FN_Pipe_table_imp_fk2 (
-						p_Table_Name=>v_Table_Name, p_As_Of_Timestamp=>import_utl.Get_As_Of_Timestamp, p_Data_Format=>v_Data_Format))
+						p_Table_Name=>v_Table_Name, p_As_Of_Timestamp=>Data_Browser_Import.Get_As_Of_Timestamp, p_Data_Format=>v_Data_Format))
 					UNION ALL
 					-- 1. level foreign keys
 					SELECT VIEW_NAME, TABLE_NAME, SEARCH_KEY_COLS, SHORT_NAME, COLUMN_NAME, 
@@ -336,7 +347,7 @@ CREATE OR REPLACE PACKAGE BODY import_utl IS
 				T.R_VIEW_NAME, T.COLUMN_ID, S.SHORT_NAME,
 				T.HAS_NULLABLE, T.HAS_SIMPLE_UNIQUE, T.U_MEMBERS, 
 				T.NULLABLE, T.D_REF, T.D_COLUMN_NAME, T.POSITION2
-			-- HAVING (MAX(T.U_CONSTRAINT_NAME) IS NOT NULL or import_utl.Get_Search_Keys_Unique = 'NO')
+			-- HAVING (MAX(T.U_CONSTRAINT_NAME) IS NOT NULL or Data_Browser_Import.Get_Search_Keys_Unique = 'NO')
 			ORDER BY SUM(HAS_FOREIGN_KEY), T.TABLE_ALIAS DESC, T.U_MEMBERS, T.COLUMN_ID, T.D_REF
 		) 
 		----------------------------------------------------------------------------------
@@ -385,8 +396,8 @@ CREATE OR REPLACE PACKAGE BODY import_utl IS
 		FROM ( -- select column list of target table
 			SELECT S.VIEW_NAME TABLE_NAME, 
 				'    v_row.' || RPAD(T.COLUMN_NAME, 32) || ' := '
-				|| case when T.COLUMN_NAME != S.SEARCH_KEY_COLS
-						then -- import_utl.Get_ImportColFunction(T.DATA_TYPE, T.DATA_SCALE, T.CHAR_LENGTH, ':new.' || T.COLUMN_NAME)
+				|| case when T.COLUMN_NAME != NVL(S.SEARCH_KEY_COLS, 'ROWID')
+						then 
 							case when v_Data_Format = 'NATIVE' then 
 								':new.' || T.COLUMN_NAME
 							else 
@@ -413,7 +424,7 @@ CREATE OR REPLACE PACKAGE BODY import_utl IS
 				---------------------------
 				T.COLUMN_NAME,
 				case when T.COLUMN_NAME != S.SEARCH_KEY_COLS then
-					import_utl.Get_ImpColumnCheck (T.DATA_TYPE, T.DATA_SCALE, T.CHAR_LENGTH, T.NULLABLE, T.COLUMN_NAME)
+					Data_Browser_Import.Get_ImpColumnCheck (T.DATA_TYPE, T.DATA_SCALE, T.CHAR_LENGTH, T.NULLABLE, T.COLUMN_NAME)
 				end COLUMN_CHECK_EXPR,
 				S.SHORT_NAME || '_IMP' FROM_CHECK_EXPR,
 				NULL WHERE_CHECK_EXPR,
@@ -422,8 +433,8 @@ CREATE OR REPLACE PACKAGE BODY import_utl IS
 				'T' CHECK_CONSTRAINT_TYPE,
 				---------------------------
 				0 DEFAULTS_MISSING, T.COLUMN_ID POSITION, 1 POSITION2, NULL R_VIEW_NAME
-			FROM MVDATA_BROWSER_VIEWS S, TABLE (import_utl.FN_Pipe_table_imp_cols(S.VIEW_NAME, p_Report_Mode, p_Data_Format)) T
-			WHERE import_utl.Get_ImpColumnCheck (T.DATA_TYPE, T.DATA_SCALE, T.CHAR_LENGTH, T.NULLABLE, T.COLUMN_NAME) IS NOT NULL
+			FROM MVDATA_BROWSER_VIEWS S, TABLE (Data_Browser_Import.FN_Pipe_table_imp_cols(S.VIEW_NAME, p_Report_Mode, p_Data_Format, p_Use_Group_Separator)) T
+			WHERE Data_Browser_Import.Get_ImpColumnCheck (T.DATA_TYPE, T.DATA_SCALE, T.CHAR_LENGTH, T.NULLABLE, T.COLUMN_NAME) IS NOT NULL
 			AND T.IS_VIRTUAL_COLUMN = 'N'
 			AND T.TABLE_ALIAS = 'A'
 			AND T.COLUMN_EXPR_TYPE != 'LINK_ID'
@@ -455,7 +466,7 @@ CREATE OR REPLACE PACKAGE BODY import_utl IS
 				DBMS_ASSERT.ENQUOTE_LITERAL('Regelverletzung für ' || REPLACE(A.SEARCH_CONDITION, CHR(39))) COLUMN_CHECK_EXPR,
 				'(SELECT IMPORTJOB_ID$, LINE_NO$, LINK_ID$, '
 				|| LISTAGG(
-					-- import_utl.Get_ImportColFunction(T.DATA_TYPE, T.DATA_SCALE, T.CHAR_LENGTH, T.COLUMN_NAME)
+					-- Data_Browser_Import.Get_ImportColFunction(T.DATA_TYPE, T.DATA_SCALE, T.CHAR_LENGTH, T.COLUMN_NAME)
 					data_browser_conf.Get_Char_to_Type_Expr(
 						p_Element => T.COLUMN_NAME, 
 						p_Data_Type => T.DATA_TYPE, 
@@ -488,7 +499,7 @@ CREATE OR REPLACE PACKAGE BODY import_utl IS
 				FROM TABLE(data_browser_conf.Constraint_Condition_Cursor(p_Owner => SYS_CONTEXT('USERENV', 'CURRENT_SCHEMA')))
 			) A ON A.TABLE_NAME = S.TABLE_NAME
 			JOIN SYS.USER_CONS_COLUMNS B ON A.CONSTRAINT_NAME = B.CONSTRAINT_NAME AND A.TABLE_NAME = B.TABLE_NAME AND A.OWNER = B.OWNER
-			JOIN TABLE (import_utl.FN_Pipe_table_imp_cols(v_View_Name, p_Report_Mode, p_Data_Format)) T ON S.VIEW_NAME = T.TABLE_NAME AND B.COLUMN_NAME = T.COLUMN_NAME
+			JOIN TABLE (Data_Browser_Import.FN_Pipe_table_imp_cols(v_View_Name, p_Report_Mode, p_Data_Format, p_Use_Group_Separator)) T ON S.VIEW_NAME = T.TABLE_NAME AND B.COLUMN_NAME = T.COLUMN_NAME
 			AND NOT EXISTS (-- no foreign key columns
 				SELECT 1 
 				FROM MVDATA_BROWSER_FKEYS FK
@@ -549,15 +560,15 @@ CREATE OR REPLACE PACKAGE BODY import_utl IS
 			|| data_browser_conf.NL(8) || 'WHERE '
 			|| LISTAGG (
 				case when F.FOREIGN_KEY_COLS IS NOT NULL then
-					import_utl.Get_Compare_Case_Insensitive(F.TABLE_ALIAS || '.' || F.R_COLUMN_NAME, 'IMP.' || F.IMP_COLUMN_NAME, F.R_DATA_TYPE)
+					Data_Browser_Import.Get_Compare_Case_Insensitive(F.TABLE_ALIAS || '.' || F.R_COLUMN_NAME, 'IMP.' || F.IMP_COLUMN_NAME, F.R_DATA_TYPE)
 				else
-					import_utl.Get_Compare_Case_Insensitive('A.' || U.COLUMN_NAME, 'IMP.' || U.COLUMN_NAME, U.DATA_TYPE)
+					Data_Browser_Import.Get_Compare_Case_Insensitive('A.' || U.COLUMN_NAME, 'IMP.' || U.COLUMN_NAME, U.DATA_TYPE)
 				end,
 				data_browser_conf.NL(8) || 'AND ') WITHIN GROUP (ORDER BY U.POSITION, F.R_COLUMN_ID)
 			|| data_browser_conf.NL(4) || ' )' || data_browser_conf.NL(4)
 			|| 'WHERE ('
 			|| LISTAGG ( 'IMP.' || NVL(F.IMP_COLUMN_NAME, U.COLUMN_NAME) || ' IS NOT NULL',
-					case when U.HAS_NULLABLE > 0 AND import_utl.Get_Search_Keys_Unique = 'NO' then ' OR ' else ' AND ' end
+					case when U.HAS_NULLABLE > 0 AND Data_Browser_Import.Get_Search_Keys_Unique = 'NO' then ' OR ' else ' AND ' end
 				) WITHIN GROUP (ORDER BY U.POSITION, F.R_COLUMN_ID) -- conditions to trigger the search of foreign keys
 			|| ') ' || data_browser_conf.NL(4) || 'AND IMP.LINK_ID$ IS NULL '
 			SQL_TEXT
@@ -720,7 +731,7 @@ CREATE OR REPLACE PACKAGE BODY import_utl IS
 		end if;
 		return NULL;
     EXCEPTION WHEN OTHERS THEN
-        RAISE_APPLICATION_ERROR (-20001, 'import_utl.Compare_Number (' || p_Bevore || ', ' || p_After || ') - failed with ' || SQLERRM);
+        RAISE_APPLICATION_ERROR (-20001, 'Data_Browser_Import.Compare_Number (' || p_Bevore || ', ' || p_After || ') - failed with ' || SQLERRM);
     END;
 
     FUNCTION Compare_Date ( p_Bevore VARCHAR2, p_After VARCHAR2) RETURN VARCHAR2 DETERMINISTIC
@@ -750,19 +761,19 @@ CREATE OR REPLACE PACKAGE BODY import_utl IS
     BEGIN
         RETURN CASE
         when p_DATA_TYPE = 'NUMBER' then
-            'import_utl.Compare_Number'
+            'Data_Browser_Import.Compare_Number'
         when p_DATA_TYPE = 'RAW' then
-            'import_utl.Compare_Data'
+            'Data_Browser_Import.Compare_Data'
         when p_DATA_TYPE = 'FLOAT' then
-            'import_utl.Compare_Number'
+            'Data_Browser_Import.Compare_Number'
         when p_DATA_TYPE = 'DATE' then
-            'import_utl.Compare_Date'
+            'Data_Browser_Import.Compare_Date'
         when p_DATA_TYPE LIKE 'TIMESTAMP%' then
-            'import_utl.Compare_Timestamp'
+            'Data_Browser_Import.Compare_Timestamp'
         when p_DATA_TYPE IN ('CHAR', 'VARCHAR', 'VARCHAR2', 'CLOB', 'NCLOB') and g_Compare_Case_Insensitive = 'YES' then
-        	'import_utl.Compare_Upper'
+        	'Data_Browser_Import.Compare_Upper'
         else
-            'import_utl.Compare_Data'
+            'Data_Browser_Import.Compare_Data'
         end;
     END;
 
@@ -858,19 +869,19 @@ CREATE OR REPLACE PACKAGE BODY import_utl IS
     BEGIN
         RETURN CASE
         when p_DATA_TYPE = 'NUMBER' then
-            'import_utl.Markup_Number'
+            'Data_Browser_Import.Markup_Number'
         when p_DATA_TYPE = 'RAW' then
-            'import_utl.Markup_Data'
+            'Data_Browser_Import.Markup_Data'
         when p_DATA_TYPE = 'FLOAT' then
-            'import_utl.Markup_Number'
+            'Data_Browser_Import.Markup_Number'
         when p_DATA_TYPE = 'DATE' then
-            'import_utl.Markup_Date'
+            'Data_Browser_Import.Markup_Date'
         when p_DATA_TYPE LIKE 'TIMESTAMP%' then
-            'import_utl.Markup_Timestamp'
+            'Data_Browser_Import.Markup_Timestamp'
         when p_DATA_TYPE IN ('CHAR', 'VARCHAR', 'VARCHAR2', 'CLOB', 'NCLOB') and g_Compare_Case_Insensitive = 'YES' then
-        	'import_utl.Markup_Upper'
+        	'Data_Browser_Import.Markup_Upper'
         else
-            'import_utl.Markup_Data'
+            'Data_Browser_Import.Markup_Data'
         end;
     END;
 
@@ -910,7 +921,7 @@ CREATE OR REPLACE PACKAGE BODY import_utl IS
         if SQLCODE = -6502 then
             RETURN TO_NUMBER(p_Value, g_Import_Number_Format, g_Import_NumChars);
         end if;
-        DBMS_OUTPUT.PUT_LINE('import_utl.GetImpCurrencyCols (' || p_Value || ') - failed with ' || SQLERRM);
+        DBMS_OUTPUT.PUT_LINE('Data_Browser_Import.GetImpCurrencyCols (' || p_Value || ') - failed with ' || SQLERRM);
         RAISE;
     END;
 
@@ -927,7 +938,7 @@ CREATE OR REPLACE PACKAGE BODY import_utl IS
     BEGIN
         RETURN TO_NUMBER(p_Value);
     EXCEPTION WHEN VALUE_ERROR THEN
-        -- DBMS_OUTPUT.PUT_LINE('import_utl.GetImpIntegerCols (' || p_Value || ') - failed with ' || SQLERRM);
+        -- DBMS_OUTPUT.PUT_LINE('Data_Browser_Import.GetImpIntegerCols (' || p_Value || ') - failed with ' || SQLERRM);
     	BEGIN
             RETURN TO_NUMBER(p_Value, g_Import_Number_Format, g_Import_NumChars);
         EXCEPTION WHEN VALUE_ERROR THEN
@@ -959,7 +970,7 @@ CREATE OR REPLACE PACKAGE BODY import_utl IS
     BEGIN
         RETURN CASE
         when p_DATA_TYPE = 'NUMBER' AND p_DATA_SCALE = 2 then
-            'import_utl.GetImpCurrencyCols(' || p_COLUMN_NAME || ')'
+            'Data_Browser_Import.GetImpCurrencyCols(' || p_COLUMN_NAME || ')'
         when p_DATA_TYPE = 'NUMBER' AND p_DATA_SCALE > 0 then
             'TO_NUMBER(' || p_COLUMN_NAME || ', '
             || DBMS_ASSERT.ENQUOTE_LITERAL(REPLACE(g_Import_Currency_Format, 'D99', RPAD('D', p_DATA_SCALE+1, '9')))
@@ -970,11 +981,11 @@ CREATE OR REPLACE PACKAGE BODY import_utl IS
         when p_DATA_TYPE = 'RAW' then
             'HEXTORAW(' || p_COLUMN_NAME || ')'
         when p_DATA_TYPE = 'FLOAT' then
-            'import_utl.GetImpFloatCols(' || p_COLUMN_NAME || ')'
+            'Data_Browser_Import.GetImpFloatCols(' || p_COLUMN_NAME || ')'
         when p_DATA_TYPE = 'DATE' then
-            'import_utl.GetImpDateCols(' || p_COLUMN_NAME || ')'
+            'Data_Browser_Import.GetImpDateCols(' || p_COLUMN_NAME || ')'
         when p_DATA_TYPE LIKE 'TIMESTAMP%' then
-            'import_utl.GetImpTimestampCols(' || p_COLUMN_NAME || ')'
+            'Data_Browser_Import.GetImpTimestampCols(' || p_COLUMN_NAME || ')'
         ELSE
             p_COLUMN_NAME
         END;
@@ -1141,36 +1152,36 @@ CREATE OR REPLACE PACKAGE BODY import_utl IS
         case when p_NULLABLE = 'N' then
             case
             when p_DATA_TYPE = 'NUMBER' AND p_DATA_SCALE = 2 then
-                'import_utl.is_Currency_Not_Null(' || v_COLUMN_NAME || ')'
+                'Data_Browser_Import.is_Currency_Not_Null(' || v_COLUMN_NAME || ')'
             when p_DATA_TYPE = 'NUMBER' AND NULLIF(p_DATA_SCALE, 0) IS NULL then
-                'import_utl.is_Integer_Not_Null(' || v_COLUMN_NAME || ')'
+                'Data_Browser_Import.is_Integer_Not_Null(' || v_COLUMN_NAME || ')'
             when p_DATA_TYPE = 'RAW' then
-                'import_utl.is_Char_Limited_Not_Null(' || v_COLUMN_NAME || ', ' || p_CHAR_LENGTH * 2 || ')'
+                'Data_Browser_Import.is_Char_Limited_Not_Null(' || v_COLUMN_NAME || ', ' || p_CHAR_LENGTH * 2 || ')'
             when p_DATA_TYPE = 'FLOAT' OR p_DATA_TYPE = 'NUMBER' then
-                'import_utl.is_Float_Not_Null(' || v_COLUMN_NAME || ')'
+                'Data_Browser_Import.is_Float_Not_Null(' || v_COLUMN_NAME || ')'
             when p_DATA_TYPE = 'DATE' then
-                'import_utl.is_Date_Not_Null(' || v_COLUMN_NAME || ')'
+                'Data_Browser_Import.is_Date_Not_Null(' || v_COLUMN_NAME || ')'
             when p_DATA_TYPE LIKE 'TIMESTAMP%' then
-                'import_utl.is_Timestamp_Not_Null(' || v_COLUMN_NAME || ')'
+                'Data_Browser_Import.is_Timestamp_Not_Null(' || v_COLUMN_NAME || ')'
             when p_DATA_TYPE = 'VARCHAR2' OR p_DATA_TYPE = 'CHAR' then
-                'import_utl.is_Char_Limited_Not_Null(' || v_COLUMN_NAME || ', ' || p_CHAR_LENGTH || ')'
+                'Data_Browser_Import.is_Char_Limited_Not_Null(' || v_COLUMN_NAME || ', ' || p_CHAR_LENGTH || ')'
             end
         else
             case
             when p_DATA_TYPE = 'NUMBER' AND p_DATA_SCALE = 2 then
-                'import_utl.is_Currency(' || v_COLUMN_NAME || ')'
+                'Data_Browser_Import.is_Currency(' || v_COLUMN_NAME || ')'
             when p_DATA_TYPE = 'NUMBER' AND NULLIF(p_DATA_SCALE, 0) IS NULL then
-                'import_utl.is_Integer(' || v_COLUMN_NAME || ')'
+                'Data_Browser_Import.is_Integer(' || v_COLUMN_NAME || ')'
             when p_DATA_TYPE = 'RAW' then
-                'import_utl.is_Char_Limited(' || v_COLUMN_NAME || ', ' || p_CHAR_LENGTH * 2 || ')'
+                'Data_Browser_Import.is_Char_Limited(' || v_COLUMN_NAME || ', ' || p_CHAR_LENGTH * 2 || ')'
             when p_DATA_TYPE = 'FLOAT' OR p_DATA_TYPE = 'NUMBER' then
-                'import_utl.is_Float(' || v_COLUMN_NAME || ')'
+                'Data_Browser_Import.is_Float(' || v_COLUMN_NAME || ')'
             when p_DATA_TYPE = 'DATE' then
-                'import_utl.is_Date(' || v_COLUMN_NAME || ')'
+                'Data_Browser_Import.is_Date(' || v_COLUMN_NAME || ')'
             when p_DATA_TYPE LIKE 'TIMESTAMP%' then
-                'import_utl.is_Timestamp(' || v_COLUMN_NAME || ')'
+                'Data_Browser_Import.is_Timestamp(' || v_COLUMN_NAME || ')'
             when p_DATA_TYPE = 'VARCHAR2' OR p_DATA_TYPE = 'CHAR' then
-                'import_utl.is_Char_Limited(' || v_COLUMN_NAME || ', ' || p_CHAR_LENGTH || ')'
+                'Data_Browser_Import.is_Char_Limited(' || v_COLUMN_NAME || ', ' || p_CHAR_LENGTH || ')'
             end
         end;
     END Get_ImpColumnCheck;
@@ -1185,6 +1196,9 @@ CREATE OR REPLACE PACKAGE BODY import_utl IS
     BEGIN
         DBMS_OUTPUT.PUT_LINE(p_Statement || case when INSTR(p_Statement, ';', -1) >= LENGTH(p_Statement) - 2 then '/' else ';' end);
         DBMS_OUTPUT.PUT_LINE(' ');
+        $IF data_browser_conf.g_debug $THEN
+            APEX_DEBUG.MESSAGE (p_message=>'Run_DDL_Stat : %s', p0=>p_Statement);
+        $END
         if changelog_conf.g_debug = 0 then
             EXECUTE IMMEDIATE p_Statement;
         end if;
@@ -1234,6 +1248,7 @@ CREATE OR REPLACE PACKAGE BODY import_utl IS
     	p_Table_Name VARCHAR2,
     	p_As_Of_Timestamp VARCHAR2 DEFAULT 'NO',
     	p_Data_Format VARCHAR2 DEFAULT 'FORM',	-- FORM, CSV, NATIVE. Format of the final projection columns.
+    	p_Use_Group_Separator  VARCHAR2 DEFAULT NULL,	-- Y,N; use G in number format mask
     	p_Report_Mode VARCHAR2 DEFAULT 'YES'
     ) RETURN CLOB
     IS
@@ -1258,6 +1273,7 @@ CREATE OR REPLACE PACKAGE BODY import_utl IS
 					p_Data_Columns_Only => 'NO',
 					p_View_Mode => 'IMPORT_VIEW',
 					p_Data_Format => p_Data_Format,
+					p_Use_Group_Separator => p_Use_Group_Separator,
 					p_Report_Mode => p_Report_Mode
 				)
 			|| case when p_As_Of_Timestamp = 'NO' then 
@@ -1271,9 +1287,10 @@ CREATE OR REPLACE PACKAGE BODY import_utl IS
 				p_Unique_Key_Column => v_Primary_Key_Cols,
 				p_Data_Columns_Only => 'NO',
 				p_As_Of_Timestamp => p_As_Of_Timestamp,
-				-- p_Exclude_Blob_Columns => import_utl.Get_Exclude_Blob_Columns,
+				-- p_Exclude_Blob_Columns => Data_Browser_Import.Get_Exclude_Blob_Columns,
 				p_View_Mode => 'IMPORT_VIEW',
 				p_Data_Format => p_Data_Format,
+				p_Use_Group_Separator => p_Use_Group_Separator,
 				p_Report_Mode => p_Report_Mode
 			);
     END Get_Imp_Table_View;
@@ -1300,12 +1317,12 @@ CREATE OR REPLACE PACKAGE BODY import_utl IS
 			FROM MVDATA_BROWSER_VIEWS S, TABLE (data_browser_edit.Get_Form_Field_Help_Text(
 					p_Table_name => S.VIEW_NAME,
 					p_View_Mode => 'IMPORT_VIEW',
+					p_Report_Mode => p_Report_Mode,
 					p_Show_Statistics => 'NO',
 					p_Show_Title => 'NO',
 					p_Delimiter => '; '
 				)) T
-            WHERE T.COLUMN_NAME != S.SEARCH_KEY_COLS
-            AND T.COLUMN_NAME != 'LINK_ID$'
+            WHERE T.COLUMN_ID > 0
 			AND S.VIEW_NAME = p_Table_Name
 			ORDER BY T.COLUMN_ID
         ) loop
@@ -1338,11 +1355,16 @@ CREATE OR REPLACE PACKAGE BODY import_utl IS
         v_Stat CLOB;
         v_Default_Stat CLOB;
         v_Update_Values_Stat CLOB;
+        v_Insert_Columns_Stat CLOB;
+        v_Insert_Values_Stat CLOB;
         v_Str VARCHAR2(32000);
+        v_Has_Virtual_Column BOOLEAN := FALSE;
     BEGIN
     	dbms_lob.createtemporary(v_Stat, true, dbms_lob.call);
     	dbms_lob.createtemporary(v_Default_Stat, true, dbms_lob.call);
     	dbms_lob.createtemporary(v_Update_Values_Stat, true, dbms_lob.call);
+    	dbms_lob.createtemporary(v_Insert_Columns_Stat, true, dbms_lob.call);
+    	dbms_lob.createtemporary(v_Insert_Values_Stat, true, dbms_lob.call);
 
         v_View_Name := UPPER(p_Table_Name);
         SELECT VIEW_NAME, TABLE_NAME, SEARCH_KEY_COLS, IMPORT_TABLE_NAME, IMPORT_VIEW_NAME, IMPORT_TRIGGER_NAME
@@ -1362,7 +1384,7 @@ CREATE OR REPLACE PACKAGE BODY import_utl IS
         for c_cur in (
             SELECT DISTINCT 'v_' || D_REF || ' ' || R_VIEW_NAME || '.' || R_PRIMARY_KEY_COLS || '%TYPE;' SQL_TEXT
             FROM TABLE (data_browser_select.FN_Pipe_table_imp_FK2(
-            	p_Table_Name=>v_Table_Name, p_As_Of_Timestamp=>import_utl.Get_As_Of_Timestamp, p_Data_Format=>p_Data_Format))
+            	p_Table_Name=>v_Table_Name, p_As_Of_Timestamp=>Data_Browser_Import.Get_As_Of_Timestamp, p_Data_Format=>p_Data_Format))
             ORDER BY 1
         ) loop
             v_Str := RPAD(' ', 4) || c_cur.SQL_TEXT || chr(10);
@@ -1387,7 +1409,7 @@ CREATE OR REPLACE PACKAGE BODY import_utl IS
        
         for c_cur in (
             SELECT SQL_TEXT, POSITION
-            FROM TABLE (import_utl.FN_Pipe_table_imp_trigger(
+            FROM TABLE (Data_Browser_Import.FN_Pipe_table_imp_trigger(
 				p_Table_Name => v_Table_Name,
 				p_Data_Format => p_Data_Format, 
 				p_use_NLS_params => p_use_NLS_params,
@@ -1400,38 +1422,62 @@ CREATE OR REPLACE PACKAGE BODY import_utl IS
 			dbms_lob.writeappend(v_Stat, length(v_Str), v_Str);
         end loop;
 
-        for c_cur in ( -- fill empty columns with default values
+        for c_cur in (
 			SELECT S.VIEW_NAME TABLE_NAME, T.COLUMN_NAME, T.HAS_DEFAULT, 
-				case when T.HAS_DEFAULT = 'Y' then 
+				case when T.HAS_DEFAULT = 'Y' then  -- fill empty columns with default values
 				'    v_row.' || RPAD(T.COLUMN_NAME, 32)
 				|| ' := NVL(v_row.' || T.COLUMN_NAME
 				|| ', ' || changelog_conf.Get_ColumnDefaultText(S.TABLE_NAME, T.COLUMN_NAME) || ');'
-				end SQL_TEXT
-			FROM MVDATA_BROWSER_VIEWS S, TABLE (import_utl.FN_Pipe_table_imp_cols(S.VIEW_NAME, p_Report_Mode, p_Data_Format)) T
+				end SQL_TEXT,
+				T.IS_VIRTUAL_COLUMN, S.SEARCH_KEY_COLS
+			FROM MVDATA_BROWSER_VIEWS S, TABLE (Data_Browser_Import.FN_Pipe_table_imp_cols(S.VIEW_NAME, p_Report_Mode, p_Data_Format, p_Use_Group_Separator)) T
             WHERE data_browser_pattern.Match_Ignored_Columns(T.COLUMN_NAME) = 'NO'
             AND T.TABLE_ALIAS = 'A'
-            AND T.IS_VIRTUAL_COLUMN = 'N'
-            AND T.COLUMN_NAME != S.SEARCH_KEY_COLS
             AND T.COLUMN_NAME != 'LINK_ID$'
 			AND S.VIEW_NAME = v_View_Name
 			ORDER BY T.COLUMN_ID
         ) loop
-        	if c_cur.HAS_DEFAULT = 'Y' then
-				v_Str := RPAD(' ', 4) || c_cur.SQL_TEXT || chr(10);
-				dbms_lob.writeappend(v_Default_Stat, length(v_Str), v_Str);
+        	-- prepare Update_Values
+			if c_cur.IS_VIRTUAL_COLUMN = 'N'
+            and c_cur.COLUMN_NAME != NVL(c_cur.SEARCH_KEY_COLS,'ROWID') then
+				if c_cur.HAS_DEFAULT = 'Y' then
+					v_Str := RPAD(' ', 4) || c_cur.SQL_TEXT || chr(10);
+					dbms_lob.writeappend(v_Default_Stat, length(v_Str), v_Str);
+				end if;
+				v_Str := 
+				case when dbms_lob.getlength(v_Update_Values_Stat) > 0 then ',' end
+				|| data_browser_conf.NL(12) 
+				|| c_cur.COLUMN_NAME || ' = v_row.' || c_cur.COLUMN_NAME;
+				dbms_lob.writeappend(v_Update_Values_Stat, length(v_Str), v_Str);
 			end if;
-			v_Str := 
-			case when dbms_lob.getlength(v_Update_Values_Stat) > 0 then ',' end
-			|| data_browser_conf.NL(12) 
-			|| c_cur.COLUMN_NAME || ' = v_row.' || c_cur.COLUMN_NAME;
-			dbms_lob.writeappend(v_Update_Values_Stat, length(v_Str), v_Str);
+			if c_cur.IS_VIRTUAL_COLUMN = 'Y' then 
+				v_Has_Virtual_Column := TRUE;
+			else -- prepare Insert_Columns and Insert_Values
+				v_Str := 
+				case when dbms_lob.getlength(v_Insert_Columns_Stat) > 0 then ',' end
+				|| c_cur.COLUMN_NAME;
+				dbms_lob.writeappend(v_Insert_Columns_Stat, length(v_Str), v_Str);
+				v_Str := 
+				case when dbms_lob.getlength(v_Insert_Values_Stat) > 0 then ',' end
+				|| case when c_cur.COLUMN_NAME = c_cur.SEARCH_KEY_COLS
+					then ':new.LINK_ID$'
+					else 'v_row.' || c_cur.COLUMN_NAME
+				end;
+				dbms_lob.writeappend(v_Insert_Values_Stat, length(v_Str), v_Str);
+			end if;
         end loop;
 
 		v_Str := data_browser_conf.NL(4)
 		|| 'if INSERTING then ' || chr(10)
 		|| v_Default_Stat || rpad(' ', 8)
-		|| 'INSERT INTO ' || v_View_Name|| ' VALUES v_row;' || data_browser_conf.NL(4)
-		|| case when v_Update_Values_Stat IS NOT NULL then 
+		|| 'INSERT INTO ' || v_View_Name
+		|| case when v_Has_Virtual_Column 
+			then '('|| v_Insert_Columns_Stat ||')'
+				|| data_browser_conf.NL(8) || 'VALUES ('|| v_Insert_Values_Stat ||');' 
+			else ' VALUES v_row;' 
+		end 
+		|| data_browser_conf.NL(4)
+		|| case when dbms_lob.getlength(v_Update_Values_Stat) > 0 then 
 			'else ' || data_browser_conf.NL(8)
 			|| 'UPDATE ' || v_View_Name || ' SET ' || v_Update_Values_Stat || data_browser_conf.NL(8)
 			|| 'WHERE ' 
@@ -1441,9 +1487,9 @@ CREATE OR REPLACE PACKAGE BODY import_utl IS
 				p_View_Mode => 'IMPORT_VIEW'
 			)
 			|| ' = :new.LINK_ID$'
-			|| ';' || chr(10)
+			|| ';' || data_browser_conf.NL(4)
 		end 
-		|| '    end if;' || chr(10)
+		|| 'end if;' || chr(10)
 		|| 'END ' || v_Import_Trigger_Name  || ';' || chr(10);
 
 		dbms_lob.writeappend(v_Stat, length(v_Str), v_Str);
@@ -1453,9 +1499,11 @@ CREATE OR REPLACE PACKAGE BODY import_utl IS
 
 	PROCEDURE Download_imp_views (
 		p_Schema_Name VARCHAR2 DEFAULT SYS_CONTEXT('USERENV', 'CURRENT_SCHEMA'),
+		p_Include_Schema_Name VARCHAR2 DEFAULT 'YES',
     	p_Data_Format VARCHAR2 DEFAULT 'NATIVE',	-- FORM, CSV, NATIVE. Format of the final projection columns.
-		p_use_NLS_params VARCHAR2 DEFAULT 'Y',
-		p_Use_Group_Separator VARCHAR2 DEFAULT 'Y',
+    	p_Use_Session_NLS_Format VARCHAR2 DEFAULT 'NO',
+		p_use_NLS_params VARCHAR2 DEFAULT 'YES',	-- in TO_NUMBER
+		p_Use_Group_Separator  VARCHAR2 DEFAULT NULL,	-- YES/NO; use G in number format mask
 		p_Report_Mode VARCHAR2 DEFAULT 'YES',	-- When enabled, exclude Audit Columns like Created At, Created By, Modified At, Modified By from the SELECT columns list.
 		p_Add_Comments VARCHAR2 DEFAULT 'YES',	-- When enabled, comments are added to the columns of the created views.
 		p_Table_Name_Pattern VARCHAR2 DEFAULT '%'
@@ -1468,13 +1516,15 @@ CREATE OR REPLACE PACKAGE BODY import_utl IS
 		v_Compare_Case_Insensitive	VARCHAR2(10);
 		v_Search_Keys_Unique		VARCHAR2(10);
 		v_Insert_Foreign_Keys		VARCHAR2(10);
+		v_use_NLS_params VARCHAR2(1) 		:= NVL(SUBSTR(p_use_NLS_params,1,1), 'Y');
+		v_Use_Group_Separator VARCHAR2(1) 	:= NVL(SUBSTR(p_Use_Group_Separator,1,1), 'N');
 	BEGIN
 		v_File_Name := LOWER(p_Schema_Name) || '_imp_views.sql';
     	dbms_lob.createtemporary(v_Stat, true, dbms_lob.call);
      	dbms_lob.createtemporary(v_Result, true, dbms_lob.call);
 		data_browser_conf.Load_Config;
 		data_browser_conf.Get_Import_Parameter( v_Compare_Case_Insensitive, v_Search_Keys_Unique, v_Insert_Foreign_Keys);
-		import_utl.Set_Imp_Formats (
+		Data_Browser_Import.Set_Imp_Formats (
 			p_Export_Text_Limit       => data_browser_conf.Get_Export_Text_Limit,
 			p_Import_NumChars         => data_browser_conf.Get_Export_NumChars(p_Enquote => 'NO'),
 			p_Import_Float_Format     => data_browser_conf.Get_Export_Float_Format,
@@ -1485,6 +1535,8 @@ CREATE OR REPLACE PACKAGE BODY import_utl IS
 			p_Search_Keys_Unique 	=> v_Search_Keys_Unique,
 			p_Insert_Foreign_Keys 	=> v_Insert_Foreign_Keys
 		);
+		data_browser_conf.Set_Include_Query_Schema(p_Include_Schema_Name);
+		data_browser_conf.Set_Use_Session_NLS_Param(p_Use_Session_NLS_Format);
 		v_Stat := apex_string.format(
             p_message =>  '-- Updatable Import/Export Views based on a logical database model produced by software from %s.'
             || chr(10) || '-- Configuration Name        : %s'
@@ -1502,8 +1554,8 @@ CREATE OR REPLACE PACKAGE BODY import_utl IS
 			p1 => data_browser_conf.Get_Configuration_Name,
 			p2 => p_Schema_Name,
 			p3 => p_Data_Format,
-            p4 => case when p_use_NLS_params = 'Y' then 'YES' else 'NO' end,
-            p5 => case when p_Use_Group_Separator = 'Y' then 'YES' else 'NO' end,
+            p4 => case when v_use_NLS_params = 'Y' then 'YES' else 'NO' end,
+            p5 => case when v_Use_Group_Separator = 'Y' then 'YES' else 'NO' end,
             p6 => v_Compare_Case_Insensitive,
             p7 => v_Search_Keys_Unique,
             p8 => v_Insert_Foreign_Keys,
@@ -1524,16 +1576,17 @@ CREATE OR REPLACE PACKAGE BODY import_utl IS
 			)
 			ORDER BY TABLE_NAME
 		) loop
-			v_Stat := import_utl.Get_Imp_Table_View (
+			v_Stat := Data_Browser_Import.Get_Imp_Table_View (
 				p_Table_name => c_cur.VIEW_NAME,
 				p_Data_Format => p_Data_Format,
+				p_Use_Group_Separator => v_Use_Group_Separator,
 				p_Report_Mode => p_Report_Mode
 			);
 			dbms_lob.append(v_Result, v_Stat);
 			v_Footer := ';' || chr(10) || chr(10);
 			dbms_lob.writeappend(v_Result, length(v_Footer), v_Footer);
 			if p_Add_Comments = 'YES' then 
-				v_Stat := import_utl.Get_Imp_Table_View_Comments (
+				v_Stat := Data_Browser_Import.Get_Imp_Table_View_Comments (
 					p_Table_name => c_cur.VIEW_NAME,
 					p_Data_Format => p_Data_Format,
 					p_Report_Mode => p_Report_Mode
@@ -1542,11 +1595,11 @@ CREATE OR REPLACE PACKAGE BODY import_utl IS
 				v_Footer := chr(10) || chr(10);
 				dbms_lob.writeappend(v_Result, length(v_Footer), v_Footer);
 			end if;
-			v_Stat := import_utl.Get_Imp_Table_View_trigger (
+			v_Stat := Data_Browser_Import.Get_Imp_Table_View_trigger (
 				p_Table_name => c_cur.VIEW_NAME,
 				p_Data_Format => p_Data_Format,
-				p_use_NLS_params => p_use_NLS_params,
-				p_Use_Group_Separator => p_Use_Group_Separator,
+				p_use_NLS_params => v_use_NLS_params,
+				p_Use_Group_Separator => v_Use_Group_Separator,
 				p_Report_Mode => p_Report_Mode
 			);
 			dbms_lob.append(v_Result, v_Stat);
@@ -1582,7 +1635,7 @@ CREATE OR REPLACE PACKAGE BODY import_utl IS
             SELECT SQL_EXISTS
             	|| case when LEAD(TABLE_NAME) OVER (ORDER BY POSITION) IS NOT NULL then chr(10) || 'UNION ALL ' end SQL_TEXT,
                 POSITION
-            FROM TABLE (import_utl.FN_Pipe_table_imp_trigger(v_Table_Name))
+            FROM TABLE (Data_Browser_Import.FN_Pipe_table_imp_trigger(v_Table_Name))
             WHERE SQL_EXISTS IS NOT NULL
             ORDER BY POSITION, POSITION2, CHECK_CONSTRAINT_TYPE DESC
         ) loop
@@ -1636,10 +1689,10 @@ CREATE OR REPLACE PACKAGE BODY import_utl IS
 				 when A.COLUMN_CHECK_EXPR is not null  and A.POSITION = 0 then A.COLUMN_CHECK_EXPR
 				 else 'NULL'
 				end COLUMN_CHECK_EXPR
-			FROM TABLE (import_utl.FN_Pipe_table_imp_cols(v_Table_Name)) A
+			FROM TABLE (Data_Browser_Import.FN_Pipe_table_imp_cols(v_Table_Name)) A
 			LEFT OUTER JOIN (
                 SELECT  TABLE_NAME, COLUMN_NAME, LISTAGG( SQL_EXISTS2, ' || ' ) WITHIN GROUP (ORDER BY CHECK_CONSTRAINT_TYPE) SQL_EXISTS2
-                FROM TABLE (import_utl.FN_Pipe_table_imp_trigger(v_Table_Name))
+                FROM TABLE (Data_Browser_Import.FN_Pipe_table_imp_trigger(v_Table_Name))
                 WHERE CHECK_CONSTRAINT_TYPE = 'R'
                 GROUP BY TABLE_NAME, COLUMN_NAME
             ) B ON A.TABLE_NAME = B.TABLE_NAME AND A.COLUMN_NAME = B.COLUMN_NAME
@@ -1701,7 +1754,7 @@ CREATE OR REPLACE PACKAGE BODY import_utl IS
 				A.COLUMN_COMPARE || '( A.' || A.IMP_COLUMN_NAME || ', B.' || A.IMP_COLUMN_NAME || ' ) '
 				|| A.IMP_COLUMN_NAME
 				SQL_STAT
-			FROM TABLE (import_utl.FN_Pipe_table_imp_cols(v_Table_Name)) A
+			FROM TABLE (Data_Browser_Import.FN_Pipe_table_imp_cols(v_Table_Name)) A
 			WHERE A.TABLE_NAME = v_Table_Name
 			AND A.IMP_COLUMN_NAME != 'ROW_SELECTOR$'
 			ORDER BY A.COLUMN_ID, A.POSITION
@@ -1790,7 +1843,7 @@ CREATE OR REPLACE PACKAGE BODY import_utl IS
 				 SQL_COMPARE,
 				A.COLUMN_MARKUP || '( A.' || A.IMP_COLUMN_NAME || ', B.' || A.IMP_COLUMN_NAME || ', C.' || A.IMP_COLUMN_NAME || ' ) '
 				|| A.IMP_COLUMN_NAME SQL_MARK_UP
-			FROM TABLE (import_utl.FN_Pipe_table_imp_cols(v_Table_Name)) A
+			FROM TABLE (Data_Browser_Import.FN_Pipe_table_imp_cols(v_Table_Name)) A
 			WHERE A.TABLE_NAME = v_Table_Name
 			AND A.IMP_COLUMN_NAME != 'LINK_ID$'
 			ORDER BY A.COLUMN_ID, A.POSITION
@@ -1882,7 +1935,7 @@ CREATE OR REPLACE PACKAGE BODY import_utl IS
 
         for c_cur in (
             SELECT DISTINCT SQL_TEXT
-            FROM TABLE (import_utl.FN_Pipe_table_imp_link(v_Table_Name))
+            FROM TABLE (Data_Browser_Import.FN_Pipe_table_imp_link(v_Table_Name))
         ) loop
             v_Str := c_cur.SQL_TEXT  || ' AND IMPORTJOB_ID$ = ' || p_Import_Job_ID || ';' || chr(10) || '    ';
 			dbms_lob.writeappend(v_Stat, length(v_Str), v_Str);
@@ -2029,7 +2082,7 @@ CREATE OR REPLACE PACKAGE BODY import_utl IS
 				end SQL_COMPARE,
 				A.COLUMN_MARKUP || '( A.' || A.IMP_COLUMN_NAME || ', B.' || A.IMP_COLUMN_NAME || ' ) '
 				|| A.IMP_COLUMN_NAME SQL_MARK_UP
-			FROM TABLE (import_utl.FN_Pipe_table_imp_cols(v_Table_Name)) A
+			FROM TABLE (Data_Browser_Import.FN_Pipe_table_imp_cols(v_Table_Name)) A
 			WHERE A.TABLE_NAME = v_Table_Name
 			ORDER BY A.COLUMN_ID, A.POSITION
 		) loop
@@ -2114,9 +2167,9 @@ CREATE OR REPLACE PACKAGE BODY import_utl IS
         || ';' || chr(10)
         || 'begin ' || chr(10)
         || '    if v_Job_ID IS NULL then'  || chr(10)
-        || '        SELECT import_utl.New_Job_ID(' || DBMS_ASSERT.ENQUOTE_LITERAL(v_Table_Name) || ') INTO v_Job_ID FROM DUAL;' || chr(10)
+        || '        SELECT Data_Browser_Import.New_Job_ID(' || DBMS_ASSERT.ENQUOTE_LITERAL(v_Table_Name) || ') INTO v_Job_ID FROM DUAL;' || chr(10)
         || '    else' || chr(10)
-        || '        import_utl.Set_Job_ID(v_Job_ID);' || chr(10)
+        || '        Data_Browser_Import.Set_Job_ID(v_Job_ID);' || chr(10)
         || '    end if;' || chr(10)
         || '    DBMS_OUTPUT.PUT_LINE(''Importjob_Id: '' || v_Job_ID);' || chr(10)
         || chr(10)
@@ -2137,7 +2190,7 @@ CREATE OR REPLACE PACKAGE BODY import_utl IS
         || chr(10);
 
 		-- Link imported rows to base table via unique key columns
-		v_Link_Stat := import_utl.Get_Imp_Table_Link ( v_Table_Name, 'v_Job_ID' );
+		v_Link_Stat := Data_Browser_Import.Get_Imp_Table_Link ( v_Table_Name, 'v_Job_ID' );
 		if LENGTH(v_Link_Stat) > 1 then
 			v_Stat := v_Stat
 	        || '    UPDATE ' || v_Import_Table_Name || ' SET LINK_ID$ = NULL'|| chr(10)
@@ -2209,13 +2262,13 @@ CREATE OR REPLACE PACKAGE BODY import_utl IS
         FROM VUSER_TABLES_IMP
         WHERE VIEW_NAME = v_Table_Name;
 
-        v_Stat := import_utl.Get_Imp_Table_View ( p_Table_Name => v_Table_Name, p_As_Of_Timestamp => 'NO' );
+        v_Stat := Data_Browser_Import.Get_Imp_Table_View ( p_Table_Name => v_Table_Name, p_As_Of_Timestamp => 'NO' );
         Run_DDL_Stat (v_Stat); -- create import view
         if changelog_conf.Get_Add_ChangeLog_Views = 'YES' then
-			v_Stat := import_utl.Get_Imp_Table_View ( p_Table_Name => v_Table_Name, p_As_Of_Timestamp => 'YES' );
+			v_Stat := Data_Browser_Import.Get_Imp_Table_View ( p_Table_Name => v_Table_Name, p_As_Of_Timestamp => 'YES' );
 			Run_DDL_Stat (v_Stat); -- create history view
         end if;
-		v_Stat := import_utl.Get_Imp_Table_View_trigger ( v_Table_Name );
+		v_Stat := Data_Browser_Import.Get_Imp_Table_View_trigger ( v_Table_Name );
         Run_DDL_Stat (v_Stat); -- create import trigger
 
         SELECT COUNT(*) INTO v_Count
@@ -2237,11 +2290,11 @@ CREATE OR REPLACE PACKAGE BODY import_utl IS
             Run_DDL_Stat (v_Stat); -- create import table index
         end if;
 
-		v_Stat := import_utl.Get_Imp_Table_View_Check ( v_Table_Name );
+		v_Stat := Data_Browser_Import.Get_Imp_Table_View_Check ( v_Table_Name );
         Run_DDL_Stat (v_Stat); -- create import check view
-		v_Stat := import_utl.Get_Imp_Table_View_Msg ( v_Table_Name );
+		v_Stat := Data_Browser_Import.Get_Imp_Table_View_Msg ( v_Table_Name );
         Run_DDL_Stat (v_Stat); -- create import check view
-		v_Stat := import_utl.Get_Imp_Table_View_Diff ( v_Table_Name );
+		v_Stat := Data_Browser_Import.Get_Imp_Table_View_Diff ( v_Table_Name );
         Run_DDL_Stat (v_Stat); -- create import check view
 
 
@@ -2266,19 +2319,19 @@ CREATE OR REPLACE PACKAGE BODY import_utl IS
         FROM VUSER_TABLES_IMP
         WHERE VIEW_NAME = v_Table_Name;
 
-        v_Stat := import_utl.Get_Imp_Table_View ( p_Table_Name => v_Table_Name, p_As_Of_Timestamp => 'NO' );
+        v_Stat := Data_Browser_Import.Get_Imp_Table_View ( p_Table_Name => v_Table_Name, p_As_Of_Timestamp => 'NO' );
         Run_DDL_Stat (v_Stat); -- create import view
         if changelog_conf.Get_Add_ChangeLog_Views = 'YES' then
-	        v_Stat := import_utl.Get_Imp_Table_View ( p_Table_Name => v_Table_Name, p_As_Of_Timestamp => 'YES' );
+	        v_Stat := Data_Browser_Import.Get_Imp_Table_View ( p_Table_Name => v_Table_Name, p_As_Of_Timestamp => 'YES' );
     	    Run_DDL_Stat (v_Stat); -- create history view
     	end if;
-		v_Stat := import_utl.Get_Imp_Table_View_trigger ( v_Table_Name );
+		v_Stat := Data_Browser_Import.Get_Imp_Table_View_trigger ( v_Table_Name );
         Run_DDL_Stat (v_Stat); -- create import trigger
-		v_Stat := import_utl.Get_Imp_Table_View_Check ( v_Table_Name );
+		v_Stat := Data_Browser_Import.Get_Imp_Table_View_Check ( v_Table_Name );
         Run_DDL_Stat (v_Stat); -- create import check view
-		v_Stat := import_utl.Get_Imp_Table_View_Msg ( v_Table_Name );
+		v_Stat := Data_Browser_Import.Get_Imp_Table_View_Msg ( v_Table_Name );
         Run_DDL_Stat (v_Stat); -- create import check view
-		v_Stat := import_utl.Get_Imp_Table_View_Diff ( v_Table_Name );
+		v_Stat := Data_Browser_Import.Get_Imp_Table_View_Diff ( v_Table_Name );
         Run_DDL_Stat (v_Stat); -- create import check view
 
 
@@ -2288,7 +2341,11 @@ CREATE OR REPLACE PACKAGE BODY import_utl IS
 
 	PROCEDURE Generate_Updatable_Views (
 		p_Schema_Name VARCHAR2 DEFAULT SYS_CONTEXT('USERENV', 'CURRENT_SCHEMA'),
+		p_Include_Schema_Name VARCHAR2 DEFAULT 'YES',
     	p_Data_Format VARCHAR2 DEFAULT 'NATIVE',	-- NATIVE/CSV
+    	p_Use_Session_NLS_Format VARCHAR2 DEFAULT 'NO',
+    	p_use_NLS_params VARCHAR2 DEFAULT 'YES',	-- in TO_NUMBER
+    	p_Use_Group_Separator  VARCHAR2 DEFAULT 'NO',	-- YES/NO; use G in number format mask
     	p_Report_Mode VARCHAR2 DEFAULT 'YES',
 		p_Add_Comments VARCHAR2 DEFAULT 'YES',
 		p_Table_Name_Pattern VARCHAR2 DEFAULT '%'
@@ -2298,10 +2355,12 @@ CREATE OR REPLACE PACKAGE BODY import_utl IS
 		v_Compare_Case_Insensitive	VARCHAR2(10);
 		v_Search_Keys_Unique		VARCHAR2(10);
 		v_Insert_Foreign_Keys		VARCHAR2(10);
-	BEGIN
+		v_use_NLS_params VARCHAR2(1) 		:= NVL(SUBSTR(p_use_NLS_params,1,1), 'Y');
+		v_Use_Group_Separator VARCHAR2(1) 	:= NVL(SUBSTR(p_Use_Group_Separator,1,1), 'N');
+ 	BEGIN
 		data_browser_conf.Load_Config;
 		data_browser_conf.Get_Import_Parameter( v_Compare_Case_Insensitive, v_Search_Keys_Unique, v_Insert_Foreign_Keys);
-		import_utl.Set_Imp_Formats (
+		Data_Browser_Import.Set_Imp_Formats (
 			p_Export_Text_Limit       => data_browser_conf.Get_Export_Text_Limit,
 			p_Import_NumChars         => data_browser_conf.Get_Export_NumChars(p_Enquote => 'NO'),
 			p_Import_Float_Format     => data_browser_conf.Get_Export_Float_Format,
@@ -2312,6 +2371,9 @@ CREATE OR REPLACE PACKAGE BODY import_utl IS
 			p_Search_Keys_Unique 	=> v_Search_Keys_Unique,
 			p_Insert_Foreign_Keys 	=> v_Insert_Foreign_Keys
 		);
+		data_browser_conf.Set_Include_Query_Schema(p_Include_Schema_Name);
+		data_browser_conf.Set_Use_Session_NLS_Param(p_Use_Session_NLS_Format);
+
 		for c_cur IN (
 			SELECT TABLE_NAME, VIEW_NAME
 			FROM MVDATA_BROWSER_VIEWS A 
@@ -2324,29 +2386,42 @@ CREATE OR REPLACE PACKAGE BODY import_utl IS
 			)
 			ORDER BY TABLE_NAME
 		) loop
-			v_Stat := import_utl.Get_Imp_Table_View (
+			v_Stat := Data_Browser_Import.Get_Imp_Table_View (
 				p_Table_name => c_cur.VIEW_NAME,
 				p_Data_Format => p_Data_Format,
+				p_Use_Group_Separator => v_Use_Group_Separator,
 				p_Report_Mode => p_Report_Mode
 			);
 			if p_Add_Comments = 'YES' then 
-				v_Stat := import_utl.Get_Imp_Table_View_Comments (
-					p_Table_name => c_cur.VIEW_NAME,
-					p_Data_Format => p_Data_Format,
-					p_Report_Mode => p_Report_Mode
-				);
 				for cur in (
-					select column_value stat from table (apex_string.split (p_str=>v_Stat, p_sep=>';' || chr(10)))
-					where length(column_value) > 10
+					SELECT 'COMMENT ON COLUMN ' 
+						|| data_browser_conf.Enquote_Name_Required(IV.IMPORT_VIEW_NAME) 
+						|| '.' || data_browser_conf.Enquote_Name_Required(T.COLUMN_NAME)
+						|| ' IS ' || data_browser_conf.Enquote_Literal(T.HELP_TEXT) stat
+					FROM MVDATA_BROWSER_VIEWS S, TABLE (data_browser_edit.Get_Form_Field_Help_Text(
+							p_Table_name => S.VIEW_NAME,
+							p_View_Mode => 'IMPORT_VIEW',
+							p_Report_Mode => p_Report_Mode,
+							p_Show_Statistics => 'NO',
+							p_Show_Title => 'NO',
+							p_Delimiter => '; '
+						)) T,
+						VUSER_TABLES_IMP IV 
+					WHERE T.COLUMN_ID > 0
+					AND S.VIEW_NAME = IV.VIEW_NAME
+					AND S.VIEW_NAME = c_cur.VIEW_NAME
+					ORDER BY T.COLUMN_ID
 				) loop 
 	        		Run_DDL_Stat (cur.stat); -- create comments
 	        	end loop;
 			end if;
 
         	Run_DDL_Stat (v_Stat); -- create import view
-			v_Stat := import_utl.Get_Imp_Table_View_trigger (
+			v_Stat := Data_Browser_Import.Get_Imp_Table_View_trigger (
 				p_Table_name => c_cur.VIEW_NAME,
 				p_Data_Format => p_Data_Format,
+				p_use_NLS_params => v_use_NLS_params,
+				p_Use_Group_Separator => v_Use_Group_Separator,
 				p_Report_Mode => p_Report_Mode
 			);
         	Run_DDL_Stat (v_Stat); -- create import trigger
@@ -2378,7 +2453,7 @@ CREATE OR REPLACE PACKAGE BODY import_utl IS
 		-- Link imported rows to base table via unique key columns
         for c_cur in (
             SELECT DISTINCT SQL_TEXT || ' AND IMPORTJOB_ID$ = :a' SQL_TEXT
-            FROM TABLE (import_utl.FN_Pipe_table_imp_link(v_Table_Name))
+            FROM TABLE (Data_Browser_Import.FN_Pipe_table_imp_link(v_Table_Name))
         ) loop
         	v_Count := v_Count + 1;
         	if v_Count = 1 then
@@ -2426,7 +2501,7 @@ CREATE OR REPLACE PACKAGE BODY import_utl IS
     	DBMS_OUTPUT.PUT_LINE('---');
     	DBMS_OUTPUT.PUT_LINE(v_Stat);
 
-    	import_utl.Set_Job_ID(p_Import_Job_ID);
+    	Data_Browser_Import.Set_Job_ID(p_Import_Job_ID);
 		EXECUTE IMMEDIATE v_Stat USING IN p_Import_Job_ID, p_Import_Job_ID;
 		p_Row_Count := SQL%ROWCOUNT;
 
@@ -2460,7 +2535,7 @@ CREATE OR REPLACE PACKAGE BODY import_utl IS
     	DBMS_OUTPUT.PUT_LINE('---');
     	DBMS_OUTPUT.PUT_LINE(v_Stat);
 
-    	import_utl.Set_Job_ID(p_Import_Job_ID);
+    	Data_Browser_Import.Set_Job_ID(p_Import_Job_ID);
         EXECUTE IMMEDIATE v_Stat USING IN p_Row_Limit;
 		p_Row_Count := SQL%ROWCOUNT;
 		COMMIT;
@@ -2592,7 +2667,7 @@ CREATE OR REPLACE PACKAGE BODY import_utl IS
 		v_Column_Cnt := LENGTH(v_Row_Line) - LENGTH(REPLACE(v_Row_Line, v_Column_Delimiter));
 		for c_rows in (
 			SELECT S.Column_Value, ROWNUM Line_No
-			FROM TABLE( import_utl.Split_Clob(v_Clob, v_Line_Delimiter) ) S
+			FROM TABLE( Data_Browser_Import.Split_Clob(v_Clob, v_Line_Delimiter) ) S
 		)
 		loop
 			if c_rows.Column_Value IS NOT NULL then
@@ -2638,12 +2713,12 @@ CREATE OR REPLACE PACKAGE BODY import_utl IS
     BEGIN
 		data_browser_jobs.Refresh_MViews(p_Schema_Name, v_context);
 	END Refresh_MViews;
-END import_utl;
+END Data_Browser_Import;
 /
 show errors
 
 /*
-exec import_utl.Refresh_MViews;
+exec Data_Browser_Import.Refresh_MViews;
 call wema_vpd.VPD_Refresh_Recomp(USER, 0);
 
 @/WeMa/Projekt/WeCoScripts/wema_vpd_import_utl.sql
@@ -2651,7 +2726,7 @@ call wema_vpd.VPD_Refresh_Recomp(USER, 0);
 
 call set_weco_ctx.set_current_workspace(USER);
 call set_weco_ctx.set_current_USER('DIRK');
-SELECT * FROM TABLE ( import_utl.column_value_list ('SELECT * FROM CHANGE_LOG_CONFIG WHERE ID = :search_value', 1));
+SELECT * FROM TABLE ( Data_Browser_Import.column_value_list ('SELECT * FROM CHANGE_LOG_CONFIG WHERE ID = :search_value', 1));
 
 SET SERVEROUTPUT ON
 SET LONG 2000000
@@ -2659,7 +2734,7 @@ SET PAGESIZE 0
 SET LINESIZE 32767
 call compile_invalid();
 
-SELECT import_utl.Get_Imp_Markup_Query('ARECHNUNG', 1020, 59, 'NO', 'YES', 'NO' ) X FROM DUAL;
+SELECT Data_Browser_Import.Get_Imp_Markup_Query('ARECHNUNG', 1020, 59, 'NO', 'YES', 'NO' ) X FROM DUAL;
 SELECT data_browser_select.Get_Imp_Table_Query( 'ARECHNUNG' ) X FROM DUAL;
 SELECT data_browser_select.Get_Imp_Table_Query( 'ARECHNUNG', 1000, 'ALL' ) X FROM DUAL;
 
@@ -2668,7 +2743,7 @@ call set_weco_ctx.set_current_USER('DIRK');
 declare
      v_Row_Count INTEGER;
 begin
-    import_utl.Export_To_Imp_Table (
+    Data_Browser_Import.Export_To_Imp_Table (
     p_Table_Name 	=>'KOSTENSTELLEN',
     p_Import_Job_ID =>2000,
     p_Row_Limit 	=> 1000,
@@ -2684,11 +2759,11 @@ call set_weco_ctx.set_current_USER('DIRK');
 
 DELETE FROM MANDANTEN;
 
-call import_utl.Set_Job_ID(1323);
+call Data_Browser_Import.Set_Job_ID(1323);
 declare
      v_Row_Count INTEGER;
 begin
-    import_utl.Import_From_Imp_Table (
+    Data_Browser_Import.Import_From_Imp_Table (
     p_Table_Name 	=>'MANDANTEN',
     p_Import_Job_ID =>1323,
     p_Row_Count 	=>v_Row_Count
