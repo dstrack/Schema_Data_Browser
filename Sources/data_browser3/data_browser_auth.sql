@@ -1278,24 +1278,6 @@ grant select on VDATA_BROWSER_USERS to PUBLIC;
 
 
 /*
-declare
-	v_Count PLS_INTEGER;
-begin -- when the custom context exists, a trigger is installed. that trigger set the context on login 
-	SELECT COUNT(*) INTO v_Count
-	FROM all_synonyms WHERE OWNER = 'PUBLIC' AND synonym_name = 'SET_CUSTOM_CTX' AND table_owner = 'CUSTOM_KEYS';
-	if v_Count = 1 then
-		EXECUTE IMMEDIATE '
-CREATE OR REPLACE TRIGGER set_custom_ctx_trig AFTER LOGON ON SCHEMA
-BEGIN
-  set_custom_ctx.post_db_logon;
-EXCEPTION
-  WHEN OTHERS THEN
-  	set_custom_ctx.Log_Message(SQLCODE, SQLERRM);
-END;
-';
-	end if;
-end;
-/
 
 begin if data_browser_auth.authenticate('DIRK', 'abc') then dbms_output.PUT_LINE('OK'); else dbms_output.PUT_LINE('failed'); end if; end;
 /

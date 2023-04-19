@@ -49,9 +49,9 @@ prompt ============================================================
 @@data_browser3/app_users_tables.sql
 @@data_browser3/data_browser_auth.sql
 @@data_browser3/data_browser_login.sql
-@@data_browser3/import_utl_tables.sql
-@@data_browser3/import_utl_head.sql
-@@data_browser3/import_utl_body.sql
+@@data_browser3/data_browser_imp_tables.sql
+@@data_browser3/data_browser_imp_head.sql
+@@data_browser3/data_browser_imp_body.sql
 @@data_browser3/data_browser_reporter.sql
 
 @@data_browser3/schema_diagramme.sql

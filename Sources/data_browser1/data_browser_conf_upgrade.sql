@@ -50,6 +50,7 @@ DECLARE -- remove packages from previous installation
         END IF;
     END;
 BEGIN
+	RUN_STAT('DROP TRIGGER SET_CUSTOM_CTX_TRIG');
     RUN_STAT('DROP VIEW VUSER_TABLES_IMP');
     RUN_STAT('DROP VIEW VUSER_TABLES_IMP_JOINS');
     -- Drop packages that define record types

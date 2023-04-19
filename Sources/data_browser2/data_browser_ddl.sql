@@ -17,7 +17,7 @@ limitations under the License.
 CREATE OR REPLACE PACKAGE data_browser_ddl 
 AUTHID CURRENT_USER
 IS
-	g_debug 				CONSTANT BOOLEAN 	   := true;
+	g_debug 				CONSTANT BOOLEAN 	   := false;
 	c_Primary_Key_Col       CONSTANT VARCHAR2(128) := 'ID';
 	c_Row_Version_Col       CONSTANT VARCHAR2(128) := 'ROW_VERSION_NUMBER';
 	c_Unique_Desc_Col       CONSTANT VARCHAR2(128) := UPPER(apex_lang.lang('Description')); -- Bezeichnung
@@ -528,12 +528,20 @@ CREATE OR REPLACE PACKAGE BODY data_browser_ddl IS
 	) RETURN VARCHAR2
 	is
 		v_Count PLS_INTEGER;
+    	v_Include_Workspace_id  	VARCHAR2(128);
 		v_Index_Name 			VARCHAR2(128);
     	v_Table_Name			VARCHAR2(128);
     	v_Table_Owner			VARCHAR2(128);
 	begin
-		v_Table_Name := UPPER(p_Table_Name);
-		v_Table_Owner := SYS_CONTEXT('USERENV', 'CURRENT_SCHEMA');
+		SELECT A.TABLE_NAME, A.TABLE_OWNER, 
+			case when A.TABLE_NAME != A.VIEW_NAME AND B.INCLUDE_WORKSPACE_ID = 'YES' 
+				then dbms_assert.enquote_name(changelog_conf.Get_ColumnWorkspace) || ','  
+			end INCLUDE_WORKSPACE_ID
+		INTO v_Table_Name, v_Table_Owner, v_Include_Workspace_id
+		FROM MVDATA_BROWSER_VIEWS A 
+		JOIN MVBASE_VIEWS B ON A.TABLE_NAME = B.TABLE_NAME AND A.TABLE_OWNER = B.OWNER
+		WHERE A.VIEW_NAME = p_Table_Name;
+
 		v_Index_Name := NVL(p_Index_Name,
 				data_browser_conf.Compose_Column_Name(
 				data_browser_conf.Compose_Table_Column_Name (v_Table_Name,
@@ -542,11 +550,12 @@ CREATE OR REPLACE PACKAGE BODY data_browser_ddl IS
 		FROM USER_IND_COLUMNS
 		WHERE TABLE_NAME = v_Table_Name
 		AND COLUMN_NAME = p_Parent_Key_Column
-		AND COLUMN_POSITION = 1;
+		AND COLUMN_POSITION <= 2;
 		if v_Count = 0 then 
 			return 'CREATE INDEX '
 			|| dbms_assert.enquote_name(v_Index_Name)
-			|| ' ON ' || dbms_assert.enquote_name(v_Table_Owner) || '.'  || dbms_assert.enquote_name(v_Table_Name) || '( ' || dbms_assert.enquote_name(p_Parent_Key_Column) || ' )'
+			|| ' ON ' || dbms_assert.enquote_name(v_Table_Owner) || '.'  || dbms_assert.enquote_name(v_Table_Name) 
+			|| '( ' || v_Include_Workspace_id || dbms_assert.enquote_name(p_Parent_Key_Column) || ' )'
 			|| ' COMPRESS 1';
 		else 
 			return NULL;
@@ -1324,6 +1333,7 @@ Load_Column_Constraints (
         v_Statements := NULL;
         v_Drop_Stat := NULL;
 		if p_U_CONSTRAINT_NAME IS NOT NULL then 
+			begin
 			SELECT case when CONSTRAINT_TYPE = 'I' then
 					'DROP INDEX ' || dbms_assert.enquote_name(INDEX_OWNER) || '.'  || dbms_assert.enquote_name(INDEX_NAME) 
 				else
@@ -1335,6 +1345,9 @@ Load_Column_Constraints (
 			WHERE VIEW_NAME = v_Table_Name
 			AND U_CONSTRAINT_NAME = p_U_CONSTRAINT_NAME
 			AND ROWNUM = 1;
+			EXCEPTION WHEN NO_DATA_FOUND THEN
+				v_Drop_Stat := NULL;
+			end;
 		elsif p_Check_Unique = 'Y' then 
 			p_U_CONSTRAINT_NAME := dbms_assert.enquote_name( 
 					data_browser_conf.Compose_Column_Name(
@@ -1856,19 +1869,40 @@ Load_Column_Constraints (
     	v_Table_Name	VARCHAR2(128);
     	v_Table_Owner	VARCHAR2(128);
     	v_Primary_Key_Cols VARCHAR2(128);
+    	v_Workspace_id_Col VARCHAR2(128);
+    	v_Parent_Table_Name			VARCHAR2(128);
+    	v_Parent_Table_Owner		VARCHAR2(128);
 	BEGIN
-		SELECT TABLE_NAME, TABLE_OWNER, PRIMARY_KEY_COLS
-		INTO v_Table_Name, v_Table_Owner, v_Primary_Key_Cols
-		FROM MVDATA_BROWSER_VIEWS
-		WHERE VIEW_NAME = p_Parent_Table;
+		SELECT A.TABLE_NAME, A.TABLE_OWNER
+		INTO v_Table_Name, v_Table_Owner
+		FROM MVDATA_BROWSER_VIEWS A 
+		WHERE A.VIEW_NAME = p_Table_Name;
+		
+		SELECT A.TABLE_NAME, A.TABLE_OWNER, A.PRIMARY_KEY_COLS,
+			case when A.TABLE_NAME != A.VIEW_NAME AND B.INCLUDE_WORKSPACE_ID = 'YES' 
+				then DBMS_ASSERT.ENQUOTE_NAME(changelog_conf.Get_ColumnWorkspace)
+			end INCLUDE_WORKSPACE_ID
+		INTO v_Parent_Table_Name, v_Parent_Table_Owner, v_Primary_Key_Cols, v_Workspace_id_Col
+		FROM MVDATA_BROWSER_VIEWS A 
+		JOIN MVBASE_VIEWS B ON A.TABLE_NAME = B.TABLE_NAME AND A.TABLE_OWNER = B.OWNER
+		WHERE A.VIEW_NAME = p_Parent_Table;
 
-		v_Query := 'SELECT 1 FROM DUAL WHERE EXISTS (SELECT 1' 
-		|| ' FROM ' || DBMS_ASSERT.ENQUOTE_NAME(p_Table_Name) 
-		|| ' WHERE ' || DBMS_ASSERT.ENQUOTE_NAME(p_Parent_Key_Column) || ' IS NOT NULL '
-		|| ' AND ' || DBMS_ASSERT.ENQUOTE_NAME(p_Parent_Key_Column)
-		|| ' NOT IN (SELECT '||v_Primary_Key_Cols
-		|| ' FROM ' || DBMS_ASSERT.ENQUOTE_NAME(v_Table_Owner) || '.' || DBMS_ASSERT.ENQUOTE_NAME(v_Table_Name)
+		v_Query := 'SELECT 1 FROM DUAL WHERE EXISTS (SELECT 1' || chr(10)
+		|| ' FROM ' || DBMS_ASSERT.ENQUOTE_NAME(v_Table_Owner) || '.' || DBMS_ASSERT.ENQUOTE_NAME(v_Table_Name) || ' A' || chr(10)
+		|| ' WHERE A.' || DBMS_ASSERT.ENQUOTE_NAME(p_Parent_Key_Column) || ' IS NOT NULL ' || chr(10)
+		|| ' AND NOT EXISTS ( SELECT 1 '
+		|| ' FROM ' || DBMS_ASSERT.ENQUOTE_NAME(v_Parent_Table_Owner) || '.' || DBMS_ASSERT.ENQUOTE_NAME(v_Parent_Table_Name) || ' B' || chr(10)
+		|| ' WHERE A.' || DBMS_ASSERT.ENQUOTE_NAME(p_Parent_Key_Column) || ' = B.' || DBMS_ASSERT.ENQUOTE_NAME(v_Primary_Key_Cols) || chr(10)
+		|| case when v_Workspace_id_Col IS NOT NULL then 
+			' AND A.' || v_Workspace_id_Col ||  ' = B.' || v_Workspace_id_Col
+		end
 		||'))';
+		$IF data_browser_ddl.g_debug $THEN
+			apex_debug.message(
+				p_message => 'FN_Query_Reference query : %s', 
+				p0 => v_Query
+			);
+		$END
 		OPEN cv FOR v_Query;
 		FETCH cv INTO v_Result;
 		CLOSE cv;
@@ -1876,7 +1910,7 @@ Load_Column_Constraints (
 	exception when NO_DATA_FOUND then
         return 'NO';
     when others then 
-        return 'N/A';
+        return 'N/A'; 
 	END FN_Query_Reference;
 
 end data_browser_ddl;

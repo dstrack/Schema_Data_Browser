@@ -1099,6 +1099,7 @@ $END
         v_Parent_Table		VARCHAR2(128);
         v_Parent_Key_Column VARCHAR2(128);
 		v_Unique_Key_Column  MVDATA_BROWSER_VIEWS.SEARCH_KEY_COLS%TYPE;
+		v_Count				PLS_INTEGER := 0;
         CURSOR form_view_cur
         IS
         	with COLUMNS_SUBQ as (
@@ -1170,6 +1171,7 @@ $END
 			FETCH form_view_cur BULK COLLECT INTO v_out_tab;
 			CLOSE form_view_cur;
 			IF v_out_tab.FIRST IS NOT NULL THEN
+				v_Count := v_out_tab.COUNT;
 				FOR ind IN 1 .. v_out_tab.COUNT
 				LOOP
 					pipe row (v_out_tab(ind));
@@ -1179,7 +1181,7 @@ $END
         ----
         $IF data_browser_conf.g_debug $THEN
             EXECUTE IMMEDIATE api_trace.Dyn_Log_Function_Call
-            USING p_table_name,p_unique_key_column,p_columns_limit,p_format,p_join_options,p_view_mode,p_edit_mode,p_parent_name,p_parent_key_column,p_parent_key_visible,v_out_tab.COUNT;
+            USING p_table_name,p_unique_key_column,p_columns_limit,p_format,p_join_options,p_view_mode,p_edit_mode,p_parent_name,p_parent_key_column,p_parent_key_visible,v_Count;
         $END
 $IF data_browser_conf.g_use_exceptions $THEN
 	exception

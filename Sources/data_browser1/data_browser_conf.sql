@@ -119,7 +119,7 @@ IS
 
 	g_use_exceptions 			CONSTANT BOOLEAN 	:= TRUE;	-- when enabled, errors are handled via exceptions; disable to find proper error line number.
 	g_runtime_exceptions		CONSTANT BOOLEAN 	:= FALSE;	-- when enabled, runtime parameter errors are handled via exceptions; disable to tolerate missing parameters
-	g_debug 					CONSTANT BOOLEAN 	:= TRUE;
+	g_debug 					CONSTANT BOOLEAN 	:= FALSE;
 	
 	PROCEDURE Save_Config_Defaults;
 	PROCEDURE Load_Config;
