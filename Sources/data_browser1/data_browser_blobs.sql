@@ -1377,7 +1377,6 @@ $END
 	PRAGMA UDF;
 	begin
 		return APEX_UTIL.PREPARE_URL(p_URL => p_URL, p_plain_url => true);
-		-- v_URL	:= Extract_Source_URL(v_URL);
 	end;
 
 	FUNCTION FN_File_Icon(
@@ -1422,7 +1421,6 @@ $END
 				  );
 			if p_Prepare_Url = 'YES' then
 				v_URL	:= apex_util.prepare_url (p_URL => v_URL, p_plain_url => true );
-				-- v_URL	:= Extract_Source_URL(v_URL);
 			end if;
 		END IF;
 		if v_URL IS NOT NULL then

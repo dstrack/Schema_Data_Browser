@@ -36,6 +36,7 @@ IS
 	g_Import_Timestamp_Format	VARCHAR2(64)	:= 'DD.MM.YYYY HH24.MI.SSXFF';
 	g_Insert_Foreign_Keys		VARCHAR2(5)		:= 'YES';	-- insert new foreign key values in insert trigger
 	g_Search_Keys_Unique		VARCHAR2(5)		:= 'YES';	-- Unique Constraint is required for searching foreign key values
+    g_Merge_On_Unique_keys		VARCHAR2(5)  	:= 'YES';	-- Enable merge on unique keys in import views
 	g_Exclude_Blob_Columns		VARCHAR2(5)		:= 'YES';	-- Exclude Blob Columns from the produced projection column list
 	g_Compare_Case_Insensitive	VARCHAR2(5)		:= 'NO';   -- compare Case insensitive foreign key values in insert trigger
 	g_Compare_Return_String		VARCHAR2(300)	:= 'Differenz gefunden.';
@@ -120,31 +121,32 @@ IS
 	RETURN tab_table_imp_cols PIPELINED;
 
 	PROCEDURE Set_Imp_Formats (
-		p_Export_Text_Limit			INTEGER		DEFAULT NULL,	-- length limit for Text in each column
-		p_Import_Currency_Format	VARCHAR2	DEFAULT NULL,	-- Import Currency Format Mask
-		p_Import_Number_Format		VARCHAR2	DEFAULT NULL,	-- Import Number Format Mask
-		p_Import_NumChars			VARCHAR2	DEFAULT NULL,	-- Import NumChars Format Mask
-		p_Import_Float_Format		VARCHAR2	DEFAULT NULL,	-- Import Float Format Mask
-		p_Export_Date_Format		VARCHAR2	DEFAULT NULL,	-- Export Date Format Mask
-		p_Import_DateTime_Format	VARCHAR2	DEFAULT NULL,	-- Import DateTime Format Mask
-		p_Import_Timestamp_Format	VARCHAR2	DEFAULT NULL,	-- Import Timestamp Format Mask
-		p_Insert_Foreign_Keys		VARCHAR2	DEFAULT NULL,	-- insert new foreign key values in insert trigger
-		p_Search_Keys_Unique		VARCHAR2	DEFAULT NULL,	-- Unique Constraint is required for searching foreign key values
-		p_Exclude_Blob_Columns		VARCHAR2	DEFAULT NULL,	-- Exclude Blob Columns from generated Views
-		p_Compare_Case_Insensitive	VARCHAR2	DEFAULT NULL,	-- compare Case insensitive foreign key values in insert trigger
-		p_Compare_Return_String		VARCHAR2	DEFAULT NULL,	-- 'Differenz gefunden.'
-		p_Compare_Return_Style		VARCHAR2	DEFAULT NULL,	-- CSS style for marking differences
-		p_Compare_Return_Style2		VARCHAR2	DEFAULT NULL,	-- CSS style for marking differences
-		p_Compare_Return_Style3		VARCHAR2	DEFAULT NULL,	-- CSS style for marking differences
-		p_Errors_Return_Style		VARCHAR2	DEFAULT NULL,	-- CSS style for marking errors
-		p_Error_is_empty			VARCHAR2	DEFAULT NULL,	-- 'ist leer.'
-		p_Error_is_longer_than		VARCHAR2	DEFAULT NULL,	-- '... Zeichenkette ist länger als'
-		p_Error_is_no_currency		VARCHAR2	DEFAULT NULL,	-- 'ist kein Währungsbetrag.'
-		p_Error_is_no_float			VARCHAR2	DEFAULT NULL,	-- 'ist keine Gleitkommazahl.'
-		p_Error_is_no_integer		VARCHAR2	DEFAULT NULL,	-- 'ist keine Integerzahl.'
-		p_Error_is_no_date			VARCHAR2	DEFAULT NULL,	-- 'ist keine gültiges Datum.'
-		p_Error_is_no_timestamp		VARCHAR2	DEFAULT NULL	-- 'ist kein gültiger Timestamp.'
-	);
+        p_Export_Text_Limit         INTEGER     DEFAULT NULL,	-- length limit for Text in each column
+        p_Import_Currency_Format    VARCHAR2    DEFAULT NULL,	-- Import Currency Format Mask
+        p_Import_Number_Format      VARCHAR2    DEFAULT NULL,	-- Import Number Format Mask
+        p_Import_NumChars       	VARCHAR2    DEFAULT NULL,	-- Import NumChars Format Mask
+        p_Import_Float_Format   	VARCHAR2    DEFAULT NULL,	-- Import Float Format Mask
+        p_Export_Date_Format      	VARCHAR2    DEFAULT NULL,	-- Export Date Format Mask
+        p_Import_DateTime_Format    VARCHAR2    DEFAULT NULL,	-- Import DateTime Format Mask
+        p_Import_Timestamp_Format   VARCHAR2    DEFAULT NULL,	-- Import Timestamp Format Mask
+		p_Insert_Foreign_Keys   	VARCHAR2    DEFAULT NULL,   -- insert new foreign key values in insert trigger
+		p_Search_Keys_Unique	  	VARCHAR2    DEFAULT NULL,   -- Unique Constraint is required for searching foreign key values
+		p_Merge_On_Unique_keys 		VARCHAR2 	DEFAULT NULL,   -- Enable merge on unique keys in import views
+		p_Exclude_Blob_Columns  	VARCHAR2    DEFAULT NULL,	-- Exclude Blob Columns from generated Views
+		p_Compare_Case_Insensitive 	VARCHAR2 	DEFAULT NULL,   -- compare Case insensitive foreign key values in insert trigger
+		p_Compare_Return_String 	VARCHAR2 	DEFAULT NULL,	-- 'Differenz gefunden.'
+		p_Compare_Return_Style  	VARCHAR2    DEFAULT NULL,	-- CSS style for marking differences
+		p_Compare_Return_Style2  	VARCHAR2    DEFAULT NULL,	-- CSS style for marking differences
+		p_Compare_Return_Style3  	VARCHAR2    DEFAULT NULL,	-- CSS style for marking differences
+		p_Errors_Return_Style 		VARCHAR2    DEFAULT NULL,	-- CSS style for marking errors
+		p_Error_is_empty			VARCHAR2    DEFAULT NULL,	-- 'ist leer.'
+		p_Error_is_longer_than		VARCHAR2    DEFAULT NULL,	-- '... Zeichenkette ist länger als'
+		p_Error_is_no_currency		VARCHAR2    DEFAULT NULL,	-- 'ist kein Währungsbetrag.'
+		p_Error_is_no_float			VARCHAR2    DEFAULT NULL,	-- 'ist keine Gleitkommazahl.'
+		p_Error_is_no_integer		VARCHAR2    DEFAULT NULL,	-- 'ist keine Integerzahl.'
+		p_Error_is_no_date			VARCHAR2    DEFAULT NULL,	-- 'ist keine gültiges Datum.'
+		p_Error_is_no_timestamp		VARCHAR2    DEFAULT NULL	-- 'ist kein gültiger Timestamp.'
+    );
 	PROCEDURE Load_Imp_Job_Formats (p_Importjob_ID INTEGER);
 	FUNCTION Get_ImpTextLimit  RETURN INTEGER;
 	FUNCTION Get_Import_Currency_Format RETURN VARCHAR2;
@@ -154,6 +156,7 @@ IS
 	FUNCTION Get_Import_Timestamp_Format RETURN VARCHAR2;
 	FUNCTION Get_Insert_Foreign_Keys RETURN VARCHAR2;
 	FUNCTION Get_Search_Keys_Unique RETURN VARCHAR2;
+	FUNCTION Get_Merge_On_Unique_keys RETURN VARCHAR2;
 	FUNCTION Get_Exclude_Blob_Columns RETURN VARCHAR2;
 	PROCEDURE Set_As_Of_Timestamp (p_As_Of_Timestamp VARCHAR2);
 	FUNCTION Get_As_Of_Timestamp RETURN VARCHAR2;

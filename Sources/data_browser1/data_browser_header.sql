@@ -779,10 +779,6 @@ IS
 		p_Mime_Type_Column_Name	IN VARCHAR2)
 	RETURN VARCHAR2;
 
-	FUNCTION Extract_Source_URL(
-		p_URL				IN VARCHAR2
-	) RETURN VARCHAR2;
-
 	PROCEDURE  FN_File_Meta_Data(
 		p_Table_Name 		VARCHAR2,
     	p_Unique_Key_Column VARCHAR2,

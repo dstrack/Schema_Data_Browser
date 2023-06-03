@@ -646,9 +646,9 @@ $END
         $END
 $IF data_browser_specs.g_use_custom_ctx $THEN
 		set_custom_ctx.unset_userlevel;
-$END
         -- Add rows to USER_NAMESPACES when missing
-		custom_changelog.set_new_workspace(SYS_CONTEXT('USERENV', 'CURRENT_SCHEMA'));
+		set_custom_ctx.set_new_workspace(SYS_CONTEXT('USERENV', 'CURRENT_SCHEMA'));
+$END
 		-- Enable APEX_PUBLIC_USER as app user
 		data_browser_auth.add_user(p_Username => SYS_CONTEXT('USERENV', 'SESSION_USER'), p_Password => Temporary_Password, p_Account_Locked => 'Y');
 		if p_Username IS NOT NULL and p_Password IS NOT NULL then

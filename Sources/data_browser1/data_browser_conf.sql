@@ -140,7 +140,9 @@ IS
 	PROCEDURE Set_App_Installation_Code (p_Code IN VARCHAR2);
 	FUNCTION Get_Configuration_ID RETURN NUMBER;
     FUNCTION Get_Configuration_Name RETURN VARCHAR2;
-    FUNCTION Get_Email_From_Address RETURN VARCHAR2;
+    FUNCTION Get_Email_From_Address(
+    	p_Application_ID NUMBER DEFAULT NV('APP_ID')
+    ) RETURN VARCHAR2;
     FUNCTION Get_Schema_Icon RETURN VARCHAR2;
     FUNCTION Get_Reports_Application_ID RETURN NUMBER;
     FUNCTION Get_Reports_App_Page_ID RETURN NUMBER;
@@ -354,16 +356,19 @@ IS
 	PROCEDURE Set_Include_Query_Schema (p_Value VARCHAR2 DEFAULT 'YES');
 	FUNCTION Get_Search_Keys_Unique RETURN VARCHAR2;
 	FUNCTION Get_Insert_Foreign_Keys RETURN VARCHAR2;
+	FUNCTION Get_Merge_On_Unique_keys RETURN VARCHAR2;
 	PROCEDURE Set_Import_Parameter (
 		p_Compare_Case_Insensitive	VARCHAR2 DEFAULT 'NO',
 		p_Search_Keys_Unique 	VARCHAR2 DEFAULT 'NO',
-		p_Insert_Foreign_Keys 	VARCHAR2 DEFAULT 'NO'
+		p_Insert_Foreign_Keys 	VARCHAR2 DEFAULT 'NO',
+		p_Merge_On_Unique_keys 	VARCHAR2 DEFAULT 'NO'
 	);
 
 	PROCEDURE Get_Import_Parameter (
 		p_Compare_Case_Insensitive	OUT VARCHAR2,
 		p_Search_Keys_Unique 	OUT VARCHAR2,
-		p_Insert_Foreign_Keys 	OUT VARCHAR2
+		p_Insert_Foreign_Keys 	OUT VARCHAR2,
+		p_Merge_On_Unique_keys 	OUT VARCHAR2
 	);	
 	FUNCTION Get_Encrypt_Function RETURN VARCHAR2;
     FUNCTION Get_Encrypt_Function(p_Key_Column VARCHAR2, p_Column_Name VARCHAR2) RETURN VARCHAR2;
@@ -983,6 +988,7 @@ $END
     g_Compare_Case_Insensitive 	VARCHAR2(5)  	:= 'NO';   	-- compare Case insensitive for loopup of foreign key values
     g_Search_Keys_Unique		VARCHAR2(5)  	:= 'YES';   -- Require search with unique keys for loopup of foreign key values
     g_Insert_Foreign_Keys		VARCHAR2(5)  	:= 'YES';	-- Enable insert of new foreign keys in import views
+    g_Merge_On_Unique_keys		VARCHAR2(5)  	:= 'YES';	-- Enable merge on unique keys in import views
 	g_Include_Query_Schema		VARCHAR2(5)  	:= 'NO';	-- Include Query Schema in from clause to enable usage in  create_collection_from_query_b
 	g_Current_Data_Format		VARCHAR2(64)    := 'FORM';
 	g_Apex_Version				VARCHAR2(64)	:= 'APEX_050000';
@@ -1064,7 +1070,7 @@ $END
 			Rec_Desc_Delimiter, Rec_Desc_Group_Delimiter, TextArea_Min_Length, Export_Text_Limit, Minimum_Field_Width, Maximum_Field_Width,
 			Stretch_Form_Fields, Select_List_Rows_Limit, Detect_Column_Prefix, Translate_Umlaute, Key_Column_Ext, 
 			Show_Tree_Num_Rows, Update_Tree_Num_Rows, Max_Relations_Levels, Base_Table_Prefix, Base_Table_Ext,
-			Base_View_Prefix, Base_View_Ext, History_View_Ext, Compare_Case_Insensitive, Search_Keys_Unique, Insert_Foreign_Keys,
+			Base_View_Prefix, Base_View_Ext, History_View_Ext, Compare_Case_Insensitive, Search_Keys_Unique, Insert_Foreign_Keys, Merge_On_Unique_Keys,
 			Email_From_Address, Errors_Listed_Limit, Edit_Rows_Limit, Automatic_Sorting_Limit, Automatic_Search_Limit, Navigation_Link_Limit
         ) = (
         	SELECT g_Configuration_Name, g_Schema_Icon, g_Description, c_Custom_Edit_Enabled_Query, g_Data_Deduction_Query, 
@@ -1077,7 +1083,7 @@ $END
 				g_Rec_Desc_Delimiter, g_Rec_Desc_Group_Delimiter, g_TextArea_Min_Length, g_Export_Text_Limit, g_Minimum_Field_Width, g_Maximum_Field_Width,
 				g_Stretch_Form_Fields, g_Select_List_Rows_Limit, g_Detect_Column_Prefix, g_Translate_Umlaute, g_Key_Column_Ext,
 				g_Show_Tree_Num_Rows, g_Update_Tree_Num_Rows, g_Max_Relations_Levels, g_Base_Table_Prefix, g_Base_Table_Ext,
-				g_Base_View_Prefix, g_Base_View_Ext, g_History_View_Ext, g_Compare_Case_Insensitive, g_Search_Keys_Unique, g_Insert_Foreign_Keys,
+				g_Base_View_Prefix, g_Base_View_Ext, g_History_View_Ext, g_Compare_Case_Insensitive, g_Search_Keys_Unique, g_Insert_Foreign_Keys, g_Merge_On_Unique_keys,
 				g_Email_From_Address, g_Errors_Listed_Limit, g_Edit_Rows_Limit, g_Automatic_Sorting_Limit, g_Automatic_Search_Limit, g_Navigation_Link_Limit
         	FROM DUAL
         ) WHERE ID = g_Configuration_ID;
@@ -1093,7 +1099,7 @@ $END
 				Rec_Desc_Delimiter, Rec_Desc_Group_Delimiter, TextArea_Min_Length, Export_Text_Limit, Minimum_Field_Width, Maximum_Field_Width,
 				Stretch_Form_Fields, Select_List_Rows_Limit, Detect_Column_Prefix, Translate_Umlaute, Key_Column_Ext, 
 				Show_Tree_Num_Rows, Update_Tree_Num_Rows, Max_Relations_Levels, Base_Table_Prefix, Base_Table_Ext,
-				Base_View_Prefix, Base_View_Ext, History_View_Ext, Compare_Case_Insensitive, Search_Keys_Unique, Insert_Foreign_Keys,
+				Base_View_Prefix, Base_View_Ext, History_View_Ext, Compare_Case_Insensitive, Search_Keys_Unique, Insert_Foreign_Keys, Merge_On_Unique_Keys,
 				Email_From_Address, Errors_Listed_Limit, Edit_Rows_Limit, Automatic_Sorting_Limit, Automatic_Search_Limit, Navigation_Link_Limit
 			)
 			VALUES (g_Configuration_ID,
@@ -1107,7 +1113,7 @@ $END
 				g_Rec_Desc_Delimiter, g_Rec_Desc_Group_Delimiter, g_TextArea_Min_Length, g_Export_Text_Limit, g_Minimum_Field_Width, g_Maximum_Field_Width,
 				g_Stretch_Form_Fields, g_Select_List_Rows_Limit, g_Detect_Column_Prefix, g_Translate_Umlaute, g_Key_Column_Ext, 
 				g_Show_Tree_Num_Rows, g_Update_Tree_Num_Rows, g_Max_Relations_Levels, g_Base_Table_Prefix, g_Base_Table_Ext,
-				g_Base_View_Prefix, g_Base_View_Ext, g_History_View_Ext, g_Compare_Case_Insensitive, g_Search_Keys_Unique, g_Insert_Foreign_Keys,
+				g_Base_View_Prefix, g_Base_View_Ext, g_History_View_Ext, g_Compare_Case_Insensitive, g_Search_Keys_Unique, g_Insert_Foreign_Keys, g_Merge_On_Unique_keys,
 				g_Email_From_Address, g_Errors_Listed_Limit, g_Edit_Rows_Limit, g_Automatic_Sorting_Limit, g_Automatic_Search_Limit, g_Navigation_Link_Limit
 			);
         end if;
@@ -1141,7 +1147,7 @@ $END
 			Rec_Desc_Delimiter, Rec_Desc_Group_Delimiter, TextArea_Min_Length, Export_Text_Limit, Minimum_Field_Width, Maximum_Field_Width,
 			Stretch_Form_Fields, Select_List_Rows_Limit, Detect_Column_Prefix, Translate_Umlaute, Key_Column_Ext, 
 			Show_Tree_Num_Rows, Update_Tree_Num_Rows, Max_Relations_Levels, Base_Table_Prefix, Base_Table_Ext,
-			Base_View_Prefix, Base_View_Ext, History_View_Ext, Compare_Case_Insensitive, Search_Keys_Unique, Insert_Foreign_Keys,
+			Base_View_Prefix, Base_View_Ext, History_View_Ext, Compare_Case_Insensitive, Search_Keys_Unique, Insert_Foreign_Keys, Merge_On_Unique_Keys,
 			Email_From_Address, Errors_Listed_Limit, Edit_Rows_Limit, Automatic_Sorting_Limit, Automatic_Search_Limit, Navigation_Link_Limit, 
 			Created_At, Created_By
         INTO
@@ -1157,7 +1163,7 @@ $END
 			g_Rec_Desc_Delimiter, g_Rec_Desc_Group_Delimiter, g_TextArea_Min_Length, g_Export_Text_Limit, g_Minimum_Field_Width, g_Maximum_Field_Width,
 			g_Stretch_Form_Fields, g_Select_List_Rows_Limit, g_Detect_Column_Prefix, g_Translate_Umlaute, g_Key_Column_Ext, 
 			g_Show_Tree_Num_Rows, g_Update_Tree_Num_Rows, g_Max_Relations_Levels, g_Base_Table_Prefix, g_Base_Table_Ext,
-			g_Base_View_Prefix, g_Base_View_Ext, g_History_View_Ext, g_Compare_Case_Insensitive, g_Search_Keys_Unique, g_Insert_Foreign_Keys,
+			g_Base_View_Prefix, g_Base_View_Ext, g_History_View_Ext, g_Compare_Case_Insensitive, g_Search_Keys_Unique, g_Insert_Foreign_Keys, g_Merge_On_Unique_keys,
 			g_Email_From_Address, g_Errors_Listed_Limit, g_Edit_Rows_Limit, g_Automatic_Sorting_Limit, g_Automatic_Search_Limit, g_Navigation_Link_Limit, 
 			g_App_Created_At, g_App_Created_By
         FROM DATA_BROWSER_CONFIG
@@ -1371,7 +1377,18 @@ $END
 	
     FUNCTION Get_Configuration_ID RETURN NUMBER IS BEGIN RETURN g_Configuration_ID; END;
     FUNCTION Get_Configuration_Name RETURN VARCHAR2 IS BEGIN RETURN g_Configuration_Name; END;
-    FUNCTION Get_Email_From_Address RETURN VARCHAR2 IS BEGIN RETURN g_Email_From_Address; END;
+    FUNCTION Get_Email_From_Address(
+    	p_Application_ID NUMBER DEFAULT NV('APP_ID')
+    ) RETURN VARCHAR2 -- get sender email address from configuration or application.
+    IS BEGIN 
+    	if g_Email_From_Address IS NULL and p_Application_ID IS NOT NULL then
+			select MAX(EMAIL_FROM)
+			into g_Email_From_Address
+			from APEX_APPLICATIONS
+			where APPLICATION_ID = p_Application_ID;
+		end if;
+    	RETURN g_Email_From_Address; 
+    END;
     FUNCTION Get_Schema_Icon RETURN VARCHAR2 IS BEGIN RETURN g_Schema_Icon; END;
     FUNCTION Get_Reports_Application_ID RETURN NUMBER IS BEGIN RETURN g_Reports_Application_ID; END;
     FUNCTION Get_Reports_App_Page_ID RETURN NUMBER IS BEGIN RETURN g_Reports_App_Page_ID; END;
@@ -3531,43 +3548,54 @@ $END
 	BEGIN RETURN g_Search_Keys_Unique; END;
 
 	FUNCTION Get_Insert_Foreign_Keys RETURN VARCHAR2 IS BEGIN RETURN g_Insert_Foreign_Keys; END;
+	FUNCTION Get_Merge_On_Unique_keys RETURN VARCHAR2 IS BEGIN RETURN g_Merge_On_Unique_keys; END;
 	PROCEDURE Set_Import_Parameter (
 		p_Compare_Case_Insensitive	VARCHAR2 DEFAULT 'NO',
 		p_Search_Keys_Unique 	VARCHAR2 DEFAULT 'NO',
-		p_Insert_Foreign_Keys 	VARCHAR2 DEFAULT 'NO'
+		p_Insert_Foreign_Keys 	VARCHAR2 DEFAULT 'NO',
+		p_Merge_On_Unique_keys 	VARCHAR2 DEFAULT 'NO'
 	)
 	IS 
 		v_Compare_Case_Insensitive	VARCHAR2(10);
 		v_Search_Keys_Unique		VARCHAR2(10);
 		v_Insert_Foreign_Keys		VARCHAR2(10);
+		v_Merge_On_Unique_keys		VARCHAR2(10);
 	BEGIN 
 		v_Compare_Case_Insensitive 	:= COALESCE( p_Compare_Case_Insensitive, data_browser_conf.Do_Compare_Case_Insensitive, 'NO');
 		v_Search_Keys_Unique		:= COALESCE( p_Search_Keys_Unique, data_browser_conf.Get_Search_Keys_Unique, 'NO');
 		v_Insert_Foreign_Keys		:= COALESCE( p_Insert_Foreign_Keys, data_browser_conf.Get_Insert_Foreign_Keys, 'NO');
+		v_Merge_On_Unique_keys		:= COALESCE( p_Merge_On_Unique_keys, data_browser_conf.Get_Merge_On_Unique_keys, 'NO');
 		
 		APEX_UTIL.SET_PREFERENCE(V('OWNER') || ':' || 'IMPORT_PREFS', 
-			apex_string.format('%s:%s:%s', v_Compare_Case_Insensitive, v_Search_Keys_Unique, v_Insert_Foreign_Keys));
+			apex_string.format('%s:%s:%s:%s', v_Compare_Case_Insensitive, v_Search_Keys_Unique, v_Insert_Foreign_Keys, v_Merge_On_Unique_keys));
 	END Set_Import_Parameter;
 
 	PROCEDURE Get_Import_Parameter (
 		p_Compare_Case_Insensitive	OUT VARCHAR2,
 		p_Search_Keys_Unique 	OUT VARCHAR2,
-		p_Insert_Foreign_Keys 	OUT VARCHAR2
+		p_Insert_Foreign_Keys 	OUT VARCHAR2,
+		p_Merge_On_Unique_keys 	OUT VARCHAR2
 	)
 	IS 
 		v_Prefs_Array apex_t_varchar2;
 		v_Preferences	VARCHAR2(512);
+		v_Pref_Count NUMBER := 0;
 	BEGIN 
 		v_Preferences := APEX_UTIL.GET_PREFERENCE(V('OWNER') || ':' || 'IMPORT_PREFS');
 		if v_Preferences IS NOT NULL then 
 			v_Prefs_Array := apex_string.split(v_Preferences, ':');
+			v_Pref_Count	:= v_Prefs_Array.COUNT;
+		end if;
+		if v_Pref_Count >= 4 then 
 			p_Compare_Case_Insensitive := v_Prefs_Array(1);
 			p_Search_Keys_Unique := v_Prefs_Array(2);
 			p_Insert_Foreign_Keys := v_Prefs_Array(3);
+			p_Merge_On_Unique_keys := v_Prefs_Array(4);
 		else 
 			p_Compare_Case_Insensitive := data_browser_conf.Do_Compare_Case_Insensitive;
 			p_Search_Keys_Unique := data_browser_conf.Get_Search_Keys_Unique;
 			p_Insert_Foreign_Keys := data_browser_conf.Get_Insert_Foreign_Keys;
+			p_Merge_On_Unique_keys := data_browser_conf.Get_Merge_On_Unique_keys;
 		end if;
 	END Get_Import_Parameter;
 

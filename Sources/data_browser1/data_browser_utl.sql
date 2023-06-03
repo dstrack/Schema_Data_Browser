@@ -4216,6 +4216,7 @@ end if;
 			);
     	v_Detail_Key_md5 	VARCHAR2(300);
         v_is_cached			VARCHAR2(10);
+        v_Count				NUMBER;
 	begin
 		if p_Table_name IS NOT NULL and p_Search_Value IS NOT NULL then
 			v_Detail_Key_md5 := wwv_flow_item.md5 (v_Table_Name, p_Unique_Key_Column, p_Search_Value);
@@ -4229,6 +4230,7 @@ end if;
 				g_Detail_Key_md5 := v_Detail_Key_md5;
 			end if;
 			if g_Detail_Key_tab.FIRST IS NOT NULL THEN
+				v_Count := g_Detail_Key_tab.COUNT;
 				FOR ind IN 1 .. g_Detail_Key_tab.COUNT LOOP
 					pipe row (g_Detail_Key_tab(ind));
 				END LOOP;
@@ -4237,7 +4239,7 @@ end if;
         ----
         $IF data_browser_conf.g_debug $THEN
             EXECUTE IMMEDIATE api_trace.Dyn_Log_Function_Call
-            USING p_table_name,p_unique_key_column,p_search_value,g_Detail_Key_tab.COUNT;
+            USING p_table_name,p_unique_key_column,p_search_value,v_Count;
         $END
 	end detail_key_cursor;
 
@@ -4291,11 +4293,13 @@ FROM TABLE ( data_browser_utl.details_list_cursor(
 			) S
 			ORDER BY S.POSITION;
 		v_out_tab data_browser_conf.tab_apex_links_list;
+        v_Count				NUMBER;
 	begin
 		OPEN view_cur;
 		FETCH view_cur BULK COLLECT INTO v_out_tab;
 		CLOSE view_cur;
 		IF v_out_tab.FIRST IS NOT NULL THEN
+			v_Count := v_out_tab.COUNT;
 			FOR ind IN 1 .. v_out_tab.COUNT LOOP
 				pipe row (v_out_tab(ind));
 			END LOOP;
@@ -4303,7 +4307,7 @@ FROM TABLE ( data_browser_utl.details_list_cursor(
         ----
         $IF data_browser_conf.g_debug $THEN
             EXECUTE IMMEDIATE api_trace.Dyn_Log_Function_Call
-            USING p_table_name,p_unique_key_column,p_search_value,p_detail_table,p_detail_key_col,p_link_page_id,p_link_items,v_out_tab.COUNT;
+            USING p_table_name,p_unique_key_column,p_search_value,p_detail_table,p_detail_key_col,p_link_page_id,p_link_items,v_Count;
         $END
 	end details_list_cursor;
 
@@ -4436,11 +4440,13 @@ FROM TABLE ( data_browser_utl.details_list_cursor(
 			where data_browser_utl.Has_Tree_View(p_Table_Name => p_Table_name) = 'YES';
 
 		v_out_tab data_browser_conf.tab_apex_links_list;
+        v_Count				NUMBER;
 	begin
 		OPEN view_cur;
 		FETCH view_cur BULK COLLECT INTO v_out_tab;
 		CLOSE view_cur;
 		IF v_out_tab.FIRST IS NOT NULL THEN
+			v_Count := v_out_tab.COUNT;
 			FOR ind IN 1 .. v_out_tab.COUNT LOOP
 				pipe row (v_out_tab(ind));
 			END LOOP;
@@ -4448,7 +4454,7 @@ FROM TABLE ( data_browser_utl.details_list_cursor(
         ----
         $IF data_browser_conf.g_debug $THEN
             EXECUTE IMMEDIATE api_trace.Dyn_Log_Function_Call
-            USING p_table_name,p_view_mode_item,v_out_tab.COUNT;
+            USING p_table_name,p_view_mode_item,v_Count;
         $END
 	end Report_View_Modes_List;
 

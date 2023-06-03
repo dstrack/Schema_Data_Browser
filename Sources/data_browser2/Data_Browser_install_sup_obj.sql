@@ -18,7 +18,13 @@ declare
 	v_count NUMBER;
 	v_count2 NUMBER;
 	v_stat VARCHAR2(32767);
+	v_apex_schema		VARCHAR2(100);
 begin
+	SELECT table_owner INTO v_apex_schema
+	FROM all_synonyms
+	WHERE synonym_name = 'APEX'
+	and owner = 'PUBLIC';
+
 	SELECT COUNT(*) INTO v_count
 	FROM ALL_OBJECTS WHERE OBJECT_NAME = 'WWV_FLOW_INSTALL_WIZARD' AND OBJECT_TYPE = 'PACKAGE'
 	;
@@ -32,6 +38,9 @@ begin
 	;
 	
 	if v_count > 0 and v_count2 = 0 then 
+		v_stat := 'CREATE OR REPLACE SYNONYM WWV_FLOW_INSTALL_WIZARD FOR ' || v_apex_schema || '.WWV_FLOW_INSTALL_WIZARD';
+		EXECUTE IMMEDIATE v_Stat;
+	
 		v_stat := q'[
 CREATE OR REPLACE PROCEDURE Data_Browser_Install_Sup_Obj (
 	p_App_ID NUMBER DEFAULT NV('APP_ID'),

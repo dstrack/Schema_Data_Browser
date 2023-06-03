@@ -13,6 +13,7 @@ begin
 $IF data_browser_specs.g_use_custom_ctx $THEN
 	set_custom_ctx.set_current_workspace(p_Workspace_Name=>SYS_CONTEXT('USERENV', 'CURRENT_SCHEMA'), p_Client_Id=>NULL);
 	set_custom_ctx.set_current_user(p_User_Name=>SYS_CONTEXT('USERENV', 'SESSION_USER'), p_Client_Id=>NULL);
+	set_custom_ctx.unset_userlevel;	-- enable update of the USERLEVEL in presence of the check constriant ("USERLEVEL" >= SYS_CONTEXT('CUSTOM_CTX', 'USERLEVEL'))
 $END
 	DBMS_OUTPUT.PUT_LINE('-- adding developers for App-ID ' || v_APP_ID || ' ws : ' || v_workspace);
 	data_browser_auth.Add_Developers;

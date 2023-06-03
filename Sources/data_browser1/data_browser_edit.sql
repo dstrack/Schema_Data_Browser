@@ -3483,6 +3483,7 @@ $END
 		v_Compare_Case_Insensitive	VARCHAR2(10);
 		v_Search_Keys_Unique		VARCHAR2(10);
 		v_Insert_Foreign_Keys		VARCHAR2(10);
+		v_Merge_On_Unique_keys		VARCHAR2(10);
 		v_use_NLS_params CONSTANT VARCHAR2(1) := 'N'; -- match settings for Get_ConversionColFunction with p_Data_Format => 'FORM'
 
         CURSOR form_view_cur(v_View_Name VARCHAR2, v_Table_Name VARCHAR2)
@@ -3963,7 +3964,7 @@ $END
 		INTO v_View_Name, v_Table_Name, v_Unique_Key_Column
 		FROM MVDATA_BROWSER_VIEWS
 		WHERE VIEW_NAME = p_Table_Name;
-		data_browser_conf.Get_Import_Parameter( v_Compare_Case_Insensitive, v_Search_Keys_Unique, v_Insert_Foreign_Keys);
+		data_browser_conf.Get_Import_Parameter( v_Compare_Case_Insensitive, v_Search_Keys_Unique, v_Insert_Foreign_Keys, v_Merge_On_Unique_keys);
 		if p_DML_Command = 'LOOKUP' then 
 			v_Insert_Foreign_Keys := 'NO';
 			v_Search_Keys_Unique := 'NO';

@@ -131,6 +131,7 @@ begin
 			Compare_Case_Insensitive 	VARCHAR2(5) DEFAULT 'NO' NOT NULL CONSTRAINT DATA_BRO_CONF_Compare_Case_CK CHECK ( Compare_Case_Insensitive IN ('YES','NO') ),
 			Search_Keys_Unique 			VARCHAR2(5) DEFAULT 'NO' NOT NULL CONSTRAINT DATA_BRO_CONF_Search_Keys_U_CK CHECK ( Search_Keys_Unique IN ('YES','NO') ),
 			Insert_Foreign_Keys 		VARCHAR2(5) DEFAULT 'NO' NOT NULL CONSTRAINT DATA_BRO_CONF_Insert_Foreig_CK CHECK ( Insert_Foreign_Keys IN ('YES','NO') ),
+			Merge_On_Unique_Keys		VARCHAR2(5) DEFAULT 'NO' NOT NULL CONSTRAINT DATA_BRO_CONF_Merge_On_Uni_CK CHECK ( Merge_On_Unique_Keys IN ('YES','NO') ),
 			-------------------------------------------
 			-- Table Relations Tree Controls
 			Show_Tree_Num_Rows			VARCHAR2(5) DEFAULT 'YES' NOT NULL CONSTRAINT DATA_BRO_CONF_Show_Tree_Num_Rows_CK CHECK ( Show_Tree_Num_Rows IN ('YES','NO') ),
@@ -207,6 +208,17 @@ begin
 		]';
 		EXECUTE IMMEDIATE v_Stat;
 		COMMIT;
+	end if;
+	SELECT COUNT(*) INTO v_count
+	FROM USER_TAB_COLUMNS WHERE TABLE_NAME = 'DATA_BROWSER_CONFIG' AND COLUMN_NAME = 'MERGE_ON_UNIQUE_KEYS';
+	if v_count = 0 then 
+		v_stat := q'[
+		ALTER TABLE DATA_BROWSER_CONFIG ADD
+		(
+			Merge_On_Unique_Keys		VARCHAR2(5) DEFAULT 'NO' NOT NULL CONSTRAINT DATA_BRO_CONF_Merge_On_Uni_CK CHECK ( Merge_On_Unique_Keys IN ('YES','NO') )
+		)
+		]';
+		EXECUTE IMMEDIATE v_Stat;
 	end if;
 end;
 /

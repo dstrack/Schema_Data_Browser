@@ -616,7 +616,8 @@ $END
 			data_browser_conf.Set_Import_Parameter (
 				p_Compare_Case_Insensitive	=> v_Imp_Compare_Case_Insensitive,
 				p_Search_Keys_Unique 	=> v_Imp_Search_Keys_Unique,
-				p_Insert_Foreign_Keys 	=> v_Imp_Insert_Foreign_Keys
+				p_Insert_Foreign_Keys 	=> v_Imp_Insert_Foreign_Keys,
+				p_Merge_On_Unique_keys  => 'NO'
 			);
     	end if;
     exception 
@@ -791,7 +792,8 @@ $END
 				data_browser_conf.Set_Import_Parameter (
 					p_Compare_Case_Insensitive	=> view_cur.IMP_COMPARE_CASE_INSENSITIVE,
 					p_Search_Keys_Unique 	=> view_cur.IMP_SEARCH_KEYS_UNIQUE,
-					p_Insert_Foreign_Keys 	=> view_cur.IMP_INSERT_FOREIGN_KEYS
+					p_Insert_Foreign_Keys 	=> view_cur.IMP_INSERT_FOREIGN_KEYS,
+					p_Merge_On_Unique_keys  => 'NO'
 				);
 				data_browser_conf.Set_Include_Query_Schema('YES');
 				begin -- generate query
@@ -1395,7 +1397,8 @@ $END
 				data_browser_conf.Set_Import_Parameter (
 					p_Compare_Case_Insensitive	=> view_cur.IMP_COMPARE_CASE_INSENSITIVE,
 					p_Search_Keys_Unique 	=> view_cur.IMP_SEARCH_KEYS_UNIQUE,
-					p_Insert_Foreign_Keys 	=> view_cur.IMP_INSERT_FOREIGN_KEYS
+					p_Insert_Foreign_Keys 	=> view_cur.IMP_INSERT_FOREIGN_KEYS,
+					p_Merge_On_Unique_keys  => 'NO'
 				);
 				data_browser_conf.Set_Include_Query_Schema('YES');
 				v_Err_Msg := NULL;

@@ -3,7 +3,6 @@
 DROP PACKAGE custom_changelog_gen;
 DROP VIEW MVCHANGELOG_REFERENCES;
 DROP VIEW VCHANGE_LOG_FIELDS;
-DROP FUNCTION Changelog_Values;
 */
 --
 
@@ -710,7 +709,7 @@ CREATE OR REPLACE PACKAGE BODY custom_changelog_gen IS
     BEGIN
         return 'SELECT ID, LOGGING_TIMESTAMP, LOGGING_DATE, USER_NAME, ' || NL(4)
 		|| 'USER_NAME_INITCAP, ACTION_NAME, ACTION_CODE, ' || NL(4)
-		|| 'TABLE_ID, TABLE_NAME, TABLE_NAME_INITCAP, OBJECT_ID, ' || NL(4)
+		|| 'TABLE_ID, TABLE_NAME, TABLE_NAME_INITCAP, VIEW_NAME, OBJECT_ID, ' || NL(4)
 		|| 'IS_HIDDEN, COLUMN_ID, COLUMN_NAME,' || NL(4)
 		|| 'R_TABLE_NAME, R_COLUMN_NAME, FIELD_NAME, FIELD_VALUE, AFTER_VALUE'
 		||	Map_Custom_Ref_Names
@@ -723,7 +722,7 @@ CREATE OR REPLACE PACKAGE BODY custom_changelog_gen IS
     BEGIN
         return 'ID, LOGGING_TIMESTAMP, LOGGING_DATE, USER_NAME, '
 		|| 'USER_NAME_INITCAP, ACTION_NAME, ACTION_CODE, '
-		|| 'TABLE_ID, TABLE_NAME, TABLE_NAME_INITCAP, OBJECT_ID, '
+		|| 'TABLE_ID, TABLE_NAME, TABLE_NAME_INITCAP, VIEW_NAME, OBJECT_ID, '
 		|| 'IS_HIDDEN, COLUMN_ID, COLUMN_NAME, '
 		|| 'R_TABLE_NAME, R_COLUMN_NAME, FIELD_NAME, FIELD_VALUE, AFTER_VALUE'
 		||	case when custom_changelog.Get_ChangeLogFKeyColumns IS NOT NULL then ', ' || custom_changelog.Get_ChangeLogFKeyColumns  end
@@ -733,19 +732,20 @@ CREATE OR REPLACE PACKAGE BODY custom_changelog_gen IS
     FUNCTION VPROTOCOL_COLUMNS_LIST2_Query RETURN VARCHAR2
     IS
     BEGIN
-		return 'SELECT ID, LOGGING_DATE LOGGING_TIMESTAMP,' || NL(4)
+		return 'SELECT DISTINCT ID, LOGGING_DATE LOGGING_TIMESTAMP,' || NL(4)
 		|| 'CAST(LOGGING_DATE AS DATE) LOGGING_DATE,' || NL(4)
 		|| 'USER_NAME,' || NL(4)
 		|| 'USER_NAME_INITCAP,' || NL(4)
 		|| 'ACTION_NAME,' || NL(4)
 		|| 'ACTION_CODE,' || NL(4)
 		|| 'TABLE_ID,' || NL(4)
-		|| 'NVL(VIEW_NAME, TABLE_NAME) TABLE_NAME,' || NL(4)
+		|| 'TABLE_NAME,' || NL(4)
 		|| 'TABLE_NAME_INITCAP,' || NL(4)
+		|| 'VIEW_NAME,' || NL(4)
 		|| 'OBJECT_ID, IS_HIDDEN,' || NL(4)
-		|| 'Changelog_Values(ID, LOGGING_DATE) FIELD_VALUES'
+		|| q'[LISTAGG(FIELD_NAME||': '||FIELD_VALUE, ', '  ON OVERFLOW TRUNCATE) WITHIN GROUP (ORDER BY COLUMN_ID) OVER (PARTITION BY ID, LOGGING_DATE) AS FIELD_VALUES]'
 		||	Map_Custom_Ref_Names
-		|| 'FROM VCHANGE_LOG' || chr(10)
+		|| 'FROM VCHANGE_LOG_FIELDS' || chr(10)
 		;
     END VPROTOCOL_COLUMNS_LIST2_Query;
 
@@ -754,7 +754,7 @@ CREATE OR REPLACE PACKAGE BODY custom_changelog_gen IS
     BEGIN
         return 'ID, LOGGING_TIMESTAMP, LOGGING_DATE, USER_NAME, '
 		|| 'USER_NAME_INITCAP, ACTION_NAME, ACTION_CODE, '
-		|| 'TABLE_ID, TABLE_NAME, TABLE_NAME_INITCAP, OBJECT_ID, '
+		|| 'TABLE_ID, TABLE_NAME, TABLE_NAME_INITCAP, VIEW_NAME, OBJECT_ID, '
 		|| 'IS_HIDDEN, FIELD_VALUES'
 		||	case when custom_changelog.Get_ChangeLogFKeyColumns IS NOT NULL then ', ' || custom_changelog.Get_ChangeLogFKeyColumns  end
 		;
@@ -1642,15 +1642,15 @@ CREATE OR REPLACE PACKAGE BODY custom_changelog_gen IS
 			end
 		|| 'LOGGING_DATE AS DML$_LOGGING_DATE, ' || NL(20)
 		|| 'USER_NAME AS DML$_USER_NAME, ' || NL(20)
-		|| 'TABLE_NAME AS DML$_TABLE_NAME,  ' || NL(20)
+		|| 'VIEW_NAME AS DML$_TABLE_NAME,  ' || NL(20)
 		|| 'OBJECT_ID AS ' || p_Primary_Key_Col || ', ' || NL(20)
 		|| 'ACTION_CODE AS DML$_ACTION' || ', '
 		|| 'IS_HIDDEN AS DML$_IS_HIDDEN' || ', '
 		|| v_SelectList2
 		|| NL(16)
 		|| 'FROM VCHANGE_LOG_COLUMNS' || NL(16)
-		|| 'WHERE TABLE_NAME = ' || DBMS_ASSERT.ENQUOTE_LITERAL(p_View_Name) || NL(16)
-		|| 'GROUP BY LOGGING_DATE, ID, USER_NAME, OBJECT_ID, ACTION_CODE, IS_HIDDEN, TABLE_NAME'
+		|| 'WHERE VIEW_NAME = ' || DBMS_ASSERT.ENQUOTE_LITERAL(p_View_Name) || NL(16)
+		|| 'GROUP BY LOGGING_DATE, ID, USER_NAME, OBJECT_ID, ACTION_CODE, IS_HIDDEN, VIEW_NAME'
 		|| v_Changelog_Key_Col
 		|| NL(14)
 		|| ') X ' || NL(12)
@@ -1752,16 +1752,16 @@ CREATE OR REPLACE PACKAGE BODY custom_changelog_gen IS
 	BEGIN
 		if p_Table_Name IS NOT NULL then 
 			v_Custom_Ref_Column := changelog_conf.Get_ChangeLog_Custom_Ref(p_Table_Name => p_Table_Name);
-			v_Query := 'SELECT LOGGING_DATE, USER_NAME_INITCAP USER_NAME, ACTION_NAME||chr(32)||TABLE_NAME_INITCAP TABLE_NAME, FIELD_NAME, FIELD_VALUE' || chr(10) 
+			v_Query := 'SELECT LOGGING_DATE, USER_NAME_INITCAP USER_NAME, ACTION_NAME||chr(32)||TABLE_NAME_INITCAP ACTION, FIELD_NAME, FIELD_VALUE' || chr(10) 
 			|| 'FROM VCHANGE_LOG_FIELDS WHERE ';
 			if v_Custom_Ref_Column IS NOT NULL then 
 				v_Query := v_Query || v_Custom_Ref_Column || ' = :' || p_Key_Item_Name;
 			else
-				v_Query := v_Query || 'TABLE_NAME = ' || DBMS_ASSERT.ENQUOTE_LITERAL(p_Table_Name) || ' AND OBJECT_ID = :' || p_Key_Item_Name;
+				v_Query := v_Query || 'VIEW_NAME = ' || DBMS_ASSERT.ENQUOTE_LITERAL(p_Table_Name) || ' AND OBJECT_ID = :' || p_Key_Item_Name;
 			end if;
 			v_Query := v_Query || ' ORDER BY LOGGING_TIMESTAMP DESC, USER_NAME, TABLE_NAME';
 		else -- enable APEX the validate the query
-			v_Query := q'[SELECT LOCALTIMESTAMP LOGGING_DATE, SYS_CONTEXT('APEX$SESSION','APP_USER') USER_NAME, NULL TABLE_NAME, NULL FIELD_NAME, NULL FIELD_VALUE from dual]';
+			v_Query := q'[SELECT LOCALTIMESTAMP LOGGING_DATE, SYS_CONTEXT('APEX$SESSION','APP_USER') USER_NAME, NULL ACTION, NULL FIELD_NAME, NULL FIELD_VALUE from dual]';
 		end if;
 		return v_Query;
 	END;
@@ -1930,7 +1930,9 @@ CREATE OR REPLACE PACKAGE BODY custom_changelog_gen IS
 			WHERE INCLUDE_CHANGELOG = 'YES'
 			AND HAS_SCALAR_KEY = 'YES'
 			AND IS_CANDIDATE_KEY = 'YES'
-			AND (TABLE_NAME LIKE p_Table_Name OR p_Table_Name IS NULL)
+			and (changelog_conf.Match_Column_Pattern(VIEW_NAME, changelog_conf.Get_IncludeHistViewsPattern) = 'YES' or p_Table_Name IS NOT NULL)
+			and (changelog_conf.Match_Column_Pattern(VIEW_NAME, changelog_conf.Get_ExcludeHistViewsPattern) = 'NO' or p_Table_Name IS NOT NULL)
+			AND (VIEW_NAME LIKE p_Table_Name OR p_Table_Name IS NULL)
 			ORDER BY VIEW_NAME;
         TYPE stat_tbl IS TABLE OF view_cur%ROWTYPE;
         v_stat_tbl      stat_tbl;
@@ -2297,7 +2299,14 @@ CREATE OR REPLACE PACKAGE BODY custom_changelog_gen IS
 	END Prepare_Tables;
 end custom_changelog_gen;
 /
-show errors
+
+BEGIN
+	if changelog_conf.Get_Use_Change_Log = 'YES' then 
+		custom_changelog_gen.Gen_VPROTOCOL_Views;
+	end if;
+END;
+/
+
 /*
 set serveroutput on size unlimited
 exec custom_changelog_gen.Prepare_Tables;

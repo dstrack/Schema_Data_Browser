@@ -19,6 +19,7 @@ set serveroutput on size unlimited
 declare 
     v_Schema_Name VARCHAR2(128) := SYS_CONTEXT('USERENV', 'CURRENT_SCHEMA');
     v_apex_schema VARCHAR2(128);
+	v_tools_schema VARCHAR2(128);
 	v_update_apex_tables VARCHAR2(128);
 	v_use_apex_installer VARCHAR2(128);
 	v_use_dbms_crypt VARCHAR2(128);
@@ -43,7 +44,7 @@ begin
 	WHERE S.synonym_name = 'APEX'
 	AND S.owner = 'PUBLIC'
     GROUP BY S.TABLE_OWNER;
-
+	
     dbms_output.put_line('-- creating package data_browser_specs');
     dbms_output.put_line('-- current schema : ' || v_Schema_Name);
     dbms_output.put_line('-- apex schema    : ' || v_apex_schema);
@@ -53,8 +54,9 @@ begin
 		   , max(case when TABLE_NAME = 'SCHEMA_KEYCHAIN' AND TABLE_SCHEMA = 'CUSTOM_KEYS' then 'TRUE' else 'FALSE' end) use_key_chain
 		   , max(case when TABLE_NAME = 'SET_CUSTOM_CTX' AND TABLE_SCHEMA = 'CUSTOM_KEYS' then 'TRUE' else 'FALSE' end) use_custom_ctx
 		   , max(case when TABLE_NAME = 'DATA_BROWSER_SCHEMA' then 'TRUE' else 'FALSE' end) use_schema_tools
+		   , max(case when TABLE_NAME = 'DATA_BROWSER_SCHEMA' then TABLE_SCHEMA end) tools_schema
            , max(case when TABLE_NAME = 'ORDIMAGE' AND TABLE_SCHEMA = 'ORDSYS' then 'TRUE' else 'FALSE' end) use_ordimage
-	INTO v_use_dbms_crypt, v_use_ctx_ddl, v_use_key_chain, v_use_custom_ctx, v_use_schema_tools, v_use_ordimage
+	INTO v_use_dbms_crypt, v_use_ctx_ddl, v_use_key_chain, v_use_custom_ctx, v_use_schema_tools, v_tools_schema, v_use_ordimage
 	FROM SYS.ALL_TAB_PRIVS 
 	WHERE TABLE_NAME IN (
 		'DBMS_CRYPTO', 'CTX_DDL', 'SCHEMA_KEYCHAIN', 'SET_CUSTOM_CTX', 
@@ -62,6 +64,19 @@ begin
 	AND GRANTEE IN (SYS_CONTEXT('USERENV', 'CURRENT_SCHEMA'), 'PUBLIC')
 	AND PRIVILEGE = 'EXECUTE';
 
+	if v_use_apex_installer = 'TRUE' then 
+		v_stat := 'CREATE OR REPLACE SYNONYM WWV_FLOW_INSTALL_WIZARD FOR ' || v_apex_schema || '.WWV_FLOW_INSTALL_WIZARD';
+		EXECUTE IMMEDIATE v_Stat;	
+	end if;
+	if v_use_schema_tools = 'TRUE' then 
+		v_stat := 'CREATE OR REPLACE SYNONYM DATA_BROWSER_SCHEMA FOR ' || v_tools_schema || '.DATA_BROWSER_SCHEMA';
+		EXECUTE IMMEDIATE v_Stat;	
+	end if;
+	if v_use_key_chain = 'TRUE' then 
+		v_stat := 'CREATE OR REPLACE SYNONYM SCHEMA_KEYCHAIN FOR CUSTOM_KEYS.SCHEMA_KEYCHAIN';
+		EXECUTE IMMEDIATE v_Stat;	
+	end if;
+	
 	SELECT case when COUNT(*) > 0 then 'TRUE' else 'FALSE' end INTO v_use_data_reporter
 	FROM SYS.USER_TABLES 
 	WHERE TABLE_NAME = 'EBA_DP_DATA_SOURCES';

@@ -51,9 +51,7 @@ AS
 		p_User_ID				IN NUMBER,
 		p_Account_Ablaufdatum 	IN DATE,
 		p_App_ID  				IN NUMBER,
-		p_Startpage		 		IN NUMBER,
-		p_instance_url 			IN VARCHAR2 DEFAULT NULL, 	-- https://apex.wecoserv.de/apex
-		p_Host_Name 			IN VARCHAR2 DEFAULT NULL 	-- apex.wecoserv.de
+		p_Startpage		 		IN NUMBER
 	);
 
 	PROCEDURE Request_New_password (
@@ -61,8 +59,6 @@ AS
 		p_EMail				IN VARCHAR2,
 		p_App_ID  			IN NUMBER,
 		p_Startpage 		IN NUMBER DEFAULT 303,		-- APP_USERS Account Freischalten
-		p_instance_url 		IN VARCHAR2 DEFAULT NULL, 	-- https://apex.wecoserv.de/apex
-		p_Host_Name 		IN VARCHAR2 DEFAULT NULL, 	-- data.wegner.de / apex.wecoserv.de
 		p_Message			OUT VARCHAR2
 	);
 
@@ -214,9 +210,7 @@ CREATE OR REPLACE PACKAGE BODY data_browser_login AS
 		p_User_ID				IN NUMBER,
 		p_Account_Ablaufdatum 	IN DATE,
 		p_App_ID  				IN NUMBER,
-		p_Startpage		 		IN NUMBER,
-		p_instance_url 			IN VARCHAR2 DEFAULT NULL, 
-		p_Host_Name 			IN VARCHAR2 DEFAULT NULL 
+		p_Startpage		 		IN NUMBER
 	)
 	IS
 	    v_count1        NUMBER 		:= 0;
@@ -225,12 +219,21 @@ CREATE OR REPLACE PACKAGE BODY data_browser_login AS
 		v_Token         VARCHAR2(128);
     	v_Workspace     VARCHAR2(128);
     	v_Mail_type     pls_integer;
+    	v_Sender_ID		NUMBER;
 	BEGIN
         $IF data_browser_conf.g_debug $THEN
             EXECUTE IMMEDIATE api_trace.Dyn_Log_Start
-            USING p_user_id,p_account_ablaufdatum,p_app_id,p_startpage,p_instance_url,p_host_name;
+            USING p_user_id,p_account_ablaufdatum,p_app_id,p_startpage;
         $END
 		v_Password := data_browser_auth.Temporary_Password();
+
+		begin
+			SELECT USER_ID INTO v_Sender_ID
+			FROM V_CONTEXT_USERS WHERE UPPER_LOGIN_NAME = V('APP_USER');
+		exception
+		  when NO_DATA_FOUND then
+			v_Sender_ID		:= NULL;
+		end;
 
 		SELECT case when EMAIL_VALIDATED = 'N' then dbms_random.string('X',32) end TOKEN,
 			case when EMAIL_VALIDATED = 'N' then 3 else 2 end MAIL_TYPE, -- 2= requests a new password - account credentials, 3=Guests Invitation - confirm e-mail address
@@ -251,10 +254,9 @@ CREATE OR REPLACE PACKAGE BODY data_browser_login AS
 			p_User_ID				=> p_User_ID,
 			p_Password 				=> v_Password,
 			p_Account_Token			=> v_Token,
+			p_Sender_ID				=> v_Sender_ID,
 			p_App_ID  				=> p_App_ID,
 			p_Startpage		 		=> p_Startpage,
-			p_instance_url 			=> p_instance_url,
-			p_Host_Name 			=> p_Host_Name,
 			p_Workspace				=> case when data_browser_conf.Has_Multiple_Workspaces = 'YES' then v_Workspace end,
 			p_Mail_Type				=> v_Mail_type
 		);
@@ -266,7 +268,7 @@ CREATE OR REPLACE PACKAGE BODY data_browser_login AS
     exception 
       when OTHERS then 
         EXECUTE IMMEDIATE api_trace.Dyn_Log_Exception
-        USING p_user_id,p_account_ablaufdatum,p_app_id,p_startpage,p_instance_url,p_host_name;
+        USING p_user_id,p_account_ablaufdatum,p_app_id,p_startpage;
         RAISE;
 	END Guest_New_password;
 
@@ -275,8 +277,6 @@ CREATE OR REPLACE PACKAGE BODY data_browser_login AS
 		p_EMail					IN VARCHAR2,
 		p_App_ID  				IN NUMBER,
 		p_Startpage 			IN NUMBER DEFAULT 303,	
-		p_instance_url 			IN VARCHAR2 DEFAULT NULL, 
-		p_Host_Name 			IN VARCHAR2 DEFAULT NULL, 
 		p_Message				OUT VARCHAR2
 	)
 	is
@@ -285,7 +285,7 @@ CREATE OR REPLACE PACKAGE BODY data_browser_login AS
 	begin
         $IF data_browser_conf.g_debug $THEN
             EXECUTE IMMEDIATE api_trace.Dyn_Log_Start
-            USING p_name,p_email,p_app_id,p_startpage,p_instance_url,p_host_name;
+            USING p_name,p_email,p_app_id,p_startpage;
         $END
 		p_Message := NULL;
 		begin
@@ -309,9 +309,7 @@ CREATE OR REPLACE PACKAGE BODY data_browser_login AS
 			p_User_ID				=> v_User_ID,
 			p_Account_Ablaufdatum 	=> SYSDATE+2,
 			p_App_ID  				=> p_App_ID,
-			p_Startpage		 		=> p_Startpage,
-			p_instance_url 			=> p_instance_url,
-			p_Host_Name 			=> p_Host_Name
+			p_Startpage		 		=> p_Startpage
 		);
         ----
         $IF data_browser_conf.g_debug $THEN
@@ -322,7 +320,7 @@ CREATE OR REPLACE PACKAGE BODY data_browser_login AS
 	  when others then
 	  	COMMIT;
         EXECUTE IMMEDIATE api_trace.Dyn_Log_Exception
-        USING p_name,p_email,p_app_id,p_startpage,p_instance_url,p_host_name,p_message;
+        USING p_name,p_email,p_app_id,p_startpage,p_message;
 		APEX_UTIL.PAUSE(1);
 		p_Message := APEX_LANG.LANG('The service is currently not available.');
 	end Request_New_password;
@@ -333,7 +331,7 @@ CREATE OR REPLACE PACKAGE BODY data_browser_login AS
 		p_User_ID			OUT NUMBER
 	)
 	IS
-		v_User_ID	NUMBER := NULL;
+		v_User_ID	NUMBER;
 	BEGIN
         $IF data_browser_conf.g_debug $THEN
             EXECUTE IMMEDIATE api_trace.Dyn_Log_Start
@@ -552,8 +550,11 @@ CREATE OR REPLACE PACKAGE BODY data_browser_login AS
 		v_Workspace_Name VARCHAR2(200);
 		v_Name_To VARCHAR2(100);
 		v_Mail_From VARCHAR2(100);
+		v_Mail_Reply_to VARCHAR2(100);
 		v_Name_From VARCHAR2(100);
-		v_AccountInfos VARCHAR2(4000);
+		v_Privileges_Infos VARCHAR2(4000);
+		v_Workspace_Infos VARCHAR2(4000);
+		v_Account_Expiration VARCHAR2(4000);
 		v_Account_Expiration_Date DATE;
 		v_Date_Format   VARCHAR2(20) :='DD-Mon-YYYY';
     	v_Language_Code V_CONTEXT_USERS.LANGUAGE_CODE%TYPE;
@@ -564,6 +565,8 @@ CREATE OR REPLACE PACKAGE BODY data_browser_login AS
 		v_confirm_url   VARCHAR2(1024);
 		v_Mail_Footer	VARCHAR2(4000);
 		v_Schema_Name 	VARCHAR2(1024);
+		v_template_static_id VARCHAR2(100);
+		v_template_placeholders	CLOB;
 		v_conn 			utl_smtp.connection;
 	BEGIN
         $IF data_browser_conf.g_debug $THEN
@@ -576,8 +579,8 @@ CREATE OR REPLACE PACKAGE BODY data_browser_login AS
 		v_Schema_Name := SYS_CONTEXT('USERENV', 'CURRENT_SCHEMA');
 		v_App_Name_Subject := data_browser_conf.Get_Configuration_Name
 		|| ' (' || INITCAP(v_Schema_Name) || ')' ;
-		v_host_name := NVL(p_host_name, data_browser_login.Get_App_Host_Name) 
-		|| 'f?p=' || p_App_ID || ':LOGIN_DESKTOP'; 
+		v_host_name := RTRIM(NVL(p_host_name, data_browser_login.Get_App_Host_Name), '/ ')
+		|| '/f?p=' || p_App_ID; 
 		-- call set_security_group_id to enable access to translation repository
 		for c1 in (
 			select workspace_id
@@ -603,14 +606,16 @@ CREATE OR REPLACE PACKAGE BODY data_browser_login AS
 		WHERE USER_ID = p_User_ID
 		;
 		if p_Sender_ID IS NOT NULL then
-			SELECT NVL(TRIM(FIRST_NAME || ' ' ||  LAST_NAME), LOGIN_NAME) NAME_FROM
-			INTO v_Name_From
+			SELECT NVL(TRIM(FIRST_NAME || ' ' ||  LAST_NAME), LOGIN_NAME) NAME_FROM,
+				EMAIL_ADDRESS
+			INTO v_Name_From, v_Mail_Reply_to
 			FROM V_CONTEXT_USERS B
 			WHERE B.USER_ID = p_Sender_ID;
 		else 
 			v_Name_From := data_browser_conf.Get_Configuration_Name;
+			v_Mail_Reply_to := null;
 		end if;
-		v_Mail_From := data_browser_conf.Get_Email_From_Address;
+		v_Mail_From := data_browser_conf.Get_Email_From_Address;		
 		
 		SELECT DESCRIPTION 
 		INTO v_Mail_Footer
@@ -634,80 +639,55 @@ CREATE OR REPLACE PACKAGE BODY data_browser_login AS
 		v_home_url := v_instance_url || '/f?p=' || p_App_ID || ':1:0::::';
 		v_home_url := v_home_url || 'LOGIN_SCHEMA,LOGIN_WORKSPACE:' || v_Schema_Name || ',' || p_Workspace;
 
-		v_body_html := '<html><body>' || v_cr;
-		if p_Mail_Type = 1 then -- 1=Self registration - confirm e-mail address
-			v_Subject := apex_lang.message(
-				p_name => 'APP.P101.MAIL_SUBJECT1',
-				p0 => v_App_Name_Subject,
-				p_lang => v_Language_Code,
-				p_application_id => p_App_ID
-			);
-			v_AccountInfos :=  apex_lang.message(
-				p_name => 'APP.P101.MAIL_BODY1',
-				p0 => v_Name_To,
-				p1 => v_host_name,
-				p2 => v_AccountName,
-				p3 => v_confirm_url,
-				p4 => NVL(TO_CHAR(v_Account_Expiration_Date, v_Date_Format), '---'),
-				p5 => v_home_url,
-				p6 => v_App_Name_Subject,
-				p7 => v_Mail_Footer,
-				p_lang => v_Language_Code,
-				p_application_id => p_App_ID
-			);
-		elsif p_Mail_Type = 2 then -- 2=requests a new password - account credentials
-			v_Subject := apex_lang.message(
-				p_name => 'APP.P101.MAIL_SUBJECT2',
-				p0 => v_App_Name_Subject,
-				p_lang => v_Language_Code,
-				p_application_id => p_App_ID
-			);
-			v_AccountInfos :=  apex_lang.message(
-				p_name => 'APP.P101.MAIL_BODY2',
-				p0 => v_Name_To,
-				p1 => v_host_name,
-				p2 => v_AccountName,
-				p3 => p_Password,
-				p4 => NVL(TO_CHAR(v_Account_Expiration_Date, v_Date_Format), '---'),
-				p5 => v_home_url,
-				p6 => v_App_Name_Subject,
-				p7 => v_Mail_Footer,
-				p_lang => v_Language_Code,
-				p_application_id => p_App_ID
-			);
-		elsif p_Mail_Type = 3 then -- 3=Guests Invitation - confirm e-mail address
-			v_Subject := apex_lang.message(
-				p_name => 'APP.P101.MAIL_SUBJECT3',
-				p0 => v_App_Name_Subject,
-				p_lang => v_Language_Code,
-				p_application_id => p_App_ID
-			);
-			v_host_name := v_host_name || ':0::::LOGIN_SCHEMA,LOGIN_WORKSPACE:' || v_Schema_Name || ',' || p_Workspace;
-			v_AccountInfos :=  apex_lang.message(
-				p_name => 'APP.P101.MAIL_BODY3',
-				p0 => v_host_name,
-				p1 => v_Name_From,
-				p2 => v_AccountName,
-				p3 => p_Password,
-				p4 => NVL(TO_CHAR(v_Account_Expiration_Date, v_Date_Format), '---'),
-				p5 => v_confirm_url,
-				p6 => v_Mail_Footer,
-				p_lang => v_Language_Code,
-				p_application_id => p_App_ID
-			);
+		if p_Workspace IS NOT NULL then
+			v_Workspace_Infos := apex_lang.lang(p_primary_text_string => 'The workspace is : ', p_primary_language => v_Language_Code) || p_Workspace || v_cr;
 		end if;
-		v_body := REGEXP_REPLACE(REPLACE(v_AccountInfos, v_newline, v_cr), '<[^>]+>', '');
-		v_body_html := v_body_html || v_AccountInfos || '</body></html>';
+		v_Privileges_Infos := apex_lang.lang(p_primary_text_string => 'You have the access level ', p_primary_language => v_Language_Code) || v_Privileges || '.' || v_cr;
+		if v_Account_Expiration_Date IS NOT NULL then
+			v_Account_Expiration := apex_lang.lang(p_primary_text_string => 'These credentials expire after ', p_primary_language => v_Language_Code) || TO_CHAR(v_Account_Expiration_Date, v_Date_Format) || '.' || v_cr;
+		end if;
+
+		v_template_static_id := case p_Mail_Type 
+								when 1 then 'SELF_REGISTRATION' 
+								when 2 then 'REQUEST_NEW_PASSWORD' 
+								when 3 then 'GUESTS_INVITATION' end 
+								|| '_' || UPPER(v_Language_Code);
+		v_template_placeholders := '{' ||
+			'    "ACCOUNT_EXPIRATION":' || apex_json.stringify( v_Account_Expiration ) ||
+			'   ,"ACCOUNT_NAME":'       || apex_json.stringify( v_AccountName ) ||
+			'   ,"APP_NAME":'           || apex_json.stringify( v_App_Name_Subject ) ||
+			'   ,"CONFIRM_URL":'        || apex_json.stringify( v_confirm_url ) ||
+			'   ,"HOME_URL":'           || apex_json.stringify( v_home_url ) ||
+			'   ,"HOST_NAME":'          || apex_json.stringify( v_host_name ) ||
+			'   ,"MAIL_FOOTER":'        || apex_json.stringify( '$MAIL_FOOTER$' ) || -- v_Mail_Footer contains html
+			'   ,"NAME_FROM":'          || apex_json.stringify( v_Name_From ) ||
+			'   ,"NAME_TO":'            || apex_json.stringify( v_Name_To ) ||
+			'   ,"PASSWORD":'           || apex_json.stringify( p_Password ) ||
+			'   ,"PRIVILEGES_INFOS":'   || apex_json.stringify( v_Privileges_Infos ) ||
+			'   ,"WORKSPACE_INFOS":'    || apex_json.stringify( v_Workspace_Infos ) ||
+			'}';
+
+			apex_mail.prepare_template (
+				p_static_id => v_template_static_id,
+				p_placeholders => v_template_placeholders,
+				p_subject => v_Subject,
+				p_html => v_body_html,
+				p_text  => v_body 
+			);
+			v_body_html := replace(v_body_html, '$MAIL_FOOTER$', v_Mail_Footer);
+			v_body := replace(v_body, '$MAIL_FOOTER$', v_Mail_Footer);
+			apex_debug.message('Account_Info_Mail template: %s, placeholders: %s', v_template_static_id, v_template_placeholders);
+
+		apex_debug.message('apex_mail.send to: %s, from: %s, replyto: %s, App_ID: %s', v_Mail_To, v_Mail_From, v_Mail_Reply_to, p_App_ID);
 		apex_mail.Send (
 			p_to 		=> v_Mail_To,
 			p_from 		=> v_Mail_From,
 			p_body 		=> v_body,
 			p_body_html => v_body_html,
-			p_subj 		=> v_Subject
+			p_subj 		=> v_Subject,
+			p_replyto   => v_Mail_Reply_to
 		);
-		commit;
 		apex_mail.push_queue;
-		DBMS_OUTPUT.PUT_LINE('data_browser_login.Account_Info_Mail(p_from:'||v_Mail_From||', Mail_To:'||v_Mail_To||') - completed ');
         ----
         $IF data_browser_conf.g_debug $THEN
             EXECUTE IMMEDIATE api_trace.Dyn_Log_Exit;
@@ -791,7 +771,14 @@ CREATE OR REPLACE PACKAGE BODY data_browser_login AS
 		  when NO_DATA_FOUND then
 			v_startpage		:= 104;
 		end;
-		v_Sender_ID := SYS_CONTEXT('CUSTOM_CTX', 'USER_ID');
+		begin
+			SELECT USER_ID INTO v_Sender_ID
+			FROM V_CONTEXT_USERS WHERE UPPER_LOGIN_NAME = V('APP_USER');
+		exception
+		  when NO_DATA_FOUND then
+			v_Sender_ID		:= NULL;
+		end;
+
 		v_sql :=
         'begin ' || chr(10) ||
         'data_browser_login.Account_Info_Mail (' || chr(10) ||
@@ -861,7 +848,7 @@ BEGIN
                 :new.ACCOUNT_EXPIRATION_DATE := NVL(:new.ACCOUNT_EXPIRATION_DATE, SYSDATE+2);
                 v_Token := dbms_random.string('X',32);
                 :new.EMAIL_VALIATION_TOKEN :=  data_browser_auth.hex_hash(:new.ID, v_Token);
-                data_browser_auth.log_message('APP_USERS_PWD_TR', 'Account_Info_Mail_Job(' || :new.ID ||', ' || v_Password || ', ' || v_Token|| ', ' || V('APP_ID') || ')' );
+                data_browser_auth.log_message('APP_USERS_PWD_TR', :new.LOGIN_NAME || ': Account_Info_Mail_Job(' || :new.ID ||', ' || v_Password || ', ' || v_Token|| ', ' || V('APP_ID') || ')' );
                 data_browser_login.Account_Info_Mail_Job(
                     p_User_ID       => :new.ID,
                     p_Password      => v_Password,

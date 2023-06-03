@@ -57,12 +57,6 @@ IS
     PROCEDURE Save_Config_Defaults;
     FUNCTION Get_Context_Workspace_Name RETURN VARCHAR2;
     FUNCTION Get_Current_Workspace_ID RETURN  USER_NAMESPACES.WORKSPACE$_ID%TYPE;
-	PROCEDURE Set_Current_Workspace (
-   		p_Workspace_Name	IN VARCHAR2
-   	);
-	PROCEDURE Set_New_Workspace (
-   		p_Workspace_Name	IN VARCHAR2
-   	);
     FUNCTION Get_Current_User_Name RETURN VARCHAR2;
     FUNCTION Get_ChangeLogTable RETURN VARCHAR2 DETERMINISTIC;
     FUNCTION Get_ChangeLogFunction RETURN VARCHAR2 DETERMINISTIC;
@@ -159,12 +153,6 @@ IS
     )
     RETURN VARCHAR2;
 
-    FUNCTION Changelog_Column_Name (
-        p_Table_Name    IN VARCHAR2,
-        p_Column_ID    IN INTEGER
-    )
-    RETURN VARCHAR2 DETERMINISTIC;
-
     PROCEDURE Changelog_Tables_Init (
         p_Source_View_Name IN VARCHAR2 DEFAULT 'MVBASE_VIEWS'
     );
@@ -251,6 +239,9 @@ CREATE OR REPLACE PACKAGE BODY custom_changelog IS
     g_ChangeLogFinishFunction   CONSTANT VARCHAR2(64)   := 'custom_changelog.FinishLog';
     g_ChangeLogFlushFunction    CONSTANT VARCHAR2(64)   := 'custom_changelog.FlushLog';
     g_AltChangeLogFunction      CONSTANT VARCHAR2(64)   := 'custom_changelog.AddLog';
+	g_CtxNamespace  			CONSTANT VARCHAR2(32) 	:= 'CUSTOM_CTX';	-- Context Namespace
+	g_CtxWorkspaceID    		CONSTANT VARCHAR2(32) 	:= 'WORKSPACE_ID'; 	-- Context Parameter for current Custom Namspace identifier
+	g_CtxWorkspaceName  		CONSTANT VARCHAR2(32) 	:= 'WORKSPACE_NAME';-- Context Parameter for current Custom Namspace Name
     g_ChangeLogViewExt          VARCHAR2(64)            := '_CL';       -- Extension for History Views with AS OF TIMESTAMP filter
     g_HistoryViewExt            VARCHAR2(64)            := '_HS';       -- Extension for History Views with all modification timestamps
     -----------------------------------------------------------------------------
@@ -342,49 +333,21 @@ CREATE OR REPLACE PACKAGE BODY custom_changelog IS
     FUNCTION Get_Context_Workspace_Name RETURN VARCHAR2
 	IS
 	BEGIN
-		RETURN NVL(APEX_UTIL.GET_SESSION_STATE(g_Workspace_Item), SYS_CONTEXT('USERENV', 'CURRENT_SCHEMA'));
+		RETURN COALESCE(SYS_CONTEXT(g_CtxNamespace, g_CtxWorkspaceName), APEX_UTIL.GET_SESSION_STATE(g_Workspace_Item), SYS_CONTEXT('USERENV', 'CURRENT_SCHEMA'));
 	END;
 
     FUNCTION Get_Current_Workspace_ID RETURN USER_NAMESPACES.WORKSPACE$_ID%TYPE
     IS
-        v_Workspace_ID      NUMBER;
-		v_Workspace_Name USER_NAMESPACES.WORKSPACE_NAME%TYPE := Get_Context_Workspace_Name;
+        v_Workspace_ID      NUMBER := SYS_CONTEXT(g_CtxNamespace, g_CtxWorkspaceID);
     BEGIN
-        SELECT WORKSPACE$_ID INTO v_Workspace_ID 
-        FROM USER_NAMESPACES 
-        WHERE WORKSPACE_NAME = v_Workspace_Name;
-        
+    	if v_Workspace_ID IS NULL then 
+			SELECT WORKSPACE$_ID INTO v_Workspace_ID 
+			FROM USER_NAMESPACES 
+			WHERE WORKSPACE_NAME = Get_Context_Workspace_Name;
+        end if;
         RETURN v_Workspace_ID;
     END;
     	
-	PROCEDURE Set_Current_Workspace (
-   		p_Workspace_Name	IN VARCHAR2
-   	)
-   	IS 
-		v_Workspace_Name USER_NAMESPACES.WORKSPACE_NAME%TYPE := UPPER(p_Workspace_Name);
-   	BEGIN
-   		APEX_UTIL.SET_SESSION_STATE(g_Workspace_Item, v_Workspace_Name);
-   	END;
-   	
-	PROCEDURE Set_New_Workspace (
-   		p_Workspace_Name	IN VARCHAR2
-   	)
-	IS PRAGMA AUTONOMOUS_TRANSACTION;
-		v_Workspace_Id NUMBER := NULL;
-		v_Workspace_Name USER_NAMESPACES.WORKSPACE_NAME%TYPE := UPPER(p_Workspace_Name);
-	BEGIN
-        SELECT WORKSPACE$_ID INTO v_Workspace_ID 
-        FROM USER_NAMESPACES 
-        WHERE WORKSPACE_NAME = v_Workspace_Name;
-		APEX_UTIL.SET_SESSION_STATE(g_Workspace_Item, v_Workspace_Name);
-		COMMIT;
-	EXCEPTION
-	WHEN NO_DATA_FOUND THEN
-		INSERT INTO USER_NAMESPACES (WORKSPACE_NAME) VALUES(v_Workspace_Name);
-		APEX_UTIL.SET_SESSION_STATE(g_Workspace_Item, v_Workspace_Name);
-		COMMIT;
-	END;
-
     FUNCTION Get_Current_User_Name RETURN VARCHAR2
     IS
     BEGIN
@@ -688,27 +651,6 @@ CREATE OR REPLACE PACKAGE BODY custom_changelog IS
             END;
         END IF;
         RETURN v_Wert;
-    END;
-
-
-    -- returns the Column_Name of a Changelog entry
-    FUNCTION Changelog_Column_Name (
-        p_Table_Name    IN VARCHAR2,
-        p_Column_ID    IN INTEGER
-    )
-    RETURN VARCHAR2 DETERMINISTIC
-    IS
-        v_Column_Name   VARCHAR2(50);
-    BEGIN
-        SELECT COLUMN_NAME -- wird in schema XXX_APP_USER nicht gefunden
-        INTO v_Column_Name
-        FROM USER_TAB_COLUMNS
-        WHERE TABLE_NAME = p_Table_Name
-        AND COLUMN_ID = p_Column_ID;
-
-        RETURN v_Column_Name;
-    EXCEPTION WHEN NO_DATA_FOUND THEN
-        RETURN NULL;
     END;
 
     PROCEDURE Changelog_Tables_Init (
@@ -1045,9 +987,9 @@ COMMENT ON COLUMN VCHANGELOG_ITEM.AFTER_VALUE IS
 
 
 CREATE OR REPLACE VIEW VCHANGLOG_EVENTS (ID, LOGGING_DATE, USER_NAME,
-    TABLE_NAME, OBJECT_ID, IS_HIDDEN, INSERTED, UPDATED, DELETED, WORKSPACE_NAME)
+    TABLE_NAME, TABLE_NAME_INITCAP, VIEW_NAME, OBJECT_ID, IS_HIDDEN, INSERTED, UPDATED, DELETED, WORKSPACE_NAME)
 AS -- used in application schema-riser
-SELECT S.ID, S.LOGGING_DATE, INITCAP(B.USER_NAME) USER_NAME, INITCAP(T.VIEW_NAME) TABLE_NAME,
+SELECT S.ID, S.LOGGING_DATE, INITCAP(B.USER_NAME) USER_NAME, T.TABLE_NAME, INITCAP(T.VIEW_NAME) TABLE_NAME_INITCAP, T.VIEW_NAME,
     S.OBJECT_ID, S.IS_HIDDEN,
     CASE WHEN ACTION_CODE = 'I' THEN 1 ELSE 0 END INSERTED,
     CASE WHEN ACTION_CODE = 'U' THEN 1 ELSE 0 END UPDATED,
@@ -1119,7 +1061,6 @@ SELECT A.ID, A.LOGGING_DATE,
     A.ACTION_CODE,
     DECODE(A.ACTION_CODE, 'I', 'Insert', 'U', 'Update', 'D', 'Delete', 'S', 'Select') ACTION_NAME,
     A.TABLE_ID, T.VIEW_NAME, T.TABLE_NAME,
-    -- custom_changelog.Changelog_Column_Name(T.TABLE_NAME, A.COLUMN_ID) COLUMN_NAME,
     C.COLUMN_NAME,
     A.COLUMN_ID,
     A.CUSTOM_REF_ID1, A.CUSTOM_REF_ID2, A.CUSTOM_REF_ID3, A.CUSTOM_REF_ID4, A.CUSTOM_REF_ID5,

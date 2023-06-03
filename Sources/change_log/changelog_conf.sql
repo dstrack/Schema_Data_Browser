@@ -44,7 +44,8 @@ CHANGELOG_FKEY_TABLES,CHANGELOG_FKEY_COLUMNS,
 REFERENCE_DESCRIPTION_COLS,EXCLUDED_CHANGELOG_BLOB_COLS,EXCLUDED_CHANGELOG_COLS,
 INCLUDED_WORKSPACEID_PATTERN,EXCLUDED_WORKSPACEID_PATTERN,
 INCLUDED_DELETE_MARK_PATTERN,EXCLUDED_DELETE_MARK_PATTERN,
-INCLUDED_TIMESTAMP_PATTERN,EXCLUDED_TIMESTAMP_PATTERN
+INCLUDED_TIMESTAMP_PATTERN,EXCLUDED_TIMESTAMP_PATTERN,
+INCLUDED_HIST_VIEWS_PATTERN, EXCLUDED_HIST_VIEWS_PATTERN
 ON CHANGE_LOG_CONFIG FOR EACH ROW
 BEGIN
 	:new.INCLUDED_CHANGELOG_PATTERN   	:= UPPER(REPLACE(:new.INCLUDED_CHANGELOG_PATTERN, ' '));
@@ -60,6 +61,8 @@ BEGIN
 	:new.EXCLUDED_DELETE_MARK_PATTERN   := UPPER(REPLACE(:new.EXCLUDED_DELETE_MARK_PATTERN, ' '));
 	:new.INCLUDED_TIMESTAMP_PATTERN   	:= UPPER(REPLACE(:new.INCLUDED_TIMESTAMP_PATTERN, ' '));
 	:new.EXCLUDED_TIMESTAMP_PATTERN   	:= UPPER(REPLACE(:new.EXCLUDED_TIMESTAMP_PATTERN, ' '));
+	:new.INCLUDED_HIST_VIEWS_PATTERN   	:= UPPER(REPLACE(:new.INCLUDED_HIST_VIEWS_PATTERN, ' '));
+	:new.EXCLUDED_HIST_VIEWS_PATTERN   	:= UPPER(REPLACE(:new.EXCLUDED_HIST_VIEWS_PATTERN, ' '));
 	:new.LAST_MODIFIED_BY 			:= NVL(SYS_CONTEXT('APEX$SESSION','APP_USER'), SYS_CONTEXT('USERENV','SESSION_USER'));
 	:new.LAST_MODIFIED_AT   		:= LOCALTIMESTAMP;
 END;
@@ -432,6 +435,8 @@ IS
     FUNCTION Get_ExcludeDeleteMarkPattern RETURN VARCHAR2;
     FUNCTION Get_IncludeTimestampPattern RETURN VARCHAR2;
     FUNCTION Get_ExcludeTimestampPattern RETURN VARCHAR2;
+    FUNCTION Get_IncludeHistViewsPattern RETURN VARCHAR2;
+    FUNCTION Get_ExcludeHistViewsPattern RETURN VARCHAR2;
     FUNCTION Get_ColumnCreateUser RETURN VARCHAR2;
     FUNCTION Get_ColumnCreateUser_List RETURN VARCHAR2;
     FUNCTION Get_ColumnCreateDate RETURN VARCHAR2;
@@ -645,7 +650,8 @@ IS
 
     g_IncludeTimestampPattern VARCHAR2(4000)    := '%';		-- List of table name pattern that are included for 'Audit Info Columns'.
     g_ExcludeTimestampPattern VARCHAR2(4000)    := '%PROTOCOL%,USER_IMPORT_JOBS,USER_WORKSPACE_SESSIONS,PLUGIN_DELETE_CHECKS,DATA_BROWSER%.APP_%';		-- List of table name pattern that are excluded from 'Audit Info Columns'.
-
+	g_Included_Hist_Views_Pattern VARCHAR2(4000)    := '%';
+	g_Excluded_Hist_Views_Pattern VARCHAR2(4000)    := '';
     g_ExcludedTablesPattern CONSTANT VARCHAR2(4000) :=		-- Internal list of table name pattern that are excluded from 'Audit Info Columns' and 'Soft Delete Support'.
     	'USER_PROCESS_OUTPUT$,CHANGE_LOG%,CHAINED_ROWS,%PLAN_TABLE,%_IMP,PLUGIN_DELETE_CHECKS,%PROTOCOL%,%HISTORY%,USER_WORKSPACE%';
 
@@ -698,6 +704,7 @@ IS
             INCLUDED_WORKSPACEID_PATTERN, EXCLUDED_WORKSPACEID_PATTERN,
             INCLUDED_DELETE_MARK_PATTERN, EXCLUDED_DELETE_MARK_PATTERN,
             INCLUDED_TIMESTAMP_PATTERN, EXCLUDED_TIMESTAMP_PATTERN,
+            INCLUDED_HIST_VIEWS_PATTERN, EXCLUDED_HIST_VIEWS_PATTERN,
             COLUMN_WORKSPACE, COLUMN_CREATE_USER, COLUMN_CREATE_DATE, COLUMN_MODIFY_USER, COLUMN_MODIFY_DATE,
             COLUMN_DELETED_MARK, COLUMN_INDEX_FORMAT,
             DATATYPE_MODIFY_USER, COLUMNTYPE_MODIFY_USER, IS_FOREIGN_KEY_MODIFY_USER,
@@ -717,6 +724,7 @@ IS
             g_IncludeWorkspaceIDPattern, g_ExcludeWorkspaceIDPattern,
 			g_IncludeDeleteMarkPattern, g_ExcludeDeleteMarkPattern,
             g_IncludeTimestampPattern, g_ExcludeTimestampPattern,
+            g_Included_Hist_Views_Pattern, g_Excluded_Hist_Views_Pattern,
             g_ColumnWorkspace, g_ColumnCreateUser, g_ColumnCreateDate, g_ColumnModifyUser, g_ColumnModifyDate,
             g_ColumnDeletedMark, g_ColumnIndexFormat,
             g_DatatypeModifyUser, g_ColumnTypeModifyUser, g_ForeignKeyModifyUser,
@@ -745,6 +753,7 @@ IS
             INCLUDED_WORKSPACEID_PATTERN, EXCLUDED_WORKSPACEID_PATTERN,
             INCLUDED_DELETE_MARK_PATTERN, EXCLUDED_DELETE_MARK_PATTERN,
             INCLUDED_TIMESTAMP_PATTERN, EXCLUDED_TIMESTAMP_PATTERN,
+            INCLUDED_HIST_VIEWS_PATTERN, EXCLUDED_HIST_VIEWS_PATTERN,
             COLUMN_WORKSPACE, COLUMN_CREATE_USER, COLUMN_CREATE_DATE, COLUMN_MODIFY_USER, COLUMN_MODIFY_DATE,
             COLUMN_DELETED_MARK, COLUMN_INDEX_FORMAT,
             DATATYPE_MODIFY_USER, COLUMNTYPE_MODIFY_USER, IS_FOREIGN_KEY_MODIFY_USER,
@@ -764,6 +773,7 @@ IS
             g_IncludeWorkspaceIDPattern, g_ExcludeWorkspaceIDPattern,
             g_IncludeDeleteMarkPattern, g_ExcludeDeleteMarkPattern,
             g_IncludeTimestampPattern, g_ExcludeTimestampPattern,
+            g_Included_Hist_Views_Pattern, g_Excluded_Hist_Views_Pattern,
             g_ColumnWorkspace, g_ColumnCreateUser, g_ColumnCreateDate, g_ColumnModifyUser, g_ColumnModifyDate,
             g_ColumnDeletedMark, g_ColumnIndexFormat,
             g_DatatypeModifyUser, g_ColumnTypeModifyUser, g_ForeignKeyModifyUser,
@@ -2192,6 +2202,16 @@ $END
     	RETURN Concat_List(g_ExcludedTablesPattern, g_ExcludeTimestampPattern);
     END;
 
+    FUNCTION Get_IncludeHistViewsPattern RETURN VARCHAR2
+    IS
+	PRAGMA UDF;
+    BEGIN RETURN g_Included_Hist_Views_Pattern; END;
+    
+    FUNCTION Get_ExcludeHistViewsPattern RETURN VARCHAR2
+    IS
+	PRAGMA UDF;
+    BEGIN RETURN g_Excluded_Hist_Views_Pattern; END;
+
     FUNCTION Get_ColumnCreateUser RETURN VARCHAR2
     IS
 	PRAGMA UDF;
@@ -2665,9 +2685,7 @@ $END
             WHERE TABLE_NAME = p_TABLE_NAME
             AND COLUMN_NAME <> changelog_conf.Get_ColumnDeletedMark
             AND COLUMN_NAME <> changelog_conf.Get_ColumnWorkspace
-			AND DATA_TYPE NOT IN ( -- 'BLOB', 'CLOB', 'NCLOB', 
-				'ORDIMAGE', 'LONG')
-			AND VIRTUAL_COLUMN = 'NO'
+			AND DATA_TYPE NOT IN ('ORDIMAGE', 'LONG')
 			AND HIDDEN_COLUMN = 'NO'
             ORDER BY COLUMN_ID
         )

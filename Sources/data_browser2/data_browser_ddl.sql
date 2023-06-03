@@ -17,7 +17,7 @@ limitations under the License.
 CREATE OR REPLACE PACKAGE data_browser_ddl 
 AUTHID CURRENT_USER
 IS
-	g_debug 				CONSTANT BOOLEAN 	   := false;
+	g_debug 				CONSTANT BOOLEAN 	   := true;
 	c_Primary_Key_Col       CONSTANT VARCHAR2(128) := 'ID';
 	c_Row_Version_Col       CONSTANT VARCHAR2(128) := 'ROW_VERSION_NUMBER';
 	c_Unique_Desc_Col       CONSTANT VARCHAR2(128) := UPPER(apex_lang.lang('Description')); -- Bezeichnung
@@ -627,7 +627,7 @@ CREATE OR REPLACE PACKAGE BODY data_browser_ddl IS
 		|| '( '
 		|| dbms_assert.enquote_name(c_Primary_Key_Col) || ' NUMBER NOT NULL, ' || chr(10)
 		|| case when p_Add_File != 'NO' then
-		    dbms_assert.enquote_name(c_Row_Version_Col) || ' NUMBER DEFAULT 1 NOT NULL, ' || chr(10)
+		    dbms_assert.enquote_name(c_Row_Version_Col) || ' NUMBER DEFAULT ON NULL 1 NOT NULL, ' || chr(10)
 		end
 		|| case when v_Parent_Key_Column IS NOT NULL then
 			dbms_assert.enquote_name(v_Parent_Key_Column) || ' NUMBER'
@@ -884,7 +884,8 @@ CREATE OR REPLACE PACKAGE BODY data_browser_ddl IS
 									p_Default
 								when p_Data_Type = 'REFERENCE' then
 									dbms_assert.enquote_literal(p_Reference_Default_ID)
-								else dbms_assert.enquote_literal(p_Default)
+								when p_Default IS NOT NULL then
+									dbms_assert.enquote_literal(p_Default)
 							end;
 
 		v_Stat := 'ALTER TABLE ' || dbms_assert.enquote_name(v_Table_Owner) || '.'  || dbms_assert.enquote_name(v_Table_Name)
@@ -919,7 +920,7 @@ CREATE OR REPLACE PACKAGE BODY data_browser_ddl IS
 						else
 							p_Data_Type
 					end
-					|| case when p_Default IS NOT NULL then
+					|| case when v_Default_Value IS NOT NULL then
 						fn_Default_Clause
 						|| v_Default_Value
 					end
@@ -951,7 +952,7 @@ CREATE OR REPLACE PACKAGE BODY data_browser_ddl IS
 			Run_Stat (v_Stat);
 			if p_Unique = 'NO'  then 
 				v_Stat := Foreign_Key_Index(
-					p_Table_Name  => v_Table_Name,
+					p_Table_Name  => p_Table_Name,
 					p_Parent_Table => p_Reference_Table,
 					p_Parent_Key_Column => v_Column_Name
 				);

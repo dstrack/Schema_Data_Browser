@@ -78,7 +78,7 @@ CREATE OR REPLACE PACKAGE BODY Data_Browser_Import IS
 			data_browser_select.Get_View_Column_Cursor(
 				p_Table_Name => S.VIEW_NAME,
 				p_Unique_Key_Column => S.SEARCH_KEY_COLS,
-				p_Data_Columns_Only => 'NO',
+				p_Data_Columns_Only => 'YES',
 				p_Data_Format => p_Data_Format,
 				p_Use_Group_Separator => p_Use_Group_Separator,
 				p_View_Mode => 'IMPORT_VIEW',
@@ -347,7 +347,6 @@ CREATE OR REPLACE PACKAGE BODY Data_Browser_Import IS
 				T.R_VIEW_NAME, T.COLUMN_ID, S.SHORT_NAME,
 				T.HAS_NULLABLE, T.HAS_SIMPLE_UNIQUE, T.U_MEMBERS, 
 				T.NULLABLE, T.D_REF, T.D_COLUMN_NAME, T.POSITION2
-			-- HAVING (MAX(T.U_CONSTRAINT_NAME) IS NOT NULL or Data_Browser_Import.Get_Search_Keys_Unique = 'NO')
 			ORDER BY SUM(HAS_FOREIGN_KEY), T.TABLE_ALIAS DESC, T.U_MEMBERS, T.COLUMN_ID, T.D_REF
 		) 
 		----------------------------------------------------------------------------------
@@ -602,6 +601,7 @@ CREATE OR REPLACE PACKAGE BODY Data_Browser_Import IS
         p_Import_Timestamp_Format   VARCHAR2    DEFAULT NULL,	-- Import Timestamp Format Mask
 		p_Insert_Foreign_Keys   	VARCHAR2    DEFAULT NULL,   -- insert new foreign key values in insert trigger
 		p_Search_Keys_Unique	  	VARCHAR2    DEFAULT NULL,   -- Unique Constraint is required for searching foreign key values
+		p_Merge_On_Unique_keys 		VARCHAR2 	DEFAULT NULL,   -- Enable merge on unique keys in import views
 		p_Exclude_Blob_Columns  	VARCHAR2    DEFAULT NULL,	-- Exclude Blob Columns from generated Views
 		p_Compare_Case_Insensitive 	VARCHAR2 	DEFAULT NULL,   -- compare Case insensitive foreign key values in insert trigger
 		p_Compare_Return_String 	VARCHAR2 	DEFAULT NULL,	-- 'Differenz gefunden.'
@@ -629,6 +629,7 @@ CREATE OR REPLACE PACKAGE BODY Data_Browser_Import IS
         g_Import_Timestamp_Format	:= NVL(p_Import_Timestamp_Format, g_Import_Timestamp_Format);
         g_Insert_Foreign_Keys		:= NVL(p_Insert_Foreign_Keys, g_Insert_Foreign_Keys);
         g_Search_Keys_Unique		:= NVL(p_Search_Keys_Unique, g_Search_Keys_Unique);
+        g_Merge_On_Unique_keys		:= NVL(p_Merge_On_Unique_keys, g_Merge_On_Unique_keys);
         g_Exclude_Blob_Columns		:= NVL(p_Exclude_Blob_Columns, g_Exclude_Blob_Columns);
         g_Compare_Case_Insensitive	:= NVL(p_Compare_Case_Insensitive, g_Compare_Case_Insensitive);
         g_Compare_Return_String		:= NVL(p_Compare_Return_String, g_Compare_Return_String);
@@ -651,13 +652,13 @@ CREATE OR REPLACE PACKAGE BODY Data_Browser_Import IS
         g_Importjob_ID := p_Importjob_ID;
 
     	SELECT EXPORT_TEXT_LIMIT, IMPORT_CURRENCY_FORMAT, IMPORT_NUMBER_FORMAT, IMPORT_NUMCHARS, IMPORT_FLOAT_FORMAT,
-    		EXPORT_DATE_FORMAT, IMPORT_DATETIME_FORMAT, IMPORT_TIMESTAMP_FORMAT, INSERT_FOREIGN_KEYS,
+    		EXPORT_DATE_FORMAT, IMPORT_DATETIME_FORMAT, IMPORT_TIMESTAMP_FORMAT, INSERT_FOREIGN_KEYS, MERGE_ON_UNIQUE_KEYS,
     		SEARCH_KEYS_UNIQUE, EXCLUDE_BLOB_COLUMNS, COMPARE_CASE_INSENSITIVE, COMPARE_RETURN_STRING,
     		COMPARE_RETURN_STYLE, COMPARE_RETURN_STYLE2, COMPARE_RETURN_STYLE3,
     		ERRORS_RETURN_STYLE, ERROR_IS_EMPTY, ERROR_IS_LONGER_THAN, ERROR_IS_NO_CURRENCY, ERROR_IS_NO_FLOAT,
     		ERROR_IS_NO_INTEGER, ERROR_IS_NO_DATE, ERROR_IS_NO_TIMESTAMP
     	INTO g_Export_Text_Limit, g_Import_Currency_Format, g_Import_Number_Format, g_Import_NumChars, g_Import_Float_Format,
-    		g_Export_Date_Format, g_Import_DateTime_Format, g_Import_Timestamp_Format, g_Insert_Foreign_Keys,
+    		g_Export_Date_Format, g_Import_DateTime_Format, g_Import_Timestamp_Format, g_Insert_Foreign_Keys, g_Merge_On_Unique_keys,
     		g_Search_Keys_Unique, g_Exclude_Blob_Columns, g_Compare_Case_Insensitive, g_Compare_Return_String,
     		g_Compare_Return_Style, g_Compare_Return_Style2, g_Compare_Return_Style3,
     		g_Errors_Return_Style, g_Error_is_empty, g_Error_is_longer_than, g_Error_is_no_currency, g_Error_is_no_float,
@@ -676,6 +677,7 @@ CREATE OR REPLACE PACKAGE BODY Data_Browser_Import IS
 
     FUNCTION Get_Insert_Foreign_Keys RETURN VARCHAR2 IS BEGIN RETURN g_Insert_Foreign_Keys; END;
     FUNCTION Get_Search_Keys_Unique RETURN VARCHAR2 IS BEGIN RETURN g_Search_Keys_Unique; END;
+	FUNCTION Get_Merge_On_Unique_keys RETURN VARCHAR2 IS BEGIN RETURN g_Merge_On_Unique_keys; END;
     FUNCTION Get_Exclude_Blob_Columns RETURN VARCHAR2 IS BEGIN RETURN g_Exclude_Blob_Columns; END;
 	PROCEDURE Set_As_Of_Timestamp (p_As_Of_Timestamp VARCHAR2) IS BEGIN g_As_Of_Timestamp := p_As_Of_Timestamp; END;
 	FUNCTION Get_As_Of_Timestamp RETURN VARCHAR2 IS BEGIN RETURN g_As_Of_Timestamp; END;
@@ -1352,6 +1354,7 @@ CREATE OR REPLACE PACKAGE BODY Data_Browser_Import IS
         v_Import_View_Name 			VUSER_TABLES_IMP.IMPORT_VIEW_NAME%TYPE;
         v_Import_Trigger_Name 		VUSER_TABLES_IMP.IMPORT_TRIGGER_NAME%TYPE;
         v_Primary_Key_Cols 			VUSER_TABLES_IMP.SEARCH_KEY_COLS%TYPE;
+        v_Unique_Key_Expr			VARCHAR2(2000);
         v_Stat CLOB;
         v_Default_Stat CLOB;
         v_Update_Values_Stat CLOB;
@@ -1359,6 +1362,7 @@ CREATE OR REPLACE PACKAGE BODY Data_Browser_Import IS
         v_Insert_Values_Stat CLOB;
         v_Str VARCHAR2(32000);
         v_Has_Virtual_Column BOOLEAN := FALSE;
+        v_Count	NUMBER := 0;
     BEGIN
     	dbms_lob.createtemporary(v_Stat, true, dbms_lob.call);
     	dbms_lob.createtemporary(v_Default_Stat, true, dbms_lob.call);
@@ -1371,7 +1375,13 @@ CREATE OR REPLACE PACKAGE BODY Data_Browser_Import IS
         INTO v_View_Name, v_Table_Name, v_Primary_Key_Cols, v_Import_Table_Name, v_Import_View_Name, v_Import_Trigger_Name
         FROM VUSER_TABLES_IMP
         WHERE VIEW_NAME = v_View_Name;
-
+		
+		v_Unique_Key_Expr := data_browser_conf.Get_Unique_Key_Expression (
+			p_Unique_Key_Column => v_Primary_Key_Cols,
+			p_Table_Alias => NULL,
+			p_View_Mode => 'IMPORT_VIEW'
+		);
+		
         v_Stat :=
         'CREATE OR REPLACE TRIGGER ' 
         || data_browser_select.FN_Table_Prefix 
@@ -1380,7 +1390,11 @@ CREATE OR REPLACE PACKAGE BODY Data_Browser_Import IS
         || data_browser_select.FN_Table_Prefix 
 		|| data_browser_conf.Enquote_Name_Required(v_Import_View_Name)  || ' FOR EACH ROW  ' || chr(10)
         || 'DECLARE ' || data_browser_conf.NL(4)
-        || 'v_row ' || v_View_Name || '%ROWTYPE;' || chr(10);
+        || 'v_row ' || v_View_Name || '%ROWTYPE;' || chr(10)
+        || case when Data_Browser_Import.Get_Merge_On_Unique_keys = 'YES' 
+        	then '    v_do_update BOOLEAN := FALSE;' || chr(10) 
+        end 
+        ;
         for c_cur in (
             SELECT DISTINCT 'v_' || D_REF || ' ' || R_VIEW_NAME || '.' || R_PRIMARY_KEY_COLS || '%TYPE;' SQL_TEXT
             FROM TABLE (data_browser_select.FN_Pipe_table_imp_FK2(
@@ -1394,15 +1408,8 @@ CREATE OR REPLACE PACKAGE BODY Data_Browser_Import IS
         v_Str := 'BEGIN' || data_browser_conf.NL(4) 
 		|| 'if DELETING then ' || data_browser_conf.NL(8)
 		|| 'DELETE FROM ' 
-		|| data_browser_conf.Enquote_Name_Required(v_View_Name)
-		|| ' A ' || data_browser_conf.NL(8)
-		|| 'WHERE ' 
-		|| data_browser_conf.Get_Unique_Key_Expression (
-			p_Unique_Key_Column => v_Primary_Key_Cols,
-			p_Table_Alias => 'A',
-			p_View_Mode => 'IMPORT_VIEW'
-		)
-		|| ' = :old.LINK_ID$;' || data_browser_conf.NL(8)
+		|| data_browser_conf.Enquote_Name_Required(v_View_Name) || data_browser_conf.NL(8)
+		|| 'WHERE ' || v_Unique_Key_Expr || ' = :old.LINK_ID$;' || data_browser_conf.NL(8)
 		|| 'return;' || data_browser_conf.NL(4)
 		|| 'end if;' || chr(10);
         dbms_lob.writeappend(v_Stat, length(v_Str), v_Str);
@@ -1421,7 +1428,71 @@ CREATE OR REPLACE PACKAGE BODY Data_Browser_Import IS
             v_Str := c_cur.SQL_TEXT || chr(10);
 			dbms_lob.writeappend(v_Stat, length(v_Str), v_Str);
         end loop;
-
+        if Data_Browser_Import.Get_Merge_On_Unique_keys = 'YES' then
+			-- merge via natural keys
+			for c_cur in (
+				select A.TABLE_NAME, A.TABLE_OWNER, A.CONSTRAINT_NAME, B.HAS_NULLABLE, B.U_MEMBERS,
+					LISTAGG ( 'v_row.' || B.COLUMN_NAME || ' IS NOT NULL',
+						data_browser_conf.NL(8) || case when B.HAS_NULLABLE > 0 then 'or ' else 'and ' end
+					) WITHIN GROUP (ORDER BY B.POSITION) COND,
+					LISTAGG (
+						case when B.NULLABLE = 'Y' 
+						then '(' || Data_Browser_Import.Get_Compare_Case_Insensitive(B.COLUMN_NAME, 'v_row.' || B.COLUMN_NAME, B.DATA_TYPE) 
+								 || ' OR ' || B.COLUMN_NAME || ' IS NULL AND v_row.' || B.COLUMN_NAME || ' IS NULL)'
+						else 
+							Data_Browser_Import.Get_Compare_Case_Insensitive(B.COLUMN_NAME, 'v_row.' || B.COLUMN_NAME, B.DATA_TYPE)
+						end,
+						data_browser_conf.NL(12) || 'AND '
+					) WITHIN GROUP (ORDER BY B.POSITION) SEARCH
+				from MVBASE_UNIQUE_KEYS A
+				join MVDATA_BROWSER_U_REFS B on A.TABLE_NAME = B.TABLE_NAME and A.TABLE_OWNER = B.TABLE_OWNER
+				where A.constraint_type = 'U' AND A.Has_Serial_View_Key = 'NO'
+				and A.table_name = v_Table_Name
+				group by  A.TABLE_NAME, A.TABLE_OWNER, A.CONSTRAINT_NAME, B.HAS_NULLABLE, B.U_MEMBERS
+			) loop
+				v_Count := v_Count + 1;
+				v_Str := '    if INSERTING then' || data_browser_conf.NL(6)
+				|| 'begin' || data_browser_conf.NL(8)
+				|| 'if :new.LINK_ID$ IS NULL -- lookup primary key via natural key' || data_browser_conf.NL(8)
+				|| 'and ('||  c_cur.COND || ') then' || data_browser_conf.NL(12)
+				|| 'SELECT '
+				|| v_Unique_Key_Expr
+				|| ' INTO :new.LINK_ID$' || data_browser_conf.NL(12)
+				|| 'FROM ' || c_cur.TABLE_NAME || data_browser_conf.NL(12)
+				|| 'WHERE ' || c_cur.SEARCH || ';' || data_browser_conf.NL(12)
+				|| 'v_do_update := TRUE;' || data_browser_conf.NL(8)
+				|| case when v_Count = 1 then 
+					'elsif :new.LINK_ID$ IS NOT NULL then ' || data_browser_conf.NL(12)
+					|| 'SELECT '
+					|| v_Unique_Key_Expr
+					|| ' INTO :new.LINK_ID$' || data_browser_conf.NL(12)
+					|| 'FROM ' || c_cur.TABLE_NAME || data_browser_conf.NL(12)
+					|| 'WHERE ' || v_Unique_Key_Expr || ' =  :new.LINK_ID$;' || data_browser_conf.NL(12)
+					|| 'v_do_update := TRUE;' || data_browser_conf.NL(8)
+				end
+				|| 'end if;' ||  data_browser_conf.NL(6)
+				|| 'exception when NO_DATA_FOUND then' || data_browser_conf.NL(8)	
+				|| 'null;'|| data_browser_conf.NL(6)
+				|| 'end;' || data_browser_conf.NL(4)
+				|| 'end if;';
+				dbms_lob.writeappend(v_Stat, length(v_Str), v_Str);
+			end loop;
+			if v_Count = 0 then 
+				v_Str := '    if INSERTING and :new.LINK_ID$ IS NOT NULL then' || data_browser_conf.NL(6)
+				|| 'begin' || data_browser_conf.NL(8)
+				|| 'SELECT '
+				|| v_Unique_Key_Expr
+				|| ' INTO :new.LINK_ID$' || data_browser_conf.NL(8)
+				|| 'FROM ' || v_Table_Name || data_browser_conf.NL(8)
+				|| 'WHERE ' || v_Unique_Key_Expr || ' =  :new.LINK_ID$;' || data_browser_conf.NL(8)
+				|| 'v_do_update := TRUE;' || data_browser_conf.NL(6)
+				|| 'exception when NO_DATA_FOUND then' || data_browser_conf.NL(8)	
+				|| 'null;'|| data_browser_conf.NL(6)
+				|| 'end;' || data_browser_conf.NL(4)
+				|| 'end if;';
+				dbms_lob.writeappend(v_Stat, length(v_Str), v_Str);			
+			end if;
+		end if;
         for c_cur in (
 			SELECT S.VIEW_NAME TABLE_NAME, T.COLUMN_NAME, T.HAS_DEFAULT, 
 				case when T.HAS_DEFAULT = 'Y' then  -- fill empty columns with default values
@@ -1468,7 +1539,9 @@ CREATE OR REPLACE PACKAGE BODY Data_Browser_Import IS
         end loop;
 
 		v_Str := data_browser_conf.NL(4)
-		|| 'if INSERTING then ' || chr(10)
+		|| 'if INSERTING '
+		|| case when Data_Browser_Import.Get_Merge_On_Unique_keys = 'YES' then 'and not v_do_update ' end
+		|| 'then ' || chr(10)
 		|| v_Default_Stat || rpad(' ', 8)
 		|| 'INSERT INTO ' || v_View_Name
 		|| case when v_Has_Virtual_Column 
@@ -1481,11 +1554,7 @@ CREATE OR REPLACE PACKAGE BODY Data_Browser_Import IS
 			'else ' || data_browser_conf.NL(8)
 			|| 'UPDATE ' || v_View_Name || ' SET ' || v_Update_Values_Stat || data_browser_conf.NL(8)
 			|| 'WHERE ' 
-			|| data_browser_conf.Get_Unique_Key_Expression (
-				p_Unique_Key_Column => v_Primary_Key_Cols,
-				p_Table_Alias => NULL,
-				p_View_Mode => 'IMPORT_VIEW'
-			)
+			|| v_Unique_Key_Expr
 			|| ' = :new.LINK_ID$'
 			|| ';' || data_browser_conf.NL(4)
 		end 
@@ -1516,6 +1585,7 @@ CREATE OR REPLACE PACKAGE BODY Data_Browser_Import IS
 		v_Compare_Case_Insensitive	VARCHAR2(10);
 		v_Search_Keys_Unique		VARCHAR2(10);
 		v_Insert_Foreign_Keys		VARCHAR2(10);
+		v_Merge_On_Unique_keys		VARCHAR2(10);
 		v_use_NLS_params VARCHAR2(1) 		:= NVL(SUBSTR(p_use_NLS_params,1,1), 'Y');
 		v_Use_Group_Separator VARCHAR2(1) 	:= NVL(SUBSTR(p_Use_Group_Separator,1,1), 'N');
 	BEGIN
@@ -1523,7 +1593,7 @@ CREATE OR REPLACE PACKAGE BODY Data_Browser_Import IS
     	dbms_lob.createtemporary(v_Stat, true, dbms_lob.call);
      	dbms_lob.createtemporary(v_Result, true, dbms_lob.call);
 		data_browser_conf.Load_Config;
-		data_browser_conf.Get_Import_Parameter( v_Compare_Case_Insensitive, v_Search_Keys_Unique, v_Insert_Foreign_Keys);
+		data_browser_conf.Get_Import_Parameter( v_Compare_Case_Insensitive, v_Search_Keys_Unique, v_Insert_Foreign_Keys, v_Merge_On_Unique_keys);
 		Data_Browser_Import.Set_Imp_Formats (
 			p_Export_Text_Limit       => data_browser_conf.Get_Export_Text_Limit,
 			p_Import_NumChars         => data_browser_conf.Get_Export_NumChars(p_Enquote => 'NO'),
@@ -1533,7 +1603,8 @@ CREATE OR REPLACE PACKAGE BODY Data_Browser_Import IS
 			p_Import_Timestamp_Format => data_browser_conf.Get_Timestamp_Format,
 			p_Compare_Case_Insensitive	=> v_Compare_Case_Insensitive,
 			p_Search_Keys_Unique 	=> v_Search_Keys_Unique,
-			p_Insert_Foreign_Keys 	=> v_Insert_Foreign_Keys
+			p_Insert_Foreign_Keys 	=> v_Insert_Foreign_Keys,
+			p_Merge_On_Unique_keys	=> v_Merge_On_Unique_keys
 		);
 		data_browser_conf.Set_Include_Query_Schema(p_Include_Schema_Name);
 		data_browser_conf.Set_Use_Session_NLS_Param(p_Use_Session_NLS_Format);
@@ -1547,6 +1618,7 @@ CREATE OR REPLACE PACKAGE BODY Data_Browser_Import IS
             || chr(10) || '-- Compare Case Insensitive  : %s'
             || chr(10) || '-- Assume Unique Keys Lookup : %s'
             || chr(10) || '-- Insert Foreign Keys       : %s'
+            || chr(10) || '-- Merge On Unique keys      : %s'
             || chr(10) || '-- Compare Case Insensitive  : %s'
             || chr(10) || '-- Current Date              : %s'
             || chr(10) || '-- Table Name Pattern        : %s',
@@ -1559,9 +1631,10 @@ CREATE OR REPLACE PACKAGE BODY Data_Browser_Import IS
             p6 => v_Compare_Case_Insensitive,
             p7 => v_Search_Keys_Unique,
             p8 => v_Insert_Foreign_Keys,
-            p9 => v_Compare_Case_Insensitive,
-            p10 => SYSDATE,
-            p11 => p_Table_Name_Pattern
+            p9 => v_Merge_On_Unique_keys,
+            p10 => v_Compare_Case_Insensitive,
+            p11 => SYSDATE,
+            p12 => p_Table_Name_Pattern
         ) || chr(10) || chr(10);
 		dbms_lob.append(v_Result, v_Stat);
 		
@@ -2355,11 +2428,12 @@ CREATE OR REPLACE PACKAGE BODY Data_Browser_Import IS
 		v_Compare_Case_Insensitive	VARCHAR2(10);
 		v_Search_Keys_Unique		VARCHAR2(10);
 		v_Insert_Foreign_Keys		VARCHAR2(10);
+		v_Merge_On_Unique_keys		VARCHAR2(10);
 		v_use_NLS_params VARCHAR2(1) 		:= NVL(SUBSTR(p_use_NLS_params,1,1), 'Y');
 		v_Use_Group_Separator VARCHAR2(1) 	:= NVL(SUBSTR(p_Use_Group_Separator,1,1), 'N');
  	BEGIN
 		data_browser_conf.Load_Config;
-		data_browser_conf.Get_Import_Parameter( v_Compare_Case_Insensitive, v_Search_Keys_Unique, v_Insert_Foreign_Keys);
+		data_browser_conf.Get_Import_Parameter( v_Compare_Case_Insensitive, v_Search_Keys_Unique, v_Insert_Foreign_Keys, v_Merge_On_Unique_keys);
 		Data_Browser_Import.Set_Imp_Formats (
 			p_Export_Text_Limit       => data_browser_conf.Get_Export_Text_Limit,
 			p_Import_NumChars         => data_browser_conf.Get_Export_NumChars(p_Enquote => 'NO'),
@@ -2369,7 +2443,8 @@ CREATE OR REPLACE PACKAGE BODY Data_Browser_Import IS
 			p_Import_Timestamp_Format => data_browser_conf.Get_Timestamp_Format,
 			p_Compare_Case_Insensitive	=> v_Compare_Case_Insensitive,
 			p_Search_Keys_Unique 	=> v_Search_Keys_Unique,
-			p_Insert_Foreign_Keys 	=> v_Insert_Foreign_Keys
+			p_Insert_Foreign_Keys 	=> v_Insert_Foreign_Keys,
+			p_Merge_On_Unique_keys	=> v_Merge_On_Unique_keys
 		);
 		data_browser_conf.Set_Include_Query_Schema(p_Include_Schema_Name);
 		data_browser_conf.Set_Use_Session_NLS_Param(p_Use_Session_NLS_Format);

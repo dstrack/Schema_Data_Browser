@@ -3,7 +3,7 @@ declare
 	v_stat VARCHAR2(32767);
 begin
 	SELECT COUNT(*) INTO v_count
-	FROM USER_TABLES WHERE TABLE_NAME = 'USER_IMPORT_JOBS';
+	FROM USER_OBJECTS WHERE OBJECT_NAME = 'USER_IMPORT_JOBS';
 	if v_count = 0 then 
 		v_stat := q'[
 		CREATE TABLE USER_IMPORT_JOBS (
@@ -21,6 +21,7 @@ begin
 			IMPORT_TIMESTAMP_FORMAT   	VARCHAR2(64)    DEFAULT 'DD.MM.YYYY HH24.MI.SSXFF' NOT NULL,
 			INSERT_FOREIGN_KEYS   		VARCHAR2(5)     DEFAULT 'YES' NOT NULL,   -- insert new foreign key values in insert trigger
 			SEARCH_KEYS_UNIQUE 			VARCHAR2(5)     DEFAULT 'YES' NOT NULL, 	-- Unique Constraint is required for searching foreign key values
+			MERGE_ON_UNIQUE_KEYS 		VARCHAR2(5)     DEFAULT 'YES' NOT NULL, 	-- Enable merge on unique keys in import views
 			EXCLUDE_BLOB_COLUMNS  		VARCHAR2(5)     DEFAULT 'YES' NOT NULL,	-- Exclude Blob Columns from the produced projection column list
 			COMPARE_CASE_INSENSITIVE 	VARCHAR2(5)  	DEFAULT 'NO' NOT NULL,   -- compare Case insensitive foreign key values in insert trigger
 			COMPARE_RETURN_STRING  		VARCHAR2(300)   DEFAULT 'Differenz gefunden.' NOT NULL,
@@ -48,6 +49,18 @@ begin
 		]';
 		EXECUTE IMMEDIATE v_Stat;
 	end if;
+	SELECT COUNT(*) INTO v_count
+	FROM USER_TAB_COLUMNS WHERE TABLE_NAME = 'USER_IMPORT_JOBS' AND COLUMN_NAME = 'MERGE_ON_UNIQUE_KEYS';
+	if v_count = 0 then 
+		v_stat := q'[
+		ALTER TABLE USER_IMPORT_JOBS ADD
+		(
+			MERGE_ON_UNIQUE_KEYS		VARCHAR2(5)     DEFAULT 'YES' NOT NULL
+		)
+		]';
+		EXECUTE IMMEDIATE v_Stat;
+	end if;
+	
 end;
 /
 show errors
