@@ -262,7 +262,7 @@ is
 						|| data_browser_conf.NL(4) || ')' -- display single value 
 					when T.IS_OBFUSCATED = 'Y' then
 						data_browser_conf.Get_Obfuscate_Call('A.' || T.COLUMN_NAME)
-					when v_Data_Format = 'NATIVE'
+					when (v_Data_Format = 'NATIVE' or v_View_Mode = 'RECORD_VIEW')  -- Bugfix DS 20230611: improved display of record views
 					and E.COLUMN_NAME IS NULL then -- for fk columns char conversion is required for control_break expr.
 						case when T.IS_SUMMAND = 'Y' and v_Calc_Totals = 'YES' then 
 							'SUM(A.' || T.COLUMN_NAME || ')'
@@ -4620,7 +4620,7 @@ $END
 								p_Column_Name => g_Describe_Cols_tab(ind).COLUMN_NAME
 							)
 					when p_Data_Format IN ('FORM', 'HTML')
-					and p_View_Mode != 'RECORD_VIEW'
+					-- and p_View_Mode != 'RECORD_VIEW' -- Bugfix DS 20230611: improved display of record views
 					and (g_Describe_Cols_tab(ind).CHAR_LENGTH > data_browser_conf.Get_TextArea_Min_Length
 							or g_Describe_Cols_tab(ind).DATA_TYPE IN ('CLOB', 'NCLOB')) then
 						 data_browser_blobs.FN_Text_Tool_Body_Html (
