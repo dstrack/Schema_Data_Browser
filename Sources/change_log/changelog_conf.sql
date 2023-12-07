@@ -325,9 +325,6 @@ IS
 	FUNCTION FN_Pipe_Foreign_Key_Columns
 	RETURN changelog_conf.tab_foreign_key_columns PIPELINED PARALLEL_ENABLE;
 
-	FUNCTION FN_Pipe_Changelog_References
-	RETURN changelog_conf.tab_changelog_references PIPELINED PARALLEL_ENABLE;
-
 	FUNCTION Enquote_Name (str VARCHAR2) RETURN VARCHAR2 DETERMINISTIC;
 	FUNCTION Enquote_Literal ( p_Text VARCHAR2 ) RETURN VARCHAR2 DETERMINISTIC;
 	FUNCTION First_Element (str VARCHAR2) RETURN VARCHAR2 DETERMINISTIC;
@@ -1741,63 +1738,6 @@ $END
 		end if;
 	END FN_Pipe_Foreign_Key_Columns;
 
-
-	FUNCTION FN_Pipe_Changelog_References
-	RETURN changelog_conf.tab_changelog_references PIPELINED PARALLEL_ENABLE
-	IS
-        CURSOR user_keys_cur
-        IS
-		-- used in packages custom_changelog_gen
-		-- Calculate additional parameter for custom_changelog.AddLog. The mapping of table columns
-		-- to parameter names of a direct reference column for the function call to custom_changelog.AddLog is calculated
-		SELECT S_TABLE_NAME, S_COLUMN_NAME, T_TABLE_NAME, T_COLUMN_NAME, T_CHANGELOG_NAME, CONSTRAINT_TYPE, DELETE_RULE
-		FROM (
-			SELECT DISTINCT B.TABLE_NAME S_TABLE_NAME, CAST(B.COLUMN_NAME AS VARCHAR2(128)) S_COLUMN_NAME, D.TABLE_NAME T_TABLE_NAME, C.COLUMN_NAME T_COLUMN_NAME,
-				'CUSTOM_REF_ID' || T.R T_CHANGELOG_NAME,
-				A.CONSTRAINT_TYPE, A.DELETE_RULE,
-				DENSE_RANK() OVER (PARTITION BY B.TABLE_NAME, D.TABLE_NAME, C.COLUMN_NAME ORDER BY B.COLUMN_NAME) C_RANK
-			FROM SYS.USER_CONSTRAINTS A
-			, SYS.USER_CONS_COLUMNS B
-			, SYS.USER_CONS_COLUMNS D
-			, (SELECT CAST(N.COLUMN_VALUE AS VARCHAR2(128)) TABLE_NAME, ROWNUM R FROM TABLE( changelog_conf.in_list(changelog_conf.Get_ChangeLogFKeyTables, ',') ) N) T
-			, (SELECT CAST(N.COLUMN_VALUE AS VARCHAR2(128)) COLUMN_NAME, ROWNUM R  FROM TABLE( changelog_conf.in_list(changelog_conf.Get_ChangeLogFKeyColumns, ',') ) N) C
-			WHERE A.CONSTRAINT_NAME = B.CONSTRAINT_NAME AND A.OWNER = B.OWNER     -- column of foreign key source
-			AND A.R_CONSTRAINT_NAME = D.CONSTRAINT_NAME AND A.R_OWNER = B.OWNER   -- column of foreign key target
-			AND D.TABLE_NAME = T.TABLE_NAME
-			AND T.R = C.R -- same position in the list
-			AND A.CONSTRAINT_TYPE = 'R'
-			AND B.COLUMN_NAME <> changelog_conf.Get_ColumnWorkspace
-			AND B.TABLE_NAME <> D.TABLE_NAME -- no recursive connection
-			UNION ALL
-			SELECT DISTINCT B.TABLE_NAME S_TABLE_NAME, CAST(B.COLUMN_NAME AS VARCHAR2(128)) S_COLUMN_NAME, T.TABLE_NAME T_TABLE_NAME, C.COLUMN_NAME T_COLUMN_NAME,
-				'CUSTOM_REF_ID' || T.R T_CHANGELOG_NAME,
-				A.CONSTRAINT_TYPE, A.DELETE_RULE,
-				1 C_RANK
-			FROM SYS.USER_CONSTRAINTS A
-			, SYS.USER_CONS_COLUMNS B
-			, (SELECT CAST(N.COLUMN_VALUE AS VARCHAR2(128)) TABLE_NAME, ROWNUM R FROM TABLE( changelog_conf.in_list(changelog_conf.Get_ChangeLogFKeyTables, ',') ) N) T
-			, (SELECT CAST(N.COLUMN_VALUE AS VARCHAR2(128)) COLUMN_NAME, ROWNUM R  FROM TABLE( changelog_conf.in_list(changelog_conf.Get_ChangeLogFKeyColumns, ',') ) N) C
-			WHERE A.CONSTRAINT_NAME = B.CONSTRAINT_NAME AND A.OWNER = B.OWNER     -- column of primary key source
-			AND B.TABLE_NAME = T.TABLE_NAME
-			AND T.R = C.R -- same position in the list
-			AND A.CONSTRAINT_TYPE = 'P'
-		) -- only one column for each table reference
-		WHERE C_RANK = 1
-		;
-
-        v_in_rows tab_changelog_references;
-	BEGIN
-		if g_Use_Change_Log IS NULL then
-			return; -- not initialised (during create mview)
-		end if;
-		OPEN user_keys_cur;
-		FETCH user_keys_cur BULK COLLECT INTO v_in_rows;
-		CLOSE user_keys_cur;  
-		FOR ind IN 1 .. v_in_rows.COUNT LOOP
-			pipe row (v_in_rows(ind));
-		END LOOP;
-	END FN_Pipe_Changelog_References;
-
 	FUNCTION Enquote_Name (str VARCHAR2)
 	RETURN VARCHAR2 DETERMINISTIC
 	IS
@@ -2321,9 +2261,14 @@ $END
     RETURN VARCHAR2
     IS
     BEGIN
-        RETURN 'CHR(ORA_HASH('
-        || CASE WHEN p_Has_Serial_Primary_Key = 'YES' THEN p_Primary_Key_Cols ELSE 'DBMS_UTILITY.GET_TIME' END
-        || ')) ';
+        RETURN CASE 
+        	WHEN g_DatatypeDeletedMark IN ('CHAR', 'VARCHAR2') THEN 
+				'CHR(ORA_HASH('
+				|| CASE WHEN p_Has_Serial_Primary_Key = 'YES' THEN p_Primary_Key_Cols ELSE 'DBMS_UTILITY.GET_TIME' END
+				|| ')) ' 
+			WHEN g_DatatypeDeletedMark = 'NUMBER' THEN 
+				CASE WHEN p_Has_Serial_Primary_Key = 'YES' THEN p_Primary_Key_Cols ELSE q'[to_number(sys_guid(),'XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX')]' END
+		END;
     END;
 
     FUNCTION Get_ColumnIndexFormat RETURN VARCHAR2

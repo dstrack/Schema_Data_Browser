@@ -2966,14 +2966,13 @@ $END
 		-- and NVL(APEX_UTIL.GET_SESSION_LANG, 'de') LIKE 'de%' 
 		then
 			v_Result :=
-				REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(p_Text,
+				REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(p_Text,
 				'ae', chr(50084)),
 				'ueh', chr(50108)||'h'),
 				'uef', chr(50108)||'f'),
 				'ueg', chr(50108)||'g'),
 				'ueb', chr(50108)||'b'),
 				'uec', chr(50108)||'c'),
-				'uer', chr(50108)||'r'),
 				'oe', chr(50102)),
 				'Ae', chr(50052)),
 				'Ue', chr(50076)),

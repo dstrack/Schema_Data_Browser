@@ -975,6 +975,10 @@ $END
 		WHERE UPPER_LOGIN_NAME = V('APP_USER')
 		FOR UPDATE OF B.LAST_LOGIN_DATE;
 
+		$IF data_browser_specs.g_use_custom_ctx $THEN
+        	set_custom_ctx.post_apex_logon();
+		$END
+
 		UPDATE V_CONTEXT_USERS
 		SET LAST_LOGIN_DATE = SYSDATE
 		WHERE USER_ID = v_id;

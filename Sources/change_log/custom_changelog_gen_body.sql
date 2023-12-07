@@ -1,7 +1,7 @@
 /*
 
 DROP PACKAGE custom_changelog_gen;
-DROP VIEW MVCHANGELOG_REFERENCES;
+DROP MATERIAIZED VIEW MVCHANGELOG_REFERENCES; -- old mview
 DROP VIEW VCHANGE_LOG_FIELDS;
 */
 --
@@ -276,7 +276,7 @@ CREATE OR REPLACE PACKAGE BODY custom_changelog_gen IS
 				FROM SYS.USER_MVIEWS A
 				, (SELECT COLUMN_VALUE MVIEW_NAME, ROWNUM STEP FROM apex_string.split(
 					'MVBASE_UNIQUE_KEYS,MVBASE_ALTER_UNIQUEKEYS,MVBASE_FOREIGNKEYS,MVBASE_VIEWS,'
-					||'MVBASE_VIEW_FOREIGN_KEYS,MVBASE_REFERENCES,MVCHANGELOG_REFERENCES',','
+					||'MVBASE_VIEW_FOREIGN_KEYS,MVBASE_REFERENCES',','
 				)) B 
 				, (
 					SELECT
@@ -408,6 +408,64 @@ CREATE OR REPLACE PACKAGE BODY custom_changelog_gen IS
 		);
 		return v_Count;
 	END;
+
+	FUNCTION FN_Pipe_Changelog_References
+	RETURN changelog_conf.tab_changelog_references PIPELINED PARALLEL_ENABLE
+	IS
+        CURSOR user_keys_cur
+        IS
+		-- used in packages custom_changelog_gen
+		-- Calculate additional parameter for custom_changelog.AddLog. The mapping of table columns
+		-- to parameter names of a direct reference column for the function call to custom_changelog.AddLog is calculated
+		SELECT S_TABLE_NAME, S_COLUMN_NAME, T_TABLE_NAME, T_COLUMN_NAME, T_CHANGELOG_NAME, CONSTRAINT_TYPE, DELETE_RULE
+		FROM (
+			SELECT DISTINCT B.TABLE_NAME S_TABLE_NAME, CAST(B.COLUMN_NAME AS VARCHAR2(128)) S_COLUMN_NAME, D.TABLE_NAME T_TABLE_NAME, C.COLUMN_NAME T_COLUMN_NAME,
+				'CUSTOM_REF_ID' || T.R T_CHANGELOG_NAME,
+				A.CONSTRAINT_TYPE, A.DELETE_RULE,
+				DENSE_RANK() OVER (PARTITION BY B.TABLE_NAME, D.TABLE_NAME, C.COLUMN_NAME ORDER BY B.COLUMN_NAME) C_RANK
+			FROM SYS.USER_CONSTRAINTS A
+			, SYS.USER_CONS_COLUMNS B
+			, SYS.USER_CONS_COLUMNS D
+			, (SELECT CAST(N.COLUMN_VALUE AS VARCHAR2(128)) TABLE_NAME, ROWNUM R FROM TABLE( changelog_conf.in_list(changelog_conf.Get_ChangeLogFKeyTables, ',') ) N) T
+			, MVBASE_VIEWS T2
+			, (SELECT CAST(N.COLUMN_VALUE AS VARCHAR2(128)) COLUMN_NAME, ROWNUM R  FROM TABLE( changelog_conf.in_list(changelog_conf.Get_ChangeLogFKeyColumns, ',') ) N) C
+			WHERE A.CONSTRAINT_NAME = B.CONSTRAINT_NAME AND A.OWNER = B.OWNER     -- column of foreign key source
+			AND A.R_CONSTRAINT_NAME = D.CONSTRAINT_NAME AND A.R_OWNER = B.OWNER   -- column of foreign key target
+			AND T.TABLE_NAME = T2.VIEW_NAME
+			AND D.TABLE_NAME = T2.TABLE_NAME
+			AND T.R = C.R -- same position in the list
+			AND A.CONSTRAINT_TYPE = 'R'
+			AND B.COLUMN_NAME <> changelog_conf.Get_ColumnWorkspace
+			AND B.TABLE_NAME <> D.TABLE_NAME -- no recursive connection
+			UNION ALL
+			SELECT DISTINCT B.TABLE_NAME S_TABLE_NAME, CAST(B.COLUMN_NAME AS VARCHAR2(128)) S_COLUMN_NAME, T.TABLE_NAME T_TABLE_NAME, C.COLUMN_NAME T_COLUMN_NAME,
+				'CUSTOM_REF_ID' || T.R T_CHANGELOG_NAME,
+				A.CONSTRAINT_TYPE, A.DELETE_RULE,
+				1 C_RANK
+			FROM SYS.USER_CONSTRAINTS A
+			, SYS.USER_CONS_COLUMNS B
+			, (SELECT CAST(N.COLUMN_VALUE AS VARCHAR2(128)) TABLE_NAME, ROWNUM R FROM TABLE( changelog_conf.in_list(changelog_conf.Get_ChangeLogFKeyTables, ',') ) N) T
+			, MVBASE_VIEWS T2
+			, (SELECT CAST(N.COLUMN_VALUE AS VARCHAR2(128)) COLUMN_NAME, ROWNUM R  FROM TABLE( changelog_conf.in_list(changelog_conf.Get_ChangeLogFKeyColumns, ',') ) N) C
+			WHERE A.CONSTRAINT_NAME = B.CONSTRAINT_NAME AND A.OWNER = B.OWNER     -- column of primary key source
+			AND T.TABLE_NAME = T2.VIEW_NAME
+			AND B.TABLE_NAME = T2.TABLE_NAME
+			AND T.R = C.R -- same position in the list
+			AND A.CONSTRAINT_TYPE = 'P'
+            AND B.COLUMN_NAME <> changelog_conf.Get_ColumnWorkspace
+		) -- only one column for each table reference
+		WHERE C_RANK = 1
+		;
+
+        v_in_rows changelog_conf.tab_changelog_references;
+	BEGIN
+		OPEN user_keys_cur;
+		FETCH user_keys_cur BULK COLLECT INTO v_in_rows;
+		CLOSE user_keys_cur;  
+		FOR ind IN 1 .. v_in_rows.COUNT LOOP
+			pipe row (v_in_rows(ind));
+		END LOOP;
+	END FN_Pipe_Changelog_References;
 
     PROCEDURE Drop_ChangeLog_Foreign_Keys
     IS
@@ -982,14 +1040,12 @@ CREATE OR REPLACE PACKAGE BODY custom_changelog_gen IS
             SELECT ', p_' || T_COLUMN_NAME || '=>:NEW.' || S_COLUMN_NAME REF_PARAM_NEW,
             	', p_' || T_COLUMN_NAME || '=>:OLD.' || S_COLUMN_NAME REF_PARAM_OLD,
             	CONSTRAINT_TYPE, DELETE_RULE
-			FROM MVCHANGELOG_REFERENCES
-			WHERE S_TABLE_NAME = p_View_Name
+			FROM TABLE(custom_changelog_gen.FN_Pipe_Changelog_References)
+			WHERE S_TABLE_NAME = p_Table_Name
             ORDER BY 1;
         TYPE references_tbl IS TABLE OF References_cur%ROWTYPE;
         v_references_tbl    references_tbl;
     BEGIN
-    	MView_Refresh('MVCHANGELOG_REFERENCES');
-
         v_Key_Name  := p_Foreign_Key_Col;
         v_Short_Name := NVL(p_View_Name, changelog_conf.Get_BaseName(p_Table_Name));
         v_Quoted_Name := DBMS_ASSERT.ENQUOTE_LITERAL(v_Short_Name);
@@ -1184,7 +1240,7 @@ CREATE OR REPLACE PACKAGE BODY custom_changelog_gen IS
         v_Sequence_Name         VARCHAR2(40);
         v_Sequence_Exists 		VARCHAR2(6);
         v_BI_Trigger_Body 		CLOB;
-        v_Steps  				CONSTANT binary_integer := 12;
+        v_Steps  				CONSTANT binary_integer := 11;
         v_Proc_Name 			VARCHAR2(128) := 'Add ChangeLog Table Trigger';
 	BEGIN
 		Set_Process_Infos(v_rindex, v_slno, v_Proc_Name, p_context, v_Steps, 0, 'steps');
@@ -1205,8 +1261,6 @@ CREATE OR REPLACE PACKAGE BODY custom_changelog_gen IS
 		Set_Process_Infos(v_rindex, v_slno, v_Proc_Name, p_context, v_Steps, 3, 'steps');
 		MView_Refresh('MVBASE_VIEWS', 'MVBASE_ALTER_UNIQUEKEYS');
 		Set_Process_Infos(v_rindex, v_slno, v_Proc_Name, p_context, v_Steps, 4, 'steps');
-		MView_Refresh('MVCHANGELOG_REFERENCES');
-		Set_Process_Infos(v_rindex, v_slno, v_Proc_Name, p_context, v_Steps, 5, 'steps');
 		OPEN view_cur;
 		FETCH view_cur BULK COLLECT INTO v_stat_tbl;
 		CLOSE view_cur;
@@ -1324,7 +1378,8 @@ CREATE OR REPLACE PACKAGE BODY custom_changelog_gen IS
 
 	PROCEDURE Refresh_ChangeLog_Trigger (
 		p_Table_Name        IN VARCHAR2 DEFAULT NULL,
-    	p_context        	IN  binary_integer DEFAULT FN_Scheduler_Context
+    	p_context        	IN  binary_integer DEFAULT FN_Scheduler_Context,
+    	p_Force				IN NUMBER DEFAULT 0
 	)
 	IS
 		v_Name_Pattern VARCHAR2(50) := changelog_conf.Get_ChangelogTrigger_Name('%');
@@ -1338,12 +1393,12 @@ CREATE OR REPLACE PACKAGE BODY custom_changelog_gen IS
 			where S.OBJECT_TYPE = 'TABLE'
 			and U.OBJECT_TYPE = 'TRIGGER'
 			and T.BASE_OBJECT_TYPE = 'TABLE'
-			and T.ACTION_TYPE = 'PL/SQL'
+			and T.ACTION_TYPE LIKE 'PL/SQL%'
 			and T.TRIGGER_TYPE = 'COMPOUND'
 			and T.AFTER_ROW = 'YES'
 			and T.TRIGGER_NAME LIKE v_Name_Pattern
 			and T.TRIGGERING_EVENT  = 'INSERT OR UPDATE OR DELETE'
-			and (S.LAST_DDL_TIME > U.LAST_DDL_TIME or U.STATUS = 'INVALID')
+			and (S.LAST_DDL_TIME > U.LAST_DDL_TIME or U.STATUS = 'INVALID' or p_Force != 0)
 			and (T.TABLE_NAME LIKE p_Table_Name OR p_Table_Name IS NULL)
 		)
 		loop
@@ -1477,8 +1532,8 @@ CREATE OR REPLACE PACKAGE BODY custom_changelog_gen IS
 				END STAT
 			FROM SYS.USER_TAB_COLS B
 			JOIN MVBASE_VIEWS T ON T.TABLE_NAME = B.TABLE_NAME
-			LEFT OUTER JOIN MVCHANGELOG_REFERENCES C ON B.COLUMN_NAME = C.S_COLUMN_NAME 
-				AND T.VIEW_NAME = C.S_TABLE_NAME -- Bugfix DS 20230216 join with T.VIEW_NAME
+			LEFT OUTER JOIN TABLE(custom_changelog_gen.FN_Pipe_Changelog_References) C ON B.COLUMN_NAME = C.S_COLUMN_NAME 
+				AND T.TABLE_NAME = C.S_TABLE_NAME 
 			WHERE T.VIEW_NAME = p_View_Name
 			AND B.COLUMN_NAME NOT IN (changelog_conf.Get_ColumnWorkspace, changelog_conf.Get_ColumnDeletedMark)
 			AND NOT (B.DATA_TYPE IN ('BLOB', 'CLOB', 'NCLOB', 'ORDIMAGE', 'LONG') AND p_Has_Blob_Columns = 'NO')
@@ -1516,8 +1571,8 @@ CREATE OR REPLACE PACKAGE BODY custom_changelog_gen IS
         FOR  stat_cur IN (
             SELECT T_CHANGELOG_NAME KEY_COL,
             	S_COLUMN_NAME KEY_ALIAS
-			FROM MVCHANGELOG_REFERENCES
-			WHERE S_TABLE_NAME = p_View_Name
+			FROM TABLE(custom_changelog_gen.FN_Pipe_Changelog_References)
+			WHERE S_TABLE_NAME = p_Table_Name
 			AND S_COLUMN_NAME != p_Primary_Key_Col
         )
         LOOP
@@ -1537,7 +1592,7 @@ CREATE OR REPLACE PACKAGE BODY custom_changelog_gen IS
 					end -- ignore nulls (empty cells) but respect null value surrogates (update t set c = null)
 				COL_FUNC
 			FROM SYS.USER_TAB_COLS B
-			LEFT OUTER JOIN MVCHANGELOG_REFERENCES C ON B.COLUMN_NAME = C.S_COLUMN_NAME AND C.S_TABLE_NAME = p_View_Name 
+			LEFT OUTER JOIN TABLE(custom_changelog_gen.FN_Pipe_Changelog_References) C ON B.COLUMN_NAME = C.S_COLUMN_NAME AND C.S_TABLE_NAME = p_Table_Name 
 			-- Bugfix: DS 20230227 - v_SelectList and v_SelectList2 must have the same columns
 			WHERE B.TABLE_NAME = p_Table_Name
 			AND B.COLUMN_NAME NOT IN (changelog_conf.Get_ColumnWorkspace, changelog_conf.Get_ColumnDeletedMark, p_Primary_Key_Col)
@@ -1570,7 +1625,7 @@ CREATE OR REPLACE PACKAGE BODY custom_changelog_gen IS
 				COL_FUNC
 			FROM SYS.USER_TAB_COLS B
 			JOIN MVBASE_VIEWS T ON T.TABLE_NAME = B.TABLE_NAME
-			LEFT OUTER JOIN MVCHANGELOG_REFERENCES C ON B.COLUMN_NAME = C.S_COLUMN_NAME AND C.S_TABLE_NAME = p_View_Name
+			LEFT OUTER JOIN TABLE(custom_changelog_gen.FN_Pipe_Changelog_References) C ON B.COLUMN_NAME = C.S_COLUMN_NAME AND C.S_TABLE_NAME = p_Table_Name
 			WHERE B.TABLE_NAME = p_Table_Name
 			AND changelog_conf.Match_Column_Pattern(B.COLUMN_NAME, T.CREATE_TIMESTAMP_COLUMN_NAME) = 'NO'
 			AND changelog_conf.Match_Column_Pattern(B.COLUMN_NAME, T.CREATE_USER_COLUMN_NAME) = 'NO'
@@ -1687,8 +1742,8 @@ CREATE OR REPLACE PACKAGE BODY custom_changelog_gen IS
         FOR  stat_cur IN (
             SELECT T_COLUMN_NAME KEY_COL,
             	S_COLUMN_NAME KEY_ALIAS
-			FROM MVCHANGELOG_REFERENCES
-			WHERE S_TABLE_NAME = p_View_Name
+			FROM TABLE(custom_changelog_gen.FN_Pipe_Changelog_References)
+			WHERE S_TABLE_NAME = p_Table_Name
 			AND S_COLUMN_NAME != p_Primary_Key_Col
         )
         LOOP
@@ -1939,8 +1994,6 @@ CREATE OR REPLACE PACKAGE BODY custom_changelog_gen IS
         v_Steps  		binary_integer := 0;
         v_Proc_Name 	VARCHAR2(128) := 'Add ChangeLog Views';
     BEGIN
-    	MView_Refresh('MVCHANGELOG_REFERENCES');
-
         OPEN view_cur;
         FETCH view_cur BULK COLLECT INTO v_stat_tbl;
         CLOSE view_cur;

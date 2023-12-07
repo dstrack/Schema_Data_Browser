@@ -231,10 +231,12 @@ CREATE OR REPLACE PACKAGE BODY custom_keys.set_custom_ctx IS
 		DBMS_SESSION.SET_CONTEXT(g_CtxNamespace, g_CtxWorkspaceName, v_Workspace_Name, p_Client_Id);
 		v_TimestampString := TO_CHAR(CURRENT_TIMESTAMP, g_CtxTimestampFormat);
 		DBMS_SESSION.SET_CONTEXT(g_CtxNamespace, g_CtxQueryTimestamp, v_TimestampString, p_Client_Id);
-
+		/*
+		-- APEX 23.1 immediately stops processing and shows an error page then the Application Idem does not exist
 		if p_Client_Id IS NOT NULL then
 			Set_Existing_Apex_Item(g_Workspace_Item, v_Workspace_Name);
 		end if;
+		*/
 	EXCEPTION
 	WHEN OTHERS THEN
 		Log_Message(SQLCODE, SQLERRM);
@@ -266,9 +268,12 @@ CREATE OR REPLACE PACKAGE BODY custom_keys.set_custom_ctx IS
 		DBMS_SESSION.SET_CONTEXT(g_CtxNamespace, g_CtxWorkspaceName, v_Workspace_Name, p_Client_Id);
 		v_TimestampString := TO_CHAR(CURRENT_TIMESTAMP, g_CtxTimestampFormat);
 		DBMS_SESSION.SET_CONTEXT(g_CtxNamespace, g_CtxQueryTimestamp, v_TimestampString, p_Client_Id);
+		/*
+		-- APEX 23.1 immediately stops processing and shows an error page then the Application Idem does not exist
 		if p_Client_Id IS NOT NULL then
 			Set_Existing_Apex_Item(g_Workspace_Item, v_Workspace_Name);
 		end if;
+		*/
 		COMMIT;
 	EXCEPTION
 	WHEN OTHERS THEN
@@ -319,10 +324,13 @@ CREATE OR REPLACE PACKAGE BODY custom_keys.set_custom_ctx IS
 		DBMS_SESSION.SET_CONTEXT(g_CtxNamespace, 'USER_EMAIL', 	v_User_Email, 	p_Client_Id);
 		DBMS_SESSION.SET_CONTEXT(g_CtxNamespace, 'CSV_CHARSET', 	v_Csv_Charset, 	p_Client_Id);
 		DBMS_SESSION.SET_CONTEXT(g_CtxNamespace, 'CLIENT_IDENTIFIER', p_Client_Id, p_Client_Id);
+		/*
+		-- APEX 23.1 immediately stops processing and shows an error page then the Application Idem does not exist
 		if p_Client_Id IS NOT NULL then
 			Set_Existing_Apex_Item(g_User_Id_Item, v_User_Id);
 			Set_Existing_Apex_Item(g_User_Level_Item, v_Userlevel);
 		end if;
+		*/
 	END Set_Current_User;
 
 	PROCEDURE Set_Query_Timestamp (
@@ -420,6 +428,11 @@ CREATE OR REPLACE PACKAGE BODY custom_keys.set_custom_ctx IS
 		v_Workspace_Name	VARCHAR2(50) := NVL(V(g_Workspace_Item), SYS_CONTEXT(g_CtxNamespace, g_CtxWorkspaceName));
 		v_User_Name		VARCHAR2(50) := SYS_CONTEXT('APEX$SESSION','APP_USER');
 		v_Client_Id 	VARCHAR2(200) := SYS_CONTEXT('USERENV','CLIENT_IDENTIFIER');
+		v_Schema_Name	VARCHAR2(100) := SYS_CONTEXT('USERENV', 'CURRENT_SCHEMA');
+		v_User_Id 		VARCHAR2(100);
+		v_Userlevel 	INTEGER;
+   		cv 				cur_type;
+		v_Find_User_Query VARCHAR2(500);
 	BEGIN
 		v_Client_Id := REPLACE(v_Client_Id, 'nobody', v_User_Name);
 		if v_Workspace_Name IS NULL then
@@ -427,6 +440,19 @@ CREATE OR REPLACE PACKAGE BODY custom_keys.set_custom_ctx IS
 		end if;
 		set_current_workspace(v_Workspace_Name, v_Client_Id);
 		set_current_user(v_User_Name, v_Client_Id, p_Table_App_Users);
+
+		if p_Table_App_Users = 'V_CONTEXT_USERS' then
+			v_Find_User_Query := 'SELECT USER_ID, USER_LEVEL FROM ' || v_Schema_Name || '.V_CONTEXT_USERS WHERE UPPER_LOGIN_NAME = :a';
+		else 
+			v_Find_User_Query := 'SELECT ID, USER_LEVEL FROM ' || v_Schema_Name || '.' || p_Table_App_Users || ' WHERE UPPER_LOGIN_NAME = :a';
+		end if;
+		OPEN cv FOR v_Find_User_Query USING v_User_Name;
+		FETCH cv INTO v_User_Id, v_Userlevel;
+		CLOSE cv;
+
+		Set_Existing_Apex_Item(g_Workspace_Item, v_Workspace_Name);
+		Set_Existing_Apex_Item(g_User_Id_Item, v_User_Id);
+		Set_Existing_Apex_Item(g_User_Level_Item, v_Userlevel);
 		COMMIT;
 		if apex_application.g_debug then
 			Log_Message('Post_Apex_Logon', '(' || v_Workspace_Name || ', ' || v_User_Name || ', ' || v_Client_Id || ')' );

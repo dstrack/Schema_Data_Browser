@@ -257,7 +257,7 @@ CREATE OR REPLACE PACKAGE BODY custom_changelog IS
     -- Column Names for the description of foreign key references in Changelog Report
     g_ReferenceDescriptionCols VARCHAR2(4000)           := '%NAME, %DESCRIPTION, %BESCHREIBUNG, %BEZEICHNUNG';
 
-	g_CtxTimestampFormat CONSTANT VARCHAR2(64)	:= 'DD.MM.YYYY HH24.MI.SS.FF TZH:TZM';
+	g_CtxTimestampFormat CONSTANT VARCHAR2(64)	:= 'DD.MM.YYYY HH24.MI.SSXFF TZH:TZM';
 	g_Timestamp_Item 	CONSTANT VARCHAR2(32) := 'APP_QUERY_TIMESTAMP'; -- Apex Item for current query timestamp
 	g_Workspace_Item 	CONSTANT VARCHAR2(30) := 'APP_WORKSPACE';	-- Apex Item for current workspace name
 	

@@ -1,27 +1,3 @@
-BEGIN
-	EXECUTE IMMEDIATE 'DROP MATERIALIZED VIEW MVCHANGELOG_REFERENCES';
-EXCEPTION
-  WHEN OTHERS THEN
-	IF SQLCODE != -12003 THEN
-		RAISE;
-	END IF;
-END;
-/
-
-CREATE MATERIALIZED VIEW MVCHANGELOG_REFERENCES (S_TABLE_NAME, S_COLUMN_NAME, T_TABLE_NAME, T_COLUMN_NAME, T_CHANGELOG_NAME, CONSTRAINT_TYPE, DELETE_RULE)
-    BUILD DEFERRED
-    REFRESH COMPLETE
-    ON DEMAND
-AS
--- used in packages custom_changelog_gen
--- Calculate additional parameter for custom_changelog.AddLog. The mapping of table columns
--- to parameter names of a direct reference column for the function call to custom_changelog.AddLog is calculated
-SELECT S_TABLE_NAME, S_COLUMN_NAME, T_TABLE_NAME, T_COLUMN_NAME, T_CHANGELOG_NAME, CONSTRAINT_TYPE, DELETE_RULE
-FROM table (changelog_conf.FN_Pipe_Changelog_References)
-;
-
-ALTER  TABLE MVCHANGELOG_REFERENCES ADD
- CONSTRAINT MVCHANGELOG_REFERENCES_UK UNIQUE (S_TABLE_NAME, S_COLUMN_NAME) USING INDEX COMPRESS 1;
 
 
 CREATE OR REPLACE VIEW VCHANGE_LOG_FIELDS (
@@ -79,6 +55,8 @@ create or replace PACKAGE custom_changelog_gen IS
         p_context binary_integer DEFAULT FN_Scheduler_Context		-- context is of type BINARY_INTEGER
    	);
 	FUNCTION MViews_Stale_Count RETURN NUMBER;
+	FUNCTION FN_Pipe_Changelog_References
+	RETURN changelog_conf.tab_changelog_references PIPELINED PARALLEL_ENABLE;
     
 	FUNCTION VPROTOCOL_LIST_Query RETURN VARCHAR2;
 	FUNCTION VPROTOCOL_LIST_Cols RETURN VARCHAR2;
@@ -117,7 +95,8 @@ create or replace PACKAGE custom_changelog_gen IS
     );
 	PROCEDURE Refresh_ChangeLog_Trigger (
 		p_Table_Name        IN VARCHAR2 DEFAULT NULL,
-    	p_context        	IN  binary_integer DEFAULT FN_Scheduler_Context
+    	p_context        	IN  binary_integer DEFAULT FN_Scheduler_Context,
+    	p_Force				IN NUMBER DEFAULT 0
 	);
 	FUNCTION Changelog_Is_Active( p_Table_Name VARCHAR2)
 	RETURN VARCHAR2;

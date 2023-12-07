@@ -78,7 +78,6 @@ WITH MVIEW_LOGS AS (
         END) HAS_WORKSPACE_ID, -- Table has Workspace ID
         MAX(CASE WHEN C.COLUMN_NAME = changelog_conf.Get_ColumnDeletedMark THEN
             CASE WHEN C.DATA_TYPE = changelog_conf.Get_DatatypeDeletedMark
-            AND C.CHAR_LENGTH = 1
             AND C.NULLABLE = 'Y'
             AND C.DEFAULT_LENGTH > 0
             AND RTRIM(C.DEFAULT_TEXT) = changelog_conf.Get_DefaultDeletedMark
