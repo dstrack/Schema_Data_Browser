@@ -459,19 +459,17 @@ IS
 						A.TABLE_NAME, A.OWNER TABLE_OWNER,
 						A.READ_ONLY,
 						COUNT(DISTINCT A.OWNER||'.'||A.TABLE_NAME) OVER (PARTITION BY D.NAME, D.OWNER) TAB_CNT
-					FROM SYS.ALL_TABLES A, SYS.ALL_DEPENDENCIES D, SYS.ALL_CONSTRAINTS C
+					FROM SYS.ALL_TABLES A, SYS.ALL_DEPENDENCIES D
 					WHERE A.TABLE_NAME = D.REFERENCED_NAME -- table is used in view
 					AND A.OWNER = D.REFERENCED_OWNER
 					AND D.TYPE = 'VIEW'
 					AND D.REFERENCED_TYPE = 'TABLE'
-					AND C.TABLE_NAME = D.NAME
-					AND C.OWNER = A.OWNER
 					AND D.OWNER = SYS_CONTEXT('USERENV', 'CURRENT_SCHEMA') 
 					AND (D.NAME = A.TABLE_NAME
 					 OR (A.TABLE_NAME LIKE '%' || data_browser_pattern.Get_Base_Table_Ext
-					AND D.NAME LIKE REGEXP_REPLACE(A.TABLE_NAME, '\d*' || data_browser_pattern.Get_Base_Table_Ext || '$') || '%'
-					AND D.NAME LIKE data_browser_pattern.Get_Base_View_Prefix || '%' || data_browser_pattern.Get_Base_View_Ext))
-					AND C.CONSTRAINT_TYPE = 'V' -- view has WITH CHECK OPTION constraint
+					--AND D.NAME LIKE REGEXP_REPLACE(A.TABLE_NAME, '\d*' || data_browser_pattern.Get_Base_Table_Ext || '$') || '%'
+					    AND REGEXP_LIKE(A.TABLE_NAME, RTRIM(SUBSTR(D.NAME, 1, 26), '_')||'[0-9_]*' || data_browser_pattern.Get_Base_Table_Ext || '$')
+						AND D.NAME LIKE data_browser_pattern.Get_Base_View_Prefix || '%' || data_browser_pattern.Get_Base_View_Ext))
 					AND A.IOT_NAME IS NULL		-- skip overflow tables of index organized tables
 					AND A.TABLE_NAME NOT LIKE 'DR$%$_'  -- skip fulltext index
 					AND A.TEMPORARY = 'N'		-- skip temporary tables
@@ -512,20 +510,18 @@ IS
 					DENSE_RANK() OVER (PARTITION BY RTRIM(SUBSTR(VIEW_NAME, 1, 23), '_') ORDER BY NLSSORT(VIEW_NAME, 'NLS_SORT = WEST_EUROPEAN')) RUN_NO
 				FROM (
 					SELECT /*+ USE_MERGE(A D C) */
-						D.NAME VIEW_NAME, C.OWNER VIEW_OWNER,
-						A.TABLE_NAME, C.OWNER TABLE_OWNER,
+						D.NAME VIEW_NAME, SYS_CONTEXT('USERENV', 'CURRENT_SCHEMA') VIEW_OWNER,
+						A.TABLE_NAME, SYS_CONTEXT('USERENV', 'CURRENT_SCHEMA') TABLE_OWNER,
 						A.READ_ONLY,
 						COUNT(DISTINCT A.TABLE_NAME) OVER (PARTITION BY D.NAME) TAB_CNT
-					FROM SYS.USER_TABLES A, SYS.USER_DEPENDENCIES D, SYS.USER_CONSTRAINTS C
+					FROM SYS.USER_TABLES A, SYS.USER_DEPENDENCIES D
 					WHERE A.TABLE_NAME = D.REFERENCED_NAME -- table is used in view
 					AND D.TYPE = 'VIEW'
 					AND D.REFERENCED_TYPE = 'TABLE'
-					AND C.TABLE_NAME = D.NAME
 					AND A.TABLE_NAME LIKE '%' || data_browser_pattern.Get_Base_Table_Ext
-					AND D.NAME LIKE REGEXP_REPLACE(A.TABLE_NAME, '\d*' || data_browser_pattern.Get_Base_Table_Ext || '$') || '%'
+					-- AND D.NAME LIKE REGEXP_REPLACE(A.TABLE_NAME, '\d*' || data_browser_pattern.Get_Base_Table_Ext || '$') || '%'
+					AND REGEXP_LIKE(A.TABLE_NAME, RTRIM(SUBSTR(D.NAME, 1, 26), '_')||'[0-9_]*' || data_browser_pattern.Get_Base_Table_Ext || '$')
 					AND D.NAME LIKE data_browser_pattern.Get_Base_View_Prefix || '%' || data_browser_pattern.Get_Base_View_Ext
-					AND C.CONSTRAINT_TYPE = 'V' -- view has WITH CHECK OPTION constraint
-					AND C.OWNER = SYS_CONTEXT('USERENV', 'CURRENT_SCHEMA')
 					AND A.IOT_NAME IS NULL		-- skip overflow tables of index organized tables
 					AND A.TABLE_NAME NOT LIKE 'DR$%$_'  -- skip fulltext index
 					AND A.TEMPORARY = 'N'		-- skip temporary tables

@@ -31,7 +31,7 @@ DECLARE
         		EXIT;
 			EXCEPTION
 				WHEN time_limit_exceeded THEN 
-					APEX_UTIL.PAUSE(1/2);
+					DBMS_SESSION.SLEEP(1/2);
 					v_count := v_count + 1;
 					EXIT WHEN v_count > 10;
 				WHEN mview_does_not_exist or table_does_not_exist THEN
@@ -43,6 +43,7 @@ BEGIN
 	DROP_MVIEW('MVBASE_ALTER_UNIQUEKEYS');
 END;
 /
+execute DBMS_SESSION.SLEEP(1/2);
 
 /* Definition of Primary and Unique Keys for all normal tables, tables without Keys are also listed  */
 CREATE MATERIALIZED VIEW MVBASE_ALTER_UNIQUEKEYS
@@ -56,9 +57,10 @@ CREATE MATERIALIZED VIEW MVBASE_ALTER_UNIQUEKEYS
     BUILD DEFERRED
     REFRESH COMPLETE
     ON DEMAND
+    USING TRUSTED CONSTRAINTS 
 AS
 WITH MVIEW_LOGS AS (
-    SELECT U.MASTER,
+    SELECT U.MASTER, U.LOG_TABLE,
         CAST(LTRIM(DECODE(U.ROWIDS, 'YES', ', ROWID', NULL)
         || DECODE(U.PRIMARY_KEY, 'YES', ', PRIMARY KEY', NULL)
         || DECODE(U.OBJECT_ID, 'YES', ', OBJECT ID', NULL)
@@ -166,7 +168,6 @@ FROM (
                 AND IS_REFERENCED_KEY = 'NO'
                 AND KEY_HAS_NEXTVAL = 'NO'
                 AND KEY_HAS_SYS_GUID = 'NO'
-                AND INCLUDE_WORKSPACE_ID = 'YES'
                 AND INCLUDE_DELETE_MARK = 'YES' -- Add Deleted_Mark
                 THEN ', ' || changelog_conf.Get_ColumnDeletedMark
             END, ', '
@@ -207,7 +208,18 @@ FROM (
             REFERENCES_COUNT,
             NVL(C.HAS_WORKSPACE_ID, 'NO') HAS_WORKSPACE_ID, -- Table has Workspace ID
             NVL(C.HAS_DELETE_MARK, 'NO') HAS_DELETE_MARK, -- Table has Delete_Mark
-            D.INCLUDE_TIMESTAMP, D.INCLUDE_DELETE_MARK, D.INCLUDE_WORKSPACE_ID,
+            D.INCLUDE_TIMESTAMP, 
+            case when D.INCLUDE_DELETE_MARK = 'YES' 
+			and NOT EXISTS (
+				SELECT 1 
+				FROM MVBASE_UNIQUE_KEYS PK
+				WHERE PK.CONSTRAINT_TYPE = 'P'
+				AND PK.KEY_HAS_NEXTVAL = 'NO'
+				AND PK.KEY_HAS_SYS_GUID = 'NO'
+				AND PK.TABLE_OWNER = SYS_CONTEXT('USERENV', 'CURRENT_SCHEMA')
+				AND PK.TABLE_NAME = T.TABLE_NAME
+			) then 'YES' else 'NO' end  INCLUDE_DELETE_MARK,
+            D.INCLUDE_WORKSPACE_ID,
             T.KEY_HAS_WORKSPACE_ID, T.KEY_HAS_DELETE_MARK, T.KEY_HAS_NEXTVAL, T.KEY_HAS_SYS_GUID, 
             T.HAS_SCALAR_VIEW_KEY, T.HAS_SERIAL_VIEW_KEY,
             T.SEQUENCE_OWNER, T.SEQUENCE_NAME
@@ -217,6 +229,11 @@ FROM (
         WHERE T.TABLE_NAME = D.TABLE_NAME
         AND T.TABLE_NAME = C.TABLE_NAME (+)
     ) T
+	WHERE NOT EXISTS (
+		SELECT 1 
+		FROM SYS.USER_MVIEW_LOGS M 
+		WHERE M.LOG_TABLE = T.TABLE_NAME
+	)
 ) T, MVIEW_LOGS L 
 WHERE T.TABLE_NAME = L.MASTER (+);
 
