@@ -877,7 +877,7 @@ $END
 		log_message(v_message, v_user);
 
 		if v_result = false then
-			APEX_UTIL.PAUSE(1);
+			DBMS_SESSION.SLEEP(1);
 		end if;
         $IF data_browser_conf.g_debug $THEN
             EXECUTE IMMEDIATE api_trace.Dyn_Log_Function_Call

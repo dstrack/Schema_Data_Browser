@@ -31,7 +31,7 @@ DECLARE
         		EXIT;
 			EXCEPTION
 				WHEN time_limit_exceeded THEN 
-					APEX_UTIL.PAUSE(1/2);
+					DBMS_SESSION.SLEEP(1/2);
 					v_count := v_count + 1;
 					EXIT WHEN v_count > 10;
 				WHEN mview_does_not_exist or table_does_not_exist THEN

@@ -300,7 +300,7 @@ CREATE OR REPLACE PACKAGE BODY data_browser_login AS
 		exception
 		  when NO_DATA_FOUND then
 			COMMIT;
-			APEX_UTIL.PAUSE(1);
+			DBMS_SESSION.SLEEP(1);
 			p_Message := APEX_LANG.LANG('No matching data found.');
 			return;
 		end;
@@ -321,7 +321,7 @@ CREATE OR REPLACE PACKAGE BODY data_browser_login AS
 	  	COMMIT;
         EXECUTE IMMEDIATE api_trace.Dyn_Log_Exception
         USING p_name,p_email,p_app_id,p_startpage,p_message;
-		APEX_UTIL.PAUSE(1);
+		DBMS_SESSION.SLEEP(1);
 		p_Message := APEX_LANG.LANG('The service is currently not available.');
 	end Request_New_password;
 
@@ -368,7 +368,7 @@ CREATE OR REPLACE PACKAGE BODY data_browser_login AS
 	  when others then
         EXECUTE IMMEDIATE api_trace.Dyn_Log_Exception
         USING p_account_token,p_user_id;
-		APEX_UTIL.PAUSE(1);
+		DBMS_SESSION.SLEEP(1);
 		RAISE;
 	END Use_Account_Token;
 
@@ -563,7 +563,7 @@ CREATE OR REPLACE PACKAGE BODY data_browser_login AS
 		v_host_name 	VARCHAR2(1024); 
 		v_App_Name_Subject VARCHAR2(1024);
 		v_confirm_url   VARCHAR2(1024);
-		v_Mail_Footer	VARCHAR2(4000);
+		v_Mail_Footer	CLOB;
 		v_Schema_Name 	VARCHAR2(1024);
 		v_template_static_id VARCHAR2(100);
 		v_template_placeholders	CLOB;

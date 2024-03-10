@@ -568,7 +568,7 @@ IS
   		v_http_request   UTL_HTTP.req;
 	BEGIN
 		loop 
-			APEX_UTIL.PAUSE(1/5);
+			DBMS_SESSION.SLEEP(1/5);
 			v_Job_State := Get_User_Job_State_Peek(p_Job_Name => p_Job_Name);
 			exit when v_Job_State IN ('RUNNING', 'FINISHED','DONE');
 			v_Loops := v_Loops - 1;
