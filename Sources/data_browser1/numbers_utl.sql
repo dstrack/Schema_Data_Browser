@@ -46,7 +46,8 @@ IS
     g_Format_Max_Length         CONSTANT PLS_INTEGER := 63;     -- maximal length of a format mask 
 
     FUNCTION Get_NLS_NumChars RETURN VARCHAR2;
-
+	FUNCTION Get_ISO_Currency RETURN VARCHAR2;
+	FUNCTION Get_NLS_Territory RETURN VARCHAR2;
     -- produce a format mask for the given p_Data_Precision and p_Data_Scale
     FUNCTION Get_Number_Format_Mask (
         p_Data_Precision NUMBER,
@@ -66,8 +67,9 @@ IS
 
     -- produce the NLS_Param for the to_number function using p_NumChars, p_Currency
     FUNCTION Get_NLS_Param (
-        p_NumChars VARCHAR2 DEFAULT numbers_utl.Get_NLS_NumChars,   -- decimal (radix) and group character
-        p_Currency VARCHAR2 DEFAULT SYS_CONTEXT ('USERENV','NLS_CURRENCY')  -- current Currency character
+        p_NumChars VARCHAR2 DEFAULT numbers_utl.Get_NLS_NumChars,   		-- decimal (radix) and group character
+        p_Currency VARCHAR2 DEFAULT SYS_CONTEXT ('USERENV','NLS_CURRENCY'), -- current Currency character
+        p_Territory VARCHAR2 DEFAULT numbers_utl.Get_NLS_Territory			-- current Territory name
     ) RETURN VARCHAR2 DETERMINISTIC;
 
     -- Convert any javascript floating point number string to sql number
@@ -79,10 +81,12 @@ IS
     -- convert string with formated oracle floating point number to oracle number.
     -- the string was produced by function TO_CHAR with format FM9 
     -- or a format that contains G D L or EEEE symbols
-    FUNCTION FM9_TO_Number( 
+    FUNCTION FM9_TO_Number(
         p_Value VARCHAR2, 
         p_NumChars VARCHAR2 DEFAULT '.,',
         p_Currency VARCHAR2 DEFAULT SYS_CONTEXT ('USERENV','NLS_CURRENCY'),
+        p_ISO_Currency VARCHAR2 DEFAULT numbers_utl.Get_ISO_Currency,
+        p_Territory VARCHAR2 DEFAULT numbers_utl.Get_NLS_Territory,
         p_Default_On_Error NUMBER DEFAULT NULL
     ) RETURN NUMBER DETERMINISTIC;
     
@@ -91,7 +95,8 @@ IS
     FUNCTION FN_TO_NUMBER  (
         p_Value VARCHAR2, 
         p_Format VARCHAR2 DEFAULT NULL, 
-        p_nlsparam VARCHAR2 DEFAULT numbers_utl.Get_NLS_Param
+        p_nlsparam VARCHAR2 DEFAULT numbers_utl.Get_NLS_Param,
+        p_ISO_Currency VARCHAR2 DEFAULT numbers_utl.Get_ISO_Currency
     ) RETURN NUMBER DETERMINISTIC; -- return a number from a formated string
 
     FUNCTION Get_Number_Pattern (
@@ -106,8 +111,11 @@ IS
     function Validate_Conversion (
         p_Value VARCHAR2,
         p_NumChars VARCHAR2 DEFAULT '.,',
-        p_Currency VARCHAR2 DEFAULT SYS_CONTEXT ('USERENV','NLS_CURRENCY')
-    ) RETURN VARCHAR2 DETERMINISTIC;
+        p_Currency VARCHAR2 DEFAULT SYS_CONTEXT ('USERENV','NLS_CURRENCY'),
+        p_ISO_Currency VARCHAR2 DEFAULT numbers_utl.Get_ISO_Currency,
+        p_Territory VARCHAR2 DEFAULT numbers_utl.Get_NLS_Territory,
+        p_Decimal_Required VARCHAR2 DEFAULT 'N'
+    ) RETURN NUMBER DETERMINISTIC;
 END numbers_utl;
 /
 
@@ -124,6 +132,22 @@ IS
         WHERE parameter = 'NLS_NUMERIC_CHARACTERS';
         RETURN v_NLS_NumChars;
     END Get_NLS_NumChars;
+
+	FUNCTION Get_ISO_Currency RETURN VARCHAR2 
+	IS 
+	BEGIN 
+		RETURN RTRIM(TO_CHAR(1, 'C9'), '1');
+	END Get_ISO_Currency;
+
+	FUNCTION Get_NLS_Territory RETURN VARCHAR2
+	IS 
+		v_NLS_Territory V$NLS_PARAMETERS.VALUE%TYPE;
+	BEGIN 
+		SELECT VALUE INTO v_NLS_Territory
+		FROM V$NLS_PARAMETERS 
+		WHERE PARAMETER = 'NLS_TERRITORY';
+		RETURN v_NLS_Territory;
+	END Get_NLS_Territory;
 
     FUNCTION Get_Number_Format_Mask (
         p_Data_Precision NUMBER,
@@ -185,16 +209,33 @@ IS
             'EEEE');
     END Get_Number_Mask;
 
+    FUNCTION Get_Number_Normalized (
+        p_Value VARCHAR2,                   -- string with formated number
+        p_Currency VARCHAR2 DEFAULT SYS_CONTEXT ('USERENV','NLS_CURRENCY'),  -- currency character
+        p_ISO_Currency VARCHAR2 DEFAULT NULL
+    ) RETURN VARCHAR2 DETERMINISTIC
+    IS
+    	v_string			VARCHAR2(4000);
+    BEGIN
+    	v_string := REPLACE(p_Value, p_ISO_Currency, p_Currency);	-- replace currency_code with currency_character
+    	v_string := REGEXP_REPLACE(v_string, '\s?\'||p_Currency||'\s?', p_Currency); -- remove blanks before or after currency_character
+   		v_string := RTRIM(v_string, '/√-');	-- remove marking characters after number
+   		v_string := SUBSTR(LTRIM(v_string, '*'), 1, 100); 	-- remove leadiing ***
+        RETURN TRIM(v_string);
+    END Get_Number_Normalized;
+
     -- produce the NLS_Param for the to_number function using p_NumChars, p_Currency
     FUNCTION Get_NLS_Param (
-        p_NumChars VARCHAR2 DEFAULT numbers_utl.Get_NLS_NumChars,   -- decimal (radix) and group character
-        p_Currency VARCHAR2 DEFAULT SYS_CONTEXT ('USERENV','NLS_CURRENCY')  -- current Currency character
+        p_NumChars VARCHAR2 DEFAULT numbers_utl.Get_NLS_NumChars,   		-- decimal (radix) and group character
+        p_Currency VARCHAR2 DEFAULT SYS_CONTEXT ('USERENV','NLS_CURRENCY'), -- current Currency character
+        p_Territory VARCHAR2 DEFAULT numbers_utl.Get_NLS_Territory			-- current Territory name
     ) RETURN VARCHAR2 DETERMINISTIC
     IS
     PRAGMA UDF;
     BEGIN
         RETURN 'NLS_NUMERIC_CHARACTERS = ' || dbms_assert.enquote_literal(p_NumChars)
-        || ' NLS_CURRENCY = ' || dbms_assert.enquote_literal(p_Currency);
+        || ' NLS_CURRENCY = ' || dbms_assert.enquote_literal(p_Currency)
+        || case when p_Territory IS NOT NULL then ' NLS_ISO_CURRENCY = ' || p_Territory end;
     END Get_NLS_Param;
 
     -- Convert any javascript floating point number string to sql number
@@ -209,18 +250,22 @@ IS
     -- convert string with formated oracle floating point number to oracle number.
     -- the string was produced by function TO_CHAR with format FM9 
     -- or a format that contains G D L or EEEE symbols
-    FUNCTION FM9_TO_Number( 
+    FUNCTION FM9_TO_Number(
         p_Value VARCHAR2, 
         p_NumChars VARCHAR2 DEFAULT '.,',
         p_Currency VARCHAR2 DEFAULT SYS_CONTEXT ('USERENV','NLS_CURRENCY'),
+        p_ISO_Currency VARCHAR2 DEFAULT numbers_utl.Get_ISO_Currency,
+        p_Territory VARCHAR2 DEFAULT numbers_utl.Get_NLS_Territory,
         p_Default_On_Error NUMBER DEFAULT NULL
     ) RETURN NUMBER DETERMINISTIC
     IS
     PRAGMA UDF;
+    	v_string	VARCHAR2(4000);
     BEGIN
-        RETURN TO_NUMBER(TRIM(p_Value), 
-            Get_Number_Mask(p_Value, p_NumChars, p_Currency), 
-            Get_NLS_Param (p_NumChars, p_Currency));
+    	v_string := Get_Number_Normalized(p_Value, p_Currency, p_ISO_Currency);
+        RETURN TO_NUMBER(v_string, 
+            Get_Number_Mask(v_string, p_NumChars, p_Currency), 
+            Get_NLS_Param (p_NumChars, p_Currency, p_Territory));
     EXCEPTION WHEN VALUE_ERROR THEN
         if p_Default_On_Error IS NOT NULL then 
             return p_Default_On_Error;
@@ -234,11 +279,13 @@ IS
     FUNCTION FN_TO_NUMBER  (
         p_Value VARCHAR2, 
         p_Format VARCHAR2 DEFAULT NULL, 
-        p_nlsparam VARCHAR2 DEFAULT numbers_utl.Get_NLS_Param
+        p_nlsparam VARCHAR2 DEFAULT numbers_utl.Get_NLS_Param,
+        p_ISO_Currency VARCHAR2 DEFAULT numbers_utl.Get_ISO_Currency
     ) RETURN NUMBER DETERMINISTIC -- return a number from a formated string
     IS
         v_NLS_NumChars VARCHAR2(10);
         v_NLS_Currency VARCHAR2(10);
+    	v_string	VARCHAR2(4000);
     BEGIN
         if p_Format IS NULL then 
             RETURN TO_NUMBER(p_Value);
@@ -248,7 +295,8 @@ IS
     EXCEPTION WHEN VALUE_ERROR THEN
         v_NLS_NumChars := SUBSTR(p_nlsparam, INSTR(p_nlsparam, chr(39))+1, 2);
         v_NLS_Currency := SUBSTR(p_nlsparam, INSTR(p_nlsparam, chr(39), 1, 3)+1, 1);
-        RETURN TO_NUMBER(TRIM(p_Value), numbers_utl.Get_Number_Mask(p_Value, v_NLS_NumChars, v_NLS_Currency), p_nlsparam);
+    	v_string := Get_Number_Normalized(p_Value, v_NLS_Currency, p_ISO_Currency);
+        RETURN TO_NUMBER(v_string, numbers_utl.Get_Number_Mask(v_string, v_NLS_NumChars, v_NLS_Currency), p_nlsparam);
     END FN_TO_NUMBER;
 
     -- convert p_NumChars to a regular expression number pattern 
@@ -276,11 +324,40 @@ IS
     function Validate_Conversion (
         p_Value VARCHAR2,
         p_NumChars VARCHAR2 DEFAULT '.,',
-        p_Currency VARCHAR2 DEFAULT SYS_CONTEXT ('USERENV','NLS_CURRENCY')
-    ) RETURN VARCHAR2 DETERMINISTIC
-    IS
+        p_Currency VARCHAR2 DEFAULT SYS_CONTEXT ('USERENV','NLS_CURRENCY'),
+        p_ISO_Currency VARCHAR2 DEFAULT numbers_utl.Get_ISO_Currency,
+        p_Territory VARCHAR2 DEFAULT numbers_utl.Get_NLS_Territory,
+        p_Decimal_Required VARCHAR2 DEFAULT 'N'
+    ) RETURN NUMBER DETERMINISTIC
+    IS PRAGMA UDF;
+    	v_normal			VARCHAR2(200);
+    	v_string			VARCHAR2(200);
+    	v_decimal_char   	VARCHAR2(1) := SUBSTR(p_NumChars, 1, 1);
+    	v_group_char   		VARCHAR2(1) := SUBSTR(p_NumChars, 2, 1);
+    	v_decimal_offset 	NUMBER;
+    	v_decimal_offset2 	NUMBER;
+    	v_group_offset 		NUMBER;
     BEGIN
-        RETURN case when REGEXP_SUBSTR(p_Value, numbers_utl.FM9_Number_Pattern(p_NumChars, p_Currency), 1, 1, 'c', 1) IS NOT NULL then 1 else 0 end;
+    	if NOT REGEXP_LIKE(p_Value, '\d') then
+    		RETURN 0;													-- return 0 when not digits found.
+    	end if;
+    	v_normal := Get_Number_Normalized(p_Value, p_Currency, p_ISO_Currency);
+    	v_string := REPLACE(v_normal, p_Currency);
+    	v_decimal_offset 	:= INSTR(v_string, v_decimal_char);
+    	v_decimal_offset2 	:= INSTR(v_string, v_decimal_char, 1, 2);
+    	v_group_offset		:= INSTR(v_string, v_group_char, -1);
+    	if (v_group_offset > 0 and LENGTH(v_string) - v_group_offset < 3) 	-- group char must be at least in the 3 position from end of string
+    	or (v_decimal_offset > 0 and v_group_offset > v_decimal_offset)		-- group char must appear before decimal char 
+    	or (v_decimal_offset = 0 and p_Decimal_Required = 'Y')				-- decimal must be existing
+    	or (v_decimal_offset2 > 0) 											-- only one decimal char is allowed
+    	or (v_group_offset > 0 and v_decimal_offset > 0 					-- the distance between group char and decimal char 
+    		and mod(v_decimal_offset - v_group_offset, 4) != 0)				-- must be a multiple of 4
+    	then 
+    		RETURN 0;
+    	end if;
+        RETURN VALIDATE_CONVERSION(v_normal AS NUMBER, 
+        		Get_Number_Mask(v_normal, p_NumChars, p_Currency), 
+            	Get_NLS_Param (p_NumChars, p_Currency, p_Territory));
     END Validate_Conversion;
 
 END numbers_utl;
