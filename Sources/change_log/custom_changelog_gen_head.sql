@@ -89,6 +89,7 @@ create or replace PACKAGE custom_changelog_gen IS
         p_Table_Name        IN VARCHAR2 DEFAULT NULL,
         p_Changelog_Only    IN VARCHAR2 DEFAULT 'YES'
     );
+    PROCEDURE Recomp_Invalid_Objects (p_Object_Type VARCHAR2 DEFAULT NULL);
     PROCEDURE Tables_Add_Serial_Keys(
         p_Table_Name IN VARCHAR2 DEFAULT NULL,
         p_Changelog_Only IN VARCHAR2 DEFAULT 'YES'

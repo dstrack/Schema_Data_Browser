@@ -348,9 +348,9 @@ IS
 
     FUNCTION Get_ChangelogTrigger_Name ( p_Name VARCHAR2, p_RunNo VARCHAR2 DEFAULT NULL ) RETURN VARCHAR2;
 
-    FUNCTION Get_BiTrigger_Name ( p_Name VARCHAR2 ) RETURN VARCHAR2;
+    FUNCTION Get_BiTrigger_Name ( p_Name VARCHAR2, p_RunNo VARCHAR2 DEFAULT NULL ) RETURN VARCHAR2;
 
-    FUNCTION Get_BuTrigger_Name ( p_Name VARCHAR2 ) RETURN VARCHAR2;
+    FUNCTION Get_BuTrigger_Name ( p_Name VARCHAR2, p_RunNo VARCHAR2 DEFAULT NULL ) RETURN VARCHAR2;
 
     FUNCTION Get_InsTrigger_Name ( p_Name VARCHAR2 ) RETURN VARCHAR2;
     FUNCTION Get_DelTrigger_Name ( p_Name VARCHAR2 ) RETURN VARCHAR2;
@@ -933,8 +933,8 @@ IS
 		SELECT T.TABLE_NAME, T.TABLE_OWNER, T.TRIGGER_NAME, T.TRIGGERING_EVENT, T.TRIGGER_TYPE,
 			T.TRIGGER_BODY,
 			CASE WHEN ((T.TRIGGER_TYPE = 'BEFORE EACH ROW'
-				AND ((T.TRIGGERING_EVENT = 'INSERT' AND T.TRIGGER_NAME = changelog_conf.Get_BiTrigger_Name(T.TABLE_NAME))
-					OR (T.TRIGGERING_EVENT = 'UPDATE' AND T.TRIGGER_NAME = changelog_conf.Get_BuTrigger_Name(T.TABLE_NAME))
+				AND ((T.TRIGGERING_EVENT = 'INSERT' AND T.TRIGGER_NAME LIKE changelog_conf.Get_BiTrigger_Name(T.TABLE_NAME, '%'))
+					OR (T.TRIGGERING_EVENT = 'UPDATE' AND T.TRIGGER_NAME LIKE changelog_conf.Get_BuTrigger_Name(T.TABLE_NAME, '%'))
 					OR (T.TRIGGERING_EVENT = 'DELETE' AND EXISTS (
 						SELECT 'X'
 						FROM SYS.ALL_CONSTRAINTS FK
@@ -944,7 +944,7 @@ IS
 						)
 					)
 				)
-				OR (T.TRIGGER_TYPE = 'COMPOUND'  AND T.TRIGGER_NAME = changelog_conf.Get_ChangelogTrigger_Name(T.TABLE_NAME)
+				OR (T.TRIGGER_TYPE = 'COMPOUND'  AND T.TRIGGER_NAME LIKE changelog_conf.Get_ChangelogTrigger_Name(T.TABLE_NAME, '%')
 					AND T.TRIGGERING_EVENT = 'INSERT OR UPDATE OR DELETE')
 			)
 			AND T.REFERENCING_NAMES = 'REFERENCING NEW AS NEW OLD AS OLD'
@@ -957,8 +957,8 @@ IS
 		SELECT T.TABLE_NAME, SYS_CONTEXT('USERENV', 'CURRENT_SCHEMA') TABLE_OWNER, T.TRIGGER_NAME, T.TRIGGERING_EVENT, T.TRIGGER_TYPE,
 			T.TRIGGER_BODY,
 			CASE WHEN ((T.TRIGGER_TYPE = 'BEFORE EACH ROW'
-				AND ((T.TRIGGERING_EVENT = 'INSERT' AND T.TRIGGER_NAME = changelog_conf.Get_BiTrigger_Name(T.TABLE_NAME))
-					OR (T.TRIGGERING_EVENT = 'UPDATE' AND T.TRIGGER_NAME = changelog_conf.Get_BuTrigger_Name(T.TABLE_NAME))
+				AND ((T.TRIGGERING_EVENT = 'INSERT' AND T.TRIGGER_NAME LIKE changelog_conf.Get_BiTrigger_Name(T.TABLE_NAME, '%'))
+					OR (T.TRIGGERING_EVENT = 'UPDATE' AND T.TRIGGER_NAME LIKE changelog_conf.Get_BuTrigger_Name(T.TABLE_NAME, '%'))
 					OR (T.TRIGGERING_EVENT = 'DELETE' AND EXISTS (
 						SELECT 'X'
 						FROM SYS.USER_CONSTRAINTS FK
@@ -968,7 +968,7 @@ IS
 						)
 					)
 				)
-				OR (T.TRIGGER_TYPE = 'COMPOUND'  AND T.TRIGGER_NAME = changelog_conf.Get_ChangelogTrigger_Name(T.TABLE_NAME)
+				OR (T.TRIGGER_TYPE = 'COMPOUND'  AND T.TRIGGER_NAME LIKE changelog_conf.Get_ChangelogTrigger_Name(T.TABLE_NAME, '%')
 					AND T.TRIGGERING_EVENT = 'INSERT OR UPDATE OR DELETE')
 			)
 			AND T.REFERENCING_NAMES = 'REFERENCING NEW AS NEW OLD AS OLD'
@@ -1514,10 +1514,11 @@ $END
 				AND D.TYPE = 'VIEW'
 				AND D.REFERENCED_TYPE = 'TABLE'
 				AND A.TABLE_NAME LIKE '%' || changelog_conf.Get_Base_Table_Ext
-				JOIN USER_CONSTRAINTS C ON C.TABLE_NAME = D.NAME
+				-- JOIN USER_CONSTRAINTS C ON C.TABLE_NAME = D.NAME
 				WHERE INSTR(A.TABLE_NAME, '$') = 0
-				AND D.NAME LIKE REGEXP_REPLACE(A.TABLE_NAME, '\d*' || changelog_conf.Get_Base_Table_Ext || '$') || '%'
-				AND C.CONSTRAINT_TYPE = 'V' -- view has WITH CHECK OPTION constraint
+				AND REGEXP_LIKE(A.TABLE_NAME, RTRIM(SUBSTR(D.NAME, 1, 26), '_')||'[0-9_]*' || changelog_conf.Get_Base_Table_Ext || '$')
+				-- AND D.NAME LIKE REGEXP_REPLACE(A.TABLE_NAME, '\d*' || changelog_conf.Get_Base_Table_Ext || '$') || '%'
+				-- AND C.CONSTRAINT_TYPE = 'V' -- view has WITH CHECK OPTION constraint
 				AND A.IOT_NAME IS NULL
 				AND A.TABLE_NAME NOT LIKE 'DR$%$_'  -- skip fulltext index
 				AND A.TEMPORARY = 'N'
@@ -1856,20 +1857,22 @@ $END
         RETURN g_ChangelogTriggerPrefix || RTRIM(SUBSTR(Get_Short_Name(p_Name), 1, v_Max_Length), '_') || p_RunNo || g_ChangelogTriggerExt;
     END;
 
-    FUNCTION Get_BiTrigger_Name ( p_Name VARCHAR2 ) RETURN VARCHAR2
+    FUNCTION Get_BiTrigger_Name ( p_Name VARCHAR2, p_RunNo VARCHAR2 DEFAULT NULL ) RETURN VARCHAR2
     IS
 	PRAGMA UDF;
-    	v_Max_Length INTEGER := g_Max_Name_Length - NVL(LENGTH(g_BiTriggerPrefix), 0) - NVL(LENGTH(g_BiTriggerExt), 0);
+		v_RunNo VARCHAR2(10) := case when p_RunNo > '1' or p_RunNo = '%' then p_RunNo end;
+    	v_Max_Length INTEGER := g_Max_Name_Length - NVL(LENGTH(g_BiTriggerPrefix), 0) - NVL(LENGTH(g_BiTriggerExt), 0) - NVL(LENGTH(v_RunNo), 0);
     BEGIN
         RETURN g_BiTriggerPrefix || RTRIM(SUBSTR(Get_Short_Name(p_Name), 1, v_Max_Length), '_') || g_BiTriggerExt;
     END;
 
-    FUNCTION Get_BuTrigger_Name ( p_Name VARCHAR2 ) RETURN VARCHAR2
+    FUNCTION Get_BuTrigger_Name ( p_Name VARCHAR2, p_RunNo VARCHAR2 DEFAULT NULL ) RETURN VARCHAR2
     IS
 	PRAGMA UDF;
-    	v_Max_Length INTEGER := g_Max_Name_Length - NVL(LENGTH(g_BuTriggerPrefix), 0) - NVL(LENGTH(g_BuTriggerExt), 0);
+		v_RunNo VARCHAR2(10) := case when p_RunNo > '1' or p_RunNo = '%' then p_RunNo end;
+    	v_Max_Length INTEGER := g_Max_Name_Length - NVL(LENGTH(g_BuTriggerPrefix), 0) - NVL(LENGTH(g_BuTriggerExt), 0) - NVL(LENGTH(v_RunNo), 0);
     BEGIN
-        RETURN g_BuTriggerPrefix || RTRIM(SUBSTR(Get_Short_Name(p_Name), 1, v_Max_Length), '_') || g_BuTriggerExt;
+        RETURN g_BuTriggerPrefix || RTRIM(SUBSTR(Get_Short_Name(p_Name), 1, v_Max_Length), '_') || v_RunNo || g_BuTriggerExt;
     END;
 
     FUNCTION Get_InsTrigger_Name ( p_Name VARCHAR2 ) RETURN VARCHAR2
@@ -2879,5 +2882,4 @@ BEGIN
 	Load_Config;
 END changelog_conf;
 /
-show errors
 

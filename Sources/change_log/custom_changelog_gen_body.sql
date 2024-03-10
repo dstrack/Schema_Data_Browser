@@ -1,7 +1,7 @@
 /*
 
 DROP PACKAGE custom_changelog_gen;
-DROP MATERIAIZED VIEW MVCHANGELOG_REFERENCES; -- old mview
+DROP MATERIALIZED VIEW MVCHANGELOG_REFERENCES; -- old mview
 DROP VIEW VCHANGE_LOG_FIELDS;
 */
 --
@@ -596,34 +596,36 @@ CREATE OR REPLACE PACKAGE BODY custom_changelog_gen IS
 		end if;
     END Drop_ChangeLog_Table_Trigger;
 
-	PROCEDURE Recomp_Invalid_Objects
-	is
-	begin 
-		DBMS_OUTPUT.PUT_LINE('-- compile all invalid objects --');
+	PROCEDURE Recomp_Invalid_Objects (p_Object_Type VARCHAR2 DEFAULT NULL)
+	is 
+		v_Count NUMBER;
+	begin -- simple replacement for : SYS.UTL_RECOMP.RECOMP_SERIAL(:OWNER);
+		DBMS_OUTPUT.PUT_LINE('-- compile all invalid ' || NVL(p_Object_Type, 'objects') || ' --');
+		v_Count := 0;
 		for cur in (
 			SELECT 
 				case when object_type = 'PACKAGE BODY' then 
 					'ALTER PACKAGE' || ' ' || object_name || ' COMPILE BODY'
 				else 
 					'ALTER ' || object_type || ' ' || object_name||' COMPILE'
-				end stat
-			FROM SYS.USER_OBJECTS T1
+				end stat,
+				object_type, object_name
+			FROM USER_OBJECTS T1
 			WHERE status = 'INVALID'
-			AND object_type in ('FUNCTION', 'PACKAGE', 'PACKAGE BODY', 'PROCEDURE', 'VIEW', 'TRIGGER', 'MATERIALIZED VIEW' )
+			AND object_type in ('FUNCTION', 'PACKAGE', 'PACKAGE BODY', 'PROCEDURE', 'VIEW', 'TRIGGER', 'MATERIALIZED VIEW', 'DIMENSION' )
+			AND (object_type = p_Object_Type OR p_Object_Type IS NULL)
 			AND object_name != 'CUSTOM_CHANGELOG_GEN' -- avoid deadlock
 		) loop
-			DBMS_OUTPUT.PUT_LINE(cur.stat || ';');
 			begin
 			EXECUTE IMMEDIATE cur.stat;
 			EXCEPTION
 			WHEN OTHERS THEN
 			-- warning ora-24344 success with compilation error
-				DBMS_OUTPUT.PUT_LINE('-- SQL Error :' || SQLCODE || ' ' || SQLERRM);
-				if SQLCODE != -24344 then
-					RAISE;
-				end if;
+				DBMS_OUTPUT.PUT_LINE('-- Compile SQL Warning with ' || cur.object_type || ' ' || cur.object_name || ' :' || SQLCODE || ' ' || SQLERRM);
 			END;
+			v_Count := v_Count + 1;
 		end loop;
+		DBMS_OUTPUT.PUT_LINE('-- recompiled ' || v_Count || ' objects --');
 	end Recomp_Invalid_Objects;
 
 
@@ -1192,13 +1194,13 @@ CREATE OR REPLACE PACKAGE BODY custom_changelog_gen IS
 				B.INCLUDE_CHANGELOG, B.HAS_SCALAR_KEY,
 				CASE WHEN B.INCLUDE_CHANGELOG = 'YES' AND B.HAS_SCALAR_KEY = 'YES'
 					AND BUT.TRIGGER_NAME IS NOT NULL THEN
-						'DROP TRIGGER ' || changelog_conf.Get_BuTrigger_Name(B.SHORT_NAME)
+						'DROP TRIGGER ' || BUT.TRIGGER_NAME
 				END
 				AS DROP_BU_TRIGGER,
 				BUT.TRIGGER_NAME BU_TRIGGER_NAME,
 				CASE WHEN B.INCLUDE_CHANGELOG = 'YES' AND B.HAS_SCALAR_KEY = 'YES'
 					AND BIT.TRIGGER_NAME IS NOT NULL THEN
-						'DROP TRIGGER ' || changelog_conf.Get_BiTrigger_Name(B.SHORT_NAME)
+						'DROP TRIGGER ' || BIT.TRIGGER_NAME
 				END
 				AS DROP_BI_TRIGGER,
 				BIT.TRIGGER_NAME BI_TRIGGER_NAME,
@@ -1221,14 +1223,14 @@ CREATE OR REPLACE PACKAGE BODY custom_changelog_gen IS
 				WHERE T.BASE_OBJECT_TYPE = 'TABLE'
 				AND T.TRIGGER_TYPE = 'BEFORE EACH ROW'
 				AND INSTR(T.TRIGGERING_EVENT, 'UPDATE') > 0
-			) BUT ON BUT.TABLE_NAME = B.TABLE_NAME AND BUT.TRIGGER_NAME = changelog_conf.Get_BuTrigger_Name(B.SHORT_NAME)
+			) BUT ON BUT.TABLE_NAME = B.TABLE_NAME AND BUT.TRIGGER_NAME LIKE changelog_conf.Get_BuTrigger_Name(B.SHORT_NAME, '%')
 			LEFT OUTER JOIN (
 				SELECT T.TRIGGER_NAME, T.TABLE_NAME
 				FROM SYS.USER_TRIGGERS T
 				WHERE T.BASE_OBJECT_TYPE = 'TABLE'
 				AND T.TRIGGER_TYPE = 'BEFORE EACH ROW'
 				AND INSTR(T.TRIGGERING_EVENT, 'INSERT') > 0
-			) BIT ON BIT.TABLE_NAME = B.TABLE_NAME AND BIT.TRIGGER_NAME = changelog_conf.Get_BiTrigger_Name(B.SHORT_NAME)
+			) BIT ON BIT.TABLE_NAME = B.TABLE_NAME AND BIT.TRIGGER_NAME LIKE changelog_conf.Get_BiTrigger_Name(B.SHORT_NAME, '%')
 			WHERE (B.TABLE_NAME = p_Table_Name OR p_Table_Name IS NULL)
 			AND B.HAS_SCALAR_KEY = 'YES'
 			ORDER BY TABLE_NAME;
@@ -1277,6 +1279,7 @@ CREATE OR REPLACE PACKAGE BODY custom_changelog_gen IS
 				|| ', Include_Changelog : ' || v_stat_tbl(ind).INCLUDE_CHANGELOG
 				|| ', BI_Trigger_Name : ' || v_stat_tbl(ind).BI_TRIGGER_NAME
 				|| ', BU_Trigger_Name : ' || v_stat_tbl(ind).BU_TRIGGER_NAME
+				|| ', RUN_NO : ' || v_stat_tbl(ind).RUN_NO
 				|| ') --');
                 -- Set_Process_Infos(v_rindex, v_slno, v_Proc_Name, p_context, v_Steps, ind, 'trigger');
 				changelog_conf.Get_Sequence_Name(v_stat_tbl(ind).SHORT_NAME, v_Sequence_Name, v_Sequence_Exists);
@@ -1328,7 +1331,7 @@ CREATE OR REPLACE PACKAGE BODY custom_changelog_gen IS
 						if v_stat_tbl(ind).BI_TRIGGER_NAME IS NULL then -- don´t overwrite existing trigger --
 							v_Stat := v_BI_Trigger_Body;
 							if v_Stat IS NOT NULL then
-								v_Stat := 'CREATE OR REPLACE TRIGGER ' || changelog_conf.Get_BiTrigger_Name(v_stat_tbl(ind).SHORT_NAME) || chr(10)
+								v_Stat := 'CREATE OR REPLACE TRIGGER ' || changelog_conf.Get_BiTrigger_Name(v_stat_tbl(ind).SHORT_NAME, v_stat_tbl(ind).RUN_NO) || chr(10)
 									|| 'BEFORE INSERT ON ' || v_stat_tbl(ind).TABLE_NAME || ' FOR EACH ROW '  || chr(10)
 									|| 'BEGIN '  || chr(10)
 									|| v_Stat
@@ -1341,7 +1344,7 @@ CREATE OR REPLACE PACKAGE BODY custom_changelog_gen IS
 								v_stat_tbl(ind).MODFIY_TIMESTAMP_COLUMN_NAME, 
 								v_stat_tbl(ind).MODFIY_USER_COLUMN_NAME);
 							IF v_Stat IS NOT NULL THEN
-								v_Stat := 'CREATE OR REPLACE TRIGGER ' || changelog_conf.Get_BuTrigger_Name(v_stat_tbl(ind).SHORT_NAME) || chr(10)
+								v_Stat := 'CREATE OR REPLACE TRIGGER ' || changelog_conf.Get_BuTrigger_Name(v_stat_tbl(ind).SHORT_NAME, v_stat_tbl(ind).RUN_NO) || chr(10)
 									|| 'BEFORE UPDATE ON ' || v_stat_tbl(ind).TABLE_NAME || ' FOR EACH ROW' || chr(10)
 									|| 'BEGIN' || chr(10)
 									|| v_Stat
@@ -1605,6 +1608,9 @@ CREATE OR REPLACE PACKAGE BODY custom_changelog_gen IS
         	v_SelectList := v_SelectList || case when v_SelectList IS NOT NULL then ', ' end || stat_cur.COL_FUNC;
         END LOOP;
 		v_SelectList := v_SelectList || ',' || NL(16)
+				|| 'LAST_VALUE( DML$_LOGGING_ID IGNORE NULLS) OVER (PARTITION BY ' || p_Primary_Key_Col
+				|| v_Changelog_Key_Alias || ', DML$_GID ORDER BY DML$_LOGGING_DATE ) DML$_LOGGING_ID'
+				|| ',' || NL(16)
 				|| 'LAST_VALUE( DML$_LOGGING_DATE IGNORE NULLS) OVER (PARTITION BY ' || p_Primary_Key_Col
 				|| v_Changelog_Key_Alias || ', DML$_GID ORDER BY DML$_LOGGING_DATE ) DML$_LOGGING_DATE'
 				|| ',' || NL(16)
@@ -1664,7 +1670,7 @@ CREATE OR REPLACE PACKAGE BODY custom_changelog_gen IS
 			p_Format => case when p_Convert_Data_Types = 'YES' then 'CONVERT' else 'RAW' end
 		)
 		|| ', ' || NL(12)
-		|| 'A.DML$_LOGGING_DATE, A.DML$_USER_NAME, A.DML$_ACTION, A.DML$_IS_HIDDEN' || NL(8)
+		|| 'A.DML$_LOGGING_ID, A.DML$_LOGGING_DATE, A.DML$_USER_NAME, A.DML$_ACTION, A.DML$_IS_HIDDEN' || NL(8)
 		|| 'FROM (' || NL(12)
 		|| ' SELECT DISTINCT ' || p_Primary_Key_Col || ',' || NL(12)
 		|| ' /* Aggregate Updates */'
@@ -1695,6 +1701,7 @@ CREATE OR REPLACE PACKAGE BODY custom_changelog_gen IS
 				'USER_NAME' else 'CASE WHEN ACTION_CODE = ''U'' THEN USER_NAME END' end
 			|| ' AS ' || p_Column_Modfiy_User || ', ' || NL(20)
 			end
+		|| 'ID AS DML$_LOGGING_ID, ' || NL(20)
 		|| 'LOGGING_DATE AS DML$_LOGGING_DATE, ' || NL(20)
 		|| 'USER_NAME AS DML$_USER_NAME, ' || NL(20)
 		|| 'VIEW_NAME AS DML$_TABLE_NAME,  ' || NL(20)
@@ -1857,7 +1864,7 @@ CREATE OR REPLACE PACKAGE BODY custom_changelog_gen IS
 					p_Has_Delete_Mark => v_stat_tbl(ind).HAS_DELETE_MARK,
 					p_Format =>'HEADER'
 				)
-				|| INITCAP(REPLACE(':DML$_LOGGING_DATE:DML$_USER_NAME:DML$_ACTION:DML$_IS_HIDDEN', '_', ' '))
+				|| INITCAP(REPLACE(':DML$_LOGGING_ID:DML$_LOGGING_DATE:DML$_USER_NAME:DML$_ACTION:DML$_IS_HIDDEN', '_', ' '))
 				;
                	return (v_header);
             END LOOP;
